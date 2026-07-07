@@ -10,6 +10,7 @@ struct BackupPayload: Codable {
     var taskTemplates: [TaskTemplateDTO]
     var taskTemplateItems: [TaskTemplateItemDTO]
     var dailyReviews: [DailyReviewDTO]?
+    var diaryBlocks: [DiaryBlockDTO]?
 }
 
 struct TaskDTO: Codable {
@@ -67,7 +68,23 @@ struct TaskTemplateItemDTO: Codable {
 struct DailyReviewDTO: Codable {
     var id: UUID
     var dayKey: String
+    var title: String?
+    var weather: String?
+    var mood: String?
     var content: String
+    var imageFileNames: [String]?
+    var createdAt: Date
+    var updatedAt: Date
+}
+
+struct DiaryBlockDTO: Codable {
+    var id: UUID
+    var reviewId: UUID
+    var dayKey: String
+    var type: String
+    var text: String
+    var imageFileName: String?
+    var order: Double
     var createdAt: Date
     var updatedAt: Date
 }
@@ -98,7 +115,8 @@ enum BackupService {
             calendarEvents: try context.fetch(FetchDescriptor<CalendarEvent>()).map(CalendarEventDTO.init),
             taskTemplates: try context.fetch(FetchDescriptor<TaskTemplate>()).map(TaskTemplateDTO.init),
             taskTemplateItems: try context.fetch(FetchDescriptor<TaskTemplateItem>()).map(TaskTemplateItemDTO.init),
-            dailyReviews: try context.fetch(FetchDescriptor<DailyReview>()).map(DailyReviewDTO.init)
+            dailyReviews: try context.fetch(FetchDescriptor<DailyReview>()).map(DailyReviewDTO.init),
+            diaryBlocks: try context.fetch(FetchDescriptor<DiaryBlock>()).map(DiaryBlockDTO.init)
         )
 
         let encoder = JSONEncoder()
@@ -144,6 +162,9 @@ enum BackupService {
         for review in try context.fetch(FetchDescriptor<DailyReview>()) {
             context.delete(review)
         }
+        for block in try context.fetch(FetchDescriptor<DiaryBlock>()) {
+            context.delete(block)
+        }
 
         for dto in payload.calendarEvents {
             context.insert(CalendarEvent(dto: dto))
@@ -159,6 +180,9 @@ enum BackupService {
         }
         for dto in payload.dailyReviews ?? [] {
             context.insert(DailyReview(dto: dto))
+        }
+        for dto in payload.diaryBlocks ?? [] {
+            context.insert(DiaryBlock(dto: dto))
         }
 
         return .completed
@@ -229,9 +253,27 @@ private extension DailyReviewDTO {
     init(review: DailyReview) {
         id = review.id
         dayKey = review.dayKey
+        title = review.title
+        weather = review.weather
+        mood = review.mood
         content = review.content
+        imageFileNames = review.imageFileNames
         createdAt = review.createdAt
         updatedAt = review.updatedAt
+    }
+}
+
+private extension DiaryBlockDTO {
+    init(block: DiaryBlock) {
+        id = block.id
+        reviewId = block.reviewId
+        dayKey = block.dayKey
+        type = block.type
+        text = block.text
+        imageFileName = block.imageFileName
+        order = block.order
+        createdAt = block.createdAt
+        updatedAt = block.updatedAt
     }
 }
 
@@ -310,7 +352,27 @@ private extension DailyReview {
         self.init(
             id: dto.id,
             dayKey: dto.dayKey,
+            title: dto.title ?? "",
+            weather: dto.weather ?? "",
+            mood: dto.mood ?? "",
             content: dto.content,
+            imageFileNames: dto.imageFileNames ?? [],
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+private extension DiaryBlock {
+    convenience init(dto: DiaryBlockDTO) {
+        self.init(
+            id: dto.id,
+            reviewId: dto.reviewId,
+            dayKey: dto.dayKey,
+            type: DiaryBlockType(rawValue: dto.type) ?? .text,
+            text: dto.text,
+            imageFileName: dto.imageFileName,
+            order: dto.order,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

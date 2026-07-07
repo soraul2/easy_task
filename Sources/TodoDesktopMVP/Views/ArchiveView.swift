@@ -162,10 +162,10 @@ struct ArchiveView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("보관함")
+                Text("기록")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(AppTheme.primaryText)
-                Text("날짜별 하루 회고와 그날 한 일을 검색합니다.")
+                Text("날짜별 회고와 그날 한 일을 함께 봅니다.")
                     .font(.callout)
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -198,13 +198,13 @@ struct ArchiveView: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: hasActiveSearch ? "magnifyingglass" : "archivebox")
+            Image(systemName: hasActiveSearch ? "magnifyingglass" : "book.pages")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
             Text(hasActiveSearch ? "검색 결과 없음" : "보관된 기록 없음")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
-            Text(hasActiveSearch ? "기간, 키워드, 검색 대상을 조정해보세요." : "완료한 작업이나 하루 회고를 작성하면 이곳에 표시됩니다.")
+            Text(hasActiveSearch ? "기간, 키워드, 검색 대상을 조정해보세요." : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
                 .font(.callout)
                 .foregroundStyle(AppTheme.secondaryText)
                 .multilineTextAlignment(.center)
@@ -263,6 +263,7 @@ struct ArchiveView: View {
         guard !normalizedSearchText.isEmpty else { return true }
 
         return containsSearch(review.content) ||
+            containsSearch(review.title) ||
             containsSearch(review.dayKey)
     }
 
@@ -415,7 +416,7 @@ private struct ArchiveSearchField: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
 
-            TextField("작업 제목, 메모, 하루 회고 검색", text: $text)
+            TextField("작업 제목, 메모, 회고 검색", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .foregroundStyle(AppTheme.primaryText)
@@ -494,9 +495,15 @@ private struct ArchiveDayGroupView: View {
 
             if let review = group.review {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("하루 회고", systemImage: "text.alignleft")
+                    Label("하루 회고", systemImage: "book.closed")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(AppTheme.event)
+
+                    if !review.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(review.title)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppTheme.primaryText)
+                    }
 
                     Text(review.content)
                         .font(.system(size: 14))

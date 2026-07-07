@@ -12,7 +12,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .board: "칸반보드"
         case .calendar: "캘린더"
-        case .archive: "보관함"
+        case .archive: "기록"
         }
     }
 
@@ -20,7 +20,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         switch self {
         case .board: "rectangle.3.group"
         case .calendar: "calendar"
-        case .archive: "archivebox"
+        case .archive: "book.pages"
         }
     }
 }
@@ -43,7 +43,7 @@ struct AppRootView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 92)
+                    Color.clear.frame(height: bottomContentInset)
                 }
                 .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
 
@@ -82,6 +82,10 @@ struct AppRootView: View {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
             themeRevision += 1
         }
+    }
+
+    private var bottomContentInset: CGFloat {
+        selectedTab == .calendar ? 0 : 92
     }
 
     @ViewBuilder

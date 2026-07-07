@@ -5,12 +5,14 @@ private enum BoardSheet: Identifiable {
     case carryover
     case templates
     case taskDetail(UUID)
+    case dailyReview
 
     var id: String {
         switch self {
         case .carryover: "carryover"
         case .templates: "templates"
         case .taskDetail(let id): "taskDetail-\(id.uuidString)"
+        case .dailyReview: "dailyReview"
         }
     }
 }
@@ -21,7 +23,6 @@ struct BoardView: View {
     @Query private var events: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
-    @Query private var reviews: [DailyReview]
 
     @Binding var selectedDate: Date
     @State private var quickTitle = ""
@@ -89,10 +90,6 @@ struct BoardView: View {
             .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
     }
 
-    private var selectedReview: DailyReview? {
-        reviews.first { $0.dayKey == selectedDayKey }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -105,7 +102,6 @@ struct BoardView: View {
                     eventStrip
                     quickCreate
                     kanbanBoard
-                    dailyReviewSection
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
@@ -165,6 +161,8 @@ struct BoardView: View {
                     .frame(width: 380)
                     .background(AppTheme.panel)
                 }
+            case .dailyReview:
+                DailyReviewSheet(selectedDate: selectedDate)
             }
         }
         .onAppear {
@@ -204,6 +202,18 @@ struct BoardView: View {
             .buttonStyle(.borderless)
 
             Spacer()
+
+            Button {
+                presentedSheet = .dailyReview
+            } label: {
+                Label("회고 작성", systemImage: "book.closed")
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .calendarToolbarButtonBackground()
+            }
+            .buttonStyle(.plain)
+            .help("현재 날짜의 회고 작성")
 
             Button {
                 presentedSheet = .carryover
@@ -353,15 +363,6 @@ struct BoardView: View {
         }
     }
 
-    private var dailyReviewSection: some View {
-        DailyReviewSection(
-            dayKey: selectedDayKey,
-            review: selectedReview,
-            onCreate: createReview,
-            onDelete: deleteReview
-        )
-    }
-
     private func addQuickTask() {
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
@@ -417,131 +418,6 @@ struct BoardView: View {
 
     private func editTask(_ task: Task) {
         presentedSheet = .taskDetail(task.id)
-    }
-
-    private func createReview(content: String) {
-        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        let review = DailyReview(
-            dayKey: selectedDayKey,
-            content: trimmed
-        )
-        modelContext.insert(review)
-    }
-
-    private func deleteReview(_ review: DailyReview) {
-        modelContext.delete(review)
-    }
-}
-
-struct DailyReviewSection: View {
-    var dayKey: String
-    var review: DailyReview?
-    var onCreate: (String) -> Void
-    var onDelete: (DailyReview) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("하루 회고")
-                        .font(.headline)
-                        .foregroundStyle(AppTheme.primaryText)
-                    Text("\(dayKey)의 기록은 보관함에서 검색됩니다.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
-
-                Spacer()
-
-                if let review {
-                    Button(role: .destructive) {
-                        onDelete(review)
-                    } label: {
-                        Image(systemName: "trash")
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .help("회고 삭제")
-                }
-            }
-
-            if let review {
-                DailyReviewEditor(review: review)
-            } else {
-                DailyReviewCreator(onCreate: onCreate)
-            }
-        }
-        .padding(16)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-    }
-}
-
-struct DailyReviewCreator: View {
-    var onCreate: (String) -> Void
-    @State private var draft = ""
-
-    private var canSave: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextEditor(text: $draft)
-                .font(.system(size: 14))
-                .foregroundStyle(AppTheme.primaryText)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 86)
-                .padding(8)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
-
-            HStack {
-                Spacer()
-                Button {
-                    onCreate(draft)
-                    draft = ""
-                } label: {
-                    Label("회고 저장", systemImage: "square.and.pencil")
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .calendarToolbarButtonBackground(isPrimary: true)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSave)
-            }
-        }
-    }
-}
-
-struct DailyReviewEditor: View {
-    @Bindable var review: DailyReview
-
-    var body: some View {
-        TextEditor(text: $review.content)
-            .font(.system(size: 14))
-            .foregroundStyle(AppTheme.primaryText)
-            .scrollContentBackground(.hidden)
-            .frame(minHeight: 96)
-            .padding(8)
-            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(AppTheme.border, lineWidth: 1)
-            }
-            .onChange(of: review.content) {
-                review.updatedAt = Date()
-            }
     }
 }
 

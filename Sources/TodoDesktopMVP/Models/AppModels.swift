@@ -33,6 +33,13 @@ enum TaskPriority: String, CaseIterable, Identifiable {
     }
 }
 
+enum DiaryBlockType: String, CaseIterable, Identifiable {
+    case text
+    case image
+
+    var id: String { rawValue }
+}
+
 @Model
 final class CalendarEvent {
     var id: UUID = UUID()
@@ -183,7 +190,11 @@ final class Task {
 final class DailyReview {
     var id: UUID = UUID()
     var dayKey: String = ""
+    var title: String = ""
+    var weather: String = ""
+    var mood: String = ""
     var content: String = ""
+    var imageFileNames: [String] = []
 
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
@@ -191,13 +202,57 @@ final class DailyReview {
     init(
         id: UUID = UUID(),
         dayKey: String,
+        title: String = "",
+        weather: String = "",
+        mood: String = "",
         content: String,
+        imageFileNames: [String] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.dayKey = dayKey
+        self.title = title
+        self.weather = weather
+        self.mood = mood
         self.content = content
+        self.imageFileNames = imageFileNames
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+@Model
+final class DiaryBlock {
+    var id: UUID = UUID()
+    var reviewId: UUID = UUID()
+    var dayKey: String = ""
+    var type: String = DiaryBlockType.text.rawValue
+    var text: String = ""
+    var imageFileName: String?
+    var order: Double = 0
+
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+
+    init(
+        id: UUID = UUID(),
+        reviewId: UUID,
+        dayKey: String,
+        type: DiaryBlockType,
+        text: String = "",
+        imageFileName: String? = nil,
+        order: Double,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.reviewId = reviewId
+        self.dayKey = dayKey
+        self.type = type.rawValue
+        self.text = text
+        self.imageFileName = imageFileName
+        self.order = order
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

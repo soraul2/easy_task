@@ -85,6 +85,8 @@ enum SeedService {
         let twoDaysAgo = DayKey.addingDays(-2, to: today)
         let yesterday = DayKey.addingDays(-1, to: today)
 
+        migrateLegacySampleReviews(reviews)
+
         if !tasks.contains(where: { $0.title.hasPrefix(samplePrefix) }) {
             insertArchivedSampleTask(
                 title: "샘플: 고객 미팅 준비 자료 정리",
@@ -124,22 +126,61 @@ enum SeedService {
 
         ensureSampleReview(
             day: threeDaysAgo,
-            content: "샘플 회고: 고객 미팅 자료와 결제 오류 로그를 정리했다. 나중에 고객사 또는 payment 키워드로 찾을 수 있어야 한다.",
+            title: "샘플: 고객 미팅 정리",
+            weather: "맑음",
+            mood: "차분함",
+            content: "고객 미팅 자료와 결제 오류 로그를 정리했다. 나중에 고객사 또는 payment 키워드로 찾을 수 있어야 한다.",
             existingReviews: reviews,
             context: context
         )
         ensureSampleReview(
             day: twoDaysAgo,
-            content: "샘플 회고: 캘린더 띠 이벤트 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다.",
+            title: "샘플: 캘린더 UI 점검",
+            weather: "흐림",
+            mood: "집중",
+            content: "캘린더 띠 이벤트 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다.",
             existingReviews: reviews,
             context: context
         )
         ensureSampleReview(
             day: yesterday,
-            content: "샘플 회고: 운동 기록을 정리하고 다음 루틴 템플릿에 반영할 항목을 확인했다.",
+            title: "샘플: 운동 기록 정리",
+            weather: "비",
+            mood: "개운함",
+            content: "운동 기록을 정리하고 다음 루틴 템플릿에 반영할 항목을 확인했다.",
             existingReviews: reviews,
             context: context
         )
+    }
+
+    private static func migrateLegacySampleReviews(_ reviews: [DailyReview]) {
+        for review in reviews where review.content.hasPrefix("샘플 회고:") {
+            let migratedContent = review.content
+                .replacingOccurrences(of: "샘플 회고: ", with: "")
+                .replacingOccurrences(of: "샘플 회고:", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if review.title.isEmpty {
+                if migratedContent.contains("고객 미팅") {
+                    review.title = "샘플: 고객 미팅 정리"
+                    review.weather = review.weather.isEmpty ? "맑음" : review.weather
+                    review.mood = review.mood.isEmpty ? "차분함" : review.mood
+                } else if migratedContent.contains("캘린더") {
+                    review.title = "샘플: 캘린더 UI 점검"
+                    review.weather = review.weather.isEmpty ? "흐림" : review.weather
+                    review.mood = review.mood.isEmpty ? "집중" : review.mood
+                } else if migratedContent.contains("운동") {
+                    review.title = "샘플: 운동 기록 정리"
+                    review.weather = review.weather.isEmpty ? "비" : review.weather
+                    review.mood = review.mood.isEmpty ? "개운함" : review.mood
+                } else {
+                    review.title = "샘플: 일기"
+                }
+            }
+
+            review.content = migratedContent
+            review.updatedAt = Date()
+        }
     }
 
     private static func insertArchivedSampleTask(
@@ -187,15 +228,24 @@ enum SeedService {
 
     private static func ensureSampleReview(
         day: Date,
+        title: String,
+        weather: String,
+        mood: String,
         content: String,
         existingReviews: [DailyReview],
         context: ModelContext
     ) {
         let dayKey = DayKey.key(for: day)
-        guard !existingReviews.contains(where: { $0.dayKey == dayKey && $0.content.hasPrefix("샘플 회고:") }) else { return }
+        guard !existingReviews.contains(where: {
+            $0.dayKey == dayKey &&
+                ($0.title.hasPrefix("샘플:") || $0.content.hasPrefix("샘플 회고:") || $0.content.hasPrefix("샘플 일기:"))
+        }) else { return }
 
         context.insert(DailyReview(
             dayKey: dayKey,
+            title: title,
+            weather: weather,
+            mood: mood,
             content: content,
             createdAt: day,
             updatedAt: day

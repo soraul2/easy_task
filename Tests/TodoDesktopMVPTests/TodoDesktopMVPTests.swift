@@ -45,6 +45,7 @@ func calendarTemplatePlacementSkipsDuplicateTitles() throws {
         TaskTemplate.self,
         TaskTemplateItem.self,
         DailyReview.self,
+        DiaryBlock.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let context = container.mainContext

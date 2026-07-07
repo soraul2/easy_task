@@ -13,7 +13,8 @@ struct TodoDesktopMVPApp: App {
             CalendarEvent.self,
             TaskTemplate.self,
             TaskTemplateItem.self,
-            DailyReview.self
+            DailyReview.self,
+            DiaryBlock.self
         ])
     }
 }
