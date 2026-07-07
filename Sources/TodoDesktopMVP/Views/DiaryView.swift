@@ -12,6 +12,7 @@ struct DiaryView: View {
     @Query private var diaryBlocks: [DiaryBlock]
 
     @State private var selectedDate: Date
+    @State private var reviewTitle = ""
     @State private var content = ""
     @State private var selectedImageIndex = 0
     @State private var message: String?
@@ -37,8 +38,16 @@ struct DiaryView: View {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var trimmedReviewTitle: String {
+        reviewTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasTitle: Bool {
+        !trimmedReviewTitle.isEmpty
+    }
+
     private var canSave: Bool {
-        hasCaption || !imageFileNames.isEmpty
+        hasTitle || hasCaption || !imageFileNames.isEmpty
     }
 
     private var contentMaxWidth: CGFloat {
@@ -73,6 +82,13 @@ struct DiaryView: View {
         "\(Calendar.current.component(.day, from: selectedDate))"
     }
 
+    private var reviewTitleFieldWidth: CGFloat {
+        let displayTitle = reviewTitle.isEmpty ? "하루 회고" : reviewTitle
+        let font = NSFont.systemFont(ofSize: 14, weight: .bold)
+        let measuredWidth = (displayTitle as NSString).size(withAttributes: [.font: font]).width
+        return min(max(ceil(measuredWidth) + 8, 58), 220)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if showsHeader {
@@ -102,7 +118,7 @@ struct DiaryView: View {
                 }
             } else {
                 postComposer
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.horizontal, 26)
                     .padding(.top, 18)
                     .padding(.bottom, 14)
@@ -178,9 +194,12 @@ struct DiaryView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 5) {
-                            Text("하루 회고")
+                            TextField("하루 회고", text: $reviewTitle)
+                                .textFieldStyle(.plain)
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(AppTheme.primaryText)
+                                .frame(width: reviewTitleFieldWidth, alignment: .leading)
+                                .help("회고 제목")
 
                             Text("›")
                                 .font(.system(size: 13, weight: .semibold))
@@ -229,15 +248,24 @@ struct DiaryView: View {
             .padding(.top, showsHeader ? 14 : 0)
             .padding(.bottom, showsHeader ? 12 : 10)
 
-            Spacer(minLength: 0)
+            if showsHeader || !imageFileNames.isEmpty {
+                Spacer(minLength: 0)
+            }
 
             Divider()
                 .overlay(AppTheme.border)
 
             HStack(spacing: 12) {
-                Label("회고 옵션", systemImage: "slider.horizontal.3")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
+                if let message {
+                    Label(message, systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppTheme.done)
+                        .transition(.opacity)
+                } else if showsHeader {
+                    Label("회고 옵션", systemImage: "slider.horizontal.3")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
 
                 Spacer()
 
@@ -257,6 +285,7 @@ struct DiaryView: View {
             }
             .padding(.horizontal, showsHeader ? 16 : 0)
             .padding(.top, 14)
+            .animation(.snappy(duration: 0.18), value: message)
         }
     }
 
@@ -267,7 +296,7 @@ struct DiaryView: View {
             Rectangle()
                 .fill(AppTheme.border)
                 .frame(width: 2)
-                .frame(maxHeight: .infinity)
+                .frame(height: showsHeader ? 120 : (imageFileNames.isEmpty ? 74 : 430))
 
             if !showsHeader {
                 reviewTimelineIcon(size: 18, fontSize: 10)
@@ -435,6 +464,7 @@ struct DiaryView: View {
         }
 
         let review = selectedReview
+        reviewTitle = review?.title ?? ""
         content = review?.content ?? ""
         selectedImageIndex = 0
         message = nil
@@ -442,6 +472,7 @@ struct DiaryView: View {
 
     @discardableResult
     private func save(forceCreate: Bool = false) -> DailyReview? {
+        let trimmedTitle = trimmedReviewTitle
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let review: DailyReview
@@ -451,7 +482,7 @@ struct DiaryView: View {
             guard forceCreate || canSave else { return nil }
             review = DailyReview(
                 dayKey: selectedDayKey,
-                title: "",
+                title: trimmedTitle,
                 weather: "",
                 mood: "",
                 content: trimmedContent
@@ -459,13 +490,13 @@ struct DiaryView: View {
             modelContext.insert(review)
         }
 
-        review.title = ""
+        review.title = trimmedTitle
         review.weather = ""
         review.mood = ""
         review.content = trimmedContent
         review.updatedAt = Date()
         syncBlocksToPost(review)
-        message = "저장됨"
+        message = "회고가 저장됐어요"
         return review
     }
 
@@ -580,7 +611,7 @@ struct DailyReviewSheet: View {
     }
 
     private var sheetHeight: CGFloat {
-        hasReviewImages ? 636 : 336
+        hasReviewImages ? 636 : 310
     }
 
     var body: some View {

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -71,7 +72,11 @@ struct ArchiveView: View {
     }
 
     private var nonEmptyReviews: [DailyReview] {
-        reviews.filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        reviews.filter {
+            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                !$0.imageFileNames.isEmpty
+        }
     }
 
     private var normalizedSearchText: String {
@@ -121,6 +126,8 @@ struct ArchiveView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 28)
                 .padding(.top, 24)
                 .padding(.bottom, 12)
@@ -133,6 +140,8 @@ struct ArchiveView: View {
                 endDate: $customEndDate,
                 onReset: resetSearch
             )
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 14)
 
@@ -153,6 +162,8 @@ struct ArchiveView: View {
                         }
                     }
                 }
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
             }
@@ -465,106 +476,157 @@ private struct ArchiveDayGroupView: View {
     @State private var isTaskListExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(group.dayKey)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(AppTheme.primaryText)
+        HStack(alignment: .top, spacing: 12) {
+            timelineIcon
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 12) {
+                header
 
-                Text(summaryText)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
-
-                Button {
-                    openBoard()
-                } label: {
-                    Label("보드 보기", systemImage: "rectangle.3.group")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .frame(height: 30)
-                        .calendarToolbarButtonBackground()
+                if let review = group.review {
+                    reviewContent(review)
                 }
-                .buttonStyle(.plain)
-                .help("\(group.dayKey) 칸반보드로 이동")
-            }
 
-            if let review = group.review {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("하루 회고", systemImage: "book.closed")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.event)
-
-                    if !review.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(review.title)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(AppTheme.primaryText)
-                    }
-
-                    Text(review.content)
-                        .font(.system(size: 14))
-                        .foregroundStyle(AppTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppTheme.columnTodo, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
-            }
-
-            if !group.tasks.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Button {
-                        withAnimation(.snappy(duration: 0.18)) {
-                            isTaskListExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Label("그날 한 일", systemImage: "checkmark.circle")
-                            Text("\(group.tasks.count)")
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 2)
-                                .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
-                            Spacer()
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 11, weight: .bold))
-                                .rotationEffect(.degrees(isTaskListExpanded ? 0 : -90))
-                        }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .padding(.horizontal, 10)
-                        .frame(height: 34)
-                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(AppTheme.border, lineWidth: 1)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .help(isTaskListExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
-
-                    if isTaskListExpanded {
-                        ForEach(group.tasks) { task in
-                            ArchiveTaskRow(task: task)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                    }
+                if !group.tasks.isEmpty {
+                    taskPreview
                 }
             }
         }
-        .padding(16)
+        .padding(18)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(recordTitle)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Text("›")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            Text(displayDate)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+
+            Spacer()
+
+            Text(summaryText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
+
+            Button {
+                openBoard()
+            } label: {
+                Image(systemName: "rectangle.3.group")
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 30, height: 28)
+                    .calendarToolbarButtonBackground()
+            }
+            .buttonStyle(.plain)
+            .help("\(group.dayKey) 칸반보드로 이동")
+        }
+    }
+
+    private func reviewContent(_ review: DailyReview) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !review.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(review.content)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+
+            if !review.imageFileNames.isEmpty {
+                ArchiveReviewImagePreview(fileNames: review.imageFileNames)
+            }
+        }
+    }
+
+    private var taskPreview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.snappy(duration: 0.18)) {
+                    isTaskListExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Label("그날 한 일", systemImage: "checkmark.circle")
+                    Text("\(group.tasks.count)")
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .rotationEffect(.degrees(isTaskListExpanded ? 0 : -90))
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .help(isTaskListExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
+
+            if isTaskListExpanded {
+                ForEach(group.tasks) { task in
+                    ArchiveTaskRow(task: task)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            } else {
+                ForEach(group.tasks.prefix(3)) { task in
+                    ArchiveTaskCompactRow(task: task)
+                }
+                if group.tasks.count > 3 {
+                    Text("외 \(group.tasks.count - 3)개")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.top, 2)
+                }
+            }
+        }
+    }
+
+    private var timelineIcon: some View {
+        VStack(spacing: 8) {
+            Image(systemName: group.review == nil ? "checkmark.circle" : "book.closed")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(group.review == nil ? AppTheme.done : AppTheme.event)
+                .frame(width: 36, height: 36)
+
+            Rectangle()
+                .fill(AppTheme.border)
+                .frame(width: 2)
+                .frame(maxHeight: .infinity)
+        }
+        .frame(width: 40)
+    }
+
+    private var displayDate: String {
+        guard let date = DayKey.date(from: group.dayKey) else { return group.dayKey }
+        return DayKey.display(date)
+    }
+
+    private var recordTitle: String {
+        let title = group.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !title.isEmpty {
+            return title
+        }
+        return group.review == nil ? "작업 기록" : "하루 회고"
     }
 
     private var summaryText: String {
@@ -581,6 +643,64 @@ private struct ArchiveDayGroupView: View {
     private func openBoard() {
         guard let date = DayKey.date(from: group.dayKey) else { return }
         onOpenBoardDate(date)
+    }
+}
+
+private struct ArchiveReviewImagePreview: View {
+    var fileNames: [String]
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let fileName = fileNames.first,
+               let image = NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName)) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 250)
+                    .clipped()
+            } else {
+                Rectangle()
+                    .fill(AppTheme.input)
+                    .frame(height: 160)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+            }
+
+            if fileNames.count > 1 {
+                Text("1/\(fileNames.count)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.52), in: Capsule())
+                    .padding(10)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct ArchiveTaskCompactRow: View {
+    var task: Task
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppTheme.done)
+            Text(task.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+                .lineLimit(1)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
