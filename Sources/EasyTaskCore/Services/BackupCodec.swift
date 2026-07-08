@@ -8,6 +8,7 @@ public struct BackupPayload: Codable {
     public var calendarEvents: [CalendarEventDTO]
     public var taskTemplates: [TaskTemplateDTO]
     public var taskTemplateItems: [TaskTemplateItemDTO]
+    public var templatePlacements: [TemplatePlacementDTO]?
     public var dailyReviews: [DailyReviewDTO]?
     public var diaryBlocks: [DiaryBlockDTO]?
 }
@@ -21,6 +22,7 @@ public struct TaskDTO: Codable {
     public var plannedDayKey: String
     public var order: Double
     public var eventId: UUID?
+    public var templatePlacementId: UUID?
     public var priority: String?
     public var tags: [String]
     public var estimatedMinutes: Int?
@@ -62,6 +64,16 @@ public struct TaskTemplateItemDTO: Codable {
     public var tags: [String]
     public var estimatedMinutes: Int?
     public var order: Double
+}
+
+public struct TemplatePlacementDTO: Codable {
+    public var id: UUID
+    public var sourceTemplateId: UUID?
+    public var templateName: String
+    public var dayKey: String
+    public var taskIds: [UUID]
+    public var createdAt: Date
+    public var updatedAt: Date
 }
 
 public struct DailyReviewDTO: Codable {
@@ -110,6 +122,7 @@ public enum BackupCodec {
             calendarEvents: try context.fetch(FetchDescriptor<CalendarEvent>()).map(CalendarEventDTO.init),
             taskTemplates: try context.fetch(FetchDescriptor<TaskTemplate>()).map(TaskTemplateDTO.init),
             taskTemplateItems: try context.fetch(FetchDescriptor<TaskTemplateItem>()).map(TaskTemplateItemDTO.init),
+            templatePlacements: try context.fetch(FetchDescriptor<TemplatePlacement>()).map(TemplatePlacementDTO.init),
             dailyReviews: try context.fetch(FetchDescriptor<DailyReview>()).map(DailyReviewDTO.init),
             diaryBlocks: try context.fetch(FetchDescriptor<DiaryBlock>()).map(DiaryBlockDTO.init)
         )
@@ -140,6 +153,9 @@ public enum BackupCodec {
         for item in try context.fetch(FetchDescriptor<TaskTemplateItem>()) {
             context.delete(item)
         }
+        for placement in try context.fetch(FetchDescriptor<TemplatePlacement>()) {
+            context.delete(placement)
+        }
         for template in try context.fetch(FetchDescriptor<TaskTemplate>()) {
             context.delete(template)
         }
@@ -165,6 +181,9 @@ public enum BackupCodec {
         for dto in payload.taskTemplateItems {
             context.insert(TaskTemplateItem(dto: dto))
         }
+        for dto in payload.templatePlacements ?? [] {
+            context.insert(TemplatePlacement(dto: dto))
+        }
         for dto in payload.tasks {
             context.insert(Task(dto: dto))
         }
@@ -187,6 +206,7 @@ private extension TaskDTO {
         plannedDayKey = task.plannedDayKey
         order = task.order
         eventId = task.eventId
+        templatePlacementId = task.templatePlacementId
         priority = task.priority
         tags = task.tags
         estimatedMinutes = task.estimatedMinutes
@@ -234,6 +254,18 @@ private extension TaskTemplateItemDTO {
         tags = item.tags
         estimatedMinutes = item.estimatedMinutes
         order = item.order
+    }
+}
+
+private extension TemplatePlacementDTO {
+    init(placement: TemplatePlacement) {
+        id = placement.id
+        sourceTemplateId = placement.sourceTemplateId
+        templateName = placement.templateName
+        dayKey = placement.dayKey
+        taskIds = placement.taskIds
+        createdAt = placement.createdAt
+        updatedAt = placement.updatedAt
     }
 }
 
@@ -309,6 +341,20 @@ private extension TaskTemplateItem {
     }
 }
 
+private extension TemplatePlacement {
+    convenience init(dto: TemplatePlacementDTO) {
+        self.init(
+            id: dto.id,
+            sourceTemplateId: dto.sourceTemplateId,
+            templateName: dto.templateName,
+            dayKey: dto.dayKey,
+            taskIds: dto.taskIds,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
 private extension Task {
     convenience init(dto: TaskDTO) {
         self.init(
@@ -319,6 +365,7 @@ private extension Task {
             plannedAt: dto.plannedAt,
             order: dto.order,
             eventId: dto.eventId,
+            templatePlacementId: dto.templatePlacementId,
             priority: dto.priority.flatMap(TaskPriority.init(rawValue:)),
             tags: dto.tags,
             estimatedMinutes: dto.estimatedMinutes,

@@ -29,6 +29,7 @@ struct EasyTaskiOSApp: App {
             CalendarEvent.self,
             TaskTemplate.self,
             TaskTemplateItem.self,
+            TemplatePlacement.self,
             DailyReview.self,
             DiaryBlock.self
         ])

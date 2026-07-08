@@ -134,6 +134,36 @@ public final class TaskTemplateItem {
 }
 
 @Model
+public final class TemplatePlacement {
+    public var id: UUID = UUID()
+    public var sourceTemplateId: UUID?
+    public var templateName: String = ""
+    public var dayKey: String = ""
+    public var taskIds: [UUID] = []
+
+    public var createdAt: Date = Date()
+    public var updatedAt: Date = Date()
+
+    public init(
+        id: UUID = UUID(),
+        sourceTemplateId: UUID?,
+        templateName: String,
+        dayKey: String,
+        taskIds: [UUID] = [],
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.sourceTemplateId = sourceTemplateId
+        self.templateName = templateName
+        self.dayKey = dayKey
+        self.taskIds = taskIds
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+@Model
 public final class Task {
     public var id: UUID = UUID()
     public var title: String = ""
@@ -145,6 +175,7 @@ public final class Task {
     public var order: Double = 0
 
     public var eventId: UUID?
+    public var templatePlacementId: UUID?
     public var priority: String?
     public var tags: [String] = []
     public var estimatedMinutes: Int?
@@ -164,6 +195,7 @@ public final class Task {
         plannedAt: Date,
         order: Double,
         eventId: UUID? = nil,
+        templatePlacementId: UUID? = nil,
         priority: TaskPriority? = nil,
         tags: [String] = [],
         estimatedMinutes: Int? = nil,
@@ -178,6 +210,7 @@ public final class Task {
         self.plannedDayKey = DayKey.key(for: plannedAt)
         self.order = order
         self.eventId = eventId
+        self.templatePlacementId = templatePlacementId
         self.priority = priority?.rawValue
         self.tags = tags
         self.estimatedMinutes = estimatedMinutes

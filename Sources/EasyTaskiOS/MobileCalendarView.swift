@@ -26,16 +26,20 @@ struct MobileCalendarView: View {
     @Query private var tasks: [TodoTask]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
+    @Query private var templatePlacements: [TemplatePlacement]
 
     @State private var visibleMonth = DayKey.startOfMonth(for: Date())
     @State private var selectedDate = DayKey.startOfDay(for: Date())
     @State private var sheet: CalendarSheet?
     @State private var placementTemplate: TaskTemplate?
+    @State private var placementDrafts: [TemplateTaskDraft] = []
     @State private var placementDatesByKey: [String: Date] = [:]
     @State private var placementMessage: String?
     @State private var calendarNotice: String?
     @State private var calendarNoticeToken = UUID()
     @State private var showingTemplateApplyConfirmation = false
+    @State private var showingPlacementTemplateDeleteConfirmation = false
+    @State private var pendingPlacementTemplateDeletion: TaskTemplate?
 
     private let specialDayStore = SpecialDayStore.load()
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
@@ -53,7 +57,11 @@ struct MobileCalendarView: View {
                     CalendarTemplatePlacementStatus(
                         templateName: placementTemplate.name,
                         selectedCount: placementDatesByKey.count,
-                        message: placementMessage
+                        taskCount: validPlacementDrafts.count,
+                        message: placementMessage,
+                        onDelete: {
+                            requestPlacementTemplateDeletion(placementTemplate)
+                        }
                     )
                 }
                 monthGrid
@@ -83,7 +91,7 @@ struct MobileCalendarView: View {
                         Button("적용") {
                             requestTemplatePlacementConfirmation()
                         }
-                        .disabled(placementDatesByKey.isEmpty)
+                        .disabled(placementDatesByKey.isEmpty || validPlacementDrafts.isEmpty)
                     }
                 }
             }
@@ -91,11 +99,15 @@ struct MobileCalendarView: View {
             .sheet(item: $sheet) { sheet in
                 switch sheet {
                 case .addEvent(let date):
-                    MobileEventEditorSheet(initialDate: date)
+                    MobileEventEditorSheet(
+                        initialDate: date,
+                        onComplete: showCalendarNotice
+                    )
                 case .day(let date):
                     MobileCalendarDaySheet(
                         date: date,
                         events: eventsForDate(date),
+                        templatePlacements: placementsForDate(date),
                         tasks: tasksForDate(date),
                         allTasks: tasks,
                         onOpenBoard: {
@@ -116,7 +128,17 @@ struct MobileCalendarView: View {
                     applyTemplatePlacement()
                 }
             } message: { template in
-                Text("\"\(template.name)\" 템플릿을 선택한 \(placementDatesByKey.count)일에 적용합니다.")
+                Text("\"\(template.name)\" 템플릿의 작업 \(validPlacementDrafts.count)개를 선택한 \(placementDatesByKey.count)일에 적용합니다.")
+            }
+            .alert("템플릿을 삭제할까요?", isPresented: $showingPlacementTemplateDeleteConfirmation, presenting: pendingPlacementTemplateDeletion) { template in
+                Button("취소", role: .cancel) {
+                    pendingPlacementTemplateDeletion = nil
+                }
+                Button("삭제", role: .destructive) {
+                    deletePlacementTemplate(template)
+                }
+            } message: { template in
+                Text("\"\(template.name)\" 템플릿과 하위 작업 \(TemplateListRules.itemsForTemplate(template, in: templateItems).count)개를 삭제합니다. 이미 생성된 작업은 삭제되지 않습니다.")
             }
         }
     }
@@ -148,6 +170,7 @@ struct MobileCalendarView: View {
                                 isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
                                 isPlacementSelected: placementDatesByKey[DayKey.key(for: date)] != nil,
                                 events: isPlacementMode ? [] : eventsForDate(date),
+                                templatePlacements: isPlacementMode ? [] : placementsForDate(date),
                                 specialDays: specialDayStore.days(on: date),
                                 showsTrailingDivider: (index + 1) % 7 != 0,
                                 showsBottomDivider: index < 35
@@ -199,6 +222,14 @@ struct MobileCalendarView: View {
 
     private func eventsForDate(_ date: Date) -> [CalendarEvent] {
         CalendarEventRules.events(on: date, in: events)
+    }
+
+    private func placementsForDate(_ date: Date) -> [TemplatePlacement] {
+        TemplateService.placements(on: date, in: templatePlacements)
+    }
+
+    private var validPlacementDrafts: [TemplateTaskDraft] {
+        placementDrafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     private func eventSegments(in monthDates: [Date], maxLanes: Int) -> [MobileCalendarEventSegment] {
@@ -255,17 +286,21 @@ struct MobileCalendarView: View {
         return segments
     }
 
-    private func startTemplatePlacement(_ template: TaskTemplate) {
+    private func startTemplatePlacement(_ template: TaskTemplate, drafts: [TemplateTaskDraft]) {
         placementTemplate = template
+        placementDrafts = drafts
         placementDatesByKey = [:]
         placementMessage = nil
     }
 
     private func cancelTemplatePlacement() {
         placementTemplate = nil
+        placementDrafts = []
         placementDatesByKey = [:]
         placementMessage = nil
         showingTemplateApplyConfirmation = false
+        showingPlacementTemplateDeleteConfirmation = false
+        pendingPlacementTemplateDeletion = nil
     }
 
     private func togglePlacementDate(_ date: Date) {
@@ -281,6 +316,10 @@ struct MobileCalendarView: View {
 
     private func requestTemplatePlacementConfirmation() {
         guard placementTemplate != nil else { return }
+        guard !validPlacementDrafts.isEmpty else {
+            placementMessage = "적용할 작업을 남겨두세요"
+            return
+        }
         guard !placementDatesByKey.isEmpty else {
             placementMessage = "날짜를 선택하세요"
             return
@@ -292,7 +331,7 @@ struct MobileCalendarView: View {
         guard let placementTemplate else { return }
         let createdCount = TemplateService.applyTemplate(
             placementTemplate,
-            items: TemplateListRules.itemsForTemplate(placementTemplate, in: templateItems),
+            drafts: validPlacementDrafts,
             selectedDates: Array(placementDatesByKey.values),
             existingTasks: tasks,
             in: modelContext
@@ -305,6 +344,22 @@ struct MobileCalendarView: View {
         let selectedDayCount = placementDatesByKey.count
         cancelTemplatePlacement()
         showCalendarNotice("\"\(placementTemplate.name)\" 템플릿으로 \(createdCount)개 작업을 \(selectedDayCount)일에 배치했어요")
+    }
+
+    private func requestPlacementTemplateDeletion(_ template: TaskTemplate) {
+        pendingPlacementTemplateDeletion = template
+        showingPlacementTemplateDeleteConfirmation = true
+    }
+
+    private func deletePlacementTemplate(_ template: TaskTemplate) {
+        let templateName = template.name
+        let deletedItemCount = TemplateService.deleteTemplate(
+            template,
+            items: templateItems,
+            in: modelContext
+        )
+        cancelTemplatePlacement()
+        showCalendarNotice("\"\(templateName)\" 템플릿과 작업 \(deletedItemCount)개를 삭제했어요")
     }
 
     private func showCalendarNotice(_ message: String) {
@@ -408,7 +463,9 @@ private struct CalendarWeekdayHeader: View {
 private struct CalendarTemplatePlacementStatus: View {
     var templateName: String
     var selectedCount: Int
+    var taskCount: Int
     var message: String?
+    var onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -418,12 +475,23 @@ private struct CalendarTemplatePlacementStatus: View {
                 Text(templateName)
                     .font(.subheadline.weight(.bold))
                     .lineLimit(1)
-                Text(message ?? "\(selectedCount)일 선택됨")
+                Text(message ?? "\(selectedCount)일 선택됨 · 작업 \(taskCount)개")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer()
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("선택한 템플릿 삭제")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -456,6 +524,7 @@ private struct MobileMonthDayCell: View {
     var isSelected: Bool
     var isPlacementSelected: Bool
     var events: [CalendarEvent]
+    var templatePlacements: [TemplatePlacement]
     var specialDays: [SpecialDay]
     var showsTrailingDivider: Bool
     var showsBottomDivider: Bool
@@ -500,6 +569,7 @@ private struct MobileMonthDayCell: View {
         if isPlacementSelected { parts.append("배치 선택됨") }
         if let specialDay = specialDays.first { parts.append(specialDay.name) }
         if !events.isEmpty { parts.append("이벤트 \(events.count)개") }
+        if !templatePlacements.isEmpty { parts.append("템플릿 배치 \(templatePlacements.count)개") }
         return parts.joined(separator: ", ")
     }
 
@@ -525,6 +595,21 @@ private struct MobileMonthDayCell: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(AppTheme.event)
+                        .padding(.top, 2)
+                } else if !templatePlacements.isEmpty {
+                    HStack(spacing: 2) {
+                        Image(systemName: "square.grid.3x3.fill")
+                        if templatePlacements.count > 1 {
+                            Text("\(templatePlacements.count)")
+                        }
+                    }
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(AppTheme.event)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 2)
+                    .background(AppTheme.event.opacity(0.12), in: Capsule())
+                    .fixedSize()
+                    .accessibilityLabel("템플릿 배치 \(templatePlacements.count)개")
                         .padding(.top, 2)
                 }
             }
@@ -632,6 +717,7 @@ private struct MobileEventEditorSheet: View {
     var initialDate: Date
     var event: CalendarEvent?
     var allTasks: [TodoTask] = []
+    var onComplete: ((String) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -640,6 +726,7 @@ private struct MobileEventEditorSheet: View {
     @State private var endDate: Date
     @State private var color: String
     @State private var showingAddConfirmation = false
+    @State private var showingDeleteConfirmation = false
 
     private var isEditing: Bool {
         event != nil
@@ -657,10 +744,21 @@ private struct MobileEventEditorSheet: View {
         DayKey.startOfDay(for: max(startDate, endDate))
     }
 
-    init(initialDate: Date, event: CalendarEvent? = nil, allTasks: [TodoTask] = []) {
+    private var linkedTaskCount: Int {
+        guard let event else { return 0 }
+        return allTasks.filter { $0.eventId == event.id }.count
+    }
+
+    init(
+        initialDate: Date,
+        event: CalendarEvent? = nil,
+        allTasks: [TodoTask] = [],
+        onComplete: ((String) -> Void)? = nil
+    ) {
         self.initialDate = initialDate
         self.event = event
         self.allTasks = allTasks
+        self.onComplete = onComplete
         _title = State(initialValue: event?.title ?? "")
         _note = State(initialValue: event?.note ?? "")
         _startDate = State(initialValue: event?.startAt ?? initialDate)
@@ -687,7 +785,7 @@ private struct MobileEventEditorSheet: View {
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
-                            deleteEvent()
+                            showingDeleteConfirmation = true
                         } label: {
                             Label("이벤트 삭제", systemImage: "trash")
                         }
@@ -702,8 +800,9 @@ private struct MobileEventEditorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isEditing ? "저장" : "추가") {
                         if isEditing {
-                            saveEvent()
-                            dismiss()
+                            if saveEvent() {
+                                dismiss()
+                            }
                         } else {
                             showingAddConfirmation = true
                         }
@@ -714,19 +813,33 @@ private struct MobileEventEditorSheet: View {
             .alert("이벤트를 추가할까요?", isPresented: $showingAddConfirmation) {
                 Button("취소", role: .cancel) {}
                 Button("추가") {
-                    saveEvent()
-                    dismiss()
+                    if saveEvent() {
+                        dismiss()
+                    }
                 }
             } message: {
                 Text("\"\(trimmedTitle)\" 이벤트를 \(DayKey.display(normalizedStartDate))부터 \(DayKey.display(normalizedEndDate))까지 추가합니다.")
+            }
+            .alert("이벤트를 삭제할까요?", isPresented: $showingDeleteConfirmation) {
+                Button("취소", role: .cancel) {}
+                Button("삭제", role: .destructive) {
+                    deleteEvent()
+                }
+            } message: {
+                if linkedTaskCount > 0 {
+                    Text("연결된 작업 \(linkedTaskCount)개의 이벤트 연결도 함께 해제됩니다.")
+                } else {
+                    Text("삭제한 이벤트는 되돌릴 수 없습니다.")
+                }
             }
         }
         .presentationDetents([.medium, .large])
     }
 
-    private func saveEvent() {
+    @discardableResult
+    private func saveEvent() -> Bool {
         if let event {
-            CalendarEventRules.update(
+            let didUpdate = CalendarEventRules.update(
                 event,
                 title: trimmedTitle,
                 startAt: startDate,
@@ -734,6 +847,10 @@ private struct MobileEventEditorSheet: View {
                 note: note,
                 color: color
             )
+            if didUpdate {
+                onComplete?("이벤트를 저장했어요")
+            }
+            return didUpdate
         } else if let event = CalendarEventRules.makeEvent(
             title: trimmedTitle,
             startAt: startDate,
@@ -742,13 +859,21 @@ private struct MobileEventEditorSheet: View {
             color: color
         ) {
             modelContext.insert(event)
+            onComplete?("이벤트를 추가했어요")
+            return true
         }
+        return false
     }
 
     private func deleteEvent() {
         guard let event else { return }
-        CalendarEventRules.detachTasks(from: event, in: allTasks)
+        let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
         modelContext.delete(event)
+        if detachedCount > 0 {
+            onComplete?("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
+        } else {
+            onComplete?("이벤트를 삭제했어요")
+        }
         dismiss()
     }
 }
@@ -876,12 +1001,19 @@ private struct MobileEventColorSelector: View {
 private struct MobileCalendarDaySheet: View {
     var date: Date
     var events: [CalendarEvent]
+    var templatePlacements: [TemplatePlacement]
     var tasks: [TodoTask]
     var allTasks: [TodoTask]
     var onOpenBoard: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var eventEditorRoute: MobileEventEditorRoute?
+    @State private var pendingDeleteEvent: CalendarEvent?
+    @State private var pendingDeletePlacement: TemplatePlacement?
+    @State private var showingDeleteConfirmation = false
+    @State private var showingPlacementDeleteConfirmation = false
+    @State private var dayNotice: String?
+    @State private var dayNoticeToken = UUID()
 
     var body: some View {
         NavigationStack {
@@ -921,14 +1053,31 @@ private struct MobileCalendarDaySheet: View {
                             .accessibilityLabel("이벤트 편집")
 
                             Button(role: .destructive) {
-                                CalendarEventRules.detachTasks(from: event, in: allTasks)
-                                modelContext.delete(event)
+                                pendingDeleteEvent = event
+                                showingDeleteConfirmation = true
                             } label: {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.borderless)
                             .accessibilityLabel("이벤트 삭제")
                         }
+                    }
+                }
+                Section("템플릿 배치") {
+                    if templatePlacements.isEmpty {
+                        Text("배치 없음")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(templatePlacements) { placement in
+                        MobileTemplatePlacementSummaryRow(
+                            placement: placement,
+                            tasks: placementTasks(for: placement),
+                            deleteSummary: placementDeleteSummary(for: placement),
+                            onDelete: {
+                                pendingDeletePlacement = placement
+                                showingPlacementDeleteConfirmation = true
+                            }
+                        )
                     }
                 }
                 Section("작업") {
@@ -967,27 +1116,212 @@ private struct MobileCalendarDaySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .overlay(alignment: .bottom) {
+            if let dayNotice {
+                CalendarNoticeBanner(message: dayNotice)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy(duration: 0.18), value: dayNotice)
+        .alert("이벤트를 삭제할까요?", isPresented: $showingDeleteConfirmation, presenting: pendingDeleteEvent) { event in
+            Button("취소", role: .cancel) {
+                pendingDeleteEvent = nil
+            }
+            Button("삭제", role: .destructive) {
+                deleteEvent(event)
+            }
+        } message: { event in
+            let linkedCount = linkedTaskCount(for: event)
+            if linkedCount > 0 {
+                Text("연결된 작업 \(linkedCount)개의 이벤트 연결도 함께 해제됩니다.")
+            } else {
+                Text("삭제한 이벤트는 되돌릴 수 없습니다.")
+            }
+        }
+        .alert("템플릿 배치를 삭제할까요?", isPresented: $showingPlacementDeleteConfirmation, presenting: pendingDeletePlacement) { placement in
+            Button("취소", role: .cancel) {
+                pendingDeletePlacement = nil
+            }
+            Button("작업 유지") {
+                deletePlacement(placement, deleteTasks: false)
+            }
+            if canDeletePlacementTasks(placement) {
+                Button("작업 삭제", role: .destructive) {
+                    deletePlacement(placement, deleteTasks: true)
+                }
+            }
+        } message: { placement in
+            Text(placementDeleteMessage(for: placement))
+        }
         .sheet(item: $eventEditorRoute) { route in
             switch route {
             case .add(let date):
-                MobileEventEditorSheet(initialDate: date)
+                MobileEventEditorSheet(
+                    initialDate: date,
+                    onComplete: showDayNotice
+                )
             case .edit(let event):
-                MobileEventEditorSheet(initialDate: event.startAt, event: event, allTasks: allTasks)
+                MobileEventEditorSheet(
+                    initialDate: event.startAt,
+                    event: event,
+                    allTasks: allTasks,
+                    onComplete: showDayNotice
+                )
             }
         }
+    }
+
+    private func linkedTaskCount(for event: CalendarEvent) -> Int {
+        allTasks.filter { $0.eventId == event.id }.count
+    }
+
+    private func placementTasks(for placement: TemplatePlacement) -> [TodoTask] {
+        TemplateService.tasks(for: placement, in: allTasks)
+    }
+
+    private func placementDeleteSummary(for placement: TemplatePlacement) -> TemplatePlacementDeleteSummary {
+        TemplateService.deleteSummary(for: placement, in: allTasks)
+    }
+
+    private func canDeletePlacementTasks(_ placement: TemplatePlacement) -> Bool {
+        placementDeleteSummary(for: placement).canDeleteTasks
+    }
+
+    private func placementDeleteMessage(for placement: TemplatePlacement) -> String {
+        let summary = placementDeleteSummary(for: placement)
+        if summary.canDeleteTasks {
+            return "이 배치와 연결된 작업 \(summary.taskCount)개를 함께 삭제할 수 있습니다."
+        }
+        return "진행 중이거나 완료된 작업이 있어 작업 삭제는 사용할 수 없습니다. 작업 유지를 선택하면 배치 연결만 해제됩니다."
+    }
+
+    private func deleteEvent(_ event: CalendarEvent) {
+        let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
+        modelContext.delete(event)
+        pendingDeleteEvent = nil
+        if detachedCount > 0 {
+            showDayNotice("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
+        } else {
+            showDayNotice("이벤트를 삭제했어요")
+        }
+    }
+
+    private func deletePlacement(_ placement: TemplatePlacement, deleteTasks: Bool) {
+        let placementName = placement.templateName
+        guard !deleteTasks || canDeletePlacementTasks(placement) else {
+            pendingDeletePlacement = nil
+            showDayNotice("진행 중이거나 완료된 작업이 있어 작업 삭제를 막았어요")
+            return
+        }
+
+        let affectedCount = TemplateService.deletePlacement(
+            placement,
+            tasks: allTasks,
+            in: modelContext,
+            deleteTasks: deleteTasks
+        )
+        pendingDeletePlacement = nil
+        if deleteTasks {
+            showDayNotice("\"\(placementName)\" 배치와 작업 \(affectedCount)개를 삭제했어요")
+        } else {
+            showDayNotice("\"\(placementName)\" 배치 연결을 작업 \(affectedCount)개에서 해제했어요")
+        }
+    }
+
+    private func showDayNotice(_ message: String) {
+        let token = UUID()
+        dayNoticeToken = token
+        dayNotice = message
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            guard dayNoticeToken == token else { return }
+            dayNotice = nil
+        }
+    }
+}
+
+private struct MobileTemplatePlacementSummaryRow: View {
+    var placement: TemplatePlacement
+    var tasks: [TodoTask]
+    var deleteSummary: TemplatePlacementDeleteSummary
+    var onDelete: () -> Void
+
+    private var stateSummary: String {
+        if deleteSummary.canDeleteTasks {
+            return "작업 \(deleteSummary.taskCount)개 · 삭제 가능"
+        }
+        return "작업 \(deleteSummary.taskCount)개 · 보호 \(deleteSummary.protectedTaskCount)개"
+    }
+
+    private var taskSummary: String {
+        let titles = tasks
+            .map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !titles.isEmpty else { return "연결된 작업 없음" }
+        let visibleTitles = titles.prefix(3).joined(separator: " · ")
+        if titles.count > 3 {
+            return "\(visibleTitles) 외 \(titles.count - 3)개"
+        }
+        return visibleTitles
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "square.grid.3x3.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppTheme.event)
+                .frame(width: 24, height: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(placement.templateName)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(2)
+                Text(stateSummary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(deleteSummary.canDeleteTasks ? .secondary : AppTheme.event)
+                Text(taskSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("템플릿 배치 삭제")
+        }
+        .padding(.vertical, 4)
     }
 }
 
 private struct MobileTemplatePlacementSheet: View {
     var templates: [TaskTemplate]
     var items: [TaskTemplateItem]
-    var onStartPlacement: (TaskTemplate) -> Void
+    var onStartPlacement: (TaskTemplate, [TemplateTaskDraft]) -> Void
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTemplate: TaskTemplate?
     @State private var detailTemplate: TaskTemplate?
     @State private var searchText = ""
     @State private var scope: TemplateListScope = .favorites
     @State private var message: String?
+    @State private var drafts: [TemplateTaskDraft] = []
+    @State private var pendingDeleteTemplate: TaskTemplate?
+
+    private var applicableDrafts: [TemplateTaskDraft] {
+        drafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 
     private var filteredTemplates: [TaskTemplate] {
         TemplateListRules.filterAndSort(templates, items: items, query: searchText, scope: scope)
@@ -1025,8 +1359,7 @@ private struct MobileTemplatePlacementSheet: View {
                         let templateItems = TemplateListRules.itemsForTemplate(template, in: items)
                         HStack(spacing: 12) {
                             Button {
-                                selectedTemplate = template
-                                message = nil
+                                selectTemplate(template, items: templateItems)
                             } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack(spacing: 6) {
@@ -1068,6 +1401,17 @@ private struct MobileTemplatePlacementSheet: View {
                             }
                             .buttonStyle(.borderless)
                             .accessibilityLabel(template.isFavorite ? "즐겨찾기 제거" : "즐겨찾기 추가")
+
+                            Button(role: .destructive) {
+                                pendingDeleteTemplate = template
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.headline)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 36, height: 36)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("템플릿 삭제")
                         }
                     }
                     if filteredTemplates.isEmpty {
@@ -1077,6 +1421,35 @@ private struct MobileTemplatePlacementSheet: View {
                             description: emptyDescription
                         )
                             .listRowBackground(Color.clear)
+                    }
+                }
+
+                if let selectedTemplate {
+                    Section("배치 준비") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedTemplate.name)
+                                .font(.headline)
+                                .lineLimit(2)
+                            Text("적용할 작업 \(applicableDrafts.count)개")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        if drafts.isEmpty {
+                            ContentUnavailableView("적용할 작업 없음", systemImage: "checklist")
+                                .listRowBackground(Color.clear)
+                        } else {
+                            ForEach($drafts) { $draft in
+                                MobileTemplateDraftEditRow(
+                                    draft: $draft,
+                                    onRemove: removeDraft
+                                )
+                            }
+                        }
+                        if drafts.isEmpty || applicableDrafts.isEmpty {
+                            Label("제목이 있는 작업을 하나 이상 남겨두세요", systemImage: "exclamationmark.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -1089,7 +1462,7 @@ private struct MobileTemplatePlacementSheet: View {
                     Button("배치") {
                         startPlacement()
                     }
-                    .disabled(selectedTemplate == nil)
+                    .disabled(selectedTemplate == nil || applicableDrafts.isEmpty)
                 }
             }
             .onAppear {
@@ -1102,7 +1475,25 @@ private struct MobileTemplatePlacementSheet: View {
                 message = nil
                 if selectedTemplate?.isFavorite == false && scope == .favorites {
                     selectedTemplate = nil
+                    drafts = []
                 }
+            }
+            .alert("템플릿을 삭제할까요?", isPresented: Binding(
+                get: { pendingDeleteTemplate != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteTemplate = nil
+                    }
+                }
+            ), presenting: pendingDeleteTemplate) { template in
+                Button("취소", role: .cancel) {
+                    pendingDeleteTemplate = nil
+                }
+                Button("삭제", role: .destructive) {
+                    deleteTemplate(template)
+                }
+            } message: { template in
+                Text("\"\(template.name)\" 템플릿과 하위 작업 \(TemplateListRules.itemsForTemplate(template, in: items).count)개를 삭제합니다. 이미 생성된 작업은 삭제되지 않습니다.")
             }
         }
         .presentationDetents([.medium, .large])
@@ -1114,28 +1505,114 @@ private struct MobileTemplatePlacementSheet: View {
         }
     }
 
+    private func selectTemplate(_ template: TaskTemplate, items templateItems: [TaskTemplateItem]) {
+        selectedTemplate = template
+        drafts = TemplateService.drafts(from: template, items: templateItems)
+        message = nil
+    }
+
     private func toggleFavorite(_ template: TaskTemplate) {
         template.isFavorite.toggle()
         template.updatedAt = Date()
         if selectedTemplate?.id == template.id && !template.isFavorite && scope == .favorites {
             selectedTemplate = nil
+            drafts = []
         }
         message = template.isFavorite ? "즐겨찾기에 추가했어요" : "즐겨찾기에서 제거했어요"
     }
 
+    private func removeDraft(_ id: UUID) {
+        drafts.removeAll { $0.id == id }
+        message = nil
+    }
+
     private func startPlacement() {
         guard let selectedTemplate else { return }
-        let applicableItems = TemplateListRules.itemsForTemplate(selectedTemplate, in: items).filter {
-            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        guard !applicableItems.isEmpty else {
+        guard !applicableDrafts.isEmpty else {
             message = "템플릿에 적용할 작업이 없어요"
             return
         }
 
         message = nil
-        onStartPlacement(selectedTemplate)
+        onStartPlacement(selectedTemplate, applicableDrafts)
         dismiss()
+    }
+
+    private func deleteTemplate(_ template: TaskTemplate) {
+        let templateName = template.name
+        let deletedItemCount = TemplateService.deleteTemplate(
+            template,
+            items: items,
+            in: modelContext
+        )
+        if selectedTemplate?.id == template.id {
+            selectedTemplate = nil
+            drafts = []
+        }
+        if detailTemplate?.id == template.id {
+            detailTemplate = nil
+        }
+        pendingDeleteTemplate = nil
+        message = "\"\(templateName)\" 템플릿과 작업 \(deletedItemCount)개를 삭제했어요"
+    }
+}
+
+private struct MobileTemplateDraftEditRow: View {
+    @Binding var draft: TemplateTaskDraft
+    var onRemove: (UUID) -> Void
+
+    private var priority: TaskPriority? {
+        draft.priority.flatMap(TaskPriority.init(rawValue:))
+    }
+
+    private var tags: [String] {
+        draft.tags
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("작업 제목", text: $draft.title)
+                    .font(.subheadline.weight(.semibold))
+
+                Button(role: .destructive) {
+                    onRemove(draft.id)
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("이번 배치에서 제외")
+            }
+
+            TextField("메모", text: $draft.note, axis: .vertical)
+                .font(.caption)
+                .lineLimit(1...3)
+
+            if priority != nil || draft.estimatedMinutes != nil || !tags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        if let priority {
+                            Label(priority.title, systemImage: "flag.fill")
+                        }
+                        if let estimatedMinutes = draft.estimatedMinutes {
+                            Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
+                        }
+                        ForEach(tags, id: \.self) { tag in
+                            Label("#\(tag)", systemImage: "tag")
+                        }
+                    }
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
