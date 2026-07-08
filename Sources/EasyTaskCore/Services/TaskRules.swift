@@ -1,7 +1,12 @@
 import Foundation
 
 public enum TaskRules {
-    public static func applyStatus(_ status: TaskStatus, to task: Task, now: Date = Date()) {
+    public static func applyStatus(
+        _ status: TaskStatus,
+        to task: Task,
+        now: Date = Date(),
+        completionDayKey: String? = nil
+    ) {
         let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard oldStatus != status else { return }
 
@@ -16,7 +21,7 @@ public enum TaskRules {
             task.archivedDayKey = nil
         case (_, .done):
             task.completedAt = now
-            task.completedDayKey = DayKey.key(for: now)
+            task.completedDayKey = completionDayKey ?? DayKey.key(for: now)
         default:
             break
         }
@@ -47,9 +52,9 @@ public enum TaskRules {
         task.updatedAt = now
     }
 
-    public static func completeAll(_ tasks: [Task], now: Date = Date()) {
+    public static func completeAll(_ tasks: [Task], now: Date = Date(), completionDayKey: String? = nil) {
         for task in tasks {
-            applyStatus(.done, to: task, now: now)
+            applyStatus(.done, to: task, now: now, completionDayKey: completionDayKey)
         }
     }
 

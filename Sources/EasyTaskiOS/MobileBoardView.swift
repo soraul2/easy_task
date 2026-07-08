@@ -74,6 +74,7 @@ struct MobileBoardView: View {
                 BoardTaskList(
                     tasks: statusTasks,
                     selectedStatus: selectedStatus,
+                    completionDayKey: selectedDayKey,
                     onEdit: { presentedSheet = .task($0) },
                     onDelete: { modelContext.delete($0) },
                     onStatusChange: showStatusNotice
@@ -280,6 +281,7 @@ private struct BoardStatusPicker: View {
 private struct BoardTaskList: View {
     var tasks: [TodoTask]
     var selectedStatus: TaskStatus
+    var completionDayKey: String
     var onEdit: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
@@ -297,6 +299,7 @@ private struct BoardTaskList: View {
                 ForEach(tasks) { task in
                     MobileTaskRow(
                         task: task,
+                        completionDayKey: completionDayKey,
                         onEdit: { onEdit(task) },
                         onDelete: { onDelete(task) },
                         onStatusChange: { onStatusChange(task, $0) }
@@ -312,6 +315,7 @@ private struct BoardTaskList: View {
 
 private struct MobileTaskRow: View {
     var task: TodoTask
+    var completionDayKey: String
     var onEdit: () -> Void
     var onDelete: () -> Void
     var onStatusChange: (TaskStatus) -> Void
@@ -426,7 +430,7 @@ private struct MobileTaskRow: View {
 
             MobileTaskStatusSlider(status: status, accentColor: accentColor) { nextStatus in
                 withAnimation(.snappy) {
-                    TaskRules.applyStatus(nextStatus, to: task)
+                    TaskRules.applyStatus(nextStatus, to: task, completionDayKey: completionDayKey)
                 }
                 onStatusChange(nextStatus)
             }
@@ -635,7 +639,7 @@ private struct MobileTaskDetailSheet: View {
         let newDayKey = DayKey.key(for: newPlannedAt)
 
         if oldStatus != status {
-            TaskRules.applyStatus(status, to: task)
+            TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
         }
 
         var nextOrder: Double?
@@ -725,7 +729,7 @@ private struct MobileCarryoverSheet: View {
 
     private func completeAll() {
         let count = remainingTasks.count
-        TaskRules.completeAll(remainingTasks)
+        TaskRules.completeAll(remainingTasks, completionDayKey: DayKey.key(for: targetDate))
         onApplied("\(count)개 이월 작업을 완료 처리했어요")
         dismiss()
     }

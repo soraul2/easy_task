@@ -23,6 +23,41 @@ func applyingSameDoneStatusPreservesCompletionMetadata() throws {
 }
 
 @Test
+func completionDayCanFollowBoardDateInsteadOfActualCompletionDate() throws {
+    let july4 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 4)))
+    let july7 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 7)))
+    let july8Completion = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 21)))
+    let july4Key = DayKey.key(for: july4)
+    let july7Key = DayKey.key(for: july7)
+    let todayKey = DayKey.key(for: july8Completion)
+    let originalBoardTask = Task(title: "7월 4일 보드 완료", plannedAt: july4, order: 100)
+    let movedTask = Task(title: "7월 7일로 이월 후 완료", plannedAt: july4, order: 200)
+
+    TaskRules.applyStatus(.done, to: originalBoardTask, now: july8Completion, completionDayKey: july4Key)
+    TaskRules.move(movedTask, to: july7)
+    TaskRules.applyStatus(.done, to: movedTask, now: july8Completion, completionDayKey: movedTask.plannedDayKey)
+
+    #expect(originalBoardTask.completedAt == july8Completion)
+    #expect(originalBoardTask.completedDayKey == july4Key)
+    #expect(movedTask.completedAt == july8Completion)
+    #expect(movedTask.completedDayKey == july7Key)
+
+    let july4Board = BoardQueryRules.tasksForBoard(
+        [originalBoardTask, movedTask],
+        selectedDayKey: july4Key,
+        todayKey: todayKey
+    )
+    let july7Board = BoardQueryRules.tasksForBoard(
+        [originalBoardTask, movedTask],
+        selectedDayKey: july7Key,
+        todayKey: todayKey
+    )
+
+    #expect(BoardQueryRules.tasks(july4Board, matching: .done).map(\.title) == ["7월 4일 보드 완료"])
+    #expect(BoardQueryRules.tasks(july7Board, matching: .done).map(\.title) == ["7월 7일로 이월 후 완료"])
+}
+
+@Test
 func backupUnsupportedVersionErrorIncludesVersion() {
     let error = BackupServiceError.unsupportedVersion(99)
 
