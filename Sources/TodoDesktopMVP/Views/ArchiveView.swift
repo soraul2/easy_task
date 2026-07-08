@@ -655,10 +655,10 @@ private struct ArchiveReviewImagePreview: View {
                let image = NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName)) {
                 Image(nsImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
                     .frame(maxWidth: .infinity)
-                    .frame(height: 250)
-                    .clipped()
+                    .frame(maxHeight: 420)
+                    .background(AppTheme.input)
             } else {
                 Rectangle()
                     .fill(AppTheme.input)

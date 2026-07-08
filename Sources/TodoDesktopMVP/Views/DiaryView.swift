@@ -75,7 +75,9 @@ struct DiaryView: View {
     }
 
     private var imagePreviewHeight: CGFloat {
-        showsHeader ? 340 : 348
+        guard !showsHeader else { return 340 }
+        let captionGrowth = max(captionEditorHeight - 34, 0)
+        return max(260, 348 - captionGrowth)
     }
 
     private var selectedDayNumber: String {
@@ -87,6 +89,28 @@ struct DiaryView: View {
         let font = NSFont.systemFont(ofSize: 14, weight: .bold)
         let measuredWidth = (displayTitle as NSString).size(withAttributes: [.font: font]).width
         return min(max(ceil(measuredWidth) + 8, 58), 220)
+    }
+
+    private var captionEditorHeight: CGFloat {
+        guard !showsHeader else { return captionMinHeight }
+
+        let lineHeight: CGFloat = 20
+        let verticalPadding: CGFloat = 12
+        let estimatedHeight = CGFloat(estimatedCaptionLineCount) * lineHeight + verticalPadding
+        let minHeight: CGFloat = imageFileNames.isEmpty ? 44 : 34
+        let maxHeight: CGFloat = imageFileNames.isEmpty ? 110 : 140
+        return min(max(ceil(estimatedHeight), minHeight), maxHeight)
+    }
+
+    private var estimatedCaptionLineCount: Int {
+        guard !content.isEmpty else { return 1 }
+
+        let charactersPerLine = imageFileNames.isEmpty ? 38 : 34
+        return content
+            .components(separatedBy: .newlines)
+            .reduce(0) { total, line in
+                total + max(1, Int(ceil(Double(line.count) / Double(charactersPerLine))))
+            }
     }
 
     var body: some View {
@@ -429,7 +453,10 @@ struct DiaryView: View {
                 .font(.system(size: 15))
                 .foregroundStyle(AppTheme.primaryText)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: captionMinHeight, maxHeight: captionMaxHeight)
+                .frame(
+                    minHeight: showsHeader ? captionMinHeight : captionEditorHeight,
+                    maxHeight: showsHeader ? captionMaxHeight : captionEditorHeight
+                )
                 .padding(0)
 
             if content.isEmpty {
