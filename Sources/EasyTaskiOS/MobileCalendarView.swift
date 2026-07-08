@@ -38,12 +38,17 @@ struct MobileCalendarView: View {
     @State private var showingTemplateApplyConfirmation = false
 
     private let specialDayStore = SpecialDayStore.load()
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 8) {
-                CalendarHeader(visibleMonth: $visibleMonth, selectedDate: $selectedDate)
+            VStack(spacing: 6) {
+                CalendarHeader(
+                    visibleMonth: $visibleMonth,
+                    showsActions: placementTemplate == nil,
+                    onShowTemplates: { sheet = .templates },
+                    onAddEvent: { sheet = .addEvent(selectedDate) }
+                )
                 if let placementTemplate {
                     CalendarTemplatePlacementStatus(
                         templateName: placementTemplate.name,
@@ -51,12 +56,11 @@ struct MobileCalendarView: View {
                         message: placementMessage
                     )
                 }
-                CalendarWeekdayHeader()
                 monthGrid
-                Spacer(minLength: 0)
             }
-            .padding(.top, 10)
+            .padding(.top, 4)
             .background(AppTheme.background.ignoresSafeArea())
+            .ignoresSafeArea(.container, edges: .bottom)
             .overlay(alignment: .bottom) {
                 if let calendarNotice {
                     CalendarNoticeBanner(message: calendarNotice)
@@ -66,18 +70,10 @@ struct MobileCalendarView: View {
                 }
             }
             .animation(.snappy(duration: 0.18), value: calendarNotice)
-            .navigationTitle(placementTemplate == nil ? "캘린더" : "날짜 선택")
+            .navigationTitle(placementTemplate == nil ? "" : "날짜 선택")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if placementTemplate == nil {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button { sheet = .templates } label: {
-                            Label("템플릿 배치", systemImage: "square.grid.3x3")
-                        }
-                        Button { sheet = .addEvent(selectedDate) } label: {
-                            Label("이벤트 추가", systemImage: "plus")
-                        }
-                    }
-                } else {
+                if placementTemplate != nil {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("취소") {
                             cancelTemplatePlacement()
@@ -91,6 +87,7 @@ struct MobileCalendarView: View {
                     }
                 }
             }
+            .toolbar(placementTemplate == nil ? .hidden : .visible, for: .navigationBar)
             .sheet(item: $sheet) { sheet in
                 switch sheet {
                 case .addEvent(let date):
@@ -124,29 +121,79 @@ struct MobileCalendarView: View {
     }
 
     private var monthGrid: some View {
-        LazyVGrid(columns: columns, spacing: 4) {
-            ForEach(DayKey.monthGridDates(for: visibleMonth), id: \.self) { date in
-                MobileMonthDayCell(
-                    date: date,
-                    visibleMonth: visibleMonth,
-                    isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
-                    isPlacementSelected: placementDatesByKey[DayKey.key(for: date)] != nil,
-                    events: eventsForDate(date),
-                    taskCount: taskCount(for: date),
-                    specialDays: specialDayStore.days(on: date)
-                )
-                .onTapGesture {
-                    let day = DayKey.startOfDay(for: date)
-                    selectedDate = day
-                    if placementTemplate == nil {
-                        sheet = .day(day)
-                    } else {
-                        togglePlacementDate(day)
+        GeometryReader { proxy in
+            let dates = DayKey.monthGridDates(for: visibleMonth)
+            let isPlacementMode = placementTemplate != nil
+            let headerHeight: CGFloat = 30
+            let gridHeight = max(proxy.size.height - headerHeight, 324)
+            let cellHeight = gridHeight / 6
+            let cellWidth = proxy.size.width / 7
+            let eventTopInset = min(max(cellHeight * 0.30, 24), 32)
+            let laneHeight: CGFloat = 18
+            let barHeight: CGFloat = 16
+            let maxEventLanes = max(1, min(3, Int((cellHeight - eventTopInset - 6) / laneHeight)))
+            let segments: [MobileCalendarEventSegment] = isPlacementMode ? [] : eventSegments(in: dates, maxLanes: maxEventLanes)
+
+            VStack(spacing: 0) {
+                CalendarWeekdayHeader()
+                    .frame(height: headerHeight)
+
+                ZStack(alignment: .topLeading) {
+                    LazyVGrid(columns: columns, spacing: 0) {
+                        ForEach(Array(dates.enumerated()), id: \.element) { index, date in
+                            MobileMonthDayCell(
+                                date: date,
+                                visibleMonth: visibleMonth,
+                                isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
+                                isPlacementSelected: placementDatesByKey[DayKey.key(for: date)] != nil,
+                                events: isPlacementMode ? [] : eventsForDate(date),
+                                specialDays: specialDayStore.days(on: date),
+                                showsTrailingDivider: (index + 1) % 7 != 0,
+                                showsBottomDivider: index < 35
+                            )
+                            .frame(height: cellHeight)
+                            .onTapGesture {
+                                let day = DayKey.startOfDay(for: date)
+                                selectedDate = day
+                                if placementTemplate == nil {
+                                    sheet = .day(day)
+                                } else {
+                                    togglePlacementDate(day)
+                                }
+                            }
+                        }
+                    }
+
+                    ForEach(segments) { segment in
+                        MobileCalendarEventSpanBar(
+                            event: segment.event,
+                            isDimmed: segment.isDimmed
+                        )
+                        .frame(width: max(cellWidth * CGFloat(segment.span), 24), height: barHeight)
+                        .offset(
+                            x: cellWidth * CGFloat(segment.startColumn),
+                            y: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight
+                        )
+                        .allowsHitTesting(false)
                     }
                 }
+                .frame(height: gridHeight)
             }
+            .frame(height: headerHeight + gridHeight)
+            .clipShape(Rectangle())
+            .overlay {
+                Rectangle()
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, 8)
+    }
+
+    private func tasksForDate(_ date: Date) -> [TodoTask] {
+        BoardQueryRules.tasksForBoard(
+            tasks,
+            selectedDayKey: DayKey.key(for: date)
+        )
     }
 
     private func eventsForDate(_ date: Date) -> [CalendarEvent] {
@@ -156,15 +203,64 @@ struct MobileCalendarView: View {
             .sorted { $0.startDayKey < $1.startDayKey }
     }
 
-    private func taskCount(for date: Date) -> Int {
-        tasksForDate(date).count
-    }
+    private func eventSegments(in monthDates: [Date], maxLanes: Int) -> [MobileCalendarEventSegment] {
+        let weeks = stride(from: 0, to: monthDates.count, by: 7).map {
+            Array(monthDates[$0..<min($0 + 7, monthDates.count)])
+        }
+        let monthStartKey = DayKey.key(for: DayKey.startOfMonth(for: visibleMonth))
+        let nextMonthStartKey = DayKey.key(for: DayKey.addingMonths(1, to: DayKey.startOfMonth(for: visibleMonth)))
+        var segments: [MobileCalendarEventSegment] = []
 
-    private func tasksForDate(_ date: Date) -> [TodoTask] {
-        BoardQueryRules.tasksForBoard(
-            tasks,
-            selectedDayKey: DayKey.key(for: date)
-        )
+        for (weekIndex, weekDates) in weeks.enumerated() {
+            guard let weekStart = weekDates.first, let weekEnd = weekDates.last else { continue }
+            let weekStartKey = DayKey.key(for: weekStart)
+            let weekEndKey = DayKey.key(for: weekEnd)
+            let weekKeys = weekDates.map(DayKey.key(for:))
+            let overlappingEvents = events
+                .filter { $0.startDayKey <= weekEndKey && $0.endDayKey >= weekStartKey }
+                .sorted {
+                    if $0.startDayKey == $1.startDayKey {
+                        if $0.endDayKey == $1.endDayKey {
+                            return $0.title < $1.title
+                        }
+                        return $0.endDayKey > $1.endDayKey
+                    }
+                    return $0.startDayKey < $1.startDayKey
+                }
+
+            var laneEndColumns: [Int] = []
+
+            for event in overlappingEvents {
+                let segmentStartKey = max(event.startDayKey, weekStartKey)
+                let segmentEndKey = min(event.endDayKey, weekEndKey)
+                guard let startColumn = weekKeys.firstIndex(of: segmentStartKey),
+                      let endColumn = weekKeys.firstIndex(of: segmentEndKey) else {
+                    continue
+                }
+
+                let lane: Int
+                if let availableLane = laneEndColumns.firstIndex(where: { $0 < startColumn }) {
+                    lane = availableLane
+                    laneEndColumns[availableLane] = endColumn
+                } else {
+                    lane = laneEndColumns.count
+                    laneEndColumns.append(endColumn)
+                }
+
+                guard lane < maxLanes else { continue }
+
+                segments.append(MobileCalendarEventSegment(
+                    event: event,
+                    weekIndex: weekIndex,
+                    startColumn: startColumn,
+                    span: endColumn - startColumn + 1,
+                    lane: lane,
+                    isDimmed: segmentEndKey < monthStartKey || segmentStartKey >= nextMonthStartKey
+                ))
+            }
+        }
+
+        return segments
     }
 
     private func startTemplatePlacement(_ template: TaskTemplate) {
@@ -233,43 +329,87 @@ struct MobileCalendarView: View {
 
 private struct CalendarHeader: View {
     @Binding var visibleMonth: Date
-    @Binding var selectedDate: Date
+    var showsActions: Bool
+    var onShowTemplates: () -> Void
+    var onAddEvent: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: 5) {
             Button { visibleMonth = DayKey.addingMonths(-1, to: visibleMonth) } label: {
                 Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 32, height: 34)
             }
             .accessibilityLabel("이전 달")
+
             Text(DayKey.monthTitle(visibleMonth))
-                .font(.title2.bold())
+                .font(.title3.weight(.bold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
-            Spacer()
-            Button("오늘") {
-                visibleMonth = DayKey.startOfMonth(for: Date())
-                selectedDate = DayKey.startOfDay(for: Date())
-            }
+                .minimumScaleFactor(0.68)
+
             Button { visibleMonth = DayKey.addingMonths(1, to: visibleMonth) } label: {
                 Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 32, height: 34)
             }
             .accessibilityLabel("다음 달")
+
+            Spacer(minLength: 0)
+
+            if showsActions {
+                HStack(spacing: 12) {
+                    Button {
+                        onShowTemplates()
+                    } label: {
+                        Image(systemName: "square.grid.3x3")
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(width: 36, height: 34)
+                    }
+                    .accessibilityLabel("템플릿 배치")
+
+                    Button {
+                        onAddEvent()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .bold))
+                            .frame(width: 36, height: 34)
+                    }
+                    .accessibilityLabel("이벤트 추가")
+                }
+            }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 6)
     }
 }
 
 private struct CalendarWeekdayHeader: View {
     var body: some View {
-        HStack {
-            ForEach(DayKey.weekdaySymbols(), id: \.self) { symbol in
+        let symbols = DayKey.weekdaySymbols()
+
+        HStack(spacing: 0) {
+            ForEach(symbols.indices, id: \.self) { index in
+                let symbol = symbols[index]
+
                 Text(symbol)
                     .font(.caption.weight(.bold))
                     .frame(maxWidth: .infinity)
-                    .foregroundStyle(.secondary)
+                    .frame(maxHeight: .infinity)
+                    .foregroundStyle(index == 0 ? Color(red: 0.98, green: 0.40, blue: 0.42) : AppTheme.secondaryText)
+                    .background(AppTheme.panel.opacity(0.92))
+                    .overlay(alignment: .trailing) {
+                        if index < symbols.count - 1 {
+                            Rectangle()
+                                .fill(AppTheme.border)
+                                .frame(width: 1)
+                        }
+                    }
             }
         }
-        .padding(.horizontal, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppTheme.border)
+                .frame(height: 1)
+        }
     }
 }
 
@@ -324,13 +464,42 @@ private struct MobileMonthDayCell: View {
     var isSelected: Bool
     var isPlacementSelected: Bool
     var events: [CalendarEvent]
-    var taskCount: Int
     var specialDays: [SpecialDay]
+    var showsTrailingDivider: Bool
+    var showsBottomDivider: Bool
 
-    private var background: Color {
-        if isPlacementSelected { return AppTheme.event.opacity(0.22) }
-        if DayKey.isToday(date) { return AppTheme.selectedTab.opacity(0.35) }
-        return AppTheme.panel
+    private var isCurrentMonth: Bool {
+        DayKey.isSameMonth(date, visibleMonth)
+    }
+
+    private var isToday: Bool {
+        DayKey.isToday(date)
+    }
+
+    private var primarySpecialDay: SpecialDay? {
+        specialDays.first
+    }
+
+    private var hasPublicHoliday: Bool {
+        specialDays.contains { $0.isPublicHoliday }
+    }
+
+    private var cellBackground: Color {
+        if isPlacementSelected { return AppTheme.event.opacity(0.16) }
+        if isSelected { return AppTheme.selectedTab.opacity(0.32) }
+        if !isCurrentMonth { return AppTheme.input.opacity(0.38) }
+        return AppTheme.panel.opacity(isToday ? 0.92 : 0.72)
+    }
+
+    private var dayBackground: Color {
+        if isPlacementSelected || isSelected || isToday { return AppTheme.event }
+        return Color.clear
+    }
+
+    private var dayForeground: Color {
+        if isPlacementSelected || isSelected || isToday { return AppTheme.eventText }
+        if hasPublicHoliday, isCurrentMonth { return Color(red: 0.98, green: 0.40, blue: 0.42) }
+        return isCurrentMonth ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.45)
     }
 
     private var accessibilityLabel: String {
@@ -339,62 +508,109 @@ private struct MobileMonthDayCell: View {
         if isPlacementSelected { parts.append("배치 선택됨") }
         if let specialDay = specialDays.first { parts.append(specialDay.name) }
         if !events.isEmpty { parts.append("이벤트 \(events.count)개") }
-        if taskCount > 0 { parts.append("작업 \(taskCount)개") }
         return parts.joined(separator: ", ")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 3) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .top, spacing: 3) {
                 Text(DayKey.dayNumber(date))
-                    .font(.caption.weight(.bold))
-                if let specialDay = specialDays.first {
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(dayForeground)
+                    .frame(width: 18, height: 18)
+                    .background(dayBackground, in: Circle())
+
+                if let specialDay = primarySpecialDay {
                     Text(specialDay.name)
                         .font(.system(size: 8, weight: .semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-                        .foregroundStyle(specialDay.isPublicHoliday ? .red : .secondary)
+                        .foregroundStyle(specialDayForeground(specialDay))
+                        .padding(.top, 2)
                 }
-                Spacer()
+                Spacer(minLength: 0)
                 if isPlacementSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(AppTheme.event)
+                        .padding(.top, 2)
                 }
             }
 
-            ForEach(events.prefix(2)) { event in
-                Text(event.title)
-                    .font(.system(size: 8, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .padding(.horizontal, 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(CalendarEventPalette.color(for: event.color), in: RoundedRectangle(cornerRadius: 2))
-                    .foregroundStyle(AppTheme.eventText)
-            }
-
-            if taskCount > 0 {
-                Text("작업 \(taskCount)")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
             Spacer(minLength: 0)
         }
-        .padding(5)
-        .frame(height: 72)
-        .background(background, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(
-                    isPlacementSelected || isSelected ? AppTheme.event : AppTheme.border,
-                    lineWidth: isPlacementSelected || isSelected ? 2 : 1
-                )
+        .padding(.horizontal, 5)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(cellBackground)
+        .overlay(alignment: .trailing) {
+            if showsTrailingDivider {
+                Rectangle()
+                    .fill(AppTheme.border)
+                    .frame(width: 1)
+            }
         }
-        .opacity(DayKey.isSameMonth(date, visibleMonth) ? 1 : 0.38)
+        .overlay(alignment: .bottom) {
+            if showsBottomDivider {
+                Rectangle()
+                    .fill(AppTheme.border)
+                    .frame(height: 1)
+            }
+        }
+        .overlay {
+            if isPlacementSelected || isSelected {
+                Rectangle()
+                    .strokeBorder(AppTheme.event, lineWidth: isPlacementSelected ? 2 : 1.5)
+            }
+        }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(.isButton)
+    }
+
+    private func specialDayForeground(_ specialDay: SpecialDay) -> Color {
+        if !isCurrentMonth {
+            return AppTheme.secondaryText.opacity(0.40)
+        }
+
+        if specialDay.isPublicHoliday {
+            return Color(red: 0.98, green: 0.40, blue: 0.42)
+        }
+
+        return AppTheme.secondaryText
+    }
+}
+
+private struct MobileCalendarEventSegment: Identifiable {
+    var event: CalendarEvent
+    var weekIndex: Int
+    var startColumn: Int
+    var span: Int
+    var lane: Int
+    var isDimmed: Bool
+
+    var id: String {
+        "\(event.id.uuidString)-\(weekIndex)-\(lane)"
+    }
+}
+
+private struct MobileCalendarEventSpanBar: View {
+    var event: CalendarEvent
+    var isDimmed: Bool
+
+    var body: some View {
+        Text(event.title)
+            .font(.system(size: 9, weight: .bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(AppTheme.eventText)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(
+                CalendarEventPalette.color(for: event.color).opacity(isDimmed ? 0.52 : 0.96),
+                in: RoundedRectangle(cornerRadius: 2)
+            )
     }
 }
 
