@@ -49,6 +49,7 @@ struct MobileCalendarView: View {
             VStack(spacing: 6) {
                 CalendarHeader(
                     visibleMonth: $visibleMonth,
+                    selectedDate: $selectedDate,
                     showsActions: placementTemplate == nil,
                     onShowTemplates: { sheet = .templates },
                     onAddEvent: { sheet = .addEvent(selectedDate) }
@@ -68,7 +69,10 @@ struct MobileCalendarView: View {
             }
             .padding(.top, 4)
             .background(AppTheme.background.ignoresSafeArea())
-            .ignoresSafeArea(.container, edges: .bottom)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear
+                    .frame(height: MobileLayout.bottomTabClearance)
+            }
             .overlay(alignment: .bottom) {
                 if let calendarNotice {
                     CalendarNoticeBanner(message: calendarNotice)
@@ -376,13 +380,14 @@ struct MobileCalendarView: View {
 
 private struct CalendarHeader: View {
     @Binding var visibleMonth: Date
+    @Binding var selectedDate: Date
     var showsActions: Bool
     var onShowTemplates: () -> Void
     var onAddEvent: () -> Void
 
     var body: some View {
         HStack(spacing: 5) {
-            Button { visibleMonth = DayKey.addingMonths(-1, to: visibleMonth) } label: {
+            Button { moveMonth(by: -1) } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .semibold))
                     .frame(width: 32, height: 34)
@@ -394,7 +399,7 @@ private struct CalendarHeader: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
 
-            Button { visibleMonth = DayKey.addingMonths(1, to: visibleMonth) } label: {
+            Button { moveMonth(by: 1) } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .semibold))
                     .frame(width: 32, height: 34)
@@ -426,6 +431,12 @@ private struct CalendarHeader: View {
             }
         }
         .padding(.horizontal, 6)
+    }
+
+    private func moveMonth(by offset: Int) {
+        let month = DayKey.startOfMonth(for: DayKey.addingMonths(offset, to: visibleMonth))
+        visibleMonth = month
+        selectedDate = month
     }
 }
 

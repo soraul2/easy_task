@@ -14,6 +14,10 @@ enum MobileImageStorage {
     static let appSupportFolder = "EasyTask"
 }
 
+enum MobileLayout {
+    static let bottomTabClearance: CGFloat = 96
+}
+
 struct MobileMissingImagePlaceholder: View {
     var message: String
     var minHeight: CGFloat = 140

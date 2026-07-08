@@ -72,6 +72,10 @@ struct MobileArchiveView: View {
                 }
             }
             .listStyle(.plain)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear
+                    .frame(height: MobileLayout.bottomTabClearance)
+            }
             .searchable(text: $searchText, prompt: "작업, 회고 검색")
             .navigationTitle("기록")
             .toolbar {

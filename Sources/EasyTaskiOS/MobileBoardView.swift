@@ -310,6 +310,10 @@ private struct BoardTaskList: View {
             }
         }
         .listStyle(.plain)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: MobileLayout.bottomTabClearance)
+        }
     }
 }
 
