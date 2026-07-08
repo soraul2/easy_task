@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-enum SeedService {
+public enum SeedService {
     @MainActor
-    static func seedIfNeeded(
+    public static func seedIfNeeded(
         context: ModelContext,
         tasks: [Task],
         events: [CalendarEvent],

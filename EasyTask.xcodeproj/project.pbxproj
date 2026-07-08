@@ -1,0 +1,419 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A30000000000000000000001 /* TemplateScopePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* TemplateScopePicker.swift */; };
+		A30000000000000000000002 /* TemplateSearchField.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* TemplateSearchField.swift */; };
+		A30000000000000000000003 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* AppModels.swift */; };
+		A30000000000000000000004 /* SpecialDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* SpecialDay.swift */; };
+		A30000000000000000000005 /* BackupCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* BackupCodec.swift */; };
+		A30000000000000000000006 /* CalendarEventTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* CalendarEventTimeline.swift */; };
+		A30000000000000000000007 /* DayKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* DayKey.swift */; };
+		A30000000000000000000008 /* DiaryImageFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* DiaryImageFileStore.swift */; };
+		A30000000000000000000009 /* EstimatedTimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* EstimatedTimeFormatter.swift */; };
+		A3000000000000000000000A /* SeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* SeedService.swift */; };
+		A3000000000000000000000B /* TaskRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* TaskRules.swift */; };
+		A3000000000000000000000C /* TemplateListRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* TemplateListRules.swift */; };
+		A3000000000000000000000D /* TemplateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* TemplateService.swift */; };
+		A3000000000000000000000E /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* AppTheme.swift */; };
+		A3000000000000000000000F /* CalendarEventPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* CalendarEventPalette.swift */; };
+		A30000000000000000000010 /* EasyTaskiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* EasyTaskiOSApp.swift */; };
+		A30000000000000000000011 /* SpecialDays.kr.json in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* SpecialDays.kr.json */; };
+		A30000000000000000000012 /* MobileShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* MobileShared.swift */; };
+		A30000000000000000000013 /* MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* MobileBoardView.swift */; };
+		A30000000000000000000014 /* MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* MobileCalendarView.swift */; };
+		A30000000000000000000015 /* MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* MobileArchiveView.swift */; };
+		A30000000000000000000016 /* MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* MobileReviewComposerSheet.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000010 /* EasyTask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyTask.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000001 /* TemplateScopePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Components/TemplateScopePicker.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000002 /* TemplateSearchField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Components/TemplateSearchField.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000003 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Models/AppModels.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000004 /* SpecialDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Models/SpecialDay.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000005 /* BackupCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/BackupCodec.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000006 /* CalendarEventTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/CalendarEventTimeline.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000007 /* DayKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DayKey.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000008 /* DiaryImageFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DiaryImageFileStore.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000009 /* EstimatedTimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000A /* SeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/SeedService.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000B /* TaskRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/TaskRules.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000C /* TemplateListRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/TemplateListRules.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000D /* TemplateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/TemplateService.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000E /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Theme/AppTheme.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000000F /* CalendarEventPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Theme/CalendarEventPalette.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000010 /* EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000011 /* SpecialDays.kr.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Sources/EasyTaskCore/Resources/SpecialDays.kr.json; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000012 /* MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileShared.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000013 /* MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000014 /* MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000015 /* MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000016 /* MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000004 = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000005 /* Sources */,
+				A10000000000000000000006 /* Resources */,
+				A10000000000000000000007 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000005 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* TemplateScopePicker.swift */,
+				A20000000000000000000002 /* TemplateSearchField.swift */,
+				A20000000000000000000003 /* AppModels.swift */,
+				A20000000000000000000004 /* SpecialDay.swift */,
+				A20000000000000000000005 /* BackupCodec.swift */,
+				A20000000000000000000006 /* CalendarEventTimeline.swift */,
+				A20000000000000000000007 /* DayKey.swift */,
+				A20000000000000000000008 /* DiaryImageFileStore.swift */,
+				A20000000000000000000009 /* EstimatedTimeFormatter.swift */,
+				A2000000000000000000000A /* SeedService.swift */,
+				A2000000000000000000000B /* TaskRules.swift */,
+				A2000000000000000000000C /* TemplateListRules.swift */,
+				A2000000000000000000000D /* TemplateService.swift */,
+				A2000000000000000000000E /* AppTheme.swift */,
+				A2000000000000000000000F /* CalendarEventPalette.swift */,
+				A20000000000000000000010 /* EasyTaskiOSApp.swift */,
+				A20000000000000000000012 /* MobileShared.swift */,
+				A20000000000000000000013 /* MobileBoardView.swift */,
+				A20000000000000000000014 /* MobileCalendarView.swift */,
+				A20000000000000000000015 /* MobileArchiveView.swift */,
+				A20000000000000000000016 /* MobileReviewComposerSheet.swift */,
+			);
+			name = Sources;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000006 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000011 /* SpecialDays.kr.json */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000007 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000010 /* EasyTask.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000001 /* EasyTask */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask" */;
+			buildPhases = (
+				A10000000000000000000002 /* Sources */,
+				A10000000000000000000009 /* Resources */,
+				A10000000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EasyTask;
+			productName = EasyTask;
+			productReference = A10000000000000000000010 /* EasyTask.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000000 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					A10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = A1000000000000000000000E /* Build configuration list for PBXProject "EasyTask" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A10000000000000000000004;
+			productRefGroup = A10000000000000000000007 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000000000000000000001 /* EasyTask */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A30000000000000000000011 /* SpecialDays.kr.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A30000000000000000000001 /* TemplateScopePicker.swift in Sources */,
+				A30000000000000000000002 /* TemplateSearchField.swift in Sources */,
+				A30000000000000000000003 /* AppModels.swift in Sources */,
+				A30000000000000000000004 /* SpecialDay.swift in Sources */,
+				A30000000000000000000005 /* BackupCodec.swift in Sources */,
+				A30000000000000000000006 /* CalendarEventTimeline.swift in Sources */,
+				A30000000000000000000007 /* DayKey.swift in Sources */,
+				A30000000000000000000008 /* DiaryImageFileStore.swift in Sources */,
+				A30000000000000000000009 /* EstimatedTimeFormatter.swift in Sources */,
+				A3000000000000000000000A /* SeedService.swift in Sources */,
+				A3000000000000000000000B /* TaskRules.swift in Sources */,
+				A3000000000000000000000C /* TemplateListRules.swift in Sources */,
+				A3000000000000000000000D /* TemplateService.swift in Sources */,
+				A3000000000000000000000E /* AppTheme.swift in Sources */,
+				A3000000000000000000000F /* CalendarEventPalette.swift in Sources */,
+				A30000000000000000000010 /* EasyTaskiOSApp.swift in Sources */,
+				A30000000000000000000012 /* MobileShared.swift in Sources */,
+				A30000000000000000000013 /* MobileBoardView.swift in Sources */,
+				A30000000000000000000014 /* MobileCalendarView.swift in Sources */,
+				A30000000000000000000015 /* MobileArchiveView.swift in Sources */,
+				A30000000000000000000016 /* MobileReviewComposerSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG XCODE_APP_BUNDLE";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A1000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = XCODE_APP_BUNDLE;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A1000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = EasyTask;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "회고에 첨부할 사진을 선택하기 위해 사진 보관함을 사용합니다.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG XCODE_APP_BUNDLE";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A1000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = EasyTask;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "회고에 첨부할 사진을 선택하기 위해 사진 보관함을 사용합니다.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = XCODE_APP_BUNDLE;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1000000000000000000000E /* Build configuration list for PBXProject "EasyTask" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000000A /* Debug */,
+				A1000000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000000C /* Debug */,
+				A1000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000000 /* Project object */;
+}

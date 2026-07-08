@@ -1,7 +1,7 @@
 import Foundation
 
-enum CalendarEventTimeline {
-    static func badgeText(for event: CalendarEvent, today: Date = Date()) -> String {
+public enum CalendarEventTimeline {
+    public static func badgeText(for event: CalendarEvent, today: Date = Date()) -> String {
         let currentDay = DayKey.startOfDay(for: today)
         let startDay = DayKey.startOfDay(for: min(event.startAt, event.endAt))
         let endDay = DayKey.startOfDay(for: max(event.startAt, event.endAt))

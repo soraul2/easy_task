@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import SwiftData
-@testable import TodoDesktopMVP
+@testable import EasyTaskCore
 
 @Test
 func applyingSameDoneStatusPreservesCompletionMetadata() throws {

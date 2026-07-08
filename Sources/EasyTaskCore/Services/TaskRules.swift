@@ -1,7 +1,7 @@
 import Foundation
 
-enum TaskRules {
-    static func applyStatus(_ status: TaskStatus, to task: Task, now: Date = Date()) {
+public enum TaskRules {
+    public static func applyStatus(_ status: TaskStatus, to task: Task, now: Date = Date()) {
         let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard oldStatus != status else { return }
 
@@ -22,7 +22,7 @@ enum TaskRules {
         }
     }
 
-    static func archiveIfNeeded(_ tasks: [Task], todayKey: String = DayKey.today, now: Date = Date()) {
+    public static func archiveIfNeeded(_ tasks: [Task], todayKey: String = DayKey.today, now: Date = Date()) {
         for task in tasks where task.status == TaskStatus.done.rawValue {
             guard let completedDayKey = task.completedDayKey else { continue }
             guard completedDayKey < todayKey, task.archivedAt == nil else { continue }
@@ -33,7 +33,7 @@ enum TaskRules {
         }
     }
 
-    static func nextOrder(in tasks: [Task], status: TaskStatus = .todo) -> Double {
+    public static func nextOrder(in tasks: [Task], status: TaskStatus = .todo) -> Double {
         let maxOrder = tasks
             .filter { $0.status == status.rawValue && $0.archivedAt == nil }
             .map(\.order)

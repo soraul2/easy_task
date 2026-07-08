@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import EasyTaskCore
 
 private enum CalendarSheet: Identifiable {
     case addEvent

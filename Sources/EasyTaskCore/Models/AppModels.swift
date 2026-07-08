@@ -1,14 +1,14 @@
 import Foundation
 import SwiftData
 
-enum TaskStatus: String, CaseIterable, Identifiable {
+public enum TaskStatus: String, CaseIterable, Identifiable {
     case todo
     case doing
     case done
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .todo: "할 일"
         case .doing: "진행 중"
@@ -17,14 +17,14 @@ enum TaskStatus: String, CaseIterable, Identifiable {
     }
 }
 
-enum TaskPriority: String, CaseIterable, Identifiable {
+public enum TaskPriority: String, CaseIterable, Identifiable {
     case low
     case medium
     case high
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .low: "낮음"
         case .medium: "보통"
@@ -33,28 +33,28 @@ enum TaskPriority: String, CaseIterable, Identifiable {
     }
 }
 
-enum DiaryBlockType: String, CaseIterable, Identifiable {
+public enum DiaryBlockType: String, CaseIterable, Identifiable {
     case text
     case image
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 }
 
 @Model
-final class CalendarEvent {
-    var id: UUID = UUID()
-    var title: String = ""
-    var startAt: Date = Date()
-    var endAt: Date = Date()
-    var startDayKey: String = ""
-    var endDayKey: String = ""
-    var note: String?
-    var color: String?
+public final class CalendarEvent {
+    public var id: UUID = UUID()
+    public var title: String = ""
+    public var startAt: Date = Date()
+    public var endAt: Date = Date()
+    public var startDayKey: String = ""
+    public var endDayKey: String = ""
+    public var note: String?
+    public var color: String?
 
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
+    public var createdAt: Date = Date()
+    public var updatedAt: Date = Date()
 
-    init(
+    public init(
         id: UUID = UUID(),
         title: String,
         startAt: Date,
@@ -78,15 +78,15 @@ final class CalendarEvent {
 }
 
 @Model
-final class TaskTemplate {
-    var id: UUID = UUID()
-    var name: String = ""
-    var isFavorite: Bool = false
+public final class TaskTemplate {
+    public var id: UUID = UUID()
+    public var name: String = ""
+    public var isFavorite: Bool = false
 
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
+    public var createdAt: Date = Date()
+    public var updatedAt: Date = Date()
 
-    init(
+    public init(
         id: UUID = UUID(),
         name: String,
         isFavorite: Bool = false,
@@ -102,17 +102,17 @@ final class TaskTemplate {
 }
 
 @Model
-final class TaskTemplateItem {
-    var id: UUID = UUID()
-    var templateId: UUID = UUID()
-    var title: String = ""
-    var note: String?
-    var priority: String?
-    var tags: [String] = []
-    var estimatedMinutes: Int?
-    var order: Double = 0
+public final class TaskTemplateItem {
+    public var id: UUID = UUID()
+    public var templateId: UUID = UUID()
+    public var title: String = ""
+    public var note: String?
+    public var priority: String?
+    public var tags: [String] = []
+    public var estimatedMinutes: Int?
+    public var order: Double = 0
 
-    init(
+    public init(
         id: UUID = UUID(),
         templateId: UUID,
         title: String,
@@ -134,29 +134,29 @@ final class TaskTemplateItem {
 }
 
 @Model
-final class Task {
-    var id: UUID = UUID()
-    var title: String = ""
-    var note: String?
+public final class Task {
+    public var id: UUID = UUID()
+    public var title: String = ""
+    public var note: String?
 
-    var status: String = TaskStatus.todo.rawValue
-    var plannedAt: Date = Date()
-    var plannedDayKey: String = ""
-    var order: Double = 0
+    public var status: String = TaskStatus.todo.rawValue
+    public var plannedAt: Date = Date()
+    public var plannedDayKey: String = ""
+    public var order: Double = 0
 
-    var eventId: UUID?
-    var priority: String?
-    var tags: [String] = []
-    var estimatedMinutes: Int?
+    public var eventId: UUID?
+    public var priority: String?
+    public var tags: [String] = []
+    public var estimatedMinutes: Int?
 
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
-    var completedAt: Date?
-    var completedDayKey: String?
-    var archivedAt: Date?
-    var archivedDayKey: String?
+    public var createdAt: Date = Date()
+    public var updatedAt: Date = Date()
+    public var completedAt: Date?
+    public var completedDayKey: String?
+    public var archivedAt: Date?
+    public var archivedDayKey: String?
 
-    init(
+    public init(
         id: UUID = UUID(),
         title: String,
         note: String? = nil,
@@ -187,19 +187,19 @@ final class Task {
 }
 
 @Model
-final class DailyReview {
-    var id: UUID = UUID()
-    var dayKey: String = ""
-    var title: String = ""
-    var weather: String = ""
-    var mood: String = ""
-    var content: String = ""
-    var imageFileNames: [String] = []
+public final class DailyReview {
+    public var id: UUID = UUID()
+    public var dayKey: String = ""
+    public var title: String = ""
+    public var weather: String = ""
+    public var mood: String = ""
+    public var content: String = ""
+    public var imageFileNames: [String] = []
 
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
+    public var createdAt: Date = Date()
+    public var updatedAt: Date = Date()
 
-    init(
+    public init(
         id: UUID = UUID(),
         dayKey: String,
         title: String = "",
@@ -223,19 +223,19 @@ final class DailyReview {
 }
 
 @Model
-final class DiaryBlock {
-    var id: UUID = UUID()
-    var reviewId: UUID = UUID()
-    var dayKey: String = ""
-    var type: String = DiaryBlockType.text.rawValue
-    var text: String = ""
-    var imageFileName: String?
-    var order: Double = 0
+public final class DiaryBlock {
+    public var id: UUID = UUID()
+    public var reviewId: UUID = UUID()
+    public var dayKey: String = ""
+    public var type: String = DiaryBlockType.text.rawValue
+    public var text: String = ""
+    public var imageFileName: String?
+    public var order: Double = 0
 
-    var createdAt: Date = Date()
-    var updatedAt: Date = Date()
+    public var createdAt: Date = Date()
+    public var updatedAt: Date = Date()
 
-    init(
+    public init(
         id: UUID = UUID(),
         reviewId: UUID,
         dayKey: String,

@@ -1,9 +1,13 @@
 import SwiftUI
 
-struct TemplateSearchField: View {
+public struct TemplateSearchField: View {
     @Binding var text: String
 
-    var body: some View {
+    public init(text: Binding<String>) {
+        _text = text
+    }
+
+    public var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(AppTheme.secondaryText)

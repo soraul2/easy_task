@@ -1,12 +1,12 @@
 import Foundation
 
-enum TemplateListScope: String, CaseIterable, Identifiable {
+public enum TemplateListScope: String, CaseIterable, Identifiable {
     case favorites
     case all
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .favorites: "즐겨찾기"
         case .all: "전체보기"
@@ -14,8 +14,8 @@ enum TemplateListScope: String, CaseIterable, Identifiable {
     }
 }
 
-enum TemplateListRules {
-    static func filterAndSort(
+public enum TemplateListRules {
+    public static func filterAndSort(
         _ templates: [TaskTemplate],
         items: [TaskTemplateItem],
         query: String,
@@ -30,11 +30,11 @@ enum TemplateListRules {
             .sorted(by: sort)
     }
 
-    static func preferredScope(for templates: [TaskTemplate]) -> TemplateListScope {
+    public static func preferredScope(for templates: [TaskTemplate]) -> TemplateListScope {
         templates.contains { $0.isFavorite } ? .favorites : .all
     }
 
-    static func itemsForTemplate(
+    public static func itemsForTemplate(
         _ template: TaskTemplate,
         in items: [TaskTemplateItem]
     ) -> [TaskTemplateItem] {

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftData
 import SwiftUI
+import EasyTaskCore
 
 struct DiaryView: View {
     private let postMaxWidth: CGFloat = 620

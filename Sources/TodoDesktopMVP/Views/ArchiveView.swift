@@ -1,6 +1,7 @@
 import AppKit
 import SwiftData
 import SwiftUI
+import EasyTaskCore
 
 private struct ArchiveDayGroup: Identifiable {
     var dayKey: String

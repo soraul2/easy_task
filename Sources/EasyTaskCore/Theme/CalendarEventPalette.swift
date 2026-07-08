@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum CalendarEventColor: String, CaseIterable, Identifiable {
+public enum CalendarEventColor: String, CaseIterable, Identifiable {
     case blue
     case red
     case green
@@ -8,9 +8,9 @@ enum CalendarEventColor: String, CaseIterable, Identifiable {
     case orange
     case teal
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .blue: "파랑"
         case .red: "빨강"
@@ -21,7 +21,7 @@ enum CalendarEventColor: String, CaseIterable, Identifiable {
         }
     }
 
-    var paletteIndex: Int {
+    public var paletteIndex: Int {
         switch self {
         case .blue: 0
         case .red: 1
@@ -33,16 +33,16 @@ enum CalendarEventColor: String, CaseIterable, Identifiable {
     }
 
     @MainActor
-    var color: Color {
+    public var color: Color {
         AppTheme.eventColor(at: paletteIndex)
     }
 }
 
-enum CalendarEventPalette {
-    static let defaultColor = CalendarEventColor.blue.rawValue
+public enum CalendarEventPalette {
+    public static let defaultColor = CalendarEventColor.blue.rawValue
 
     @MainActor
-    static func color(for colorID: String?) -> Color {
+    public static func color(for colorID: String?) -> Color {
         CalendarEventColor(rawValue: colorID ?? defaultColor)?.color ?? CalendarEventColor.blue.color
     }
 }

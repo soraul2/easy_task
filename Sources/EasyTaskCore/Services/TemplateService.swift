@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-enum TemplateService {
-    static func saveTemplate(
+public enum TemplateService {
+    public static func saveTemplate(
         named name: String,
         from tasks: [Task],
         in context: ModelContext
@@ -31,7 +31,7 @@ enum TemplateService {
         }
     }
 
-    static func applyTemplate(
+    public static func applyTemplate(
         _ template: TaskTemplate,
         items: [TaskTemplateItem],
         selectedDate: Date,
@@ -59,7 +59,7 @@ enum TemplateService {
     }
 
     @discardableResult
-    static func applyTemplate(
+    public static func applyTemplate(
         _ template: TaskTemplate,
         items: [TaskTemplateItem],
         selectedDates: [Date],

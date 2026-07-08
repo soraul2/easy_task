@@ -1,18 +1,17 @@
 import AppKit
 import Foundation
 import UniformTypeIdentifiers
+import EasyTaskCore
 
 enum DiaryImageStore {
+    private static let appSupportFolder = "TodoDesktopMVP"
+
     static var directoryURL: URL {
-        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first ?? FileManager.default.temporaryDirectory
-        return baseURL
-            .appendingPathComponent("TodoDesktopMVP", isDirectory: true)
-            .appendingPathComponent("DiaryImages", isDirectory: true)
+        DiaryImageFileStore.directoryURL(appSupportFolder: appSupportFolder)
     }
 
     static func imageURL(for fileName: String) -> URL {
-        directoryURL.appendingPathComponent(fileName)
+        DiaryImageFileStore.imageURL(for: fileName, appSupportFolder: appSupportFolder)
     }
 
     @MainActor
@@ -28,19 +27,10 @@ enum DiaryImageStore {
     }
 
     static func removeImage(fileName: String) {
-        try? FileManager.default.removeItem(at: imageURL(for: fileName))
+        DiaryImageFileStore.removeImage(fileName: fileName, appSupportFolder: appSupportFolder)
     }
 
     private static func copyImage(from sourceURL: URL) throws -> String {
-        try FileManager.default.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-
-        let fileExtension = sourceURL.pathExtension.isEmpty ? "png" : sourceURL.pathExtension
-        let fileName = "\(UUID().uuidString).\(fileExtension)"
-        let destinationURL = imageURL(for: fileName)
-        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-        return fileName
+        try DiaryImageFileStore.copyImage(from: sourceURL, appSupportFolder: appSupportFolder)
     }
 }

@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import EasyTaskCore
 
 enum AppTab: String, CaseIterable, Identifiable {
     case board

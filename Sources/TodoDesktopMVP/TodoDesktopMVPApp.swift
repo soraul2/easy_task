@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import EasyTaskCore
 
 @main
 struct TodoDesktopMVPApp: App {

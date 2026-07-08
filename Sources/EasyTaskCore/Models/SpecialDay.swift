@@ -1,25 +1,25 @@
 import Foundation
 
-enum SpecialDayType: String, Codable {
+public enum SpecialDayType: String, Codable {
     case holiday
     case anniversary
     case seasonal
     case miscellaneous
 }
 
-struct SpecialDay: Codable, Identifiable, Equatable {
-    var id: String { "\(dateKey)-\(name)" }
+public struct SpecialDay: Codable, Identifiable, Equatable {
+    public var id: String { "\(dateKey)-\(name)" }
 
-    let dateKey: String
-    let name: String
-    let type: SpecialDayType
-    let isPublicHoliday: Bool
+    public let dateKey: String
+    public let name: String
+    public let type: SpecialDayType
+    public let isPublicHoliday: Bool
 }
 
-struct SpecialDayStore {
+public struct SpecialDayStore {
     private let daysByDateKey: [String: [SpecialDay]]
 
-    init(days: [SpecialDay]) {
+    public init(days: [SpecialDay]) {
         daysByDateKey = Dictionary(grouping: days, by: \.dateKey)
             .mapValues { days in
                 days.sorted { lhs, rhs in
@@ -34,10 +34,10 @@ struct SpecialDayStore {
             }
     }
 
-    static func load(bundle: Bundle? = nil) -> SpecialDayStore {
+    public static func load(bundle: Bundle? = nil) -> SpecialDayStore {
         let url = bundle?.url(forResource: "SpecialDays.kr", withExtension: "json")
             ?? Bundle.main.url(forResource: "SpecialDays.kr", withExtension: "json")
-            ?? Bundle.module.url(forResource: "SpecialDays.kr", withExtension: "json")
+            ?? packageResourceURL()
 
         guard let url,
               let data = try? Data(contentsOf: url),
@@ -48,11 +48,11 @@ struct SpecialDayStore {
         return SpecialDayStore(days: days)
     }
 
-    func days(on date: Date) -> [SpecialDay] {
+    public func days(on date: Date) -> [SpecialDay] {
         daysByDateKey[DayKey.key(for: date), default: []]
     }
 
-    func days(on dayKey: String) -> [SpecialDay] {
+    public func days(on dayKey: String) -> [SpecialDay] {
         daysByDateKey[dayKey, default: []]
     }
 
@@ -63,5 +63,13 @@ struct SpecialDayStore {
         case .seasonal: 2
         case .miscellaneous: 3
         }
+    }
+
+    private static func packageResourceURL() -> URL? {
+        #if SWIFT_PACKAGE
+        Bundle.module.url(forResource: "SpecialDays.kr", withExtension: "json")
+        #else
+        nil
+        #endif
     }
 }

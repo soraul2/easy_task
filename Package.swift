@@ -6,18 +6,41 @@ import PackageDescription
 let package = Package(
     name: "TodoDesktopMVP",
     platforms: [
+        .iOS(.v18),
         .macOS(.v26)
     ],
-    targets: [
-        .executableTarget(
+    products: [
+        .library(
+            name: "EasyTaskCore",
+            targets: ["EasyTaskCore"]
+        ),
+        .executable(
             name: "TodoDesktopMVP",
+            targets: ["TodoDesktopMVP"]
+        ),
+        .executable(
+            name: "EasyTaskiOS",
+            targets: ["EasyTaskiOS"]
+        )
+    ],
+    targets: [
+        .target(
+            name: "EasyTaskCore",
             resources: [
                 .process("Resources")
             ]
         ),
+        .executableTarget(
+            name: "TodoDesktopMVP",
+            dependencies: ["EasyTaskCore"]
+        ),
+        .executableTarget(
+            name: "EasyTaskiOS",
+            dependencies: ["EasyTaskCore"]
+        ),
         .testTarget(
             name: "TodoDesktopMVPTests",
-            dependencies: ["TodoDesktopMVP"]
+            dependencies: ["EasyTaskCore"]
         ),
     ],
     swiftLanguageModes: [.v6]

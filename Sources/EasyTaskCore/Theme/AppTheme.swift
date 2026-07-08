@@ -1,18 +1,18 @@
 import Foundation
 import SwiftUI
 
-struct ThemeColorToken: Hashable {
-    var red: Double
-    var green: Double
-    var blue: Double
+public struct ThemeColorToken: Hashable, Sendable {
+    public var red: Double
+    public var green: Double
+    public var blue: Double
 
-    init(red: Double, green: Double, blue: Double) {
+    public init(red: Double, green: Double, blue: Double) {
         self.red = red
         self.green = green
         self.blue = blue
     }
 
-    init(hex: String) {
+    public init(hex: String) {
         let cleaned = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
         let value = Int(cleaned, radix: 16) ?? 0
         red = Double((value >> 16) & 0xFF) / 255
@@ -20,11 +20,11 @@ struct ThemeColorToken: Hashable {
         blue = Double(value & 0xFF) / 255
     }
 
-    var color: Color {
+    public var color: Color {
         Color(red: red, green: green, blue: blue)
     }
 
-    var relativeLuminance: Double {
+    public var relativeLuminance: Double {
         func convert(_ value: Double) -> Double {
             if value <= 0.03928 {
                 return value / 12.92
@@ -35,79 +35,79 @@ struct ThemeColorToken: Hashable {
         return 0.2126 * convert(red) + 0.7152 * convert(green) + 0.0722 * convert(blue)
     }
 
-    func contrastRatio(to other: ThemeColorToken) -> Double {
+    public func contrastRatio(to other: ThemeColorToken) -> Double {
         let lighter = max(relativeLuminance, other.relativeLuminance)
         let darker = min(relativeLuminance, other.relativeLuminance)
         return (lighter + 0.05) / (darker + 0.05)
     }
 }
 
-enum AppThemeAppearance: CaseIterable {
+public enum AppThemeAppearance: CaseIterable {
     case light
     case dark
 
-    init(colorScheme: ColorScheme) {
+    public init(colorScheme: ColorScheme) {
         self = colorScheme == .light ? .light : .dark
     }
 }
 
-struct AppThemeColorSet: Hashable {
-    var backgroundTop: ThemeColorToken
-    var backgroundBottom: ThemeColorToken
-    var panel: ThemeColorToken
-    var input: ThemeColorToken
-    var floatingBar: ThemeColorToken
-    var border: ThemeColorToken
+public struct AppThemeColorSet: Hashable, Sendable {
+    public var backgroundTop: ThemeColorToken
+    public var backgroundBottom: ThemeColorToken
+    public var panel: ThemeColorToken
+    public var input: ThemeColorToken
+    public var floatingBar: ThemeColorToken
+    public var border: ThemeColorToken
 
-    var primaryText: ThemeColorToken
-    var secondaryText: ThemeColorToken
-    var cardText: ThemeColorToken
-    var cardMutedText: ThemeColorToken
-    var eventText: ThemeColorToken
+    public var primaryText: ThemeColorToken
+    public var secondaryText: ThemeColorToken
+    public var cardText: ThemeColorToken
+    public var cardMutedText: ThemeColorToken
+    public var eventText: ThemeColorToken
 
-    var selectedTab: ThemeColorToken
-    var columnTodo: ThemeColorToken
-    var columnDoing: ThemeColorToken
-    var columnDone: ThemeColorToken
-    var todo: ThemeColorToken
-    var doing: ThemeColorToken
-    var done: ThemeColorToken
-    var event: ThemeColorToken
-    var eventPalette: [ThemeColorToken]
+    public var selectedTab: ThemeColorToken
+    public var columnTodo: ThemeColorToken
+    public var columnDoing: ThemeColorToken
+    public var columnDone: ThemeColorToken
+    public var todo: ThemeColorToken
+    public var doing: ThemeColorToken
+    public var done: ThemeColorToken
+    public var event: ThemeColorToken
+    public var eventPalette: [ThemeColorToken]
 }
 
-struct AppThemePreset: Identifiable, Hashable {
-    var id: String
-    var name: String
-    var sourcePaletteHexes: [String]
+public struct AppThemePreset: Identifiable, Hashable, Sendable {
+    public var id: String
+    public var name: String
+    public var sourcePaletteHexes: [String]
 
-    var backgroundTop: ThemeColorToken
-    var backgroundBottom: ThemeColorToken
-    var panel: ThemeColorToken
-    var input: ThemeColorToken
-    var floatingBar: ThemeColorToken
-    var border: ThemeColorToken
+    public var backgroundTop: ThemeColorToken
+    public var backgroundBottom: ThemeColorToken
+    public var panel: ThemeColorToken
+    public var input: ThemeColorToken
+    public var floatingBar: ThemeColorToken
+    public var border: ThemeColorToken
 
-    var primaryText: ThemeColorToken
-    var secondaryText: ThemeColorToken
-    var cardText: ThemeColorToken
-    var cardMutedText: ThemeColorToken
+    public var primaryText: ThemeColorToken
+    public var secondaryText: ThemeColorToken
+    public var cardText: ThemeColorToken
+    public var cardMutedText: ThemeColorToken
 
-    var selectedTab: ThemeColorToken
-    var columnTodo: ThemeColorToken
-    var columnDoing: ThemeColorToken
-    var columnDone: ThemeColorToken
-    var todo: ThemeColorToken
-    var doing: ThemeColorToken
-    var done: ThemeColorToken
-    var event: ThemeColorToken
-    var eventPalette: [ThemeColorToken]
+    public var selectedTab: ThemeColorToken
+    public var columnTodo: ThemeColorToken
+    public var columnDoing: ThemeColorToken
+    public var columnDone: ThemeColorToken
+    public var todo: ThemeColorToken
+    public var doing: ThemeColorToken
+    public var done: ThemeColorToken
+    public var event: ThemeColorToken
+    public var eventPalette: [ThemeColorToken]
 
-    var sourceColors: [Color] {
+    public var sourceColors: [Color] {
         sourcePaletteHexes.map { ThemeColorToken(hex: $0).color }
     }
 
-    func colorSet(for appearance: AppThemeAppearance) -> AppThemeColorSet {
+    public func colorSet(for appearance: AppThemeAppearance) -> AppThemeColorSet {
         switch appearance {
         case .dark:
             return darkColorSet
@@ -313,10 +313,10 @@ struct AppThemePreset: Identifiable, Hashable {
         )
     }
 
-    static let defaultID = "appleSystem"
-    static let legacyDefaultID = "maroonEmber"
+    public static let defaultID = "appleSystem"
+    public static let legacyDefaultID = "maroonEmber"
 
-    static let all: [AppThemePreset] = [
+    public static let all: [AppThemePreset] = [
         AppThemePreset(
             id: "appleSystem",
             name: "Apple System",
@@ -536,34 +536,34 @@ struct AppThemePreset: Identifiable, Hashable {
         )
     ]
 
-    static func preset(for id: String?) -> AppThemePreset {
+    public static func preset(for id: String?) -> AppThemePreset {
         all.first { $0.id == id } ?? all.first { $0.id == defaultID } ?? all[0]
     }
 }
 
 @MainActor
-enum AppTheme {
-    nonisolated static let storageKey = "todoAppThemeID"
-    nonisolated static let defaultMigrationKey = "todoAppThemeDefaultMigrationVersion"
-    nonisolated static let currentDefaultMigrationVersion = 2
+public enum AppTheme {
+    public nonisolated static let storageKey = "todoAppThemeID"
+    public nonisolated static let defaultMigrationKey = "todoAppThemeDefaultMigrationVersion"
+    public nonisolated static let currentDefaultMigrationVersion = 2
     private static var activeID = UserDefaults.standard.string(forKey: storageKey) ?? AppThemePreset.defaultID
     private static var activeAppearance: AppThemeAppearance = .dark
 
-    static var current: AppThemePreset {
+    public static var current: AppThemePreset {
         AppThemePreset.preset(for: activeID)
     }
 
-    static var colors: AppThemeColorSet {
+    public static var colors: AppThemeColorSet {
         current.colorSet(for: activeAppearance)
     }
 
-    static func activate(_ id: String, colorScheme: ColorScheme) {
+    public static func activate(_ id: String, colorScheme: ColorScheme) {
         activeID = id
         activeAppearance = AppThemeAppearance(colorScheme: colorScheme)
         UserDefaults.standard.set(id, forKey: storageKey)
     }
 
-    static func migrateStoredDefaultIfNeeded(_ id: String) -> String {
+    public static func migrateStoredDefaultIfNeeded(_ id: String) -> String {
         let migrationVersion = UserDefaults.standard.integer(forKey: defaultMigrationKey)
         guard migrationVersion < currentDefaultMigrationVersion else {
             return id
@@ -574,7 +574,7 @@ enum AppTheme {
         return AppThemePreset.defaultID
     }
 
-    static var background: LinearGradient {
+    public static var background: LinearGradient {
         LinearGradient(
             colors: [colors.backgroundTop.color, colors.backgroundBottom.color],
             startPoint: .top,
@@ -582,28 +582,28 @@ enum AppTheme {
         )
     }
 
-    static var primaryText: Color { colors.primaryText.color }
-    static var secondaryText: Color { colors.secondaryText.color }
-    static var border: Color { colors.border.color }
+    public static var primaryText: Color { colors.primaryText.color }
+    public static var secondaryText: Color { colors.secondaryText.color }
+    public static var border: Color { colors.border.color }
 
-    static var selectedTab: Color { colors.selectedTab.color }
-    static var floatingBar: Color { colors.floatingBar.color.opacity(0.96) }
-    static var panel: Color { colors.panel.color }
-    static var input: Color { colors.input.color }
+    public static var selectedTab: Color { colors.selectedTab.color }
+    public static var floatingBar: Color { colors.floatingBar.color.opacity(0.96) }
+    public static var panel: Color { colors.panel.color }
+    public static var input: Color { colors.input.color }
 
-    static var columnTodo: Color { colors.columnTodo.color }
-    static var columnDoing: Color { colors.columnDoing.color }
-    static var columnDone: Color { colors.columnDone.color }
+    public static var columnTodo: Color { colors.columnTodo.color }
+    public static var columnDoing: Color { colors.columnDoing.color }
+    public static var columnDone: Color { colors.columnDone.color }
 
-    static var todo: Color { colors.todo.color }
-    static var doing: Color { colors.doing.color }
-    static var done: Color { colors.done.color }
-    static var event: Color { colors.event.color }
-    static var eventText: Color { colors.eventText.color }
-    static var cardText: Color { colors.cardText.color }
-    static var cardMutedText: Color { colors.cardMutedText.color }
+    public static var todo: Color { colors.todo.color }
+    public static var doing: Color { colors.doing.color }
+    public static var done: Color { colors.done.color }
+    public static var event: Color { colors.event.color }
+    public static var eventText: Color { colors.eventText.color }
+    public static var cardText: Color { colors.cardText.color }
+    public static var cardMutedText: Color { colors.cardMutedText.color }
 
-    static func eventColor(at index: Int) -> Color {
+    public static func eventColor(at index: Int) -> Color {
         let palette = colors.eventPalette
         guard palette.indices.contains(index) else {
             return colors.event.color
