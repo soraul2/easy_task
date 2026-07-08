@@ -350,17 +350,15 @@ struct CalendarView: View {
     }
 
     private func addEvent() -> Bool {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return false }
-
-        let normalizedStart = min(startDate, endDate)
-        let normalizedEnd = max(startDate, endDate)
-        modelContext.insert(CalendarEvent(
-            title: trimmedTitle,
-            startAt: normalizedStart,
-            endAt: normalizedEnd,
+        guard let event = CalendarEventRules.makeEvent(
+            title: title,
+            startAt: startDate,
+            endAt: endDate,
             color: selectedEventColor
-        ))
+        ) else {
+            return false
+        }
+        modelContext.insert(event)
         title = ""
         selectedEventColor = CalendarEventPalette.defaultColor
         return true
@@ -381,6 +379,7 @@ struct CalendarView: View {
     }
 
     private func removeEvent(_ event: CalendarEvent) {
+        CalendarEventRules.detachTasks(from: event, in: tasks)
         modelContext.delete(event)
     }
 
@@ -420,14 +419,7 @@ struct CalendarView: View {
     }
 
     private func eventsFor(dayKey: String) -> [CalendarEvent] {
-        events
-            .filter { $0.startDayKey <= dayKey && dayKey <= $0.endDayKey }
-            .sorted {
-                if $0.startDayKey == $1.startDayKey {
-                    return $0.title < $1.title
-                }
-                return $0.startDayKey < $1.startDayKey
-            }
+        CalendarEventRules.events(onDayKey: dayKey, in: events)
     }
 
     private func eventSegments(maxLanes: Int = 4) -> [CalendarEventSegment] {
@@ -442,17 +434,11 @@ struct CalendarView: View {
             let weekStartKey = DayKey.key(for: weekStart)
             let weekEndKey = DayKey.key(for: weekEnd)
 
-            let overlappingEvents = events
-                .filter { $0.startDayKey <= weekEndKey && $0.endDayKey >= weekStartKey }
-                .sorted {
-                    if $0.startDayKey == $1.startDayKey {
-                        if $0.endDayKey == $1.endDayKey {
-                            return $0.title < $1.title
-                        }
-                        return $0.endDayKey > $1.endDayKey
-                    }
-                    return $0.startDayKey < $1.startDayKey
-                }
+            let overlappingEvents = CalendarEventRules.events(
+                overlapping: weekStart,
+                through: weekEnd,
+                in: events
+            )
 
             var laneEndColumns: [Int] = []
 
@@ -678,16 +664,16 @@ struct EventEditorSheet: View {
     }
 
     private func save() {
-        let normalizedStart = min(draftStartDate, draftEndDate)
-        let normalizedEnd = max(draftStartDate, draftEndDate)
-
-        event.title = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        event.startAt = normalizedStart
-        event.endAt = normalizedEnd
-        event.startDayKey = DayKey.key(for: normalizedStart)
-        event.endDayKey = DayKey.key(for: normalizedEnd)
-        event.color = draftColor
-        event.updatedAt = Date()
+        guard CalendarEventRules.update(
+            event,
+            title: draftTitle,
+            startAt: draftStartDate,
+            endAt: draftEndDate,
+            note: event.note,
+            color: draftColor
+        ) else {
+            return
+        }
         dismiss()
     }
 }

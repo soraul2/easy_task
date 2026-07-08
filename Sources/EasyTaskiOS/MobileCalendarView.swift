@@ -97,6 +97,7 @@ struct MobileCalendarView: View {
                         date: date,
                         events: eventsForDate(date),
                         tasks: tasksForDate(date),
+                        allTasks: tasks,
                         onOpenBoard: {
                             onOpenBoardDate(date)
                         }
@@ -197,10 +198,7 @@ struct MobileCalendarView: View {
     }
 
     private func eventsForDate(_ date: Date) -> [CalendarEvent] {
-        let key = DayKey.key(for: date)
-        return events
-            .filter { $0.startDayKey <= key && key <= $0.endDayKey }
-            .sorted { $0.startDayKey < $1.startDayKey }
+        CalendarEventRules.events(on: date, in: events)
     }
 
     private func eventSegments(in monthDates: [Date], maxLanes: Int) -> [MobileCalendarEventSegment] {
@@ -216,17 +214,11 @@ struct MobileCalendarView: View {
             let weekStartKey = DayKey.key(for: weekStart)
             let weekEndKey = DayKey.key(for: weekEnd)
             let weekKeys = weekDates.map(DayKey.key(for:))
-            let overlappingEvents = events
-                .filter { $0.startDayKey <= weekEndKey && $0.endDayKey >= weekStartKey }
-                .sorted {
-                    if $0.startDayKey == $1.startDayKey {
-                        if $0.endDayKey == $1.endDayKey {
-                            return $0.title < $1.title
-                        }
-                        return $0.endDayKey > $1.endDayKey
-                    }
-                    return $0.startDayKey < $1.startDayKey
-                }
+            let overlappingEvents = CalendarEventRules.events(
+                overlapping: weekStart,
+                through: weekEnd,
+                in: events
+            )
 
             var laneEndColumns: [Int] = []
 
@@ -639,6 +631,7 @@ private enum MobileEventDurationPreset: Int, CaseIterable, Identifiable {
 private struct MobileEventEditorSheet: View {
     var initialDate: Date
     var event: CalendarEvent?
+    var allTasks: [TodoTask] = []
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -664,9 +657,10 @@ private struct MobileEventEditorSheet: View {
         DayKey.startOfDay(for: max(startDate, endDate))
     }
 
-    init(initialDate: Date, event: CalendarEvent? = nil) {
+    init(initialDate: Date, event: CalendarEvent? = nil, allTasks: [TodoTask] = []) {
         self.initialDate = initialDate
         self.event = event
+        self.allTasks = allTasks
         _title = State(initialValue: event?.title ?? "")
         _note = State(initialValue: event?.note ?? "")
         _startDate = State(initialValue: event?.startAt ?? initialDate)
@@ -731,30 +725,29 @@ private struct MobileEventEditorSheet: View {
     }
 
     private func saveEvent() {
-        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-
         if let event {
-            event.title = trimmedTitle
-            event.startAt = normalizedStartDate
-            event.endAt = normalizedEndDate
-            event.startDayKey = DayKey.key(for: normalizedStartDate)
-            event.endDayKey = DayKey.key(for: normalizedEndDate)
-            event.note = trimmedNote.isEmpty ? nil : trimmedNote
-            event.color = color
-            event.updatedAt = Date()
-        } else {
-            modelContext.insert(CalendarEvent(
+            CalendarEventRules.update(
+                event,
                 title: trimmedTitle,
-                startAt: normalizedStartDate,
-                endAt: normalizedEndDate,
-                note: trimmedNote.isEmpty ? nil : trimmedNote,
+                startAt: startDate,
+                endAt: endDate,
+                note: note,
                 color: color
-            ))
+            )
+        } else if let event = CalendarEventRules.makeEvent(
+            title: trimmedTitle,
+            startAt: startDate,
+            endAt: endDate,
+            note: note,
+            color: color
+        ) {
+            modelContext.insert(event)
         }
     }
 
     private func deleteEvent() {
         guard let event else { return }
+        CalendarEventRules.detachTasks(from: event, in: allTasks)
         modelContext.delete(event)
         dismiss()
     }
@@ -884,6 +877,7 @@ private struct MobileCalendarDaySheet: View {
     var date: Date
     var events: [CalendarEvent]
     var tasks: [TodoTask]
+    var allTasks: [TodoTask]
     var onOpenBoard: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -927,6 +921,7 @@ private struct MobileCalendarDaySheet: View {
                             .accessibilityLabel("이벤트 편집")
 
                             Button(role: .destructive) {
+                                CalendarEventRules.detachTasks(from: event, in: allTasks)
                                 modelContext.delete(event)
                             } label: {
                                 Image(systemName: "trash")
@@ -977,7 +972,7 @@ private struct MobileCalendarDaySheet: View {
             case .add(let date):
                 MobileEventEditorSheet(initialDate: date)
             case .edit(let event):
-                MobileEventEditorSheet(initialDate: event.startAt, event: event)
+                MobileEventEditorSheet(initialDate: event.startAt, event: event, allTasks: allTasks)
             }
         }
     }
