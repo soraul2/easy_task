@@ -69,10 +69,6 @@ struct MobileCalendarView: View {
             }
             .padding(.top, 4)
             .background(AppTheme.background.ignoresSafeArea())
-            .safeAreaInset(edge: .bottom) {
-                Color.clear
-                    .frame(height: MobileLayout.bottomTabClearance)
-            }
             .overlay(alignment: .bottom) {
                 if let calendarNotice {
                     CalendarNoticeBanner(message: calendarNotice)
