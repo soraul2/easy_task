@@ -22,6 +22,37 @@ public enum TaskRules {
         }
     }
 
+    public static func carryoverTasks(_ tasks: [Task], before dayKey: String = DayKey.today) -> [Task] {
+        tasks
+            .filter {
+                $0.archivedAt == nil &&
+                    $0.status != TaskStatus.done.rawValue &&
+                    $0.plannedDayKey < dayKey
+            }
+            .sorted {
+                if $0.plannedDayKey == $1.plannedDayKey {
+                    return $0.order < $1.order
+                }
+                return $0.plannedDayKey < $1.plannedDayKey
+            }
+    }
+
+    public static func move(_ task: Task, to date: Date, order: Double? = nil, now: Date = Date()) {
+        let plannedAt = DayKey.startOfDay(for: date)
+        task.plannedAt = plannedAt
+        task.plannedDayKey = DayKey.key(for: plannedAt)
+        if let order {
+            task.order = order
+        }
+        task.updatedAt = now
+    }
+
+    public static func completeAll(_ tasks: [Task], now: Date = Date()) {
+        for task in tasks {
+            applyStatus(.done, to: task, now: now)
+        }
+    }
+
     public static func archiveIfNeeded(_ tasks: [Task], todayKey: String = DayKey.today, now: Date = Date()) {
         for task in tasks where task.status == TaskStatus.done.rawValue {
             guard let completedDayKey = task.completedDayKey else { continue }

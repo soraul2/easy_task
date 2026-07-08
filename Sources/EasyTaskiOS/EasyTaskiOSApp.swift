@@ -75,21 +75,30 @@ private struct MobileAppRootView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             MobileBoardView(selectedDate: $selectedBoardDate)
-                .tabItem { Label(MobileTab.board.title, systemImage: MobileTab.board.symbol) }
+                .tabItem {
+                    Image(systemName: MobileTab.board.symbol)
+                        .accessibilityLabel(MobileTab.board.title)
+                }
                 .tag(MobileTab.board)
 
             MobileCalendarView { date in
                 selectedBoardDate = date
                 selectedTab = .board
             }
-            .tabItem { Label(MobileTab.calendar.title, systemImage: MobileTab.calendar.symbol) }
+            .tabItem {
+                Image(systemName: MobileTab.calendar.symbol)
+                    .accessibilityLabel(MobileTab.calendar.title)
+            }
             .tag(MobileTab.calendar)
 
             MobileArchiveView { date in
                 selectedBoardDate = date
                 selectedTab = .board
             }
-            .tabItem { Label(MobileTab.archive.title, systemImage: MobileTab.archive.symbol) }
+            .tabItem {
+                Image(systemName: MobileTab.archive.symbol)
+                    .accessibilityLabel(MobileTab.archive.title)
+            }
             .tag(MobileTab.archive)
         }
         .tint(AppTheme.event)

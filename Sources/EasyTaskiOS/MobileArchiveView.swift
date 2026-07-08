@@ -40,7 +40,7 @@ struct MobileArchiveView: View {
     private var groups: [Group] {
         let completed = tasks.filter { $0.status == TaskStatus.done.rawValue }
         let tasksByDay = Dictionary(grouping: completed, by: { $0.completedDayKey ?? $0.archivedDayKey ?? $0.plannedDayKey })
-        let reviewsByDay = Dictionary(grouping: reviews.filter { hasReviewContent($0) }, by: \.dayKey)
+        let reviewsByDay = Dictionary(grouping: reviews.filter { DailyReviewRules.hasContent($0) }, by: \.dayKey)
             .mapValues { $0.sorted { $0.updatedAt > $1.updatedAt }.first }
         let keys = Set(tasksByDay.keys).union(reviewsByDay.keys)
         return keys
@@ -78,6 +78,7 @@ struct MobileArchiveView: View {
                 Button { showingFilter = true } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                 }
+                .accessibilityLabel("기록 필터")
             }
             .sheet(isPresented: $showingFilter) {
                 ArchiveFilterSheet(scope: $scope, isPresented: $showingFilter)
@@ -85,17 +86,13 @@ struct MobileArchiveView: View {
         }
     }
 
-    private func hasReviewContent(_ review: DailyReview) -> Bool {
-        !review.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !review.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !review.imageFileNames.isEmpty
-    }
-
     private func matchesSearch(_ group: Group) -> Bool {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return true }
         if group.dayKey.localizedCaseInsensitiveContains(query) { return true }
         if group.review?.title.localizedCaseInsensitiveContains(query) == true { return true }
+        if group.review?.weather.localizedCaseInsensitiveContains(query) == true { return true }
+        if group.review?.mood.localizedCaseInsensitiveContains(query) == true { return true }
         if group.review?.content.localizedCaseInsensitiveContains(query) == true { return true }
         return group.tasks.contains {
             $0.title.localizedCaseInsensitiveContains(query) ||
@@ -147,6 +144,7 @@ private struct MobileArchiveGroupView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.headline)
+                        .lineLimit(2)
                     Text(group.dayKey)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -159,15 +157,18 @@ private struct MobileArchiveGroupView: View {
                 } label: {
                     Image(systemName: "rectangle.3.group")
                 }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("해당 날짜 칸반 열기")
             }
 
             if let review = group.review {
                 if !review.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(review.content)
                         .font(.subheadline)
+                        .lineLimit(6)
                 }
                 if !review.imageFileNames.isEmpty {
-                    MobileArchiveImagePreview(fileName: review.imageFileNames.first)
+                    MobileArchiveImageStrip(fileNames: review.imageFileNames)
                 }
             }
 
@@ -197,20 +198,38 @@ private struct MobileArchiveGroupView: View {
     }
 }
 
-private struct MobileArchiveImagePreview: View {
-    var fileName: String?
+private struct MobileArchiveImageStrip: View {
+    var fileNames: [String]
 
     var body: some View {
-        if let fileName,
-           let image = UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(fileNames, id: \.self) { fileName in
+                    MobileArchiveImagePreview(fileName: fileName)
+                }
+            }
+        }
+    }
+}
+
+private struct MobileArchiveImagePreview: View {
+    var fileName: String
+
+    var body: some View {
+        if let image = UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
             for: fileName,
             appSupportFolder: MobileImageStorage.appSupportFolder
            ).path) {
             Image(uiImage: image)
                 .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .scaledToFill()
+                .frame(width: 148, height: 104)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            MobileMissingImagePlaceholder(message: "이미지를 불러올 수 없음", minHeight: 104)
+                .frame(width: 148, height: 104)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }

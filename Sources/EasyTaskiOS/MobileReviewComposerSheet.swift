@@ -19,14 +19,17 @@ struct MobileReviewComposerSheet: View {
     @State private var imageFileNames: [String] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
+    @State private var messageIsError = false
 
     private var dayKey: String { DayKey.key(for: selectedDate) }
     private var selectedReview: DailyReview? { reviews.first { $0.dayKey == dayKey } }
 
     private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !imageFileNames.isEmpty
+        DailyReviewRules.hasContent(
+            title: title,
+            content: content,
+            imageFileNames: imageFileNames
+        )
     }
 
     var body: some View {
@@ -43,15 +46,19 @@ struct MobileReviewComposerSheet: View {
                     PhotosPicker(selection: $selectedItems, maxSelectionCount: 10, matching: .images) {
                         Label("이미지 추가", systemImage: "photo")
                     }
+                    .buttonStyle(.bordered)
                     if let message {
-                        Label(message, systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(AppTheme.done)
+                        Label(
+                            message,
+                            systemImage: messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+                        )
+                            .foregroundStyle(messageIsError ? .red : AppTheme.done)
                             .font(.caption.weight(.bold))
                     }
                 }
                 .padding(16)
             }
-            .navigationTitle("오늘 회고")
+            .navigationTitle("회고 작성")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
@@ -59,6 +66,7 @@ struct MobileReviewComposerSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("저장") {
                         save()
+                        dismiss()
                     }
                     .disabled(!canSave)
                 }
@@ -76,21 +84,22 @@ struct MobileReviewComposerSheet: View {
         imageFileNames = selectedReview?.imageFileNames ?? []
         selectedImageIndex = 0
         message = nil
+        messageIsError = false
     }
 
     private func save() {
-        let review: DailyReview
-        if let selectedReview {
-            review = selectedReview
-        } else {
-            review = DailyReview(dayKey: dayKey, content: "")
-            modelContext.insert(review)
+        guard DailyReviewService.save(
+            review: selectedReview,
+            dayKey: dayKey,
+            title: title,
+            content: content,
+            imageFileNames: imageFileNames,
+            in: modelContext
+        ) != nil else {
+            return
         }
-        review.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        review.content = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        review.imageFileNames = imageFileNames
-        review.updatedAt = Date()
         message = "회고가 저장됐어요"
+        messageIsError = false
     }
 
     private func importImages() {
@@ -100,6 +109,7 @@ struct MobileReviewComposerSheet: View {
 
         Swift.Task {
             var imported: [String] = []
+            var failedCount = 0
             for item in items {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let fileName = try? DiaryImageFileStore.writeImageData(
@@ -108,13 +118,26 @@ struct MobileReviewComposerSheet: View {
                     appSupportFolder: MobileImageStorage.appSupportFolder
                    ) {
                     imported.append(fileName)
+                } else {
+                    failedCount += 1
                 }
             }
             await MainActor.run {
+                guard !imported.isEmpty else {
+                    message = "이미지를 가져오지 못했어요"
+                    messageIsError = true
+                    return
+                }
                 imageFileNames.append(contentsOf: imported)
                 selectedImageIndex = max(imageFileNames.count - imported.count, 0)
                 save()
-                message = imported.count == 1 ? "이미지 추가됨" : "이미지 \(imported.count)개 추가됨"
+                if failedCount > 0 {
+                    message = "이미지 \(imported.count)개 추가됨, \(failedCount)개 실패"
+                    messageIsError = true
+                } else {
+                    message = imported.count == 1 ? "이미지 추가됨" : "이미지 \(imported.count)개 추가됨"
+                    messageIsError = false
+                }
             }
         }
     }
@@ -129,6 +152,7 @@ struct MobileReviewComposerSheet: View {
         selectedImageIndex = min(selectedImageIndex, max(imageFileNames.count - 1, 0))
         save()
         message = "이미지 삭제됨"
+        messageIsError = false
     }
 }
 
@@ -137,14 +161,13 @@ private struct ReviewComposerHeader: View {
     var selectedDate: Date
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "book.closed")
-                .foregroundStyle(AppTheme.event)
+        VStack(alignment: .leading, spacing: 8) {
+            Label(DayKey.display(selectedDate), systemImage: "calendar")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
             TextField("하루 회고", text: $title)
                 .font(.headline)
-            Text("› \(DayKey.display(selectedDate))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .textFieldStyle(.roundedBorder)
         }
     }
 }
@@ -184,7 +207,7 @@ private struct ReviewComposerImages: View {
                     .tag(index)
                 }
             }
-            .frame(height: 320)
+            .frame(height: 260)
             .tabViewStyle(.page)
         }
     }
@@ -205,6 +228,9 @@ private struct MobileReviewImagePreview: View {
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(AppTheme.input)
+            } else {
+                MobileMissingImagePlaceholder(message: "이미지를 불러올 수 없음")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "xmark")
@@ -214,6 +240,7 @@ private struct MobileReviewImagePreview: View {
                     .foregroundStyle(.white)
             }
             .padding(10)
+            .accessibilityLabel("이미지 삭제")
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }

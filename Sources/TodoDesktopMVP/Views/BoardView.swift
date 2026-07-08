@@ -40,55 +40,27 @@ struct BoardView: View {
     }
 
     private var boardTasks: [Task] {
-        if selectedDayKey == todayKey {
-            let visible = tasks.filter { $0.archivedAt == nil }
-            return visible.filter { task in
-                if task.status == TaskStatus.done.rawValue {
-                    return task.completedDayKey == todayKey
-                }
-                return task.plannedDayKey == todayKey
-            }
-        }
-
-        return tasks.filter { task in
-            if task.status == TaskStatus.done.rawValue {
-                return (task.completedDayKey ?? task.plannedDayKey) == selectedDayKey
-            }
-            return task.archivedAt == nil && task.plannedDayKey == selectedDayKey
-        }
+        BoardQueryRules.tasksForBoard(
+            tasks,
+            selectedDayKey: selectedDayKey,
+            todayKey: todayKey
+        )
     }
 
     private var carryoverTasks: [Task] {
-        tasks
-            .filter {
-                $0.archivedAt == nil &&
-                    $0.status != TaskStatus.done.rawValue &&
-                    $0.plannedDayKey < todayKey
-            }
-            .sorted {
-                if $0.plannedDayKey == $1.plannedDayKey {
-                    return $0.order < $1.order
-                }
-                return $0.plannedDayKey < $1.plannedDayKey
-            }
+        TaskRules.carryoverTasks(tasks, before: todayKey)
     }
 
     private var todoTasks: [Task] {
-        boardTasks
-            .filter { $0.status == TaskStatus.todo.rawValue }
-            .sorted { $0.order < $1.order }
+        BoardQueryRules.tasks(boardTasks, matching: .todo)
     }
 
     private var doingTasks: [Task] {
-        boardTasks
-            .filter { $0.status == TaskStatus.doing.rawValue }
-            .sorted { $0.order < $1.order }
+        BoardQueryRules.tasks(boardTasks, matching: .doing)
     }
 
     private var doneTasks: [Task] {
-        boardTasks
-            .filter { $0.status == TaskStatus.done.rawValue }
-            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        BoardQueryRules.tasks(boardTasks, matching: .done)
     }
 
     var body: some View {
@@ -372,7 +344,7 @@ struct BoardView: View {
             title: title,
             status: .todo,
             plannedAt: selectedDate,
-            order: TaskRules.nextOrder(in: tasks, status: .todo)
+            order: BoardQueryRules.nextOrder(in: tasks, dayKey: selectedDayKey, status: .todo)
         )
         modelContext.insert(task)
         quickTitle = ""
@@ -385,20 +357,20 @@ struct BoardView: View {
         }
 
         TaskRules.applyStatus(status, to: task)
-        task.order = TaskRules.nextOrder(in: tasks, status: status)
+        task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
         return true
     }
 
     private func moveTask(_ task: Task, to status: TaskStatus) {
         TaskRules.applyStatus(status, to: task)
-        task.order = TaskRules.nextOrder(in: tasks, status: status)
+        task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
     }
 
     private func bringToToday(_ task: Task) {
         task.plannedAt = DayKey.startOfDay(for: Date())
         task.plannedDayKey = todayKey
         task.status = TaskStatus.todo.rawValue
-        task.order = TaskRules.nextOrder(in: tasks, status: .todo)
+        task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: todayKey, status: .todo)
         task.updatedAt = Date()
     }
 

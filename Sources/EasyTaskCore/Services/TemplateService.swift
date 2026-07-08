@@ -31,31 +31,22 @@ public enum TemplateService {
         }
     }
 
+    @discardableResult
     public static func applyTemplate(
         _ template: TaskTemplate,
         items: [TaskTemplateItem],
         selectedDate: Date,
         existingTasks: [Task],
         in context: ModelContext
-    ) {
-        let orderedItems = items
-            .filter { $0.templateId == template.id }
-            .sorted { $0.order < $1.order }
-
-        let baseOrder = TaskRules.nextOrder(in: existingTasks, status: .todo)
-        for (index, item) in orderedItems.enumerated() {
-            let task = Task(
-                title: item.title,
-                note: item.note,
-                status: .todo,
-                plannedAt: selectedDate,
-                order: baseOrder + Double(index) * 100,
-                priority: item.priority.flatMap(TaskPriority.init(rawValue:)),
-                tags: item.tags,
-                estimatedMinutes: item.estimatedMinutes
-            )
-            context.insert(task)
-        }
+    ) -> Int {
+        applyTemplate(
+            template,
+            items: items,
+            selectedDates: [selectedDate],
+            existingTasks: existingTasks,
+            in: context,
+            skipDuplicateTitles: false
+        )
     }
 
     @discardableResult

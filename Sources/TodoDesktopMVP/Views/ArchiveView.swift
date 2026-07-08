@@ -73,11 +73,7 @@ struct ArchiveView: View {
     }
 
     private var nonEmptyReviews: [DailyReview] {
-        reviews.filter {
-            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                !$0.imageFileNames.isEmpty
-        }
+        reviews.filter { DailyReviewRules.hasContent($0) }
     }
 
     private var normalizedSearchText: String {
@@ -276,6 +272,8 @@ struct ArchiveView: View {
 
         return containsSearch(review.content) ||
             containsSearch(review.title) ||
+            containsSearch(review.weather) ||
+            containsSearch(review.mood) ||
             containsSearch(review.dayKey)
     }
 

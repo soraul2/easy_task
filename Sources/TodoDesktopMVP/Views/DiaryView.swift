@@ -35,20 +35,12 @@ struct DiaryView: View {
         selectedReview?.imageFileNames ?? []
     }
 
-    private var hasCaption: Bool {
-        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var trimmedReviewTitle: String {
-        reviewTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var hasTitle: Bool {
-        !trimmedReviewTitle.isEmpty
-    }
-
     private var canSave: Bool {
-        hasTitle || hasCaption || !imageFileNames.isEmpty
+        DailyReviewRules.hasContent(
+            title: reviewTitle,
+            content: content,
+            imageFileNames: imageFileNames
+        )
     }
 
     private var contentMaxWidth: CGFloat {
@@ -488,7 +480,10 @@ struct DiaryView: View {
 
     private func loadSelectedReview() {
         if let review = selectedReview {
-            migrateBlockSummaryIfNeeded(for: review)
+            DailyReviewService.migrateBlockSummaryIfNeeded(
+                for: review,
+                blocks: diaryBlocks
+            )
         }
 
         let review = selectedReview
@@ -500,30 +495,16 @@ struct DiaryView: View {
 
     @discardableResult
     private func save(forceCreate: Bool = false) -> DailyReview? {
-        let trimmedTitle = trimmedReviewTitle
-        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let review: DailyReview
-        if let selectedReview {
-            review = selectedReview
-        } else {
-            guard forceCreate || canSave else { return nil }
-            review = DailyReview(
-                dayKey: selectedDayKey,
-                title: trimmedTitle,
-                weather: "",
-                mood: "",
-                content: trimmedContent
-            )
-            modelContext.insert(review)
-        }
-
-        review.title = trimmedTitle
-        review.weather = ""
-        review.mood = ""
-        review.content = trimmedContent
-        review.updatedAt = Date()
-        syncBlocksToPost(review)
+        let review = DailyReviewService.save(
+            review: selectedReview,
+            dayKey: selectedDayKey,
+            title: reviewTitle,
+            content: content,
+            imageFileNames: imageFileNames,
+            in: modelContext,
+            forceCreate: forceCreate
+        )
+        guard let review else { return nil }
         message = "회고가 저장됐어요"
         return review
     }
@@ -532,12 +513,18 @@ struct DiaryView: View {
         do {
             let fileNames = try DiaryImageStore.chooseAndCopyImages()
             guard !fileNames.isEmpty else { return }
-            guard let review = save(forceCreate: true) else { return }
+            let nextImageFileNames = imageFileNames + fileNames
+            guard let review = DailyReviewService.save(
+                review: selectedReview,
+                dayKey: selectedDayKey,
+                title: reviewTitle,
+                content: content,
+                imageFileNames: nextImageFileNames,
+                in: modelContext,
+                forceCreate: true
+            ) else { return }
 
-            review.imageFileNames.append(contentsOf: fileNames)
-            review.updatedAt = Date()
             selectedImageIndex = max(review.imageFileNames.count - fileNames.count, 0)
-            syncBlocksToPost(review)
             message = fileNames.count == 1 ? "이미지 추가됨" : "이미지 \(fileNames.count)개 추가됨"
         } catch {
             message = "이미지 추가 실패: \(error.localizedDescription)"
@@ -549,74 +536,19 @@ struct DiaryView: View {
               review.imageFileNames.indices.contains(selectedImageIndex) else { return }
 
         let fileName = review.imageFileNames.remove(at: selectedImageIndex)
+        let nextImageFileNames = review.imageFileNames
         DiaryImageStore.removeImage(fileName: fileName)
         selectedImageIndex = min(selectedImageIndex, max(review.imageFileNames.count - 1, 0))
-        review.updatedAt = Date()
-        syncBlocksToPost(review)
+        DailyReviewService.save(
+            review: review,
+            dayKey: selectedDayKey,
+            title: reviewTitle,
+            content: content,
+            imageFileNames: nextImageFileNames,
+            in: modelContext,
+            forceCreate: true
+        )
         message = "이미지 삭제됨"
-    }
-
-    private func migrateBlockSummaryIfNeeded(for review: DailyReview) {
-        let blocks = blocks(for: review)
-        guard !blocks.isEmpty else { return }
-
-        let blockContent = blocks
-            .filter { $0.type == DiaryBlockType.text.rawValue }
-            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n\n")
-        let blockImageFileNames = blocks
-            .filter { $0.type == DiaryBlockType.image.rawValue }
-            .compactMap(\.imageFileName)
-
-        var didMigrate = false
-        if review.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !blockContent.isEmpty {
-            review.content = blockContent
-            didMigrate = true
-        }
-        if review.imageFileNames.isEmpty, !blockImageFileNames.isEmpty {
-            review.imageFileNames = blockImageFileNames
-            didMigrate = true
-        }
-        guard didMigrate else { return }
-
-        review.updatedAt = Date()
-    }
-
-    private func syncBlocksToPost(_ review: DailyReview) {
-        for block in blocks(for: review) {
-            modelContext.delete(block)
-        }
-
-        var nextOrder: Double = 100
-        let trimmedContent = review.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedContent.isEmpty {
-            modelContext.insert(DiaryBlock(
-                reviewId: review.id,
-                dayKey: review.dayKey,
-                type: .text,
-                text: trimmedContent,
-                order: nextOrder
-            ))
-            nextOrder += 100
-        }
-
-        for fileName in review.imageFileNames {
-            modelContext.insert(DiaryBlock(
-                reviewId: review.id,
-                dayKey: review.dayKey,
-                type: .image,
-                imageFileName: fileName,
-                order: nextOrder
-            ))
-            nextOrder += 100
-        }
-    }
-
-    private func blocks(for review: DailyReview) -> [DiaryBlock] {
-        diaryBlocks
-            .filter { $0.reviewId == review.id }
-            .sorted { $0.order < $1.order }
     }
 }
 
