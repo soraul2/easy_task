@@ -71,7 +71,7 @@ func versionedV1StoreMigratesToV2WithoutDataLoss() throws {
 
         let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "v1 fixture")
-        try expectLegacyIdentityBackfill(in: migrated)
+        try expectStableInstanceIdentityBackfill(in: migrated)
     }
 }
 
@@ -83,8 +83,66 @@ func existingUnversionedStoreOpensWithSchemaV1WithoutDataLoss() throws {
 
         let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "legacy fixture")
-        try expectLegacyIdentityBackfill(in: migrated)
+        try expectStableInstanceIdentityBackfill(in: migrated)
     }
+}
+
+@Test
+@MainActor
+func migratedDuplicateLogicalIDsConvergeRegardlessOfInsertionOrder() throws {
+    let forwardWinner = try migratedDuplicateTaskWinner(reversed: false)
+    let reversedWinner = try migratedDuplicateTaskWinner(reversed: true)
+
+    #expect(forwardWinner == reversedWinner)
+}
+
+@MainActor
+private func migratedDuplicateTaskWinner(reversed: Bool) throws -> String {
+    var winnerTitle = ""
+    try withTemporaryStore { storeURL in
+        let v1Schema = Schema(versionedSchema: EasyTaskSchemaV1.self)
+        let configuration = ModelConfiguration(
+            "EasyTaskV1Duplicates",
+            schema: v1Schema,
+            url: storeURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let v1Container = try ModelContainer(for: v1Schema, configurations: configuration)
+        let context = v1Container.mainContext
+        let day = try #require(DayKey.date(from: "2026-07-10"))
+        let logicalID = UUID(uuidString: "10000000-0000-0000-0000-000000000001")!
+        let timestamp = Date(timeIntervalSince1970: 100)
+        let first = EasyTaskSchemaV1.Task(
+            id: logicalID,
+            title: "alpha",
+            plannedAt: day,
+            order: 100,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        )
+        let second = EasyTaskSchemaV1.Task(
+            id: logicalID,
+            title: "omega",
+            plannedAt: day,
+            order: 100,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        )
+        for task in reversed ? [second, first] : [first, second] {
+            context.insert(task)
+        }
+        try context.save()
+
+        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migratedTasks = try migrated.mainContext.fetch(FetchDescriptor<Task>())
+        #expect(Set(migratedTasks.map(\.instanceID)).count == 2)
+        _ = try DataIntegrityService.reconcile(context: migrated.mainContext)
+        winnerTitle = try #require(
+            migratedTasks.first { $0.supersededAt == nil }
+        ).title
+    }
+    return winnerTitle
 }
 
 @MainActor
@@ -126,8 +184,7 @@ private func writeV1Fixture(to container: ModelContainer, title: String) throws 
         title: title,
         plannedAt: day,
         order: 100,
-        eventId: event.id,
-        templatePlacementId: placement.id
+        eventId: event.id
     )
     placement.taskIds = [task.id]
     let review = EasyTaskSchemaV1.DailyReview(
@@ -215,15 +272,18 @@ private func expectFixture(in container: ModelContainer, title: String) throws {
 }
 
 @MainActor
-private func expectLegacyIdentityBackfill(in container: ModelContainer) throws {
+private func expectStableInstanceIdentityBackfill(in container: ModelContainer) throws {
     let context = container.mainContext
-    #expect(try context.fetch(FetchDescriptor<CalendarEvent>()).allSatisfy { $0.instanceID == $0.id })
-    #expect(try context.fetch(FetchDescriptor<TaskTemplate>()).allSatisfy { $0.instanceID == $0.id })
-    #expect(try context.fetch(FetchDescriptor<TaskTemplateItem>()).allSatisfy { $0.instanceID == $0.id })
-    #expect(try context.fetch(FetchDescriptor<TemplatePlacement>()).allSatisfy { $0.instanceID == $0.id })
-    #expect(try context.fetch(FetchDescriptor<Task>()).allSatisfy { $0.instanceID == $0.id })
-    #expect(try context.fetch(FetchDescriptor<DailyReview>()).allSatisfy { $0.instanceID == $0.id })
-    #expect(try context.fetch(FetchDescriptor<DiaryBlock>()).allSatisfy { $0.instanceID == $0.id })
+    let instanceIDs = [
+        try #require(context.fetch(FetchDescriptor<CalendarEvent>()).first).instanceID,
+        try #require(context.fetch(FetchDescriptor<TaskTemplate>()).first).instanceID,
+        try #require(context.fetch(FetchDescriptor<TaskTemplateItem>()).first).instanceID,
+        try #require(context.fetch(FetchDescriptor<TemplatePlacement>()).first).instanceID,
+        try #require(context.fetch(FetchDescriptor<Task>()).first).instanceID,
+        try #require(context.fetch(FetchDescriptor<DailyReview>()).first).instanceID,
+        try #require(context.fetch(FetchDescriptor<DiaryBlock>()).first).instanceID
+    ]
+    #expect(Set(instanceIDs).count == instanceIDs.count)
 }
 
 @MainActor

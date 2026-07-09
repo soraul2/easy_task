@@ -122,6 +122,11 @@ private struct MobileAppRootView: View {
         }
         AppTheme.activate(migratedThemeID, colorScheme: colorScheme)
         themeRevision += 1
+        do {
+            try DataIntegrityService.reconcile(context: modelContext)
+        } catch {
+            print("EasyTask data reconciliation failed: \(error.localizedDescription)")
+        }
         SeedService.seedIfNeeded(
             context: modelContext,
             tasks: tasks,

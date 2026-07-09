@@ -49,9 +49,7 @@ struct MobileBoardView: View {
     }
 
     private var dayEvents: [CalendarEvent] {
-        events
-            .filter { $0.startDayKey <= selectedDayKey && selectedDayKey <= $0.endDayKey }
-            .sorted { $0.startDayKey < $1.startDayKey }
+        CalendarEventRules.events(onDayKey: selectedDayKey, in: events)
     }
 
     private var carryoverTasks: [TodoTask] {

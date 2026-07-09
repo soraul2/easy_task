@@ -138,7 +138,9 @@ public enum BackupServiceError: LocalizedError, Equatable {
 public enum BackupCodec {
     public static let currentVersion = 1
 
+    @MainActor
     public static func makePayload(context: ModelContext) throws -> BackupPayload {
+        _ = try DataIntegrityService.reconcile(context: context)
         let tasks = try context.fetch(FetchDescriptor<Task>()).filter { $0.supersededAt == nil }
         let placements = try context.fetch(FetchDescriptor<TemplatePlacement>())
             .filter { $0.supersededAt == nil }
