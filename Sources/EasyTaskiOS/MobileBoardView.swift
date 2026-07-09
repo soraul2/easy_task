@@ -1,7 +1,5 @@
 #if os(iOS)
-#if !XCODE_APP_BUNDLE
 import EasyTaskCore
-#endif
 import SwiftData
 import SwiftUI
 
