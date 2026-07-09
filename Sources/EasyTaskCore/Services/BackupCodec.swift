@@ -139,17 +139,31 @@ public enum BackupCodec {
     public static let currentVersion = 1
 
     public static func makePayload(context: ModelContext) throws -> BackupPayload {
-        BackupPayload(
+        let tasks = try context.fetch(FetchDescriptor<Task>())
+        let placements = try context.fetch(FetchDescriptor<TemplatePlacement>()).map { placement in
+            var dto = TemplatePlacementDTO(placement: placement)
+            dto.taskIds = tasks
+                .filter { $0.templatePlacementId == placement.id }
+                .sorted {
+                    if $0.order != $1.order { return $0.order < $1.order }
+                    return $0.id.uuidString < $1.id.uuidString
+                }
+                .map(\.id)
+            return dto
+        }
+
+        let payload = BackupPayload(
             backupVersion: currentVersion,
             exportedAt: Date(),
-            tasks: try context.fetch(FetchDescriptor<Task>()).map(TaskDTO.init),
+            tasks: tasks.map(TaskDTO.init),
             calendarEvents: try context.fetch(FetchDescriptor<CalendarEvent>()).map(CalendarEventDTO.init),
             taskTemplates: try context.fetch(FetchDescriptor<TaskTemplate>()).map(TaskTemplateDTO.init),
             taskTemplateItems: try context.fetch(FetchDescriptor<TaskTemplateItem>()).map(TaskTemplateItemDTO.init),
-            templatePlacements: try context.fetch(FetchDescriptor<TemplatePlacement>()).map(TemplatePlacementDTO.init),
+            templatePlacements: placements,
             dailyReviews: try context.fetch(FetchDescriptor<DailyReview>()).map(DailyReviewDTO.init),
             diaryBlocks: try context.fetch(FetchDescriptor<DiaryBlock>()).map(DiaryBlockDTO.init)
         )
+        return try validatedPayload(payload)
     }
 
     public static func encode(_ payload: BackupPayload) throws -> Data {
@@ -167,6 +181,14 @@ public enum BackupCodec {
     }
 
     public static func replaceAll(with payload: BackupPayload, in context: ModelContext) throws {
+        try replaceAll(with: payload, in: context, beforeFinalSave: {})
+    }
+
+    static func replaceAll(
+        with payload: BackupPayload,
+        in context: ModelContext,
+        beforeFinalSave: () throws -> Void
+    ) throws {
         let payload = try validatedPayload(payload)
 
         // Preserve pending user edits as the rollback point before replace-all starts.
@@ -217,6 +239,7 @@ public enum BackupCodec {
                 context.insert(DiaryBlock(dto: dto))
             }
 
+            try beforeFinalSave()
             try context.save()
         } catch {
             context.rollback()
@@ -255,7 +278,6 @@ private extension BackupCodec {
             taskIDs: taskIDs
         )
 
-        var attachmentNames: [String: String] = [:]
         if var dailyReviews = payload.dailyReviews {
             for index in dailyReviews.indices {
                 try validateDayKey(
@@ -264,7 +286,7 @@ private extension BackupCodec {
                 )
                 if let imageFileNames = dailyReviews[index].imageFileNames {
                     dailyReviews[index].imageFileNames = try imageFileNames.map {
-                        try normalizedAttachmentName($0, names: &attachmentNames)
+                        try validatedAttachmentName($0)
                     }
                 }
             }
@@ -297,10 +319,7 @@ private extension BackupCodec {
 
                 switch (type, block.imageFileName) {
                 case (.image, .some(let fileName)):
-                    diaryBlocks[index].imageFileName = try normalizedAttachmentName(
-                        fileName,
-                        names: &attachmentNames
-                    )
+                    diaryBlocks[index].imageFileName = try validatedAttachmentName(fileName)
                 case (.image, .none):
                     throw BackupServiceError.invalidValue(
                         field: "\(field).imageFileName",
@@ -324,16 +343,8 @@ private extension BackupCodec {
     static func validateEvents(_ events: [CalendarEventDTO]) throws {
         for (index, event) in events.enumerated() {
             let field = "calendarEvents[\(index)]"
-            try validateMatchingDayKey(
-                event.startDayKey,
-                date: event.startAt,
-                field: "\(field).startDayKey"
-            )
-            try validateMatchingDayKey(
-                event.endDayKey,
-                date: event.endAt,
-                field: "\(field).endDayKey"
-            )
+            try validateDayKey(event.startDayKey, field: "\(field).startDayKey")
+            try validateDayKey(event.endDayKey, field: "\(field).endDayKey")
             if let color = event.color, CalendarEventColor(rawValue: color) == nil {
                 throw BackupServiceError.invalidEnum(field: "\(field).color", value: color)
             }
@@ -377,11 +388,7 @@ private extension BackupCodec {
             try validatePriority(task.priority, field: "\(field).priority")
             try validateEstimatedMinutes(task.estimatedMinutes, field: "\(field).estimatedMinutes")
             try validateFinite(task.order, field: "\(field).order")
-            try validateMatchingDayKey(
-                task.plannedDayKey,
-                date: task.plannedAt,
-                field: "\(field).plannedDayKey"
-            )
+            try validateDayKey(task.plannedDayKey, field: "\(field).plannedDayKey")
             if let completedDayKey = task.completedDayKey {
                 try validateDayKey(completedDayKey, field: "\(field).completedDayKey")
             }
@@ -443,16 +450,9 @@ private extension BackupCodec {
         }
     }
 
-    static func normalizedAttachmentName(
-        _ fileName: String,
-        names: inout [String: String]
-    ) throws -> String {
-        if let normalized = names[fileName] {
-            return normalized
-        }
-        let normalized = try DiaryImageFileStore.storedFileName(importing: fileName)
-        names[fileName] = normalized
-        return normalized
+    static func validatedAttachmentName(_ fileName: String) throws -> String {
+        _ = try DiaryImageFileStore.validateAttachmentFileName(fileName)
+        return fileName
     }
 
     static func uniqueIDs(_ ids: [UUID], recordType: String) throws -> Set<UUID> {
@@ -469,18 +469,6 @@ private extension BackupCodec {
             throw BackupServiceError.duplicateReference(field: field, id: id)
         }
         return uniqueIDs
-    }
-
-    static func validateMatchingDayKey(_ dayKey: String, date: Date, field: String) throws {
-        try validateDayKey(dayKey, field: field)
-        let expectedDayKey = DayKey.key(for: date)
-        guard dayKey == expectedDayKey else {
-            throw BackupServiceError.inconsistentDayKey(
-                field: field,
-                expected: expectedDayKey,
-                actual: dayKey
-            )
-        }
     }
 
     static func validateDayKey(_ dayKey: String, field: String) throws {

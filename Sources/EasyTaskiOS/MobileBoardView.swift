@@ -74,7 +74,7 @@ struct MobileBoardView: View {
                     selectedStatus: selectedStatus,
                     completionDayKey: selectedDayKey,
                     onEdit: { presentedSheet = .task($0) },
-                    onDelete: { modelContext.delete($0) },
+                    onDelete: deleteTask,
                     onStatusChange: showStatusNotice
                 )
             }
@@ -145,6 +145,14 @@ struct MobileBoardView: View {
         modelContext.insert(task)
         quickTitle = ""
         selectedStatus = .todo
+    }
+
+    private func deleteTask(_ task: TodoTask) {
+        do {
+            try TaskRules.delete(task, from: modelContext)
+        } catch {
+            showBoardNotice("작업을 삭제하지 못했습니다")
+        }
     }
 
     private func showStatusNotice(task: TodoTask, status: TaskStatus) {
