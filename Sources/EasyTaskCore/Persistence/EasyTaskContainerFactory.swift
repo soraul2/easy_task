@@ -3,7 +3,7 @@ import SwiftData
 
 public enum EasyTaskContainerFactory {
     public static var schema: Schema {
-        Schema(versionedSchema: EasyTaskSchemaV1.self)
+        Schema(versionedSchema: EasyTaskSchemaV2.self)
     }
 
     public static func makePersistent(storeURL: URL? = nil) throws -> ModelContainer {

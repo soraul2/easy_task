@@ -26,9 +26,14 @@ public enum SeedService {
     ) {
         guard policy == .demo else { return }
 
-        ensureRoutineTemplates(context: context, templates: templates)
-        ensureArchiveSearchSamples(context: context, tasks: tasks, reviews: reviews)
-        guard tasks.isEmpty, events.isEmpty else { return }
+        let activeTasks = tasks.filter { $0.supersededAt == nil }
+        let activeEvents = events.filter { $0.supersededAt == nil }
+        let activeTemplates = templates.filter { $0.supersededAt == nil }
+        let activeReviews = reviews.filter { $0.supersededAt == nil }
+
+        ensureRoutineTemplates(context: context, templates: activeTemplates)
+        ensureArchiveSearchSamples(context: context, tasks: activeTasks, reviews: activeReviews)
+        guard activeTasks.isEmpty, activeEvents.isEmpty else { return }
 
         let today = DayKey.startOfDay(for: Date())
         let yesterday = DayKey.addingDays(-1, to: today)
@@ -273,6 +278,7 @@ public enum SeedService {
         templates: [TaskTemplate]
     ) {
         ensureTemplate(
+            seedKey: "morning-routine",
             named: "아침 루틴",
             items: [
                 "메일 확인",
@@ -284,6 +290,7 @@ public enum SeedService {
         )
 
         ensureTemplate(
+            seedKey: "workout-routine",
             named: "운동 루틴",
             items: [
                 "스트레칭 10분",
@@ -296,6 +303,7 @@ public enum SeedService {
         )
 
         ensureTemplate(
+            seedKey: "work-review-routine",
             named: "업무 정리 루틴",
             items: [
                 "오늘 처리할 업무 나열",
@@ -308,6 +316,7 @@ public enum SeedService {
         )
 
         ensureTemplate(
+            seedKey: "weekly-review-routine",
             named: "주간 회고 루틴",
             items: [
                 "이번 주 완료 작업 확인",
@@ -320,18 +329,25 @@ public enum SeedService {
     }
 
     private static func ensureTemplate(
+        seedKey: String,
         named name: String,
         items: [String],
         existingTemplates: [TaskTemplate],
         context: ModelContext
     ) {
-        guard !existingTemplates.contains(where: { $0.name == name }) else { return }
+        if let existingTemplate = existingTemplates.first(where: {
+            $0.supersededAt == nil && ($0.seedKey == seedKey || $0.name == name)
+        }) {
+            existingTemplate.seedKey = seedKey
+            return
+        }
 
-        let template = TaskTemplate(name: name)
+        let template = TaskTemplate(seedKey: seedKey, name: name)
         context.insert(template)
 
         for (index, title) in items.enumerated() {
             context.insert(TaskTemplateItem(
+                seedKey: "\(seedKey).\(index)",
                 templateId: template.id,
                 title: title,
                 order: Double(index + 1) * 100

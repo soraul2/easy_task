@@ -28,7 +28,14 @@ struct DiaryView: View {
     }
 
     private var selectedReview: DailyReview? {
-        reviews.first { $0.dayKey == selectedDayKey }
+        reviews
+            .filter { $0.supersededAt == nil && $0.dayKey == selectedDayKey }
+            .max {
+                if $0.updatedAt != $1.updatedAt {
+                    return $0.updatedAt < $1.updatedAt
+                }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
     }
 
     private var imageFileNames: [String] {
@@ -562,7 +569,9 @@ struct DailyReviewSheet: View {
     }
 
     private var hasReviewImages: Bool {
-        guard let review = reviews.first(where: { $0.dayKey == selectedDayKey }) else { return false }
+        guard let review = reviews.first(where: {
+            $0.supersededAt == nil && $0.dayKey == selectedDayKey
+        }) else { return false }
         return !review.imageFileNames.isEmpty
     }
 

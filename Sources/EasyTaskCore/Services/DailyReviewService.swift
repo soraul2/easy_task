@@ -15,6 +15,10 @@ public enum DailyReviewService {
         forceCreate: Bool = false,
         now: Date = Date()
     ) -> DailyReview? {
+        guard let date = DayKey.date(from: dayKey), DayKey.key(for: date) == dayKey else {
+            return nil
+        }
+
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedWeather = weather.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedMood = mood.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23,7 +27,21 @@ public enum DailyReviewService {
             !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
-        guard existingReview != nil || forceCreate || DailyReviewRules.hasContent(
+        let reusableReview: DailyReview?
+        if let existingReview, existingReview.supersededAt == nil {
+            reusableReview = existingReview
+        } else {
+            let descriptor = FetchDescriptor<DailyReview>(
+                predicate: #Predicate {
+                    $0.dayKey == dayKey && $0.supersededAt == nil
+                }
+            )
+            reusableReview = try? context.fetch(descriptor).min {
+                $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+        }
+
+        guard reusableReview != nil || forceCreate || DailyReviewRules.hasContent(
             title: trimmedTitle,
             weather: trimmedWeather,
             mood: trimmedMood,
@@ -34,8 +52,8 @@ public enum DailyReviewService {
         }
 
         let review: DailyReview
-        if let existingReview {
-            review = existingReview
+        if let reusableReview {
+            review = reusableReview
         } else {
             review = DailyReview(dayKey: dayKey, content: "")
             context.insert(review)
@@ -54,7 +72,7 @@ public enum DailyReviewService {
 
     public static func blocks(for review: DailyReview, in blocks: [DiaryBlock]) -> [DiaryBlock] {
         blocks
-            .filter { $0.reviewId == review.id }
+            .filter { $0.supersededAt == nil && $0.reviewId == review.id }
             .sorted { $0.order < $1.order }
     }
 

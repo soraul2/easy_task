@@ -113,8 +113,9 @@ func backupCodecRoundTripsTemplatePlacementLinks() throws {
     let restoredTask = try #require(restoredContext.fetch(FetchDescriptor<Task>()).first)
 
     #expect(restoredPlacement.templateName == "백업 루틴")
-    #expect(restoredPlacement.taskIds == [task.id])
+    #expect(restoredPlacement.taskIds.isEmpty)
     #expect(restoredTask.templatePlacementId == restoredPlacement.id)
+    #expect(TemplateService.tasks(for: restoredPlacement, in: [restoredTask]).map(\.id) == [restoredTask.id])
 }
 
 @Test
@@ -435,7 +436,7 @@ func templatePlacementHistoryIsCreatedPerSelectedDate() throws {
     #expect(placements.map(\.dayKey) == ["2026-07-11", "2026-07-12"])
     #expect(placements.allSatisfy { $0.sourceTemplateId == template.id })
     #expect(placements.allSatisfy { $0.templateName == "운동 루틴" })
-    #expect(placements.allSatisfy { $0.taskIds.count == 2 })
+    #expect(placements.allSatisfy { $0.taskIds.isEmpty })
     #expect(TemplateService.placements(onDayKey: "2026-07-11", in: placements).map(\.id) == [placements[0].id])
 
     for placement in placements {

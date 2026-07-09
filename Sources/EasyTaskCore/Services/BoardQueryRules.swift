@@ -10,6 +10,7 @@ public enum BoardQueryRules {
         let visibleTasks: [Task]
         if selectedDayKey == todayKey {
             visibleTasks = tasks.filter { task in
+                guard task.supersededAt == nil else { return false }
                 guard task.archivedAt == nil else { return false }
                 if task.status == TaskStatus.done.rawValue {
                     return task.completedDayKey == todayKey
@@ -21,6 +22,7 @@ public enum BoardQueryRules {
             }
         } else {
             visibleTasks = tasks.filter { task in
+                guard task.supersededAt == nil else { return false }
                 if task.status == TaskStatus.done.rawValue {
                     return (task.completedDayKey ?? task.plannedDayKey) == selectedDayKey
                 }
@@ -32,7 +34,7 @@ public enum BoardQueryRules {
     }
 
     public static func tasks(_ tasks: [Task], matching status: TaskStatus) -> [Task] {
-        let filtered = tasks.filter { $0.status == status.rawValue }
+        let filtered = tasks.filter { $0.supersededAt == nil && $0.status == status.rawValue }
         if status == .done {
             return filtered.sorted(by: doneSort)
         }
