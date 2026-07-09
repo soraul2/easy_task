@@ -189,6 +189,11 @@ func invalidBackupEnumsAndDayKeysLeaveExistingDataUnchanged() throws {
     var invalidDayKeyPayload = try makeValidSafetyPayload()
     invalidDayKeyPayload.tasks[0].plannedDayKey = "2026-02-30"
     try assertRejectedRestorePreservesExistingData(invalidDayKeyPayload)
+
+    var reversedEventRangePayload = try makeValidSafetyPayload()
+    reversedEventRangePayload.calendarEvents[0].startDayKey = "2026-07-11"
+    reversedEventRangePayload.calendarEvents[0].endDayKey = "2026-07-10"
+    try assertRejectedRestorePreservesExistingData(reversedEventRangePayload)
 }
 
 @Test
