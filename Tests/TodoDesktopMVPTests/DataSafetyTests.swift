@@ -23,6 +23,15 @@ func releaseSeedPolicyCreatesNoRecords() throws {
 }
 
 @Test
+func appStartupSeedPolicyMatchesBuildConfiguration() {
+#if DEBUG
+    #expect(SeedPolicy.appStartup == .demo)
+#else
+    #expect(SeedPolicy.appStartup == .release)
+#endif
+}
+
+@Test
 @MainActor
 func explicitDemoSeedPolicyRemainsAvailable() throws {
     let container = try makeSafetyTestContainer()
@@ -85,6 +94,17 @@ func importedAttachmentNamesBecomeUUIDBased() throws {
         try DiaryImageFileStore.storedFileName(importing: existingStoredFileName)
             == existingStoredFileName
     )
+}
+
+@Test
+@MainActor
+func backupValidationPreservesSafeLegacyAttachmentNames() throws {
+    let originalName = "legacy-photo.jpg"
+    var payload = try makeValidSafetyPayload(attachmentFileName: originalName)
+    payload = try BackupCodec.decode(BackupCodec.encode(payload))
+
+    #expect(payload.dailyReviews?.first?.imageFileNames == [originalName])
+    #expect(payload.diaryBlocks?.first?.imageFileName == originalName)
 }
 
 @Test
@@ -215,9 +235,102 @@ func validRestoreIsDurableAfterReopeningStore() throws {
     let review = try #require(context.fetch(FetchDescriptor<DailyReview>()).first)
     let block = try #require(context.fetch(FetchDescriptor<DiaryBlock>()).first)
     let storedFileName = try #require(review.imageFileNames.first)
-    let stem = (storedFileName as NSString).deletingPathExtension
-    #expect(UUID(uuidString: stem) != nil)
+    #expect(storedFileName == "legacy-photo.jpg")
     #expect(block.imageFileName == storedFileName)
+}
+
+@Test
+@MainActor
+func deletingPlacedTaskRemovesPlacementMembership() throws {
+    let container = try makeSafetyTestContainer()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-10"))
+    let placement = TemplatePlacement(
+        sourceTemplateId: nil,
+        templateName: "placement",
+        dayKey: DayKey.key(for: day)
+    )
+    let task = Task(
+        title: "placed task",
+        plannedAt: day,
+        order: 100,
+        templatePlacementId: placement.id
+    )
+    placement.taskIds = [task.id]
+    context.insert(placement)
+    context.insert(task)
+    try context.save()
+
+    try TaskRules.delete(task, from: context)
+    try context.save()
+
+    #expect(placement.taskIds.isEmpty)
+    #expect(try context.fetchCount(FetchDescriptor<Task>()) == 0)
+    let payload = try BackupCodec.decode(BackupCodec.encode(BackupCodec.makePayload(context: context)))
+    #expect(payload.templatePlacements?.first?.taskIds.isEmpty == true)
+}
+
+@Test
+@MainActor
+func backupExportRepairsLegacyStalePlacementMembership() throws {
+    let container = try makeSafetyTestContainer()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-10"))
+    let placement = TemplatePlacement(
+        sourceTemplateId: nil,
+        templateName: "legacy placement",
+        dayKey: DayKey.key(for: day),
+        taskIds: [UUID()]
+    )
+    context.insert(placement)
+    try context.save()
+
+    let payload = try BackupCodec.makePayload(context: context)
+    #expect(payload.templatePlacements?.first?.taskIds.isEmpty == true)
+    _ = try BackupCodec.decode(BackupCodec.encode(payload))
+}
+
+@Test
+@MainActor
+func backupDayKeysRemainPortableAcrossDateOffsets() throws {
+    var payload = try makeValidSafetyPayload()
+    let originalTaskKey = payload.tasks[0].plannedDayKey
+    let originalEventStartKey = payload.calendarEvents[0].startDayKey
+    let originalEventEndKey = payload.calendarEvents[0].endDayKey
+    payload.tasks[0].plannedAt = DayKey.addingDays(-1, to: payload.tasks[0].plannedAt)
+    payload.calendarEvents[0].startAt = DayKey.addingDays(-1, to: payload.calendarEvents[0].startAt)
+    payload.calendarEvents[0].endAt = DayKey.addingDays(-1, to: payload.calendarEvents[0].endAt)
+
+    let decoded = try BackupCodec.decode(BackupCodec.encode(payload))
+
+    #expect(decoded.tasks[0].plannedDayKey == originalTaskKey)
+    #expect(decoded.calendarEvents[0].startDayKey == originalEventStartKey)
+    #expect(decoded.calendarEvents[0].endDayKey == originalEventEndKey)
+}
+
+@Test
+@MainActor
+func injectedRestoreFailureRollsBackDurableStore() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("EasyTaskRollbackSafety-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let storeURL = directory.appendingPathComponent("Rollback.store")
+    try createExistingSafetyStore(at: storeURL)
+    let replacement = try makeValidSafetyPayload()
+    try attemptInjectedRestoreFailure(replacement, at: storeURL)
+
+    let reopened = try makeSafetyTestContainer(
+        configuration: ModelConfiguration(url: storeURL, cloudKitDatabase: .none)
+    )
+    let tasks = try reopened.mainContext.fetch(FetchDescriptor<Task>())
+    #expect(tasks.count == 1)
+    #expect(tasks.first?.title == "existing task")
+}
+
+private enum InjectedRestoreFailure: Error {
+    case beforeFinalSave
 }
 
 private struct SafetyRecordCounts: Equatable {
@@ -357,4 +470,39 @@ private func restoreSafetyPayload(_ payload: BackupPayload, at storeURL: URL) th
     try BackupCodec.replaceAll(with: payload, in: context)
     #expect(try context.fetchCount(FetchDescriptor<Task>()) == 1)
     #expect(try context.fetch(FetchDescriptor<Task>()).first?.title == "replacement task")
+}
+
+@MainActor
+private func createExistingSafetyStore(at storeURL: URL) throws {
+    let container = try makeSafetyTestContainer(
+        configuration: ModelConfiguration(url: storeURL, cloudKitDatabase: .none)
+    )
+    try insertExistingSafetyRecord(in: container.mainContext)
+}
+
+@MainActor
+private func attemptInjectedRestoreFailure(
+    _ payload: BackupPayload,
+    at storeURL: URL
+) throws {
+    let container = try makeSafetyTestContainer(
+        configuration: ModelConfiguration(url: storeURL, cloudKitDatabase: .none)
+    )
+    let context = container.mainContext
+    var caughtError: (any Error)?
+
+    do {
+        try BackupCodec.replaceAll(
+            with: payload,
+            in: context,
+            beforeFinalSave: { throw InjectedRestoreFailure.beforeFinalSave }
+        )
+    } catch {
+        caughtError = error
+    }
+
+    #expect(caughtError is InjectedRestoreFailure)
+    let tasks = try context.fetch(FetchDescriptor<Task>())
+    #expect(tasks.count == 1)
+    #expect(tasks.first?.title == "existing task")
 }

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 public enum TaskRules {
     public static func applyStatus(
@@ -75,5 +76,25 @@ public enum TaskRules {
             .map(\.order)
             .max() ?? 0
         return maxOrder + 100
+    }
+
+    @MainActor
+    public static func delete(
+        _ task: Task,
+        from context: ModelContext,
+        now: Date = Date()
+    ) throws {
+        if let placementID = task.templatePlacementId {
+            var descriptor = FetchDescriptor<TemplatePlacement>(
+                predicate: #Predicate { $0.id == placementID }
+            )
+            descriptor.fetchLimit = 1
+            if let placement = try context.fetch(descriptor).first {
+                placement.taskIds.removeAll { $0 == task.id }
+                placement.updatedAt = now
+            }
+        }
+
+        context.delete(task)
     }
 }

@@ -385,7 +385,11 @@ struct BoardView: View {
     }
 
     private func deleteTask(_ task: Task) {
-        modelContext.delete(task)
+        do {
+            try TaskRules.delete(task, from: modelContext)
+        } catch {
+            assertionFailure("작업 삭제 중 배치 참조를 정리하지 못했습니다: \(error)")
+        }
     }
 
     private func editTask(_ task: Task) {
