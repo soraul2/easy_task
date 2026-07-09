@@ -22,7 +22,8 @@ Tests/
 `EasyTaskCore`는 플랫폼 UI에 의존하지 않는 영역이다.
 
 - SwiftData 모델: `Task`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`
-- 저장소 구성: `EasyTaskSchemaV1`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
+- 저장소 구성: `EasyTaskSchemaV1`, `EasyTaskSchemaV2`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
+- 데이터 무결성: `DataIntegrityService`
 - 날짜/보드 규칙: `DayKey`, `TaskRules`
 - 기록 조회 규칙: `ArchiveQueryRules`, `ArchiveFilter`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
@@ -54,19 +55,31 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 ## 데이터 흐름
 
-1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V1 스키마의 로컬 컨테이너를 생성한다.
-2. 앱 시작 시 정책에 따라 demo seed와 lazy archive 규칙을 실행한다.
-3. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
-4. 완료된 작업은 당일에는 보드에 남고, 이후 조회 시 보관 흐름으로 이동한다.
-5. 캘린더 이벤트는 기간 이벤트로 보이며, 작업 세부 계획은 보드에서 조정한다.
-6. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
+1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V2 스키마의 로컬 컨테이너를 생성한다.
+2. 기존 V1 저장소는 명시적인 마이그레이션 단계에서 V2로 이동한다.
+3. 앱 시작 시 무결성 정리를 실행한 뒤 정책에 따라 demo seed와 lazy archive 규칙을 실행한다.
+4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
+5. 완료된 작업은 당일에는 보드에 남고, 이후 조회 시 보관 흐름으로 이동한다.
+6. 캘린더 이벤트는 기간 이벤트로 보이며, 작업 세부 계획은 보드에서 조정한다.
+7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
+
+## 무결성 규칙
+
+- `id`는 기기 간에 유지되는 논리 ID이고 `instanceID`는 물리 레코드를 구분한다.
+- 같은 논리 ID가 중복되면 가장 작은 `instanceID`가 대표 레코드가 된다.
+- 스칼라 값은 가장 큰 `(updatedAt, instanceID)`를 가진 레코드에서 가져온다.
+- 날짜별 회고는 `dayKey`, 기본 템플릿과 항목은 `seedKey`를 자연 키로 병합한다.
+- 중복 레코드는 즉시 삭제하지 않고 참조를 대표 레코드로 옮긴 뒤 `supersededAt`으로 표시한다.
+- 상태, 우선순위, 이벤트 색상, 날짜 키와 UUID 참조는 앱 시작과 백업 직전에 정리한다.
+- 템플릿 배치 소속의 원본은 `Task.templatePlacementId`이며, 백업의 `taskIds`는 내보낼 때 계산하는 호환 값이다.
 
 ## 현재 MVP 범위
 
-- V1 버전 스키마와 로컬 SwiftData 저장만 사용하며 CloudKit은 명시적으로 비활성화한다.
+- V2 버전 스키마와 로컬 SwiftData 저장만 사용하며 CloudKit은 명시적으로 비활성화한다.
 - iCloud/CloudKit 동기화는 다음 단계에서 적용한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
+- JSON 백업은 기존 V1 포맷을 유지하고 대표 레코드만 내보낸다. 이미지/백업 V2는 다음 단계에서 처리한다.
 
 ## 다음 단계
 
