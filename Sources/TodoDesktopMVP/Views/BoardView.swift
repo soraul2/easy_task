@@ -120,7 +120,7 @@ struct BoardView: View {
                     }
                 )
             case .taskDetail(let id):
-                if let task = tasks.first(where: { $0.id == id }) {
+                if let task = tasks.first(where: { $0.supersededAt == nil && $0.id == id }) {
                     TaskDetailSheet(task: task)
                 } else {
                     EmptySheetState(
@@ -351,7 +351,7 @@ struct BoardView: View {
 
     private func moveTask(idString: String, to status: TaskStatus) -> Bool {
         guard let id = UUID(uuidString: idString),
-              let task = tasks.first(where: { $0.id == id }) else {
+              let task = tasks.first(where: { $0.supersededAt == nil && $0.id == id }) else {
             return false
         }
 

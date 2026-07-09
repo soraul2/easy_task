@@ -84,7 +84,7 @@ public enum TemplateService {
         context.insert(template)
 
         let sourceTasks = tasks
-            .filter { $0.archivedAt == nil }
+            .filter { $0.supersededAt == nil && $0.archivedAt == nil }
             .sorted { $0.order < $1.order }
 
         for (index, task) in sourceTasks.enumerated() {
@@ -143,7 +143,7 @@ public enum TemplateService {
         items: [TaskTemplateItem]
     ) -> [TemplateTaskDraft] {
         items
-            .filter { $0.templateId == template.id }
+            .filter { $0.supersededAt == nil && $0.templateId == template.id }
             .sorted { $0.order < $1.order }
             .map(TemplateTaskDraft.init(item:))
     }
@@ -177,6 +177,9 @@ public enum TemplateService {
         skipDuplicateTitles: Bool = true,
         now: Date = Date()
     ) -> TemplateApplyResult {
+        guard template.supersededAt == nil else {
+            return TemplateApplyResult(createdTaskCount: 0, placements: [])
+        }
         let orderedDrafts = drafts
             .sorted { $0.order < $1.order }
         guard !orderedDrafts.isEmpty else {
@@ -196,7 +199,9 @@ public enum TemplateService {
 
         for date in orderedDates {
             let dayKey = DayKey.key(for: date)
-            let dayTasks = existingTasks.filter { $0.archivedAt == nil && $0.plannedDayKey == dayKey }
+            let dayTasks = existingTasks.filter {
+                $0.supersededAt == nil && $0.archivedAt == nil && $0.plannedDayKey == dayKey
+            }
             nextOrderByDayKey[dayKey] = ((dayTasks
                 .filter { $0.status == TaskStatus.todo.rawValue }
                 .map(\.order)
@@ -242,8 +247,6 @@ public enum TemplateService {
                     updatedAt: now
                 )
                 context.insert(task)
-                placement.taskIds.append(task.id)
-                placement.updatedAt = now
 
                 createdCount += 1
                 nextOrderByDayKey[dayKey] = order + 100
@@ -274,7 +277,7 @@ public enum TemplateService {
 
     public static func placements(onDayKey dayKey: String, in placements: [TemplatePlacement]) -> [TemplatePlacement] {
         placements
-            .filter { $0.dayKey == dayKey }
+            .filter { $0.supersededAt == nil && $0.dayKey == dayKey }
             .sorted(by: placementSort)
     }
 
@@ -283,7 +286,7 @@ public enum TemplateService {
         in placements: [TemplatePlacement]
     ) -> [TemplatePlacement] {
         placements
-            .filter { $0.sourceTemplateId == template.id }
+            .filter { $0.supersededAt == nil && $0.sourceTemplateId == template.id }
             .sorted(by: placementSort)
     }
 
@@ -291,9 +294,8 @@ public enum TemplateService {
         for placement: TemplatePlacement,
         in tasks: [Task]
     ) -> [Task] {
-        let taskIDs = Set(placement.taskIds)
         return tasks
-            .filter { $0.templatePlacementId == placement.id || taskIDs.contains($0.id) }
+            .filter { $0.supersededAt == nil && $0.templatePlacementId == placement.id }
             .sorted(by: taskSort)
     }
 

@@ -138,9 +138,13 @@ public enum BackupServiceError: LocalizedError, Equatable {
 public enum BackupCodec {
     public static let currentVersion = 1
 
+    @MainActor
     public static func makePayload(context: ModelContext) throws -> BackupPayload {
-        let tasks = try context.fetch(FetchDescriptor<Task>())
-        let placements = try context.fetch(FetchDescriptor<TemplatePlacement>()).map { placement in
+        _ = try DataIntegrityService.reconcile(context: context)
+        let tasks = try context.fetch(FetchDescriptor<Task>()).filter { $0.supersededAt == nil }
+        let placements = try context.fetch(FetchDescriptor<TemplatePlacement>())
+            .filter { $0.supersededAt == nil }
+            .map { placement in
             var dto = TemplatePlacementDTO(placement: placement)
             dto.taskIds = tasks
                 .filter { $0.templatePlacementId == placement.id }
@@ -156,12 +160,22 @@ public enum BackupCodec {
             backupVersion: currentVersion,
             exportedAt: Date(),
             tasks: tasks.map(TaskDTO.init),
-            calendarEvents: try context.fetch(FetchDescriptor<CalendarEvent>()).map(CalendarEventDTO.init),
-            taskTemplates: try context.fetch(FetchDescriptor<TaskTemplate>()).map(TaskTemplateDTO.init),
-            taskTemplateItems: try context.fetch(FetchDescriptor<TaskTemplateItem>()).map(TaskTemplateItemDTO.init),
+            calendarEvents: try context.fetch(FetchDescriptor<CalendarEvent>())
+                .filter { $0.supersededAt == nil }
+                .map(CalendarEventDTO.init),
+            taskTemplates: try context.fetch(FetchDescriptor<TaskTemplate>())
+                .filter { $0.supersededAt == nil }
+                .map(TaskTemplateDTO.init),
+            taskTemplateItems: try context.fetch(FetchDescriptor<TaskTemplateItem>())
+                .filter { $0.supersededAt == nil }
+                .map(TaskTemplateItemDTO.init),
             templatePlacements: placements,
-            dailyReviews: try context.fetch(FetchDescriptor<DailyReview>()).map(DailyReviewDTO.init),
-            diaryBlocks: try context.fetch(FetchDescriptor<DiaryBlock>()).map(DiaryBlockDTO.init)
+            dailyReviews: try context.fetch(FetchDescriptor<DailyReview>())
+                .filter { $0.supersededAt == nil }
+                .map(DailyReviewDTO.init),
+            diaryBlocks: try context.fetch(FetchDescriptor<DiaryBlock>())
+                .filter { $0.supersededAt == nil }
+                .map(DiaryBlockDTO.init)
         )
         return try validatedPayload(payload)
     }
@@ -571,7 +585,7 @@ private extension TemplatePlacementDTO {
         sourceTemplateId = placement.sourceTemplateId
         templateName = placement.templateName
         dayKey = placement.dayKey
-        taskIds = placement.taskIds
+        taskIds = []
         createdAt = placement.createdAt
         updatedAt = placement.updatedAt
     }

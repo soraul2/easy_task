@@ -24,6 +24,7 @@ public enum TemplateListRules {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return templates
             .filter { template in
+                guard template.supersededAt == nil else { return false }
                 guard scope == .all || template.isFavorite else { return false }
                 return matches(template, items: itemsForTemplate(template, in: items), query: trimmedQuery)
             }
@@ -31,7 +32,7 @@ public enum TemplateListRules {
     }
 
     public static func preferredScope(for templates: [TaskTemplate]) -> TemplateListScope {
-        templates.contains { $0.isFavorite } ? .favorites : .all
+        templates.contains { $0.supersededAt == nil && $0.isFavorite } ? .favorites : .all
     }
 
     public static func itemsForTemplate(
@@ -39,7 +40,7 @@ public enum TemplateListRules {
         in items: [TaskTemplateItem]
     ) -> [TaskTemplateItem] {
         items
-            .filter { $0.templateId == template.id }
+            .filter { $0.supersededAt == nil && $0.templateId == template.id }
             .sorted { $0.order < $1.order }
     }
 

@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-public enum EasyTaskSchemaV1: VersionedSchema {
+public enum EasyTaskSchemaV2: VersionedSchema {
     public static var versionIdentifier: Schema.Version {
-        Schema.Version(1, 0, 0)
+        Schema.Version(2, 0, 0)
     }
 
     public static var models: [any PersistentModel.Type] {
@@ -21,6 +21,7 @@ public enum EasyTaskSchemaV1: VersionedSchema {
     @Model
     public final class CalendarEvent {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
         public var title: String = ""
         public var startAt: Date = Date()
         public var endAt: Date = Date()
@@ -31,18 +32,22 @@ public enum EasyTaskSchemaV1: VersionedSchema {
 
         public var createdAt: Date = Date()
         public var updatedAt: Date = Date()
+        public var supersededAt: Date?
 
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
             title: String,
             startAt: Date,
             endAt: Date,
             note: String? = nil,
             color: String? = nil,
             createdAt: Date = Date(),
-            updatedAt: Date = Date()
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
             self.title = title
             self.startAt = startAt
             self.endAt = endAt
@@ -52,36 +57,48 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             self.color = color
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 
     @Model
     public final class TaskTemplate {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
+        public var seedKey: String?
         public var name: String = ""
         public var isFavorite: Bool = false
 
         public var createdAt: Date = Date()
         public var updatedAt: Date = Date()
+        public var supersededAt: Date?
 
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
+            seedKey: String? = nil,
             name: String,
             isFavorite: Bool = false,
             createdAt: Date = Date(),
-            updatedAt: Date = Date()
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
+            self.seedKey = seedKey
             self.name = name
             self.isFavorite = isFavorite
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 
     @Model
     public final class TaskTemplateItem {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
+        public var seedKey: String?
         public var templateId: UUID = UUID()
         public var title: String = ""
         public var note: String?
@@ -90,17 +107,28 @@ public enum EasyTaskSchemaV1: VersionedSchema {
         public var estimatedMinutes: Int?
         public var order: Double = 0
 
+        public var createdAt: Date = Date.distantPast
+        public var updatedAt: Date = Date.distantPast
+        public var supersededAt: Date?
+
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
+            seedKey: String? = nil,
             templateId: UUID,
             title: String,
             note: String? = nil,
             priority: String? = nil,
             tags: [String] = [],
             estimatedMinutes: Int? = nil,
-            order: Double
+            order: Double,
+            createdAt: Date = Date(),
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
+            self.seedKey = seedKey
             self.templateId = templateId
             self.title = title
             self.note = note
@@ -108,42 +136,52 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             self.tags = tags
             self.estimatedMinutes = estimatedMinutes
             self.order = order
+            self.createdAt = createdAt
+            self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 
     @Model
     public final class TemplatePlacement {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
         public var sourceTemplateId: UUID?
         public var templateName: String = ""
         public var dayKey: String = ""
-        public var taskIds: [UUID] = []
+        @Transient public var taskIds: [UUID] = []
 
         public var createdAt: Date = Date()
         public var updatedAt: Date = Date()
+        public var supersededAt: Date?
 
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
             sourceTemplateId: UUID?,
             templateName: String,
             dayKey: String,
             taskIds: [UUID] = [],
             createdAt: Date = Date(),
-            updatedAt: Date = Date()
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
             self.sourceTemplateId = sourceTemplateId
             self.templateName = templateName
             self.dayKey = dayKey
             self.taskIds = taskIds
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 
     @Model
     public final class Task {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
         public var title: String = ""
         public var note: String?
 
@@ -164,9 +202,11 @@ public enum EasyTaskSchemaV1: VersionedSchema {
         public var completedDayKey: String?
         public var archivedAt: Date?
         public var archivedDayKey: String?
+        public var supersededAt: Date?
 
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
             title: String,
             note: String? = nil,
             status: TaskStatus = .todo,
@@ -178,9 +218,11 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             tags: [String] = [],
             estimatedMinutes: Int? = nil,
             createdAt: Date = Date(),
-            updatedAt: Date = Date()
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
             self.title = title
             self.note = note
             self.status = status.rawValue
@@ -194,12 +236,14 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             self.estimatedMinutes = estimatedMinutes
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 
     @Model
     public final class DailyReview {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
         public var dayKey: String = ""
         public var title: String = ""
         public var weather: String = ""
@@ -209,9 +253,11 @@ public enum EasyTaskSchemaV1: VersionedSchema {
 
         public var createdAt: Date = Date()
         public var updatedAt: Date = Date()
+        public var supersededAt: Date?
 
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
             dayKey: String,
             title: String = "",
             weather: String = "",
@@ -219,9 +265,11 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             content: String,
             imageFileNames: [String] = [],
             createdAt: Date = Date(),
-            updatedAt: Date = Date()
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
             self.dayKey = dayKey
             self.title = title
             self.weather = weather
@@ -230,12 +278,14 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             self.imageFileNames = imageFileNames
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 
     @Model
     public final class DiaryBlock {
         public var id: UUID = UUID()
+        public var instanceID: UUID = UUID()
         public var reviewId: UUID = UUID()
         public var dayKey: String = ""
         public var type: String = DiaryBlockType.text.rawValue
@@ -245,9 +295,11 @@ public enum EasyTaskSchemaV1: VersionedSchema {
 
         public var createdAt: Date = Date()
         public var updatedAt: Date = Date()
+        public var supersededAt: Date?
 
         public init(
             id: UUID = UUID(),
+            instanceID: UUID = UUID(),
             reviewId: UUID,
             dayKey: String,
             type: DiaryBlockType,
@@ -255,9 +307,11 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             imageFileName: String? = nil,
             order: Double,
             createdAt: Date = Date(),
-            updatedAt: Date = Date()
+            updatedAt: Date = Date(),
+            supersededAt: Date? = nil
         ) {
             self.id = id
+            self.instanceID = instanceID
             self.reviewId = reviewId
             self.dayKey = dayKey
             self.type = type.rawValue
@@ -266,6 +320,7 @@ public enum EasyTaskSchemaV1: VersionedSchema {
             self.order = order
             self.createdAt = createdAt
             self.updatedAt = updatedAt
+            self.supersededAt = supersededAt
         }
     }
 }

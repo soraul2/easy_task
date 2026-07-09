@@ -102,16 +102,22 @@ public enum ArchiveQueryRules {
         referenceDate: Date = Date()
     ) -> [ArchiveDayRecord] {
         let completedTasks = tasks
-            .filter { $0.status == TaskStatus.done.rawValue }
+            .filter { $0.supersededAt == nil && $0.status == TaskStatus.done.rawValue }
             .filter { matchesPeriod(dayKey(for: $0), filter: filter, referenceDate: referenceDate) }
         let nonEmptyReviews = reviews
+            .filter { $0.supersededAt == nil }
             .filter(DailyReviewRules.hasContent)
             .filter { matchesPeriod($0.dayKey, filter: filter, referenceDate: referenceDate) }
 
         let tasksByDay = Dictionary(grouping: completedTasks, by: dayKey)
         let reviewsByDay = Dictionary(grouping: nonEmptyReviews, by: \DailyReview.dayKey)
             .compactMapValues { records in
-                records.max { $0.updatedAt < $1.updatedAt }
+                records.max {
+                    if $0.updatedAt != $1.updatedAt {
+                        return $0.updatedAt < $1.updatedAt
+                    }
+                    return $0.instanceID.uuidString < $1.instanceID.uuidString
+                }
             }
 
         let dayKeys: Set<String>

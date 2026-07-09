@@ -751,7 +751,7 @@ private struct MobileEventEditorSheet: View {
 
     private var linkedTaskCount: Int {
         guard let event else { return 0 }
-        return allTasks.filter { $0.eventId == event.id }.count
+        return allTasks.filter { $0.supersededAt == nil && $0.eventId == event.id }.count
     }
 
     init(
@@ -1179,7 +1179,7 @@ private struct MobileCalendarDaySheet: View {
     }
 
     private func linkedTaskCount(for event: CalendarEvent) -> Int {
-        allTasks.filter { $0.eventId == event.id }.count
+        allTasks.filter { $0.supersededAt == nil && $0.eventId == event.id }.count
     }
 
     private func placementTasks(for placement: TemplatePlacement) -> [TodoTask] {

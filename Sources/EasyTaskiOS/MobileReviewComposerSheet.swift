@@ -20,7 +20,16 @@ struct MobileReviewComposerSheet: View {
     @State private var messageIsError = false
 
     private var dayKey: String { DayKey.key(for: selectedDate) }
-    private var selectedReview: DailyReview? { reviews.first { $0.dayKey == dayKey } }
+    private var selectedReview: DailyReview? {
+        reviews
+            .filter { $0.supersededAt == nil && $0.dayKey == dayKey }
+            .max {
+                if $0.updatedAt != $1.updatedAt {
+                    return $0.updatedAt < $1.updatedAt
+                }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+    }
 
     private var canSave: Bool {
         DailyReviewRules.hasContent(

@@ -261,7 +261,6 @@ func deletingPlacedTaskRemovesPlacementMembership() throws {
         order: 100,
         templatePlacementId: placement.id
     )
-    placement.taskIds = [task.id]
     context.insert(placement)
     context.insert(task)
     try context.save()
@@ -269,7 +268,6 @@ func deletingPlacedTaskRemovesPlacementMembership() throws {
     try TaskRules.delete(task, from: context)
     try context.save()
 
-    #expect(placement.taskIds.isEmpty)
     #expect(try context.fetchCount(FetchDescriptor<Task>()) == 0)
     let payload = try BackupCodec.decode(BackupCodec.encode(BackupCodec.makePayload(context: context)))
     #expect(payload.templatePlacements?.first?.taskIds.isEmpty == true)

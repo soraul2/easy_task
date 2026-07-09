@@ -86,7 +86,7 @@ struct CalendarView: View {
                     }
                 )
             case .editEvent(let eventID):
-                if let event = events.first(where: { $0.id == eventID }) {
+                if let event = events.first(where: { $0.supersededAt == nil && $0.id == eventID }) {
                     EventEditorSheet(
                         event: event,
                         onDelete: { event in
