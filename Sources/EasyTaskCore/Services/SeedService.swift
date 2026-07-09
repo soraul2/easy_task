@@ -1,6 +1,19 @@
 import Foundation
 import SwiftData
 
+public enum SeedPolicy: Sendable {
+    case release
+    case demo
+
+    public static var appStartup: Self {
+#if DEBUG
+        .demo
+#else
+        .release
+#endif
+    }
+}
+
 public enum SeedService {
     @MainActor
     public static func seedIfNeeded(
@@ -8,8 +21,11 @@ public enum SeedService {
         tasks: [Task],
         events: [CalendarEvent],
         templates: [TaskTemplate],
-        reviews: [DailyReview]
+        reviews: [DailyReview],
+        policy: SeedPolicy = .appStartup
     ) {
+        guard policy == .demo else { return }
+
         ensureRoutineTemplates(context: context, templates: templates)
         ensureArchiveSearchSamples(context: context, tasks: tasks, reviews: reviews)
         guard tasks.isEmpty, events.isEmpty else { return }
