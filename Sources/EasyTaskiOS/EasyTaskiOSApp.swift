@@ -6,6 +6,8 @@ import SwiftUI
 
 @main
 struct EasyTaskiOSApp: App {
+    private let modelContainer: ModelContainer
+
     init() {
         if let applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -16,21 +18,19 @@ struct EasyTaskiOSApp: App {
                 withIntermediateDirectories: true
             )
         }
+
+        do {
+            modelContainer = try EasyTaskContainerFactory.makePersistent()
+        } catch {
+            fatalError("EasyTask 저장소를 열 수 없습니다: \(error.localizedDescription)")
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             MobileAppRootView()
         }
-        .modelContainer(for: [
-            TodoTask.self,
-            CalendarEvent.self,
-            TaskTemplate.self,
-            TaskTemplateItem.self,
-            TemplatePlacement.self,
-            DailyReview.self,
-            DiaryBlock.self
-        ])
+        .modelContainer(modelContainer)
     }
 }
 
