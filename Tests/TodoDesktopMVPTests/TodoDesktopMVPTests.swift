@@ -800,6 +800,132 @@ func dailyReviewContentRuleDetectsTextMetadataAndImages() {
 }
 
 @Test
+func archiveQueryRulesGroupCompletedTasksAndUseLatestReview() throws {
+    let july6 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 6)))
+    let july7 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 7)))
+    let earlyCompletion = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 9)))
+    let lateCompletion = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 11)))
+    let day6Task = Task(title: "6일 완료", plannedAt: july6, order: 100)
+    let earlyDay7Task = Task(title: "7일 오전 완료", plannedAt: july7, order: 100)
+    let lateDay7Task = Task(title: "7일 오후 완료", plannedAt: july7, order: 200)
+    let openTask = Task(title: "미완료", plannedAt: july7, order: 300)
+    TaskRules.applyStatus(.done, to: day6Task, now: earlyCompletion, completionDayKey: DayKey.key(for: july6))
+    TaskRules.applyStatus(.done, to: earlyDay7Task, now: earlyCompletion, completionDayKey: DayKey.key(for: july7))
+    TaskRules.applyStatus(.done, to: lateDay7Task, now: lateCompletion, completionDayKey: DayKey.key(for: july7))
+
+    let olderReview = DailyReview(
+        dayKey: DayKey.key(for: july7),
+        title: "이전 회고",
+        content: "이전 내용",
+        updatedAt: earlyCompletion
+    )
+    let latestReview = DailyReview(
+        dayKey: DayKey.key(for: july7),
+        title: "최신 회고",
+        content: "최신 내용",
+        updatedAt: lateCompletion
+    )
+
+    let records = ArchiveQueryRules.records(
+        tasks: [openTask, earlyDay7Task, day6Task, lateDay7Task],
+        reviews: [olderReview, latestReview],
+        filter: ArchiveFilter(),
+        referenceDate: lateCompletion
+    )
+
+    #expect(records.map(\.dayKey) == ["2026-07-07", "2026-07-06"])
+    #expect(records.first?.tasks.map(\.title) == ["7일 오후 완료", "7일 오전 완료"])
+    #expect(records.first?.review?.id == latestReview.id)
+    #expect(records.flatMap(\.tasks).contains { $0.id == openTask.id } == false)
+}
+
+@Test
+func archiveQueryRulesApplyPeriodScopeAndDayLevelSearch() throws {
+    let oldDay = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)))
+    let recentDay = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 8)))
+    let today = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 10)))
+    let oldTask = Task(title: "오래된 작업", plannedAt: oldDay, order: 100)
+    let recentTask = Task(title: "모바일 보관함 정리", note: "상세 메모", plannedAt: recentDay, order: 100)
+    TaskRules.applyStatus(.done, to: oldTask, now: today, completionDayKey: DayKey.key(for: oldDay))
+    TaskRules.applyStatus(.done, to: recentTask, now: today, completionDayKey: DayKey.key(for: recentDay))
+    let review = DailyReview(
+        dayKey: DayKey.key(for: recentDay),
+        title: "하루 회고",
+        content: "모바일 기록을 확인했다."
+    )
+
+    let taskSearch = ArchiveFilter(
+        searchText: "보관함",
+        period: .last7Days,
+        scope: .tasks
+    )
+    let taskRecords = ArchiveQueryRules.records(
+        tasks: [oldTask, recentTask],
+        reviews: [review],
+        filter: taskSearch,
+        referenceDate: today
+    )
+
+    #expect(taskRecords.map(\.dayKey) == ["2026-07-08"])
+    #expect(taskRecords.first?.review?.id == review.id)
+
+    let reviewSearch = ArchiveFilter(
+        searchText: "회고",
+        period: .last7Days,
+        scope: .reviews
+    )
+    let reviewRecords = ArchiveQueryRules.records(
+        tasks: [oldTask, recentTask],
+        reviews: [review],
+        filter: reviewSearch,
+        referenceDate: today
+    )
+
+    #expect(reviewRecords.first?.tasks.map(\.id) == [recentTask.id])
+
+    let mismatchedScope = ArchiveFilter(
+        searchText: "회고",
+        period: .last7Days,
+        scope: .tasks
+    )
+    #expect(ArchiveQueryRules.records(
+        tasks: [oldTask, recentTask],
+        reviews: [review],
+        filter: mismatchedScope,
+        referenceDate: today
+    ).isEmpty)
+}
+
+@Test
+func archiveQueryRulesNormalizeReversedCustomPeriod() throws {
+    let july1 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)))
+    let july2 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 2)))
+    let july5 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 5)))
+    let july8 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 8)))
+    let july9 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 9)))
+    let beforeTask = Task(title: "기간 이전 작업", plannedAt: july1, order: 100)
+    let includedTask = Task(title: "기간 내 작업", plannedAt: july5, order: 100)
+    let afterTask = Task(title: "기간 이후 작업", plannedAt: july9, order: 100)
+    TaskRules.applyStatus(.done, to: beforeTask, now: july8, completionDayKey: DayKey.key(for: july1))
+    TaskRules.applyStatus(.done, to: includedTask, now: july8, completionDayKey: DayKey.key(for: july5))
+    TaskRules.applyStatus(.done, to: afterTask, now: july8, completionDayKey: DayKey.key(for: july9))
+    let filter = ArchiveFilter(
+        period: .custom,
+        customStartDate: july8,
+        customEndDate: july2
+    )
+
+    let records = ArchiveQueryRules.records(
+        tasks: [beforeTask, includedTask, afterTask],
+        reviews: [],
+        filter: filter,
+        referenceDate: july8
+    )
+
+    #expect(records.map(\.dayKey) == ["2026-07-05"])
+}
+
+@Test
 @MainActor
 func dailyReviewServiceSavesReviewAndSynchronizesDiaryBlocks() throws {
     let container = try ModelContainer(

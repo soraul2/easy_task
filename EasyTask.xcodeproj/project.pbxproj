@@ -33,6 +33,7 @@
 		A30000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift */; };
 		A30000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift */; };
 		A3000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift */; };
+		A3000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +64,7 @@
 		A20000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/BoardQueryRules.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DailyReviewService.swift; sourceTree = SOURCE_ROOT; };
 		A2000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/CalendarEventRules.swift; sourceTree = SOURCE_ROOT; };
+		A2000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/ArchiveQueryRules.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +94,7 @@
 				A20000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift */,
 				A20000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift */,
 				A20000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift */,
+				A2000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift */,
 				A20000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift */,
 				A20000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift */,
 				A2000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift */,
@@ -206,6 +209,7 @@
 				A30000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift in Sources */,
 				A30000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift in Sources */,
 				A30000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift in Sources */,
+				A3000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift in Sources */,
 				A30000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift in Sources */,
 				A30000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift in Sources */,
 				A3000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift in Sources */,

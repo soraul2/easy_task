@@ -23,6 +23,7 @@ Tests/
 
 - SwiftData 모델: `Task`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`
 - 날짜/보드 규칙: `DayKey`, `TaskRules`
+- 기록 조회 규칙: `ArchiveQueryRules`, `ArchiveFilter`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
 - 백업 코덱: `BackupCodec`
