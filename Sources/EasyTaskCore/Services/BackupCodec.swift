@@ -345,6 +345,12 @@ private extension BackupCodec {
             let field = "calendarEvents[\(index)]"
             try validateDayKey(event.startDayKey, field: "\(field).startDayKey")
             try validateDayKey(event.endDayKey, field: "\(field).endDayKey")
+            guard event.startDayKey <= event.endDayKey else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).endDayKey",
+                    value: "before startDayKey"
+                )
+            }
             if let color = event.color, CalendarEventColor(rawValue: color) == nil {
                 throw BackupServiceError.invalidEnum(field: "\(field).color", value: color)
             }
