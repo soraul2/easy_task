@@ -60,3 +60,8 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - iCloud/CloudKit 동기화는 다음 단계에서 적용한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
+
+## 다음 단계
+
+데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
+[`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
