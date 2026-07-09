@@ -8,232 +8,491 @@ import UIKit
 
 struct MobileArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
+
     @Query private var tasks: [TodoTask]
     @Query private var reviews: [DailyReview]
-    @State private var searchText = ""
-    @State private var scope: ArchiveScope = .all
+    @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
 
-    enum ArchiveScope: String, CaseIterable, Identifiable {
-        case all
-        case tasks
-        case reviews
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .all: "전체"
-            case .tasks: "작업"
-            case .reviews: "회고"
-            }
-        }
+    private var records: [ArchiveDayRecord] {
+        ArchiveQueryRules.records(tasks: tasks, reviews: reviews, filter: filter)
     }
 
-    struct Group: Identifiable {
-        var dayKey: String
-        var tasks: [TodoTask]
-        var review: DailyReview?
-        var id: String { dayKey }
-    }
-
-    private var groups: [Group] {
-        let completed = tasks.filter { $0.status == TaskStatus.done.rawValue }
-        let tasksByDay = Dictionary(grouping: completed, by: { $0.completedDayKey ?? $0.archivedDayKey ?? $0.plannedDayKey })
-        let reviewsByDay = Dictionary(grouping: reviews.filter { DailyReviewRules.hasContent($0) }, by: \.dayKey)
-            .mapValues { $0.sorted { $0.updatedAt > $1.updatedAt }.first }
-        let keys = Set(tasksByDay.keys).union(reviewsByDay.keys)
-        return keys
-            .sorted(by: >)
-            .map { key in
-                Group(
-                    dayKey: key,
-                    tasks: (scope == .reviews ? [] : tasksByDay[key] ?? []).sorted {
-                        ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast)
-                    },
-                    review: scope == .tasks ? nil : reviewsByDay[key] ?? nil
-                )
-            }
-            .filter(matchesSearch)
-            .filter { !$0.tasks.isEmpty || $0.review != nil }
+    private var hasActiveFilterOptions: Bool {
+        filter.period != .all || filter.scope != .all
     }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(groups) { group in
-                    MobileArchiveGroupView(group: group, onOpenBoardDate: onOpenBoardDate)
+                if records.isEmpty {
+                    emptyState
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                }
-                if groups.isEmpty {
-                    ContentUnavailableView("기록 없음", systemImage: "book.pages")
+                        .listRowInsets(EdgeInsets(top: 32, leading: 20, bottom: 20, trailing: 20))
+                } else {
+                    ForEach(records) { record in
+                        MobileArchiveRecordCard(
+                            record: record,
+                            onOpenBoardDate: onOpenBoardDate
+                        )
+                        .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    }
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .safeAreaInset(edge: .bottom) {
-                Color.clear
-                    .frame(height: MobileLayout.bottomTabClearance)
+                Color.clear.frame(height: MobileLayout.bottomTabClearance)
             }
-            .searchable(text: $searchText, prompt: "작업, 회고 검색")
+            .searchable(text: $filter.searchText, prompt: "작업 제목, 메모, 회고 검색")
             .navigationTitle("기록")
             .toolbar {
-                Button { showingFilter = true } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingFilter = true } label: {
+                        Image(systemName: hasActiveFilterOptions
+                            ? "line.3.horizontal.decrease.circle.fill"
+                            : "line.3.horizontal.decrease.circle")
+                    }
+                    .accessibilityLabel(hasActiveFilterOptions ? "적용된 기록 필터 변경" : "기록 필터")
                 }
-                .accessibilityLabel("기록 필터")
             }
             .sheet(isPresented: $showingFilter) {
-                ArchiveFilterSheet(scope: $scope, isPresented: $showingFilter)
+                MobileArchiveFilterSheet(filter: $filter)
             }
         }
     }
 
-    private func matchesSearch(_ group: Group) -> Bool {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return true }
-        if group.dayKey.localizedCaseInsensitiveContains(query) { return true }
-        if group.review?.title.localizedCaseInsensitiveContains(query) == true { return true }
-        if group.review?.weather.localizedCaseInsensitiveContains(query) == true { return true }
-        if group.review?.mood.localizedCaseInsensitiveContains(query) == true { return true }
-        if group.review?.content.localizedCaseInsensitiveContains(query) == true { return true }
-        return group.tasks.contains {
-            $0.title.localizedCaseInsensitiveContains(query) ||
-                ($0.note?.localizedCaseInsensitiveContains(query) == true)
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            ContentUnavailableView(
+                filter.hasActiveCriteria ? "검색 결과 없음" : "보관된 기록 없음",
+                systemImage: filter.hasActiveCriteria ? "magnifyingglass" : "book.pages",
+                description: Text(filter.hasActiveCriteria
+                    ? "기간, 키워드, 검색 대상을 조정해보세요."
+                    : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
+            )
+
+            if filter.hasActiveCriteria {
+                Button("검색 조건 초기화") {
+                    filter.reset()
+                }
+                .buttonStyle(.bordered)
+            }
         }
+        .frame(maxWidth: .infinity, minHeight: 260)
     }
 }
 
-private struct ArchiveFilterSheet: View {
-    @Binding var scope: MobileArchiveView.ArchiveScope
-    @Binding var isPresented: Bool
+private struct MobileArchiveFilterSheet: View {
+    @Binding var filter: ArchiveFilter
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
-                Picker("검색 대상", selection: $scope) {
-                    ForEach(MobileArchiveView.ArchiveScope.allCases) { scope in
-                        Text(scope.title).tag(scope)
+                Section("기간") {
+                    Picker("조회 기간", selection: $filter.period) {
+                        ForEach(ArchivePeriod.allCases) { period in
+                            Text(period.title).tag(period)
+                        }
+                    }
+
+                    if filter.period == .custom {
+                        DatePicker(
+                            "시작",
+                            selection: $filter.customStartDate,
+                            displayedComponents: .date
+                        )
+                        DatePicker(
+                            "종료",
+                            selection: $filter.customEndDate,
+                            displayedComponents: .date
+                        )
                     }
                 }
+                .listRowBackground(AppTheme.panel)
+
+                Section("검색 대상") {
+                    Picker("검색 대상", selection: $filter.scope) {
+                        ForEach(ArchiveScope.allCases) { scope in
+                            Text(scope.title).tag(scope)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .listRowBackground(AppTheme.panel)
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
+            .tint(AppTheme.event)
             .navigationTitle("검색 필터")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("초기화") {
+                        filter.reset()
+                    }
+                    .disabled(!filter.hasActiveCriteria)
+                }
+
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("완료") { isPresented = false }
+                    Button("완료") {
+                        dismiss()
+                    }
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
     }
 }
 
-private struct MobileArchiveGroupView: View {
-    var group: MobileArchiveView.Group
+private struct MobileArchiveRecordCard: View {
+    var record: ArchiveDayRecord
     var onOpenBoardDate: (Date) -> Void
-    @State private var expandedTasks = false
+
+    @State private var tasksExpanded = false
 
     private var title: String {
-        let reviewTitle = group.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let reviewTitle = record.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !reviewTitle.isEmpty { return reviewTitle }
-        return group.review == nil ? "작업 기록" : "하루 회고"
+        return record.review == nil ? "작업 기록" : "하루 회고"
+    }
+
+    private var displayDate: String {
+        guard let date = DayKey.date(from: record.dayKey) else { return record.dayKey }
+        return DayKey.display(date)
+    }
+
+    private var summaryText: String {
+        var parts: [String] = []
+        if !record.tasks.isEmpty {
+            parts.append("작업 \(record.tasks.count)")
+        }
+        if record.review != nil {
+            parts.append("회고")
+        }
+        return parts.joined(separator: " · ")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: group.review == nil ? "checkmark.circle" : "book.closed")
-                    .foregroundStyle(AppTheme.event)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(2)
-                    Text(group.dayKey)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    if let date = DayKey.date(from: group.dayKey) {
-                        onOpenBoardDate(date)
-                    }
-                } label: {
-                    Image(systemName: "rectangle.3.group")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("해당 날짜 칸반 열기")
+        VStack(alignment: .leading, spacing: 14) {
+            header
+
+            if let review = record.review {
+                reviewContent(review)
             }
 
-            if let review = group.review {
-                if !review.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(review.content)
-                        .font(.subheadline)
-                        .lineLimit(6)
-                }
-                if !review.imageFileNames.isEmpty {
-                    MobileArchiveImageStrip(fileNames: review.imageFileNames)
-                }
-            }
-
-            if !group.tasks.isEmpty {
-                Button {
-                    expandedTasks.toggle()
-                } label: {
-                    HStack {
-                        Label("그날 한 일", systemImage: "checkmark.circle")
-                        Text("\(group.tasks.count)")
-                        Spacer()
-                        Image(systemName: expandedTasks ? "chevron.down" : "chevron.right")
-                    }
-                    .font(.caption.weight(.bold))
-                }
-                ForEach(expandedTasks ? group.tasks : Array(group.tasks.prefix(3))) { task in
-                    Text(task.title)
-                        .font(.caption)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                }
+            if !record.tasks.isEmpty {
+                taskPreview
             }
         }
         .padding(14)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .foregroundStyle(AppTheme.primaryText)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
     }
-}
 
-private struct MobileArchiveImageStrip: View {
-    var fileNames: [String]
+    private var header: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: record.review == nil ? "checkmark.circle" : "book.closed")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(record.review == nil ? AppTheme.done : AppTheme.event)
+                .frame(width: 34, height: 34)
+                .background(AppTheme.input, in: Circle())
 
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(fileNames, id: \.self) { fileName in
-                    MobileArchiveImagePreview(fileName: fileName)
+            VStack(alignment: .leading, spacing: 7) {
+                MobileArchiveTitleLine(title: title, displayDate: displayDate)
+
+                if !summaryText.isEmpty {
+                    Text(summaryText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(AppTheme.selectedTab.opacity(0.24), in: Capsule())
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            Button {
+                guard let date = DayKey.date(from: record.dayKey) else { return }
+                onOpenBoardDate(date)
+            } label: {
+                Image(systemName: "rectangle.3.group")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(displayDate) 칸반보드 열기")
+        }
+    }
+
+    @ViewBuilder
+    private func reviewContent(_ review: DailyReview) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let content = review.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !content.isEmpty {
+                MobileExpandableReviewText(text: content)
+            }
+
+            if !review.imageFileNames.isEmpty {
+                MobileArchiveImageCarousel(fileNames: review.imageFileNames)
+            }
+        }
+    }
+
+    private var taskPreview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.snappy(duration: 0.18)) {
+                    tasksExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Label("그날 한 일", systemImage: "checkmark.circle")
+                    Text("\(record.tasks.count)")
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(AppTheme.selectedTab.opacity(0.24), in: Capsule())
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .rotationEffect(.degrees(tasksExpanded ? 0 : -90))
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .padding(.horizontal, 10)
+                .frame(height: 38)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(tasksExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
+
+            if tasksExpanded {
+                ForEach(record.tasks) { task in
+                    MobileArchiveTaskRow(task: task)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            } else {
+                ForEach(record.tasks.prefix(3)) { task in
+                    MobileArchiveTaskCompactRow(task: task)
+                }
+                if record.tasks.count > 3 {
+                    Text("외 \(record.tasks.count - 3)개")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.leading, 2)
                 }
             }
         }
     }
 }
 
-private struct MobileArchiveImagePreview: View {
-    var fileName: String
+private struct MobileArchiveTitleLine: View {
+    var title: String
+    var displayDate: String
 
     var body: some View {
-        if let image = UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(title)
+                    .font(.headline)
+                    .fixedSize(horizontal: true, vertical: false)
+                Text("›")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                Text(displayDate)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize()
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(displayDate)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+    }
+}
+
+private struct MobileExpandableReviewText: View {
+    var text: String
+    @State private var expanded = false
+
+    private var canExpand: Bool {
+        text.count > 180 || text.components(separatedBy: .newlines).count > 6
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text)
+                .font(.subheadline)
+                .lineSpacing(3)
+                .lineLimit(canExpand && !expanded ? 6 : nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+
+            if canExpand {
+                Button(expanded ? "접기" : "더 보기") {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        expanded.toggle()
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.event)
+            }
+        }
+    }
+}
+
+private struct MobileArchiveImageCarousel: View {
+    var fileNames: [String]
+    @State private var selectedIndex = 0
+
+    private var selectedImage: UIImage? {
+        guard fileNames.indices.contains(selectedIndex) else { return nil }
+        return image(for: fileNames[selectedIndex])
+    }
+
+    private var selectedAspectRatio: CGFloat {
+        guard let image = selectedImage, image.size.height > 0 else { return 4.0 / 3.0 }
+        return min(max(image.size.width / image.size.height, 0.82), 2.0)
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            TabView(selection: $selectedIndex) {
+                ForEach(Array(fileNames.enumerated()), id: \.offset) { index, fileName in
+                    ZStack {
+                        AppTheme.input
+
+                        if let image = image(for: fileName) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            MobileMissingImagePlaceholder(
+                                message: "이미지를 불러올 수 없음",
+                                minHeight: 160
+                            )
+                        }
+                    }
+                    .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .aspectRatio(selectedAspectRatio, contentMode: .fit)
+            .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
+
+            if fileNames.count > 1 {
+                Text("\(selectedIndex + 1)/\(fileNames.count)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(.black.opacity(0.58), in: Capsule())
+                    .padding(9)
+                    .accessibilityLabel("이미지 \(selectedIndex + 1) / \(fileNames.count)")
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .onChange(of: fileNames) { _, newFileNames in
+            if !newFileNames.indices.contains(selectedIndex) {
+                selectedIndex = 0
+            }
+        }
+    }
+
+    private func image(for fileName: String) -> UIImage? {
+        UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
             for: fileName,
             appSupportFolder: MobileImageStorage.appSupportFolder
-           ).path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 148, height: 104)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        } else {
-            MobileMissingImagePlaceholder(message: "이미지를 불러올 수 없음", minHeight: 104)
-                .frame(width: 148, height: 104)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+        ).path)
+    }
+}
+
+private struct MobileArchiveTaskCompactRow: View {
+    var task: TodoTask
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppTheme.done)
+            Text(task.title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct MobileArchiveTaskRow: View {
+    var task: TodoTask
+
+    private var displayDate: String {
+        let key = ArchiveQueryRules.dayKey(for: task)
+        guard let date = DayKey.date(from: key) else { return key }
+        return DayKey.display(date)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(task.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(2)
+
+            if let note = task.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(3)
+            }
+
+            HStack(spacing: 10) {
+                Text(displayDate)
+                if let estimatedMinutes = task.estimatedMinutes {
+                    Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
+                }
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(AppTheme.cardMutedText)
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.done.opacity(0.24), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
         }
     }
 }

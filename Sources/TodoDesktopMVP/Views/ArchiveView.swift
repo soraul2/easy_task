@@ -3,121 +3,17 @@ import SwiftData
 import SwiftUI
 import EasyTaskCore
 
-private struct ArchiveDayGroup: Identifiable {
-    var dayKey: String
-    var tasks: [Task]
-    var review: DailyReview?
-
-    var id: String { dayKey }
-}
-
-private enum ArchiveSearchPeriod: String, CaseIterable, Identifiable {
-    case all
-    case last7Days
-    case last30Days
-    case custom
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .all: "전체"
-        case .last7Days: "최근 7일"
-        case .last30Days: "최근 30일"
-        case .custom: "직접 설정"
-        }
-    }
-}
-
-private enum ArchiveSearchScope: String, CaseIterable, Identifiable {
-    case all
-    case tasks
-    case reviews
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .all: "전체"
-        case .tasks: "작업"
-        case .reviews: "회고"
-        }
-    }
-
-    var includesTasks: Bool {
-        self == .all || self == .tasks
-    }
-
-    var includesReviews: Bool {
-        self == .all || self == .reviews
-    }
-}
-
 struct ArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Query private var tasks: [Task]
     @Query private var reviews: [DailyReview]
-    @State private var searchText = ""
-    @State private var searchPeriod: ArchiveSearchPeriod = .all
-    @State private var searchScope: ArchiveSearchScope = .all
-    @State private var customStartDate = DayKey.addingDays(-30, to: DayKey.startOfDay(for: Date()))
-    @State private var customEndDate = DayKey.startOfDay(for: Date())
+    @State private var filter = ArchiveFilter()
     @State private var message: String?
 
-    private var completedTasks: [Task] {
-        tasks
-            .filter { $0.status == TaskStatus.done.rawValue }
-            .sorted { ($0.completedAt ?? $0.archivedAt ?? .distantPast) > ($1.completedAt ?? $1.archivedAt ?? .distantPast) }
-    }
-
-    private var nonEmptyReviews: [DailyReview] {
-        reviews.filter { DailyReviewRules.hasContent($0) }
-    }
-
-    private var normalizedSearchText: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var archiveGroups: [ArchiveDayGroup] {
-        let periodTasks = completedTasks.filter { dayKeyMatchesPeriod(archiveDayKey(for: $0)) }
-        let periodReviews = nonEmptyReviews.filter { dayKeyMatchesPeriod($0.dayKey) }
-        let tasksByDay = Dictionary(grouping: periodTasks, by: archiveDayKey)
-        let reviewsByDay = Dictionary(grouping: periodReviews, by: \.dayKey)
-            .mapValues { reviews in
-                reviews.sorted { $0.updatedAt > $1.updatedAt }.first
-            }
-        let searchableTasks = searchScope.includesTasks ? periodTasks : []
-        let searchableReviews = searchScope.includesReviews ? periodReviews : []
-
-        let dayKeys: Set<String>
-        if normalizedSearchText.isEmpty {
-            let taskKeys = searchScope.includesTasks ? Set(tasksByDay.keys) : Set<String>()
-            let reviewKeys = searchScope.includesReviews ? Set(reviewsByDay.keys) : Set<String>()
-            dayKeys = taskKeys.union(reviewKeys)
-        } else {
-            let matchedTaskKeys = searchableTasks
-                .filter { taskMatchesSearch($0) }
-                .map(archiveDayKey)
-            let matchedReviewKeys = searchableReviews
-                .filter { reviewMatchesSearch($0) }
-                .map(\.dayKey)
-            dayKeys = Set(matchedTaskKeys).union(matchedReviewKeys)
-        }
-
-        return dayKeys
-            .sorted(by: >)
-            .map { dayKey in
-                ArchiveDayGroup(
-                    dayKey: dayKey,
-                    tasks: (tasksByDay[dayKey] ?? []).sorted {
-                        ($0.completedAt ?? $0.archivedAt ?? .distantPast) > ($1.completedAt ?? $1.archivedAt ?? .distantPast)
-                    },
-                    review: reviewsByDay[dayKey] ?? nil
-                )
-            }
-            .filter { !$0.tasks.isEmpty || $0.review != nil }
+    private var archiveGroups: [ArchiveDayRecord] {
+        ArchiveQueryRules.records(tasks: tasks, reviews: reviews, filter: filter)
     }
 
     var body: some View {
@@ -130,11 +26,11 @@ struct ArchiveView: View {
                 .padding(.bottom, 12)
 
             ArchiveDetailedSearchPanel(
-                text: $searchText,
-                period: $searchPeriod,
-                scope: $searchScope,
-                startDate: $customStartDate,
-                endDate: $customEndDate,
+                text: $filter.searchText,
+                period: $filter.period,
+                scope: $filter.scope,
+                startDate: $filter.customStartDate,
+                endDate: $filter.customEndDate,
                 onReset: resetSearch
             )
                 .frame(maxWidth: 760)
@@ -206,13 +102,13 @@ struct ArchiveView: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: hasActiveSearch ? "magnifyingglass" : "book.pages")
+            Image(systemName: filter.hasActiveCriteria ? "magnifyingglass" : "book.pages")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
-            Text(hasActiveSearch ? "검색 결과 없음" : "보관된 기록 없음")
+            Text(filter.hasActiveCriteria ? "검색 결과 없음" : "보관된 기록 없음")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
-            Text(hasActiveSearch ? "기간, 키워드, 검색 대상을 조정해보세요." : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
+            Text(filter.hasActiveCriteria ? "기간, 키워드, 검색 대상을 조정해보세요." : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
                 .font(.callout)
                 .foregroundStyle(AppTheme.secondaryText)
                 .multilineTextAlignment(.center)
@@ -225,72 +121,8 @@ struct ArchiveView: View {
         }
     }
 
-    private func archiveDayKey(for task: Task) -> String {
-        task.completedDayKey ?? task.archivedDayKey ?? task.plannedDayKey
-    }
-
-    private var hasActiveSearch: Bool {
-        !normalizedSearchText.isEmpty ||
-            searchPeriod != .all ||
-            searchScope != .all
-    }
-
-    private func dayKeyMatchesPeriod(_ dayKey: String) -> Bool {
-        let today = DayKey.startOfDay(for: Date())
-        let todayKey = DayKey.key(for: today)
-
-        switch searchPeriod {
-        case .all:
-            return true
-        case .last7Days:
-            let startKey = DayKey.key(for: DayKey.addingDays(-6, to: today))
-            return startKey <= dayKey && dayKey <= todayKey
-        case .last30Days:
-            let startKey = DayKey.key(for: DayKey.addingDays(-29, to: today))
-            return startKey <= dayKey && dayKey <= todayKey
-        case .custom:
-            let start = min(customStartDate, customEndDate)
-            let end = max(customStartDate, customEndDate)
-            let startKey = DayKey.key(for: start)
-            let endKey = DayKey.key(for: end)
-            return startKey <= dayKey && dayKey <= endKey
-        }
-    }
-
-    private func taskMatchesSearch(_ task: Task) -> Bool {
-        guard !normalizedSearchText.isEmpty else { return true }
-
-        return containsSearch(task.title) ||
-            containsSearch(task.note) ||
-            containsSearch(task.completedDayKey) ||
-            containsSearch(task.archivedDayKey) ||
-            containsSearch(task.plannedDayKey)
-    }
-
-    private func reviewMatchesSearch(_ review: DailyReview) -> Bool {
-        guard !normalizedSearchText.isEmpty else { return true }
-
-        return containsSearch(review.content) ||
-            containsSearch(review.title) ||
-            containsSearch(review.weather) ||
-            containsSearch(review.mood) ||
-            containsSearch(review.dayKey)
-    }
-
-    private func containsSearch(_ value: String?) -> Bool {
-        guard let value else { return false }
-        return value.range(
-            of: normalizedSearchText,
-            options: [.caseInsensitive, .diacriticInsensitive]
-        ) != nil
-    }
-
     private func resetSearch() {
-        searchText = ""
-        searchPeriod = .all
-        searchScope = .all
-        customStartDate = DayKey.addingDays(-30, to: DayKey.startOfDay(for: Date()))
-        customEndDate = DayKey.startOfDay(for: Date())
+        filter.reset()
     }
 
     private func exportBackup() {
@@ -322,8 +154,8 @@ struct ArchiveView: View {
 
 private struct ArchiveDetailedSearchPanel: View {
     @Binding var text: String
-    @Binding var period: ArchiveSearchPeriod
-    @Binding var scope: ArchiveSearchScope
+    @Binding var period: ArchivePeriod
+    @Binding var scope: ArchiveScope
     @Binding var startDate: Date
     @Binding var endDate: Date
     var onReset: () -> Void
@@ -380,7 +212,7 @@ private struct ArchiveDetailedSearchPanel: View {
     private var periodPicker: some View {
         FilterPicker(title: "기간") {
             Picker("기간", selection: $period) {
-                ForEach(ArchiveSearchPeriod.allCases) { period in
+                ForEach(ArchivePeriod.allCases) { period in
                     Text(period.title).tag(period)
                 }
             }
@@ -392,7 +224,7 @@ private struct ArchiveDetailedSearchPanel: View {
     private var scopePicker: some View {
         FilterPicker(title: "검색 대상") {
             Picker("검색 대상", selection: $scope) {
-                ForEach(ArchiveSearchScope.allCases) { scope in
+                ForEach(ArchiveScope.allCases) { scope in
                     Text(scope.title).tag(scope)
                 }
             }
@@ -470,7 +302,7 @@ private struct ArchiveMessageView: View {
 }
 
 private struct ArchiveDayGroupView: View {
-    var group: ArchiveDayGroup
+    var group: ArchiveDayRecord
     var onOpenBoardDate: (Date) -> Void
     @State private var isTaskListExpanded = false
 
