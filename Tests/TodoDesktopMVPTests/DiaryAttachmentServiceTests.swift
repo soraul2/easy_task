@@ -19,6 +19,11 @@ func attachmentInspectionDetectsSupportedFormatsFromBytes() throws {
 }
 
 @Test
+func attachmentInspectionAvoidsDegenerateImageIOThumbnailSize() {
+    #expect(DiaryAttachmentService.validationThumbnailMaxPixelSize >= 8)
+}
+
+@Test
 func attachmentInspectionRejectsUnknownAndOversizedData() {
     #expect(throws: DiaryAttachmentServiceError.unsupportedImageFormat) {
         try DiaryAttachmentService.inspect(Data("not an image".utf8))

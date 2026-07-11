@@ -90,6 +90,7 @@ public enum DiaryAttachmentServiceError: LocalizedError, Equatable {
 public enum DiaryAttachmentService {
     public static let maximumAttachmentCount = 10
     public static let maximumImageSizeBytes = DiaryImageFileStore.maximumImageSizeBytes
+    static let validationThumbnailMaxPixelSize = 32
 
     public static func inspect(_ data: Data) throws -> DiaryAttachmentMetadata {
         guard !data.isEmpty else {
@@ -364,7 +365,8 @@ private extension DiaryAttachmentService {
         }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceThumbnailMaxPixelSize: 1,
+            // Some valid camera JPEGs fail when ImageIO is asked for a 1 px thumbnail.
+            kCGImageSourceThumbnailMaxPixelSize: validationThumbnailMaxPixelSize,
             kCGImageSourceShouldCacheImmediately: true
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) != nil
