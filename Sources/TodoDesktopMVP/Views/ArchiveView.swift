@@ -9,6 +9,7 @@ struct ArchiveView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var tasks: [Task]
     @Query private var reviews: [DailyReview]
+    @Query private var attachments: [DiaryAttachment]
     @State private var filter = ArchiveFilter()
     @State private var message: String?
 
@@ -50,6 +51,12 @@ struct ArchiveView: View {
                         ForEach(archiveGroups) { group in
                             ArchiveDayGroupView(
                                 group: group,
+                                attachments: group.review.map {
+                                    DiaryAttachmentService.activeAttachments(
+                                        for: $0.id,
+                                        in: attachments
+                                    )
+                                } ?? [],
                                 onOpenBoardDate: onOpenBoardDate
                             )
                         }
@@ -303,6 +310,7 @@ private struct ArchiveMessageView: View {
 
 private struct ArchiveDayGroupView: View {
     var group: ArchiveDayRecord
+    var attachments: [DiaryAttachment]
     var onOpenBoardDate: (Date) -> Void
     @State private var isTaskListExpanded = false
 
@@ -376,8 +384,11 @@ private struct ArchiveDayGroupView: View {
                     .textSelection(.enabled)
             }
 
-            if !review.imageFileNames.isEmpty {
-                ArchiveReviewImagePreview(fileNames: review.imageFileNames)
+            if !attachments.isEmpty || !review.imageFileNames.isEmpty {
+                ArchiveReviewImagePreview(
+                    attachmentData: attachments.map(\.data),
+                    legacyFileNames: review.imageFileNames
+                )
             }
         }
     }
@@ -478,12 +489,24 @@ private struct ArchiveDayGroupView: View {
 }
 
 private struct ArchiveReviewImagePreview: View {
-    var fileNames: [String]
+    var attachmentData: [Data]
+    var legacyFileNames: [String]
+
+    private var image: NSImage? {
+        if let data = attachmentData.first {
+            return NSImage(data: data)
+        }
+        guard let fileName = legacyFileNames.first else { return nil }
+        return NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName))
+    }
+
+    private var imageCount: Int {
+        attachmentData.isEmpty ? legacyFileNames.count : attachmentData.count
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            if let fileName = fileNames.first,
-               let image = NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName)) {
+            if let image {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
@@ -501,8 +524,8 @@ private struct ArchiveReviewImagePreview: View {
                     }
             }
 
-            if fileNames.count > 1 {
-                Text("1/\(fileNames.count)")
+            if imageCount > 1 {
+                Text("1/\(imageCount)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 9)

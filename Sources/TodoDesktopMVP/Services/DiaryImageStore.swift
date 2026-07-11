@@ -15,7 +15,7 @@ enum DiaryImageStore {
     }
 
     @MainActor
-    static func chooseAndCopyImages() throws -> [String] {
+    static func chooseImageDrafts() throws -> [DiaryAttachmentDraft] {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = true
@@ -23,14 +23,27 @@ enum DiaryImageStore {
         panel.canChooseFiles = true
 
         guard panel.runModal() == .OK else { return [] }
-        return try panel.urls.map(copyImage)
+        return try panel.urls.map(readDraft)
     }
 
-    static func removeImage(fileName: String) {
-        DiaryImageFileStore.removeImage(fileName: fileName, appSupportFolder: appSupportFolder)
-    }
+    private static func readDraft(from sourceURL: URL) throws -> DiaryAttachmentDraft {
+        let isAccessing = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if isAccessing {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
 
-    private static func copyImage(from sourceURL: URL) throws -> String {
-        try DiaryImageFileStore.copyImage(from: sourceURL, appSupportFolder: appSupportFolder)
+        if let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           fileSize > DiaryAttachmentService.maximumImageSizeBytes {
+            throw DiaryAttachmentServiceError.fileTooLarge(
+                actualBytes: fileSize,
+                maximumBytes: DiaryAttachmentService.maximumImageSizeBytes
+            )
+        }
+
+        let data = try Data(contentsOf: sourceURL, options: [.mappedIfSafe])
+        _ = try DiaryAttachmentService.inspect(data)
+        return DiaryAttachmentDraft(data: data, originalFileName: sourceURL.lastPathComponent)
     }
 }
