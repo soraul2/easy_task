@@ -9,9 +9,9 @@ struct DiaryView: View {
     private let threadColumnWidth: CGFloat = 40
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var reviews: [DailyReview]
-    @Query private var diaryBlocks: [DiaryBlock]
-    @Query private var attachments: [DiaryAttachment]
+    @State private var reviews: [DailyReview] = []
+    @State private var diaryBlocks: [DiaryBlock] = []
+    @State private var attachments: [DiaryAttachment] = []
 
     @State private var selectedDate: Date
     @State private var reviewTitle = ""
@@ -559,6 +559,31 @@ struct DiaryView: View {
     }
 
     private func loadSelectedReview() {
+        do {
+            reviews = try modelContext.fetch(
+                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
+            )
+            if let review = selectedReview {
+                diaryBlocks = try modelContext.fetch(
+                    BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+                )
+                attachments = try modelContext.fetch(
+                    BoundedQueryService.diaryAttachmentsDescriptor(
+                        reviewID: review.id
+                    )
+                )
+            } else {
+                diaryBlocks = []
+                attachments = []
+            }
+        } catch {
+            reviews = []
+            diaryBlocks = []
+            attachments = []
+            message = "회고를 불러오지 못했습니다."
+            return
+        }
+
         if let review = selectedReview {
             DailyReviewService.migrateBlockSummaryIfNeeded(
                 for: review,
@@ -616,12 +641,17 @@ struct DiaryView: View {
                 )
             }
             guard let review else { return nil }
+            reviews = try modelContext.fetch(
+                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
+            )
+            diaryBlocks = try modelContext.fetch(
+                BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+            )
+            attachments = try modelContext.fetch(
+                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+            )
             if !hasLegacyImageReferences {
-                let currentAttachments = try modelContext.fetch(FetchDescriptor<DiaryAttachment>())
-                let savedAttachments = DiaryAttachmentService.activeAttachments(
-                    for: review.id,
-                    in: currentAttachments
-                )
+                let savedAttachments = attachments
                 attachmentDrafts = savedAttachments.map { DiaryAttachmentDraft(attachment: $0) }
                 attachmentPreviewCacheKeys = savedAttachments.map {
                     DiaryImageStore.attachmentPreviewCacheKey(
@@ -728,28 +758,11 @@ struct DiaryView: View {
 struct DailyReviewSheet: View {
     var selectedDate: Date
     @Environment(\.dismiss) private var dismiss
-    @Query private var reviews: [DailyReview]
-    @Query private var diaryBlocks: [DiaryBlock]
-    @Query private var attachments: [DiaryAttachment]
+    @Environment(\.modelContext) private var modelContext
+    @State private var hasReviewImages = false
 
     private var selectedDayKey: String {
         DayKey.key(for: selectedDate)
-    }
-
-    private var hasReviewImages: Bool {
-        guard let review = reviews.first(where: {
-            $0.supersededAt == nil && $0.dayKey == selectedDayKey
-        }) else { return false }
-        let activeAttachments = DiaryAttachmentService.activeAttachments(
-            for: review.id,
-            in: attachments
-        )
-        let unresolvedFileNames = DiaryAttachmentService.unresolvedLegacyImageFileNames(
-            for: review,
-            blocks: diaryBlocks,
-            attachments: attachments
-        )
-        return !activeAttachments.isEmpty || !unresolvedFileNames.isEmpty
     }
 
     private var sheetWidth: CGFloat {
@@ -796,6 +809,34 @@ struct DailyReviewSheet: View {
         .frame(width: sheetWidth, height: sheetHeight)
         .background(AppTheme.panel)
         .animation(.snappy(duration: 0.18), value: hasReviewImages)
+        .task {
+            loadReviewImageState()
+        }
+    }
+
+    private func loadReviewImageState() {
+        do {
+            guard let review = try modelContext.fetch(
+                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
+            ).first else {
+                hasReviewImages = false
+                return
+            }
+            let blocks = try modelContext.fetch(
+                BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+            )
+            let attachments = try modelContext.fetch(
+                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+            )
+            let unresolvedFileNames = DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: review,
+                blocks: blocks,
+                attachments: attachments
+            )
+            hasReviewImages = !attachments.isEmpty || !unresolvedFileNames.isEmpty
+        } catch {
+            hasReviewImages = false
+        }
     }
 }
 

@@ -110,8 +110,10 @@ public enum DailyReviewService {
     }
 
     public static func syncBlocks(for review: DailyReview, in context: ModelContext) {
-        let existingBlocks = (try? context.fetch(FetchDescriptor<DiaryBlock>())) ?? []
-        for block in existingBlocks where block.reviewId == review.id {
+        let existingBlocks = (try? context.fetch(
+            BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+        )) ?? []
+        for block in existingBlocks {
             context.delete(block)
         }
 

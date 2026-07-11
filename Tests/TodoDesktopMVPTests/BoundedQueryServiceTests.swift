@@ -226,3 +226,72 @@ func archiveSearchScansBoundedWindowsUntilSparseMatch() throws {
     #expect(page.records.first?.tasks.map(\.title) == ["needle 작업"])
     #expect(!page.hasMore)
 }
+
+@Test
+@MainActor
+func boundedReviewMediaAndArchiveCandidateDescriptorsUseExactOwners() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let today = try #require(DayKey.date(from: "2026-07-12"))
+    let yesterday = try #require(DayKey.date(from: "2026-07-11"))
+
+    let review = DailyReview(dayKey: "2026-07-12", content: "오늘 회고")
+    let otherReview = DailyReview(dayKey: "2026-07-11", content: "이전 회고")
+    let attachment = DiaryAttachment(
+        reviewId: review.id,
+        order: 100,
+        mimeType: "image/png",
+        byteCount: 1,
+        sha256: "review-owner",
+        data: Data([1])
+    )
+    let otherAttachment = DiaryAttachment(
+        reviewId: otherReview.id,
+        order: 100,
+        mimeType: "image/png",
+        byteCount: 1,
+        sha256: "other-owner",
+        data: Data([2])
+    )
+    let block = DiaryBlock(
+        reviewId: review.id,
+        dayKey: review.dayKey,
+        type: .text,
+        text: "본문",
+        order: 100
+    )
+    let archivedCandidate = Task(
+        title: "어제 완료",
+        status: .done,
+        plannedAt: yesterday,
+        order: 100
+    )
+    archivedCandidate.completedAt = yesterday
+    archivedCandidate.completedDayKey = "2026-07-11"
+    let todayDone = Task(
+        title: "오늘 완료",
+        status: .done,
+        plannedAt: today,
+        order: 100
+    )
+    todayDone.completedAt = today
+    todayDone.completedDayKey = "2026-07-12"
+    [review, otherReview].forEach(context.insert)
+    [attachment, otherAttachment].forEach(context.insert)
+    context.insert(block)
+    [archivedCandidate, todayDone].forEach(context.insert)
+    try context.save()
+
+    #expect(try context.fetch(
+        BoundedQueryService.dailyReviewsDescriptor(dayKey: "2026-07-12")
+    ).map(\.id) == [review.id])
+    #expect(try context.fetch(
+        BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+    ).map(\.id) == [attachment.id])
+    #expect(try context.fetch(
+        BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+    ).map(\.id) == [block.id])
+    #expect(try context.fetch(
+        BoundedQueryService.tasksNeedingArchiveDescriptor(before: "2026-07-12")
+    ).map(\.id) == [archivedCandidate.id])
+}

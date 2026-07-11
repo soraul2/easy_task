@@ -194,15 +194,16 @@ public enum DiaryAttachmentService {
         let prepared = try drafts.map { draft in
             (draft, try inspect(draft.data))
         }
-        let activeReviewExists = try context.fetch(FetchDescriptor<DailyReview>()).contains {
-            $0.id == review.id && $0.supersededAt == nil
-        }
+        let activeReviewExists = try context.fetch(
+            BoundedQueryService.dailyReviewDescriptor(id: review.id)
+        ).first != nil
         guard activeReviewExists else {
             throw DiaryAttachmentServiceError.invalidReviewID(review.id)
         }
 
-        let existing = try context.fetch(FetchDescriptor<DiaryAttachment>())
-            .filter { $0.reviewId == review.id && $0.supersededAt == nil }
+        let existing = try context.fetch(
+            BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+        )
         var existingByID: [UUID: DiaryAttachment] = [:]
         for attachment in existing {
             guard existingByID[attachment.id] == nil else {

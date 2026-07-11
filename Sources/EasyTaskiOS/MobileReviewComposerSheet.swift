@@ -16,8 +16,6 @@ struct MobileReviewComposerSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [DailyReview]
-    @Query private var diaryBlocks: [DiaryBlock]
-    @Query private var attachments: [DiaryAttachment]
     @State private var title = ""
     @State private var content = ""
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -28,6 +26,13 @@ struct MobileReviewComposerSheet: View {
     @State private var messageIsError = false
     @State private var isImportingImages = false
     @State private var isSaving = false
+
+    init(selectedDate: Date) {
+        self.selectedDate = selectedDate
+        _reviews = Query(BoundedQueryService.dailyReviewsDescriptor(
+            dayKey: DayKey.key(for: selectedDate)
+        ))
+    }
 
     private var dayKey: String { DayKey.key(for: selectedDate) }
     private var selectedReview: DailyReview? {
@@ -109,9 +114,27 @@ struct MobileReviewComposerSheet: View {
 
     private func load() {
         let review = selectedReview
-        let orderedAttachments = review.map {
-            DiaryAttachmentService.activeAttachments(for: $0.id, in: attachments)
-        } ?? []
+        let orderedAttachments: [DiaryAttachment]
+        let diaryBlocks: [DiaryBlock]
+        do {
+            if let review {
+                orderedAttachments = try modelContext.fetch(
+                    BoundedQueryService.diaryAttachmentsDescriptor(
+                        reviewID: review.id
+                    )
+                )
+                diaryBlocks = try modelContext.fetch(
+                    BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+                )
+            } else {
+                orderedAttachments = []
+                diaryBlocks = []
+            }
+        } catch {
+            message = "회고 이미지를 불러오지 못했어요"
+            messageIsError = true
+            return
+        }
 
         title = review?.title ?? ""
         content = review?.content ?? ""
@@ -126,7 +149,7 @@ struct MobileReviewComposerSheet: View {
             DiaryAttachmentService.unresolvedLegacyImageFileNames(
                 for: $0,
                 blocks: diaryBlocks,
-                attachments: attachments
+                attachments: orderedAttachments
             )
         } ?? []
         selectedImageIndex = 0
