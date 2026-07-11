@@ -92,6 +92,45 @@ func invalidReplacementLeavesExistingAttachmentUntouched() throws {
 
 @Test
 @MainActor
+func textOnlyReviewSavePreservesAttachmentIdentity() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let png = try #require(encodedTestImage(type: .png, marker: 0x07))
+    let firstDate = Date(timeIntervalSince1970: 100)
+    let secondDate = Date(timeIntervalSince1970: 200)
+    let review = try #require(try DiaryAttachmentService.saveReview(
+        review: nil,
+        dayKey: "2026-07-11",
+        content: "첫 본문",
+        attachments: [DiaryAttachmentDraft(data: png)],
+        in: context,
+        now: firstDate
+    ))
+    let original = try #require(context.fetch(FetchDescriptor<DiaryAttachment>()).first)
+    let originalID = original.id
+    let originalInstanceID = original.instanceID
+    let originalUpdatedAt = original.updatedAt
+
+    _ = try DiaryAttachmentService.saveReview(
+        review: review,
+        dayKey: review.dayKey,
+        content: "수정한 본문",
+        attachments: [DiaryAttachmentDraft(attachment: original)],
+        in: context,
+        now: secondDate
+    )
+
+    let attachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+    #expect(attachments.count == 1)
+    #expect(attachments[0].id == originalID)
+    #expect(attachments[0].instanceID == originalInstanceID)
+    #expect(attachments[0].updatedAt == originalUpdatedAt)
+    #expect(review.content == "수정한 본문")
+    #expect(review.updatedAt == secondDate)
+}
+
+@Test
+@MainActor
 func legacyFileMigrationIsIdempotent() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext

@@ -16,6 +16,7 @@ struct DiaryView: View {
     @State private var selectedDate: Date
     @State private var reviewTitle = ""
     @State private var content = ""
+    @State private var attachmentDrafts: [DiaryAttachmentDraft] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
 
@@ -63,12 +64,12 @@ struct DiaryView: View {
     }
 
     private var displayedImages: [DiaryImageItem] {
-        let canonicalImages = selectedAttachments.map { attachment in
+        let canonicalImages = attachmentDrafts.enumerated().map { index, draft in
             DiaryImageItem(
-                id: "attachment-\(attachment.instanceID.uuidString)",
+                id: draft.instanceID.map { "attachment-\($0.uuidString)" } ?? "draft-\(index)",
                 source: .attachment(
-                    id: attachment.id,
-                    data: attachment.data
+                    index: index,
+                    data: draft.data
                 )
             )
         }
@@ -87,12 +88,6 @@ struct DiaryView: View {
 
     private var hasLegacyImageReferences: Bool {
         !(selectedReview?.imageFileNames.isEmpty ?? true)
-    }
-
-    private var attachmentDrafts: [DiaryAttachmentDraft] {
-        selectedAttachments.map {
-            DiaryAttachmentDraft(data: $0.data, originalFileName: $0.originalFileName)
-        }
     }
 
     private var canSave: Bool {
@@ -554,6 +549,7 @@ struct DiaryView: View {
         let review = selectedReview
         reviewTitle = review?.title ?? ""
         content = review?.content ?? ""
+        attachmentDrafts = selectedAttachments.map { DiaryAttachmentDraft(attachment: $0) }
         selectedImageIndex = 0
         message = nil
     }
@@ -585,6 +581,13 @@ struct DiaryView: View {
                 )
             }
             guard let review else { return nil }
+            if !hasLegacyImageReferences {
+                let currentAttachments = try modelContext.fetch(FetchDescriptor<DiaryAttachment>())
+                attachmentDrafts = DiaryAttachmentService.activeAttachments(
+                    for: review.id,
+                    in: currentAttachments
+                ).map { DiaryAttachmentDraft(attachment: $0) }
+            }
             message = "회고가 저장됐어요"
             return review
         } catch {
@@ -603,19 +606,25 @@ struct DiaryView: View {
         do {
             let newDrafts = try DiaryImageStore.chooseImageDrafts()
             guard !newDrafts.isEmpty else { return }
-            let existingAttachmentCount = selectedAttachments.count
-            guard try DiaryAttachmentService.saveReview(
-                review: selectedReview,
-                dayKey: selectedDayKey,
-                title: reviewTitle,
-                content: content,
-                attachments: attachmentDrafts + newDrafts,
-                in: modelContext,
-                forceCreate: true
-            ) != nil else { return }
-
-            selectedImageIndex = existingAttachmentCount
-            message = newDrafts.count == 1 ? "이미지 추가됨" : "이미지 \(newDrafts.count)개 추가됨"
+            let availableCount = max(
+                DiaryAttachmentService.maximumAttachmentCount - attachmentDrafts.count,
+                0
+            )
+            guard availableCount > 0 else {
+                message = "이미지는 최대 \(DiaryAttachmentService.maximumAttachmentCount)개까지 추가할 수 있습니다"
+                return
+            }
+            let accepted = Array(newDrafts.prefix(availableCount))
+            let firstNewIndex = attachmentDrafts.count
+            attachmentDrafts.append(contentsOf: accepted)
+            selectedImageIndex = firstNewIndex
+            if accepted.count < newDrafts.count {
+                message = "이미지 \(accepted.count)개 추가됨, 최대 개수 초과"
+            } else {
+                message = accepted.count == 1
+                    ? "이미지를 추가했습니다. 저장하면 반영됩니다"
+                    : "이미지 \(accepted.count)개를 추가했습니다. 저장하면 반영됩니다"
+            }
         } catch {
             message = "이미지 추가 실패: \(error.localizedDescription)"
         }
@@ -623,29 +632,13 @@ struct DiaryView: View {
 
     private func removeSelectedImage() {
         guard !hasLegacyImageReferences,
-              let review = selectedReview,
               let image = displayedImages[safe: selectedImageIndex],
-              case .attachment(let attachmentID, _) = image.source else { return }
+              case .attachment(let draftIndex, _) = image.source,
+              attachmentDrafts.indices.contains(draftIndex) else { return }
 
-        let remainingAttachments = selectedAttachments.filter { $0.id != attachmentID }
-        let remainingDrafts = remainingAttachments.map {
-            DiaryAttachmentDraft(data: $0.data, originalFileName: $0.originalFileName)
-        }
-        do {
-            _ = try DiaryAttachmentService.saveReview(
-                review: review,
-                dayKey: selectedDayKey,
-                title: reviewTitle,
-                content: content,
-                attachments: remainingDrafts,
-                in: modelContext,
-                forceCreate: true
-            )
-            selectedImageIndex = min(selectedImageIndex, max(remainingAttachments.count - 1, 0))
-            message = "이미지 삭제됨"
-        } catch {
-            message = "이미지 삭제 실패: \(error.localizedDescription)"
-        }
+        attachmentDrafts.remove(at: draftIndex)
+        selectedImageIndex = min(selectedImageIndex, max(attachmentDrafts.count - 1, 0))
+        message = "이미지를 삭제했습니다. 저장하면 반영됩니다"
     }
 
     private var canRemoveSelectedImage: Bool {
@@ -731,7 +724,7 @@ private struct DiaryImageItem: Identifiable {
 }
 
 private enum DiaryImageSource {
-    case attachment(id: UUID, data: Data)
+    case attachment(index: Int, data: Data)
     case legacyFileName(String)
 }
 

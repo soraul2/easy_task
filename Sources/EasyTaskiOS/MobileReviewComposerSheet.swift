@@ -108,7 +108,7 @@ struct MobileReviewComposerSheet: View {
         title = review?.title ?? ""
         content = review?.content ?? ""
         attachmentDrafts = orderedAttachments.map {
-            DiaryAttachmentDraft(data: $0.data, originalFileName: $0.originalFileName)
+            DiaryAttachmentDraft(attachment: $0)
         }
         legacyImageFileNames = review?.imageFileNames ?? []
         selectedImageIndex = 0

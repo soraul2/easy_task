@@ -18,12 +18,28 @@ public enum DiaryAttachmentMediaType: String, Codable, CaseIterable, Sendable {
 }
 
 public struct DiaryAttachmentDraft: Equatable, Sendable {
+    public var id: UUID?
+    public var instanceID: UUID?
     public var data: Data
     public var originalFileName: String?
 
-    public init(data: Data, originalFileName: String? = nil) {
+    public init(
+        id: UUID? = nil,
+        instanceID: UUID? = nil,
+        data: Data,
+        originalFileName: String? = nil
+    ) {
+        self.id = id
+        self.instanceID = instanceID
         self.data = data
         self.originalFileName = originalFileName
+    }
+
+    public init(attachment: DiaryAttachment) {
+        id = attachment.id
+        instanceID = attachment.instanceID
+        data = attachment.data
+        originalFileName = attachment.originalFileName
     }
 }
 
@@ -45,6 +61,8 @@ public enum DiaryAttachmentServiceError: LocalizedError, Equatable {
     case unsupportedImageFormat
     case tooManyAttachments(actual: Int, maximum: Int)
     case invalidReviewID(UUID)
+    case invalidAttachmentIdentity(UUID)
+    case duplicateAttachmentIdentity(UUID)
     case saveFailed(String)
 
     public var errorDescription: String? {
@@ -59,6 +77,10 @@ public enum DiaryAttachmentServiceError: LocalizedError, Equatable {
             return "이미지는 최대 \(maximum)개까지 첨부할 수 있습니다. count=\(actual)"
         case .invalidReviewID(let reviewID):
             return "첨부 대상 회고를 찾을 수 없습니다. reviewID=\(reviewID)"
+        case .invalidAttachmentIdentity(let id):
+            return "기존 첨부의 식별자가 올바르지 않습니다. id=\(id)"
+        case .duplicateAttachmentIdentity(let id):
+            return "같은 첨부가 초안에 두 번 포함됐습니다. id=\(id)"
         case .saveFailed(let description):
             return "이미지 첨부를 저장하지 못했습니다. \(description)"
         }
@@ -132,12 +154,53 @@ public enum DiaryAttachmentService {
 
         let existing = try context.fetch(FetchDescriptor<DiaryAttachment>())
             .filter { $0.reviewId == review.id && $0.supersededAt == nil }
+        var existingByID: [UUID: DiaryAttachment] = [:]
         for attachment in existing {
-            context.delete(attachment)
+            guard existingByID[attachment.id] == nil else {
+                throw DiaryAttachmentServiceError.duplicateAttachmentIdentity(attachment.id)
+            }
+            existingByID[attachment.id] = attachment
+        }
+        var retainedIDs: Set<UUID> = []
+        for draft in drafts {
+            guard let id = draft.id else {
+                if let instanceID = draft.instanceID {
+                    throw DiaryAttachmentServiceError.invalidAttachmentIdentity(instanceID)
+                }
+                continue
+            }
+            guard retainedIDs.insert(id).inserted else {
+                throw DiaryAttachmentServiceError.duplicateAttachmentIdentity(id)
+            }
+            guard let attachment = existingByID[id],
+                  let instanceID = draft.instanceID,
+                  attachment.instanceID == instanceID else {
+                throw DiaryAttachmentServiceError.invalidAttachmentIdentity(id)
+            }
         }
 
-        let inserted = prepared.enumerated().map { index, value in
+        let resolved = prepared.enumerated().map { index, value in
             let (draft, metadata) = value
+            if let id = draft.id, let attachment = existingByID[id] {
+                let order = Double(index) * 100
+                let originalFileName = normalizedFileName(draft.originalFileName)
+                let changed = attachment.order != order ||
+                    attachment.originalFileName != originalFileName ||
+                    attachment.mimeType != metadata.mediaType.rawValue ||
+                    attachment.byteCount != metadata.byteCount ||
+                    attachment.sha256 != metadata.sha256 ||
+                    attachment.data != draft.data
+                attachment.order = order
+                attachment.originalFileName = originalFileName
+                attachment.mimeType = metadata.mediaType.rawValue
+                attachment.byteCount = metadata.byteCount
+                attachment.sha256 = metadata.sha256
+                attachment.data = draft.data
+                if changed {
+                    attachment.updatedAt = now
+                }
+                return attachment
+            }
             let attachment = DiaryAttachment(
                 reviewId: review.id,
                 order: Double(index) * 100,
@@ -152,8 +215,11 @@ public enum DiaryAttachmentService {
             context.insert(attachment)
             return attachment
         }
+        for attachment in existing where !retainedIDs.contains(attachment.id) {
+            context.delete(attachment)
+        }
         review.updatedAt = now
-        return inserted
+        return resolved
     }
 
     @MainActor
