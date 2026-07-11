@@ -165,6 +165,11 @@ private struct MobileAppRootView: View {
         .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
         .task {
             start()
+#if DEBUG
+            _ = await CloudKitConvergenceProbe.runIfRequested(
+                context: modelContext
+            )
+#endif
             await syncMonitor.refreshAccountStatus()
         }
         .onChange(of: selectedTab) {

@@ -63,6 +63,11 @@ struct AppRootView: View {
         .environment(syncMonitor)
         .task {
             start()
+#if DEBUG
+            _ = await CloudKitConvergenceProbe.runIfRequested(
+                context: modelContext
+            )
+#endif
             await syncMonitor.refreshAccountStatus()
         }
         .onChange(of: selectedTab) {
