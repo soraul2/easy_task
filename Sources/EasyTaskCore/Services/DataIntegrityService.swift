@@ -50,49 +50,42 @@ public enum DataIntegrityService {
         _ = mergeActive(
             events,
             groupedBy: { $0.id },
-            copying: copyCalendarEventScalars,
             report: &report
         )
         _ = mergeActive(
             templates,
             groupedBy: { $0.id },
-            copying: copyTemplateScalars,
             report: &report
         )
         _ = mergeActive(
             templateItems,
             groupedBy: { $0.id },
-            copying: copyTemplateItemScalars,
             report: &report
         )
         _ = mergeActive(
             placements,
             groupedBy: { $0.id },
-            copying: copyPlacementScalars,
             report: &report
         )
         _ = mergeActive(
             tasks,
             groupedBy: { $0.id },
-            copying: copyTaskScalars,
             report: &report
         )
         _ = mergeActive(
             reviews,
             groupedBy: { $0.id },
-            copying: copyReviewScalars,
-            report: &report
+            report: &report,
+            mergingSupplemental: mergeReviewLegacyFileNames
         )
         _ = mergeActive(
             diaryBlocks,
             groupedBy: { $0.id },
-            copying: copyDiaryBlockScalars,
             report: &report
         )
         _ = mergeActive(
             diaryAttachments,
             groupedBy: { $0.id },
-            copying: copyDiaryAttachmentScalars,
             report: &report
         )
 
@@ -108,7 +101,6 @@ public enum DataIntegrityService {
         let templateRewrites = mergeActive(
             templates,
             groupedBy: { normalizedNaturalKey($0.seedKey) },
-            copying: copyTemplateScalars,
             report: &report
         )
         reconcileTemplateReferences(
@@ -135,15 +127,14 @@ public enum DataIntegrityService {
                 guard let seedKey = normalizedNaturalKey(item.seedKey) else { return nil }
                 return SeededItemKey(templateID: item.templateId, seedKey: seedKey)
             },
-            copying: copyTemplateItemScalars,
             report: &report
         )
 
         let reviewRewrites = mergeActive(
             reviews,
             groupedBy: { validDayKey($0.dayKey) },
-            copying: copyReviewScalars,
-            report: &report
+            report: &report,
+            mergingSupplemental: mergeReviewLegacyFileNames
         )
         reconcileDiaryBlockReferences(
             reviews: reviews,
@@ -179,8 +170,8 @@ private extension DataIntegrityService {
     static func mergeActive<Record: IntegrityRecord, Key: Hashable>(
         _ records: [Record],
         groupedBy key: (Record) -> Key?,
-        copying copyScalars: (Record, Record) -> Void,
-        report: inout Report
+        report: inout Report,
+        mergingSupplemental: (Record, Record) -> Void = { _, _ in }
     ) -> [UUID: UUID] {
         var groups: [Key: [Record]] = [:]
         for record in records where isActive(record) {
@@ -195,23 +186,22 @@ private extension DataIntegrityService {
 
         for group in duplicateGroups {
             let ordered = group.sorted { uuidPrecedes($0.instanceID, $1.instanceID) }
-            guard let canonical = ordered.first else { continue }
-            var winner = canonical
+            guard var winner = ordered.first else { continue }
             for candidate in ordered.dropFirst() where scalarPrecedes(winner, candidate) {
                 winner = candidate
             }
 
-            copyScalars(winner, canonical)
             if let earliestCreatedAt = earliestValidTimestamp(in: ordered) {
-                _ = assign(&canonical.createdAt, earliestCreatedAt)
+                _ = assign(&winner.createdAt, earliestCreatedAt)
             }
 
-            for loser in ordered.dropFirst() {
+            for loser in ordered where loser.instanceID != winner.instanceID {
+                mergingSupplemental(loser, winner)
                 loser.supersededAt = winner.updatedAt
                 report.mergedRecords += 1
                 report.supersededRecords += 1
-                if loser.id != canonical.id {
-                    rewrites[loser.id] = canonical.id
+                if loser.id != winner.id {
+                    rewrites[loser.id] = winner.id
                 }
             }
         }
@@ -631,104 +621,11 @@ private extension DataIntegrityService {
 
 private extension DataIntegrityService {
     @MainActor
-    static func copyCalendarEventScalars(from source: CalendarEvent, to target: CalendarEvent) {
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.startAt, source.startAt)
-        _ = assign(&target.endAt, source.endAt)
-        _ = assign(&target.startDayKey, source.startDayKey)
-        _ = assign(&target.endDayKey, source.endDayKey)
-        _ = assign(&target.note, source.note)
-        _ = assign(&target.color, source.color)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyTemplateScalars(from source: TaskTemplate, to target: TaskTemplate) {
-        _ = assign(&target.seedKey, source.seedKey)
-        _ = assign(&target.name, source.name)
-        _ = assign(&target.isFavorite, source.isFavorite)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyTemplateItemScalars(from source: TaskTemplateItem, to target: TaskTemplateItem) {
-        _ = assign(&target.seedKey, source.seedKey)
-        _ = assign(&target.templateId, source.templateId)
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.note, source.note)
-        _ = assign(&target.priority, source.priority)
-        _ = assign(&target.tags, source.tags)
-        _ = assign(&target.estimatedMinutes, source.estimatedMinutes)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyPlacementScalars(from source: TemplatePlacement, to target: TemplatePlacement) {
-        _ = assign(&target.sourceTemplateId, source.sourceTemplateId)
-        _ = assign(&target.templateName, source.templateName)
-        _ = assign(&target.dayKey, source.dayKey)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyTaskScalars(from source: Task, to target: Task) {
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.note, source.note)
-        _ = assign(&target.status, source.status)
-        _ = assign(&target.plannedAt, source.plannedAt)
-        _ = assign(&target.plannedDayKey, source.plannedDayKey)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.eventId, source.eventId)
-        _ = assign(&target.templatePlacementId, source.templatePlacementId)
-        _ = assign(&target.priority, source.priority)
-        _ = assign(&target.tags, source.tags)
-        _ = assign(&target.estimatedMinutes, source.estimatedMinutes)
-        _ = assign(&target.updatedAt, source.updatedAt)
-        _ = assign(&target.completedAt, source.completedAt)
-        _ = assign(&target.completedDayKey, source.completedDayKey)
-        _ = assign(&target.archivedAt, source.archivedAt)
-        _ = assign(&target.archivedDayKey, source.archivedDayKey)
-    }
-
-    @MainActor
-    static func copyReviewScalars(from source: DailyReview, to target: DailyReview) {
-        _ = assign(&target.dayKey, source.dayKey)
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.weather, source.weather)
-        _ = assign(&target.mood, source.mood)
-        _ = assign(&target.content, source.content)
+    static func mergeReviewLegacyFileNames(from source: DailyReview, to target: DailyReview) {
         _ = assign(
             &target.imageFileNames,
-            mergedLegacyFileNames(source.imageFileNames, target.imageFileNames)
+            mergedLegacyFileNames(target.imageFileNames, source.imageFileNames)
         )
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyDiaryBlockScalars(from source: DiaryBlock, to target: DiaryBlock) {
-        _ = assign(&target.reviewId, source.reviewId)
-        _ = assign(&target.dayKey, source.dayKey)
-        _ = assign(&target.type, source.type)
-        _ = assign(&target.text, source.text)
-        _ = assign(&target.imageFileName, source.imageFileName)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyDiaryAttachmentScalars(
-        from source: DiaryAttachment,
-        to target: DiaryAttachment
-    ) {
-        _ = assign(&target.reviewId, source.reviewId)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.originalFileName, source.originalFileName)
-        _ = assign(&target.mimeType, source.mimeType)
-        _ = assign(&target.byteCount, source.byteCount)
-        _ = assign(&target.sha256, source.sha256)
-        _ = assign(&target.data, source.data)
-        _ = assign(&target.updatedAt, source.updatedAt)
     }
 }
 
