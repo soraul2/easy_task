@@ -101,8 +101,18 @@ func repeatedImportRemainsIdempotentAfterReviewReconciliation() throws {
     let reviews = try destination.mainContext.fetch(FetchDescriptor<DailyReview>())
     let active = try #require(reviews.first { $0.supersededAt == nil })
     #expect(reviews.count == 2)
-    #expect(active.instanceID == lowerInstanceID)
+    #expect(active.instanceID == higherInstanceID)
     #expect(active.content == "동일 날짜 로컬 회고")
+
+    var tampered = contents
+    tampered.records.payload.dailyReviews?[0].content = "변조된 백업 회고"
+    refreshRecordsMetadata(&tampered)
+    #expect(throws: BackupPackageError.identityCorruption(
+        recordType: "DailyReview",
+        instanceID: lowerInstanceID
+    )) {
+        try BackupPackageCodec.restoreMerging(tampered, into: destination.mainContext)
+    }
 }
 
 @Test
@@ -323,6 +333,20 @@ func packageValidationRejectsDuplicateAttachmentInstanceIDs() throws {
 
 @Test
 @MainActor
+func packageValidationRejectsNonCanonicalAttachmentOrder() throws {
+    let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x48)
+    var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let attachmentID = contents.records.attachments[1].id
+    contents.records.attachments[1].order = 50
+    refreshRecordsMetadata(&contents)
+
+    #expect(throws: BackupPackageError.invalidAttachmentMetadata(attachmentID)) {
+        try BackupPackageCodec.validate(contents)
+    }
+}
+
+@Test
+@MainActor
 func packageExportRejectsUnresolvedLegacyImageReferences() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     container.mainContext.insert(DailyReview(
@@ -365,6 +389,73 @@ func sameInstanceAndTimestampWithDifferentContentIsRejected() throws {
     }
     let local = try #require(destination.mainContext.fetch(FetchDescriptor<DailyReview>()).first)
     #expect(local.content == "different local")
+}
+
+@Test
+@MainActor
+func sameTaskInstanceRejectsDifferentValidEventRelationship() throws {
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    let day = try #require(DayKey.date(from: "2026-07-11"))
+    let firstEvent = CalendarEvent(title: "첫 이벤트", startAt: day, endAt: day)
+    let secondEvent = CalendarEvent(title: "둘째 이벤트", startAt: day, endAt: day)
+    let task = Task(
+        title: "연결 검증",
+        plannedAt: day,
+        order: 0,
+        eventId: firstEvent.id
+    )
+    source.mainContext.insert(firstEvent)
+    source.mainContext.insert(secondEvent)
+    source.mainContext.insert(task)
+    try source.mainContext.save()
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+
+    var tampered = contents
+    let taskIndex = try #require(tampered.records.payload.tasks.firstIndex {
+        $0.id == task.id
+    })
+    tampered.records.payload.tasks[taskIndex].eventId = secondEvent.id
+    refreshRecordsMetadata(&tampered)
+
+    #expect(throws: BackupPackageError.identityCorruption(
+        recordType: "Task",
+        instanceID: task.instanceID
+    )) {
+        try BackupPackageCodec.restoreMerging(tampered, into: destination.mainContext)
+    }
+}
+
+@Test
+@MainActor
+func repeatedAttachmentImportSurvivesCanonicalReviewRewire() throws {
+    let source = try packageSourceContainer(image: testPNG(0x55))
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let sourceReview = try #require(contents.records.payload.dailyReviews?.first)
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let localReview = DailyReview(
+        id: UUID(),
+        instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
+        dayKey: sourceReview.dayKey,
+        content: "동일 날짜 로컬 회고",
+        createdAt: sourceReview.createdAt,
+        updatedAt: sourceReview.updatedAt
+    )
+    destination.mainContext.insert(localReview)
+    try destination.mainContext.save()
+
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+
+    let activeReviews = try destination.mainContext.fetch(FetchDescriptor<DailyReview>())
+        .filter { $0.supersededAt == nil }
+    let activeAttachments = try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>())
+        .filter { $0.supersededAt == nil }
+    #expect(activeReviews.count == 1)
+    #expect(activeReviews.first?.id == localReview.id)
+    #expect(activeAttachments.count == 1)
+    #expect(activeAttachments.first?.reviewId == localReview.id)
 }
 
 @Test

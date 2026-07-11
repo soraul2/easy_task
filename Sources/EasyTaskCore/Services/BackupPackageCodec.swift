@@ -240,11 +240,17 @@ public enum BackupPackageCodec {
         var payload = try BackupCodec.makePayload(context: context)
         payload.exportedAt = exportedAt
 
-        let unresolvedLegacyCount = (payload.dailyReviews ?? []).reduce(0) {
-            $0 + ($1.imageFileNames?.count ?? 0)
-        } + (payload.diaryBlocks ?? []).filter {
-            $0.type == DiaryBlockType.image.rawValue && $0.imageFileName != nil
-        }.count
+        let reviews = try context.fetch(FetchDescriptor<DailyReview>())
+            .filter { $0.supersededAt == nil }
+        let blocks = try context.fetch(FetchDescriptor<DiaryBlock>())
+        let allAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        let unresolvedLegacyCount = reviews.reduce(0) { count, review in
+            count + DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: review,
+                blocks: blocks,
+                attachments: allAttachments
+            ).count
+        }
         guard unresolvedLegacyCount == 0 else {
             throw BackupPackageError.unresolvedLegacyAttachments(unresolvedLegacyCount)
         }
@@ -629,6 +635,20 @@ public enum BackupPackageCodec {
                 )
             }
             totalBytes = nextTotal
+        }
+
+        for reviewAttachments in Dictionary(
+            grouping: contents.records.attachments,
+            by: \.reviewId
+        ).values {
+            let ordered = reviewAttachments.sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+            for (index, record) in ordered.enumerated()
+            where record.order != Double(index) * 100 {
+                throw BackupPackageError.invalidAttachmentMetadata(record.id)
+            }
         }
 
         guard recordIDs == manifestIDs,

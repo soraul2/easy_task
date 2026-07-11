@@ -200,9 +200,8 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
-        let records = try context.fetch(FetchDescriptor<CalendarEvent>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<CalendarEvent>()),
             recordType: "CalendarEvent",
             instanceID: \.instanceID
         )
@@ -215,15 +214,7 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "CalendarEvent", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameEvent(dto, current) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: { $0.id == current.id },
-                        sameScalars: sameEventScalars
-                    ) else {
+                    guard sameEvent(dto, current) else {
                         throw BackupPackageError.identityCorruption(recordType: "CalendarEvent", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -271,9 +262,8 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
-        let records = try context.fetch(FetchDescriptor<TaskTemplate>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<TaskTemplate>()),
             recordType: "TaskTemplate",
             instanceID: \.instanceID
         )
@@ -286,21 +276,7 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TaskTemplate", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameTemplate(dto, current) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: {
-                            if $0.id == current.id { return true }
-                            guard let currentSeedKey = normalizedNaturalKey(current.seedKey) else {
-                                return false
-                            }
-                            return normalizedNaturalKey($0.seedKey) == currentSeedKey
-                        },
-                        sameScalars: sameTemplateScalars
-                    ) else {
+                    guard sameTemplate(dto, current) else {
                         throw BackupPackageError.identityCorruption(recordType: "TaskTemplate", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -340,9 +316,8 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
-        let records = try context.fetch(FetchDescriptor<TaskTemplateItem>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<TaskTemplateItem>()),
             recordType: "TaskTemplateItem",
             instanceID: \.instanceID
         )
@@ -356,20 +331,7 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TaskTemplateItem", instanceID: instanceID)
                 }
                 if incomingUpdatedAt == current.updatedAt {
-                    guard sameTemplateItem(dto, current) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: {
-                            $0.id == current.id ||
-                                (normalizedNaturalKey($0.seedKey) != nil &&
-                                    normalizedNaturalKey($0.seedKey) == normalizedNaturalKey(current.seedKey) &&
-                                    $0.templateId == current.templateId)
-                        },
-                        sameScalars: sameTemplateItemScalars
-                    ) else {
+                    guard try sameTemplateItem(dto, current, context: context) else {
                         throw BackupPackageError.identityCorruption(recordType: "TaskTemplateItem", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -421,9 +383,8 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
-        let records = try context.fetch(FetchDescriptor<TemplatePlacement>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<TemplatePlacement>()),
             recordType: "TemplatePlacement",
             instanceID: \.instanceID
         )
@@ -436,15 +397,7 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TemplatePlacement", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard samePlacement(dto, current) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: { $0.id == current.id },
-                        sameScalars: samePlacementScalars
-                    ) else {
+                    guard try samePlacement(dto, current, context: context) else {
                         throw BackupPackageError.identityCorruption(recordType: "TemplatePlacement", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -485,9 +438,8 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
-        let records = try context.fetch(FetchDescriptor<Task>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<Task>()),
             recordType: "Task",
             instanceID: \.instanceID
         )
@@ -500,15 +452,7 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameTask(dto, current) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: { $0.id == current.id },
-                        sameScalars: sameTaskScalars
-                    ) else {
+                    guard try sameTask(dto, current, context: context) else {
                         throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -574,9 +518,8 @@ private extension BackupPackageCodec {
         report: inout BackupPackageMergeReport,
         preserveLegacyImages: Bool = false
     ) throws {
-        let records = try context.fetch(FetchDescriptor<DailyReview>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<DailyReview>()),
             recordType: "DailyReview",
             instanceID: \.instanceID
         )
@@ -593,16 +536,6 @@ private extension BackupPackageCodec {
                         dto,
                         current,
                         preserveLegacyImages: preserveLegacyImages
-                    ) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: {
-                            $0.id == current.id || $0.dayKey == current.dayKey
-                        },
-                        sameScalars: sameReviewScalars
                     ) else {
                         throw BackupPackageError.identityCorruption(recordType: "DailyReview", instanceID: instanceID)
                     }
@@ -652,9 +585,8 @@ private extension BackupPackageCodec {
         report: inout BackupPackageMergeReport,
         preserveLegacyImages: Bool = false
     ) throws {
-        let records = try context.fetch(FetchDescriptor<DiaryBlock>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<DiaryBlock>()),
             recordType: "DiaryBlock",
             instanceID: \.instanceID
         )
@@ -667,18 +599,11 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "DiaryBlock", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameDiaryBlock(
+                    guard try sameDiaryBlock(
                         dto,
                         current,
-                        preserveLegacyImages: preserveLegacyImages
-                    ) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: { $0.id == current.id },
-                        sameScalars: sameDiaryBlockScalars
+                        preserveLegacyImages: preserveLegacyImages,
+                        context: context
                     ) else {
                         throw BackupPackageError.identityCorruption(recordType: "DiaryBlock", instanceID: instanceID)
                     }
@@ -725,9 +650,8 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
-        let records = try context.fetch(FetchDescriptor<DiaryAttachment>())
         var existing = try uniqueByInstanceID(
-            records,
+            context.fetch(FetchDescriptor<DiaryAttachment>()),
             recordType: "DiaryAttachment",
             instanceID: \.instanceID
         )
@@ -743,14 +667,11 @@ private extension BackupPackageCodec {
                     )
                 }
                 if record.updatedAt == current.updatedAt {
-                    guard sameAttachment(record, data: data, current) || hasReconciledDuplicate(
-                        in: records,
-                        current: current,
-                        instanceID: \.instanceID,
-                        recordUpdatedAt: \.updatedAt,
-                        supersededAt: \.supersededAt,
-                        sharesGroup: { $0.id == current.id },
-                        sameScalars: sameAttachmentScalars
+                    guard try sameAttachment(
+                        record,
+                        data: data,
+                        current,
+                        context: context
                     ) else {
                         throw BackupPackageError.identityCorruption(
                             recordType: "DiaryAttachment",
@@ -827,11 +748,17 @@ private extension BackupPackageCodec {
             template.isFavorite == (dto.isFavorite ?? false)
     }
 
+    @MainActor
     static func sameTemplateItem(
         _ dto: TaskTemplateItemDTO,
-        _ item: TaskTemplateItem
-    ) -> Bool {
-        item.seedKey == dto.seedKey &&
+        _ item: TaskTemplateItem,
+        context: ModelContext
+    ) throws -> Bool {
+        let expectedTemplateID = item.supersededAt == nil
+            ? try canonicalTemplateID(for: dto.templateId, context: context)
+            : dto.templateId
+        return item.seedKey == dto.seedKey &&
+            item.templateId == expectedTemplateID &&
             item.title == dto.title &&
             item.note == dto.note &&
             item.priority == dto.priority &&
@@ -840,21 +767,40 @@ private extension BackupPackageCodec {
             item.order == dto.order
     }
 
+    @MainActor
     static func samePlacement(
         _ dto: TemplatePlacementDTO,
-        _ placement: TemplatePlacement
-    ) -> Bool {
-        placement.templateName == dto.templateName &&
+        _ placement: TemplatePlacement,
+        context: ModelContext
+    ) throws -> Bool {
+        let expectedTemplateID = placement.supersededAt == nil
+            ? try canonicalTemplateID(for: dto.sourceTemplateId, context: context)
+            : dto.sourceTemplateId
+        return placement.sourceTemplateId == expectedTemplateID &&
+            placement.templateName == dto.templateName &&
             placement.dayKey == dto.dayKey
     }
 
-    static func sameTask(_ dto: TaskDTO, _ task: Task) -> Bool {
-        task.title == dto.title &&
+    @MainActor
+    static func sameTask(
+        _ dto: TaskDTO,
+        _ task: Task,
+        context: ModelContext
+    ) throws -> Bool {
+        let expectedEventID = task.supersededAt == nil
+            ? try canonicalEventID(dto.eventId, context: context)
+            : dto.eventId
+        let expectedPlacementID = task.supersededAt == nil
+            ? try canonicalPlacementID(dto.templatePlacementId, context: context)
+            : dto.templatePlacementId
+        return task.title == dto.title &&
             task.note == dto.note &&
             task.status == dto.status &&
             task.plannedAt == dto.plannedAt &&
             task.plannedDayKey == dto.plannedDayKey &&
             task.order == dto.order &&
+            task.eventId == expectedEventID &&
+            task.templatePlacementId == expectedPlacementID &&
             task.priority == dto.priority &&
             task.tags == dto.tags &&
             task.estimatedMinutes == dto.estimatedMinutes &&
@@ -881,134 +827,130 @@ private extension BackupPackageCodec {
         )
     }
 
+    @MainActor
     static func sameDiaryBlock(
         _ dto: DiaryBlockDTO,
         _ block: DiaryBlock,
-        preserveLegacyImages: Bool
-    ) -> Bool {
+        preserveLegacyImages: Bool,
+        context: ModelContext
+    ) throws -> Bool {
+        let canonicalReview = block.supersededAt == nil
+            ? try canonicalReview(for: dto.reviewId, context: context)
+            : nil
+        let expectedReviewID = canonicalReview?.id ?? dto.reviewId
+        let expectedDayKey = canonicalReview?.dayKey ?? dto.dayKey
         let imageFileName = preserveLegacyImages ? dto.imageFileName : nil
-        return block.type == dto.type &&
+        return block.reviewId == expectedReviewID &&
+            block.dayKey == expectedDayKey &&
+            block.type == dto.type &&
             block.text == dto.text &&
             block.imageFileName == imageFileName &&
             block.order == dto.order
     }
 
+    @MainActor
     static func sameAttachment(
         _ record: BackupPackageAttachmentRecord,
         data: Data,
-        _ attachment: DiaryAttachment
-    ) -> Bool {
-        attachment.originalFileName == record.originalFileName &&
+        _ attachment: DiaryAttachment,
+        context: ModelContext
+    ) throws -> Bool {
+        let canonicalReview = attachment.supersededAt == nil
+            ? try canonicalReview(for: record.reviewId, context: context)
+            : nil
+        let expectedReviewID = canonicalReview?.id ?? record.reviewId
+        let reviewWasRewritten = expectedReviewID != record.reviewId
+        let hasNormalizedOrder = reviewWasRewritten
+            ? try hasCanonicalAttachmentOrder(attachment, context: context)
+            : false
+        let orderMatches = attachment.order == record.order ||
+            hasNormalizedOrder
+        return attachment.reviewId == expectedReviewID &&
+            orderMatches &&
+            attachment.originalFileName == record.originalFileName &&
             attachment.mimeType == record.mimeType &&
             attachment.byteCount == record.byteCount &&
             attachment.sha256 == record.sha256 &&
             attachment.data == data
     }
 
-    static func sameEventScalars(_ lhs: CalendarEvent, _ rhs: CalendarEvent) -> Bool {
-        lhs.title == rhs.title &&
-            lhs.startAt == rhs.startAt &&
-            lhs.endAt == rhs.endAt &&
-            lhs.startDayKey == rhs.startDayKey &&
-            lhs.endDayKey == rhs.endDayKey &&
-            lhs.note == rhs.note &&
-            lhs.color == rhs.color
-    }
-
-    static func sameTemplateScalars(_ lhs: TaskTemplate, _ rhs: TaskTemplate) -> Bool {
-        lhs.seedKey == rhs.seedKey &&
-            lhs.name == rhs.name &&
-            lhs.isFavorite == rhs.isFavorite
-    }
-
-    static func sameTemplateItemScalars(
-        _ lhs: TaskTemplateItem,
-        _ rhs: TaskTemplateItem
-    ) -> Bool {
-        lhs.seedKey == rhs.seedKey &&
-            lhs.title == rhs.title &&
-            lhs.note == rhs.note &&
-            lhs.priority == rhs.priority &&
-            lhs.tags == rhs.tags &&
-            lhs.estimatedMinutes == rhs.estimatedMinutes &&
-            lhs.order == rhs.order
-    }
-
-    static func samePlacementScalars(
-        _ lhs: TemplatePlacement,
-        _ rhs: TemplatePlacement
-    ) -> Bool {
-        lhs.templateName == rhs.templateName &&
-            lhs.dayKey == rhs.dayKey
-    }
-
-    static func sameTaskScalars(_ lhs: Task, _ rhs: Task) -> Bool {
-        lhs.title == rhs.title &&
-            lhs.note == rhs.note &&
-            lhs.status == rhs.status &&
-            lhs.plannedAt == rhs.plannedAt &&
-            lhs.plannedDayKey == rhs.plannedDayKey &&
-            lhs.order == rhs.order &&
-            lhs.priority == rhs.priority &&
-            lhs.tags == rhs.tags &&
-            lhs.estimatedMinutes == rhs.estimatedMinutes &&
-            lhs.completedAt == rhs.completedAt &&
-            lhs.completedDayKey == rhs.completedDayKey &&
-            lhs.archivedAt == rhs.archivedAt &&
-            lhs.archivedDayKey == rhs.archivedDayKey
-    }
-
-    static func sameReviewScalars(_ lhs: DailyReview, _ rhs: DailyReview) -> Bool {
-        lhs.dayKey == rhs.dayKey &&
-            lhs.title == rhs.title &&
-            lhs.weather == rhs.weather &&
-            lhs.mood == rhs.mood &&
-            lhs.content == rhs.content
-    }
-
-    static func sameDiaryBlockScalars(_ lhs: DiaryBlock, _ rhs: DiaryBlock) -> Bool {
-        lhs.type == rhs.type &&
-            lhs.text == rhs.text &&
-            lhs.imageFileName == rhs.imageFileName &&
-            lhs.order == rhs.order
-    }
-
-    static func sameAttachmentScalars(
-        _ lhs: DiaryAttachment,
-        _ rhs: DiaryAttachment
-    ) -> Bool {
-        lhs.originalFileName == rhs.originalFileName &&
-            lhs.mimeType == rhs.mimeType &&
-            lhs.byteCount == rhs.byteCount &&
-            lhs.sha256 == rhs.sha256 &&
-            lhs.data == rhs.data
-    }
-
-    static func hasReconciledDuplicate<Record>(
-        in records: [Record],
-        current: Record,
-        instanceID instanceIDKeyPath: KeyPath<Record, UUID>,
-        recordUpdatedAt updatedAtKeyPath: KeyPath<Record, Date>,
-        supersededAt supersededAtKeyPath: KeyPath<Record, Date?>,
-        sharesGroup: (Record) -> Bool,
-        sameScalars: (Record, Record) -> Bool
-    ) -> Bool {
-        let currentInstanceID = current[keyPath: instanceIDKeyPath]
-        let currentUpdatedAt = current[keyPath: updatedAtKeyPath]
-        let candidates = records.filter { record in
-            record[keyPath: instanceIDKeyPath] != currentInstanceID &&
-                record[keyPath: supersededAtKeyPath] != nil &&
-                record[keyPath: updatedAtKeyPath] == currentUpdatedAt &&
-                sharesGroup(record)
+    @MainActor
+    static func canonicalTemplateID(
+        for sourceID: UUID?,
+        context: ModelContext
+    ) throws -> UUID? {
+        guard let sourceID else { return nil }
+        let templates = try context.fetch(FetchDescriptor<TaskTemplate>())
+        if templates.contains(where: { $0.id == sourceID && $0.supersededAt == nil }) {
+            return sourceID
         }
-        guard let winner = candidates.max(by: {
-            $0[keyPath: instanceIDKeyPath].uuidString <
-                $1[keyPath: instanceIDKeyPath].uuidString
-        }),
-              winner[keyPath: instanceIDKeyPath].uuidString > currentInstanceID.uuidString else {
+        guard let source = templates.first(where: { $0.id == sourceID }),
+              let seedKey = normalizedNaturalKey(source.seedKey) else {
+            return nil
+        }
+        return templates.first {
+            $0.supersededAt == nil && normalizedNaturalKey($0.seedKey) == seedKey
+        }?.id
+    }
+
+    @MainActor
+    static func canonicalReview(
+        for sourceID: UUID,
+        context: ModelContext
+    ) throws -> DailyReview? {
+        let reviews = try context.fetch(FetchDescriptor<DailyReview>())
+        if let active = reviews.first(where: {
+            $0.id == sourceID && $0.supersededAt == nil
+        }) {
+            return active
+        }
+        guard let source = reviews.first(where: { $0.id == sourceID }) else { return nil }
+        return reviews.first {
+            $0.supersededAt == nil && $0.dayKey == source.dayKey
+        }
+    }
+
+    @MainActor
+    static func canonicalEventID(
+        _ sourceID: UUID?,
+        context: ModelContext
+    ) throws -> UUID? {
+        guard let sourceID else { return nil }
+        return try context.fetch(FetchDescriptor<CalendarEvent>()).first {
+            $0.id == sourceID && $0.supersededAt == nil
+        }?.id
+    }
+
+    @MainActor
+    static func canonicalPlacementID(
+        _ sourceID: UUID?,
+        context: ModelContext
+    ) throws -> UUID? {
+        guard let sourceID else { return nil }
+        return try context.fetch(FetchDescriptor<TemplatePlacement>()).first {
+            $0.id == sourceID && $0.supersededAt == nil
+        }?.id
+    }
+
+    @MainActor
+    static func hasCanonicalAttachmentOrder(
+        _ attachment: DiaryAttachment,
+        context: ModelContext
+    ) throws -> Bool {
+        let ordered = try context.fetch(FetchDescriptor<DiaryAttachment>())
+            .filter {
+                $0.supersededAt == nil && $0.reviewId == attachment.reviewId
+            }
+            .sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+        guard let index = ordered.firstIndex(where: {
+            $0.instanceID == attachment.instanceID
+        }) else {
             return false
         }
-        return sameScalars(current, winner)
+        return attachment.order == Double(index) * 100
     }
 
     static func containsLegacyFileNames(_ actual: [String], expected: [String]) -> Bool {
