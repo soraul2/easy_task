@@ -3,7 +3,6 @@ import EasyTaskCore
 import Foundation
 import SwiftData
 import SwiftUI
-import UIKit
 
 struct MobileArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
@@ -24,6 +23,11 @@ struct MobileArchiveView: View {
     }
 
     var body: some View {
+        let attachmentIndex = DiaryAttachmentIndex(
+            attachments: attachments,
+            blocks: diaryBlocks
+        )
+
         NavigationStack {
             List {
                 if records.isEmpty {
@@ -35,8 +39,12 @@ struct MobileArchiveView: View {
                     ForEach(records) { record in
                         MobileArchiveRecordCard(
                             record: record,
-                            attachments: activeAttachments(for: record.review),
-                            legacyFileNames: unresolvedLegacyFileNames(for: record.review),
+                            attachments: record.review.map {
+                                attachmentIndex.activeAttachments(for: $0.id)
+                            } ?? [],
+                            legacyFileNames: record.review.map {
+                                attachmentIndex.unresolvedLegacyImageFileNames(for: $0)
+                            } ?? [],
                             onOpenBoardDate: onOpenBoardDate
                         )
                         .listRowSeparator(.hidden)
@@ -67,20 +75,6 @@ struct MobileArchiveView: View {
                 MobileArchiveFilterSheet(filter: $filter)
             }
         }
-    }
-
-    private func activeAttachments(for review: DailyReview?) -> [DiaryAttachment] {
-        guard let review else { return [] }
-        return DiaryAttachmentService.activeAttachments(for: review.id, in: attachments)
-    }
-
-    private func unresolvedLegacyFileNames(for review: DailyReview?) -> [String] {
-        guard let review else { return [] }
-        return DiaryAttachmentService.unresolvedLegacyImageFileNames(
-            for: review,
-            blocks: diaryBlocks,
-            attachments: attachments
-        )
     }
 
     private var emptyState: some View {
@@ -392,49 +386,52 @@ private struct MobileArchiveImageCarousel: View {
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     @State private var selectedIndex = 0
+    @State private var imageAspectRatios: [String: CGFloat] = [:]
+    @State private var legacyResolution = MobileLegacyImageResolution()
 
     var body: some View {
         let items = mixedImageItems
         let safeIndex = items.indices.contains(selectedIndex) ? selectedIndex : 0
-        let selectedImage = items.indices.contains(safeIndex)
-            ? items[safeIndex].data.flatMap { UIImage(data: $0) }
-            : nil
-        let selectedAspectRatio = aspectRatio(for: selectedImage)
+        let selectedAspectRatio = items.indices.contains(safeIndex)
+            ? imageAspectRatios[items[safeIndex].id] ?? 4.0 / 3.0
+            : 4.0 / 3.0
 
         ZStack(alignment: .bottomTrailing) {
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    ZStack {
-                        AppTheme.input
-
-                        if let data = item.data, let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            MobileMissingImagePlaceholder(
-                                message: "이미지를 불러올 수 없음",
-                                minHeight: 160
-                            )
-                        }
+            if isResolvingLegacyImages {
+                MobileImageLoadingPlaceholder(minHeight: 160)
+                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
+            } else {
+                TabView(selection: $selectedIndex) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        MobileAsyncThumbnailImage(
+                            request: item.thumbnailRequest,
+                            placeholderMessage: "이미지를 불러올 수 없음",
+                            minHeight: 160,
+                            accessibilityLabel: "회고 이미지 \(index + 1)",
+                            onAspectRatioChange: { aspectRatio in
+                                let ratio = constrainedAspectRatio(aspectRatio)
+                                if imageAspectRatios[item.id] != ratio {
+                                    imageAspectRatios[item.id] = ratio
+                                }
+                            }
+                        )
+                        .tag(index)
                     }
-                    .tag(index)
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .aspectRatio(selectedAspectRatio, contentMode: .fit)
-            .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .aspectRatio(selectedAspectRatio, contentMode: .fit)
+                .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
 
-            if items.count > 1 {
-                Text("\(safeIndex + 1)/\(items.count)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(.black.opacity(0.58), in: Capsule())
-                    .padding(9)
-                    .accessibilityLabel("이미지 \(safeIndex + 1) / \(items.count)")
+                if items.count > 1 {
+                    Text("\(safeIndex + 1)/\(items.count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.58), in: Capsule())
+                        .padding(9)
+                        .accessibilityLabel("이미지 \(safeIndex + 1) / \(items.count)")
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -447,13 +444,21 @@ private struct MobileArchiveImageCarousel: View {
                 selectedIndex = 0
             }
         }
+        .task(id: legacyFileNames) {
+            let resolution = await MobileLegacyImageResolver.resolve(
+                fileNames: legacyFileNames
+            )
+            guard !Swift.Task<Never, Never>.isCancelled else { return }
+            legacyResolution = resolution
+        }
     }
 
     private var mixedImageItems: [MobileArchiveImageItem] {
         var items = attachments.enumerated().map { index, attachment in
             MobileArchiveImageItem(
                 id: "canonical-\(attachment.id.uuidString)-\(index)",
-                data: attachment.data
+                data: attachment.data,
+                attachmentHash: attachment.sha256
             )
         }
         let canonicalFileNames = Set(attachments.compactMap {
@@ -463,10 +468,9 @@ private struct MobileArchiveImageCarousel: View {
         var seenLegacyFileNames: Set<String> = []
         var seenLegacyHashes: Set<String> = []
 
-        for (index, fileName) in legacyFileNames.enumerated() {
-            guard let fileNameKey = normalizedFileName(fileName) else { continue }
-            let data = legacyImageData(for: fileName)
-            let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
+        for legacyImage in resolvedLegacyImages {
+            let fileNameKey = legacyImage.normalizedFileName
+            let hash = legacyImage.attachmentHash
             let duplicatesCanonical = canonicalFileNames.contains(fileNameKey) ||
                 hash.map(canonicalHashes.contains) == true
             let duplicatesLegacy = !seenLegacyFileNames.insert(fileNameKey).inserted ||
@@ -474,26 +478,25 @@ private struct MobileArchiveImageCarousel: View {
             guard !duplicatesCanonical, !duplicatesLegacy else { continue }
 
             items.append(MobileArchiveImageItem(
-                id: "legacy-\(fileNameKey)-\(index)",
-                data: data
+                id: "legacy-\(fileNameKey)-\(legacyImage.sourceIndex)",
+                data: legacyImage.data,
+                attachmentHash: hash
             ))
         }
         return items
     }
 
-    private func aspectRatio(for image: UIImage?) -> CGFloat {
-        guard let image, image.size.height > 0 else { return 4.0 / 3.0 }
-        return min(max(image.size.width / image.size.height, 0.82), 2.0)
+    private var resolvedLegacyImages: [MobileResolvedLegacyImage] {
+        guard legacyResolution.fileNames == legacyFileNames else { return [] }
+        return legacyResolution.images
     }
 
-    private func legacyImageData(for fileName: String) -> Data? {
-        try? Data(
-            contentsOf: DiaryImageFileStore.imageURL(
-                for: fileName,
-                appSupportFolder: MobileImageStorage.appSupportFolder
-            ),
-            options: [.mappedIfSafe]
-        )
+    private var isResolvingLegacyImages: Bool {
+        !legacyFileNames.isEmpty && legacyResolution.fileNames != legacyFileNames
+    }
+
+    private func constrainedAspectRatio(_ aspectRatio: CGFloat) -> CGFloat {
+        min(max(aspectRatio, 0.82), 2.0)
     }
 
     private func normalizedFileName(_ fileName: String?) -> String? {
@@ -508,6 +511,16 @@ private struct MobileArchiveImageCarousel: View {
 private struct MobileArchiveImageItem: Identifiable {
     var id: String
     var data: Data?
+    var attachmentHash: String?
+
+    var thumbnailRequest: MobileImageThumbnailRequest? {
+        guard let data else { return nil }
+        return MobileImageThumbnailRequest(
+            data: data,
+            attachmentHash: attachmentHash,
+            dataIdentity: id
+        )
+    }
 }
 
 private struct MobileArchiveTaskCompactRow: View {

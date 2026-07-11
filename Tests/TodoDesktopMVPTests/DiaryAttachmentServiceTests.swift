@@ -388,6 +388,67 @@ func integrityReconciliationRewiresAttachmentsWithoutLosingImages() throws {
     #expect(activeAttachments.map(\.order).sorted() == [0, 100])
 }
 
+@Test
+@MainActor
+func diaryAttachmentIndexGroupsAndSortsRecordsPerReview() {
+    let firstReview = DailyReview(
+        dayKey: "2026-07-10",
+        content: "",
+        imageFileNames: ["first-legacy.jpg"]
+    )
+    let secondReview = DailyReview(dayKey: "2026-07-11", content: "")
+    let later = DiaryAttachment(
+        reviewId: firstReview.id,
+        order: 200,
+        mimeType: "image/jpeg",
+        byteCount: 1,
+        sha256: "later",
+        data: Data([0x01])
+    )
+    let earlier = DiaryAttachment(
+        reviewId: firstReview.id,
+        order: 100,
+        mimeType: "image/jpeg",
+        byteCount: 1,
+        sha256: "earlier",
+        data: Data([0x02])
+    )
+    let other = DiaryAttachment(
+        reviewId: secondReview.id,
+        order: 0,
+        mimeType: "image/jpeg",
+        byteCount: 1,
+        sha256: "other",
+        data: Data([0x03])
+    )
+    let superseded = DiaryAttachment(
+        reviewId: firstReview.id,
+        order: 0,
+        mimeType: "image/jpeg",
+        byteCount: 1,
+        sha256: "superseded",
+        data: Data([0x04]),
+        supersededAt: Date()
+    )
+    let otherReviewBlock = DiaryBlock(
+        reviewId: secondReview.id,
+        dayKey: secondReview.dayKey,
+        type: .image,
+        imageFileName: "second-legacy.jpg",
+        order: 0
+    )
+
+    let index = DiaryAttachmentIndex(
+        attachments: [later, other, superseded, earlier],
+        blocks: [otherReviewBlock]
+    )
+
+    #expect(index.activeAttachments(for: firstReview.id).map { $0.id } == [earlier.id, later.id])
+    #expect(index.activeAttachments(for: secondReview.id).map { $0.id } == [other.id])
+    #expect(index.unresolvedLegacyImageFileNames(for: firstReview) == ["first-legacy.jpg"])
+    #expect(index.unresolvedLegacyImageFileNames(for: secondReview) == ["second-legacy.jpg"])
+}
+
 private func encodedTestImage(type: UTType, marker: UInt8? = nil) -> Data? {
     let pixel = Data([0xF0, 0x30, 0x50, 0xFF])
     guard let provider = CGDataProvider(data: pixel as CFData),

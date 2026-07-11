@@ -19,6 +19,11 @@ struct ArchiveView: View {
     }
 
     var body: some View {
+        let attachmentIndex = DiaryAttachmentIndex(
+            attachments: attachments,
+            blocks: diaryBlocks
+        )
+
         VStack(alignment: .leading, spacing: 0) {
             header
                 .frame(maxWidth: 760)
@@ -41,7 +46,7 @@ struct ArchiveView: View {
                 .padding(.bottom, 14)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     if let message {
                         ArchiveMessageView(message: message)
                     }
@@ -53,17 +58,10 @@ struct ArchiveView: View {
                             ArchiveDayGroupView(
                                 group: group,
                                 attachments: group.review.map {
-                                    DiaryAttachmentService.activeAttachments(
-                                        for: $0.id,
-                                        in: attachments
-                                    )
+                                    attachmentIndex.activeAttachments(for: $0.id)
                                 } ?? [],
                                 legacyFileNames: group.review.map {
-                                    DiaryAttachmentService.unresolvedLegacyImageFileNames(
-                                        for: $0,
-                                        blocks: diaryBlocks,
-                                        attachments: attachments
-                                    )
+                                    attachmentIndex.unresolvedLegacyImageFileNames(for: $0)
                                 } ?? [],
                                 onOpenBoardDate: onOpenBoardDate
                             )
@@ -501,31 +499,19 @@ private struct ArchiveReviewImagePreview: View {
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     @State private var selectedIndex = 0
+    @State private var resolvedLegacyItems: [ArchiveReviewImageItem] = []
 
     var body: some View {
-        let items = mixedImageItems
+        let items = canonicalImageItems + resolvedLegacyItems
         let safeIndex = items.indices.contains(selectedIndex) ? selectedIndex : 0
-        let image = items.indices.contains(safeIndex)
-            ? items[safeIndex].data.flatMap { NSImage(data: $0) }
-            : nil
 
         ZStack(alignment: .bottomTrailing) {
-            if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                    .frame(maxHeight: 420)
-                    .background(AppTheme.input)
+            if items.indices.contains(safeIndex) {
+                let item = items[safeIndex]
+                ArchiveReviewAsyncImage(request: item.request)
+                    .id(item.id)
             } else {
-                Rectangle()
-                    .fill(AppTheme.input)
-                    .frame(height: 160)
-                    .overlay {
-                        Image(systemName: "photo")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
+                ArchiveReviewMissingImage()
             }
 
             if items.count > 1 {
@@ -562,41 +548,64 @@ private struct ArchiveReviewImagePreview: View {
                 selectedIndex = 0
             }
         }
+        .task(id: legacyResolutionID) {
+            await resolveLegacyItems()
+        }
     }
 
-    private var mixedImageItems: [ArchiveReviewImageItem] {
-        var items = attachments.enumerated().map { index, attachment in
-            ArchiveReviewImageItem(
-                id: "canonical-\(attachment.id.uuidString)-\(index)",
-                data: attachment.data
+    private var canonicalImageItems: [ArchiveReviewImageItem] {
+        attachments.enumerated().map { index, attachment in
+            let cacheKey = DiaryImageStore.attachmentPreviewCacheKey(
+                instanceID: attachment.instanceID,
+                sha256: attachment.sha256
+            )
+            return ArchiveReviewImageItem(
+                id: "canonical-\(cacheKey)-\(index)",
+                request: DiaryPreviewImageRequest(
+                    cacheKey: cacheKey,
+                    source: .data(attachment.data)
+                )
             )
         }
+    }
+
+    private var legacyResolutionID: ArchiveLegacyResolutionID {
+        ArchiveLegacyResolutionID(
+            attachmentInstanceIDs: attachments.map(\.instanceID),
+            attachmentHashes: attachments.map(\.sha256),
+            attachmentFileNames: attachments.map { $0.originalFileName ?? "" },
+            legacyFileNames: legacyFileNames
+        )
+    }
+
+    @MainActor
+    private func resolveLegacyItems() async {
+        resolvedLegacyItems = []
+        guard !legacyFileNames.isEmpty else { return }
         let canonicalFileNames = Set(attachments.compactMap {
             normalizedFileName($0.originalFileName)
         })
         let canonicalHashes = Set(attachments.map(\.sha256).filter { !$0.isEmpty })
-        var seenLegacyFileNames: Set<String> = []
-        var seenLegacyHashes: Set<String> = []
+        let resolved = await DiaryImageStore.resolveLegacyImages(
+            fileNames: legacyFileNames,
+            canonicalFileNames: canonicalFileNames,
+            canonicalHashes: canonicalHashes
+        )
+        guard !Swift.Task.isCancelled else { return }
 
-        for (index, fileName) in legacyFileNames.enumerated() {
-            guard let fileNameKey = normalizedFileName(fileName) else { continue }
-            let data = try? Data(
-                contentsOf: DiaryImageStore.imageURL(for: fileName),
-                options: [.mappedIfSafe]
+        resolvedLegacyItems = resolved.map { image in
+            ArchiveReviewImageItem(
+                id: "legacy-\(image.normalizedFileName)-\(image.index)",
+                request: DiaryPreviewImageRequest(
+                    cacheKey: DiaryImageStore.filePreviewCacheKey(for: image.fileURL),
+                    source: .file(image.fileURL)
+                )
             )
-            let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
-            let duplicatesCanonical = canonicalFileNames.contains(fileNameKey) ||
-                hash.map(canonicalHashes.contains) == true
-            let duplicatesLegacy = !seenLegacyFileNames.insert(fileNameKey).inserted ||
-                hash.map { !seenLegacyHashes.insert($0).inserted } == true
-            guard !duplicatesCanonical, !duplicatesLegacy else { continue }
-
-            items.append(ArchiveReviewImageItem(
-                id: "legacy-\(fileNameKey)-\(index)",
-                data: data
-            ))
         }
-        return items
+        selectedIndex = min(
+            selectedIndex,
+            max(attachments.count + resolvedLegacyItems.count - 1, 0)
+        )
     }
 
     private func normalizedFileName(_ fileName: String?) -> String? {
@@ -626,7 +635,53 @@ private struct ArchiveReviewImagePreview: View {
 
 private struct ArchiveReviewImageItem: Identifiable {
     var id: String
-    var data: Data?
+    var request: DiaryPreviewImageRequest
+}
+
+private struct ArchiveLegacyResolutionID: Equatable {
+    var attachmentInstanceIDs: [UUID]
+    var attachmentHashes: [String]
+    var attachmentFileNames: [String]
+    var legacyFileNames: [String]
+}
+
+private struct ArchiveReviewAsyncImage: View {
+    var request: DiaryPreviewImageRequest
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 420)
+                    .background(AppTheme.input)
+            } else {
+                ArchiveReviewMissingImage()
+            }
+        }
+        .task(id: request.cacheKey) {
+            image = nil
+            let loadedImage = await DiaryImageStore.previewImage(for: request)
+            guard !Swift.Task.isCancelled else { return }
+            image = loadedImage
+        }
+    }
+}
+
+private struct ArchiveReviewMissingImage: View {
+    var body: some View {
+        Rectangle()
+            .fill(AppTheme.input)
+            .frame(height: 160)
+            .overlay {
+                Image(systemName: "photo")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+    }
 }
 
 private struct ArchiveTaskCompactRow: View {

@@ -4,7 +4,12 @@ import Foundation
 import PhotosUI
 import SwiftData
 import SwiftUI
-import UIKit
+
+private struct MobileReviewAttachmentDraft: Identifiable, Sendable {
+    var id: UUID
+    var draft: DiaryAttachmentDraft
+    var attachmentHash: String?
+}
 
 struct MobileReviewComposerSheet: View {
     var selectedDate: Date
@@ -16,7 +21,7 @@ struct MobileReviewComposerSheet: View {
     @State private var title = ""
     @State private var content = ""
     @State private var selectedItems: [PhotosPickerItem] = []
-    @State private var attachmentDrafts: [DiaryAttachmentDraft] = []
+    @State private var attachmentDrafts: [MobileReviewAttachmentDraft] = []
     @State private var legacyImageFileNames: [String] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
@@ -110,8 +115,12 @@ struct MobileReviewComposerSheet: View {
 
         title = review?.title ?? ""
         content = review?.content ?? ""
-        attachmentDrafts = orderedAttachments.map {
-            DiaryAttachmentDraft(attachment: $0)
+        attachmentDrafts = orderedAttachments.map { attachment in
+            MobileReviewAttachmentDraft(
+                id: attachment.instanceID,
+                draft: DiaryAttachmentDraft(attachment: attachment),
+                attachmentHash: attachment.sha256
+            )
         }
         legacyImageFileNames = review.map {
             DiaryAttachmentService.unresolvedLegacyImageFileNames(
@@ -140,7 +149,7 @@ struct MobileReviewComposerSheet: View {
                     dayKey: dayKey,
                     title: title,
                     content: content,
-                    attachments: attachmentDrafts,
+                    attachments: attachmentDrafts.map(\.draft),
                     in: modelContext
                 )
             } else {
@@ -167,25 +176,15 @@ struct MobileReviewComposerSheet: View {
     }
 
     private func saveLegacyReview() throws -> DailyReview? {
-        // Establish a rollback point before the legacy service mutates the shared context.
-        try modelContext.save()
-        do {
-            guard let review = DailyReviewService.save(
+        try PersistenceCommandService.perform(in: modelContext) {
+            DailyReviewService.save(
                 review: selectedReview,
                 dayKey: dayKey,
                 title: title,
                 content: content,
                 imageFileNames: legacyImageFileNames,
                 in: modelContext
-            ) else {
-                modelContext.rollback()
-                return nil
-            }
-            try modelContext.save()
-            return review
-        } catch {
-            modelContext.rollback()
-            throw error
+            )
         }
     }
 
@@ -196,7 +195,7 @@ struct MobileReviewComposerSheet: View {
         isImportingImages = true
 
         Swift.Task {
-            var imported: [DiaryAttachmentDraft] = []
+            var imported: [MobileReviewAttachmentDraft] = []
             var failureMessages: [String] = []
             for item in items {
                 do {
@@ -204,8 +203,14 @@ struct MobileReviewComposerSheet: View {
                         failureMessages.append("선택한 이미지 데이터를 읽을 수 없습니다.")
                         continue
                     }
-                    _ = try DiaryAttachmentService.inspect(data)
-                    imported.append(DiaryAttachmentDraft(data: data))
+                    let metadata = try await Swift.Task.detached(priority: .userInitiated) {
+                        try DiaryAttachmentService.inspect(data)
+                    }.value
+                    imported.append(MobileReviewAttachmentDraft(
+                        id: UUID(),
+                        draft: DiaryAttachmentDraft(data: data),
+                        attachmentHash: metadata.sha256
+                    ))
                 } catch {
                     failureMessages.append(error.localizedDescription)
                 }
@@ -311,24 +316,30 @@ private struct ReviewComposerEditor: View {
 }
 
 private struct ReviewComposerImages: View {
-    var attachmentDrafts: [DiaryAttachmentDraft]
+    var attachmentDrafts: [MobileReviewAttachmentDraft]
     var legacyImageFileNames: [String]
     @Binding var selectedImageIndex: Int
     var allowsCanonicalDeletion: Bool
     var onDeleteCanonical: (Int) -> Void
     var onDeleteLegacy: ([Int]) -> Void
+    @State private var legacyResolution = MobileLegacyImageResolution()
 
     var body: some View {
         let items = mixedImageItems
-        if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+            if isResolvingLegacyImages {
+                MobileImageLoadingPlaceholder()
+                    .frame(height: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else if !items.isEmpty {
                 TabView(selection: $selectedImageIndex) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         MobileReviewImagePreview(
-                            imageData: item.data,
+                            request: item.thumbnailRequest,
                             placeholderMessage: item.isLegacy
                                 ? "이전 이미지를 불러올 수 없음"
                                 : "이미지를 불러올 수 없음",
+                            accessibilityLabel: "회고 이미지 \(index + 1)",
                             onDelete: deletionAction(for: item)
                         )
                         .tag(index)
@@ -336,59 +347,75 @@ private struct ReviewComposerImages: View {
                 }
                 .frame(height: 260)
                 .tabViewStyle(.page)
-            }
-            .onChange(of: items.count) { _, count in
-                if selectedImageIndex >= count {
-                    selectedImageIndex = 0
+                .onChange(of: items.count) { _, count in
+                    if selectedImageIndex >= count {
+                        selectedImageIndex = 0
+                    }
                 }
             }
+
+            if !allowsCanonicalDeletion, !legacyImageFileNames.isEmpty {
+                Label("이전 이미지를 정리하면 새 이미지 추가와 저장된 이미지 삭제를 사용할 수 있어요.", systemImage: "lock")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
-        if !allowsCanonicalDeletion, !legacyImageFileNames.isEmpty {
-            Label("이전 이미지를 정리하면 새 이미지 추가와 저장된 이미지 삭제를 사용할 수 있어요.", systemImage: "lock")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+        .task(id: legacyImageFileNames) {
+            let resolution = await MobileLegacyImageResolver.resolve(
+                fileNames: legacyImageFileNames
+            )
+            guard !Swift.Task<Never, Never>.isCancelled else { return }
+            legacyResolution = resolution
         }
     }
 
     private var mixedImageItems: [ReviewComposerImageItem] {
         var items: [ReviewComposerImageItem] = []
 
-        for (index, draft) in attachmentDrafts.enumerated() {
-            let hash = (try? DiaryAttachmentService.inspect(draft.data))?.sha256
+        for (index, attachmentDraft) in attachmentDrafts.enumerated() {
+            let draft = attachmentDraft.draft
             items.append(ReviewComposerImageItem(
-                id: "canonical-\(draft.id?.uuidString ?? hash ?? String(index))-\(index)",
+                id: "canonical-\(attachmentDraft.id.uuidString)",
                 data: draft.data,
                 canonicalIndex: index,
                 legacyIndexes: [],
                 normalizedFileName: normalizedFileName(draft.originalFileName),
-                sha256: hash,
+                sha256: attachmentDraft.attachmentHash,
                 isLegacy: false
             ))
         }
 
-        for (index, fileName) in legacyImageFileNames.enumerated() {
-            guard let normalizedFileName = normalizedFileName(fileName) else { continue }
-            let data = legacyImageData(for: fileName)
-            let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
+        for legacyImage in resolvedLegacyImages {
+            let normalizedFileName = legacyImage.normalizedFileName
+            let hash = legacyImage.attachmentHash
             if let existingIndex = items.firstIndex(where: {
                 $0.normalizedFileName == normalizedFileName ||
                     (hash != nil && $0.sha256 == hash)
             }) {
-                items[existingIndex].legacyIndexes.append(index)
+                items[existingIndex].legacyIndexes.append(legacyImage.sourceIndex)
                 continue
             }
 
             items.append(ReviewComposerImageItem(
-                id: "legacy-\(normalizedFileName)-\(index)",
-                data: data,
+                id: "legacy-\(normalizedFileName)-\(legacyImage.sourceIndex)",
+                data: legacyImage.data,
                 canonicalIndex: nil,
-                legacyIndexes: [index],
+                legacyIndexes: [legacyImage.sourceIndex],
                 normalizedFileName: normalizedFileName,
                 sha256: hash,
                 isLegacy: true
             ))
         }
         return items
+    }
+
+    private var resolvedLegacyImages: [MobileResolvedLegacyImage] {
+        guard legacyResolution.fileNames == legacyImageFileNames else { return [] }
+        return legacyResolution.images
+    }
+
+    private var isResolvingLegacyImages: Bool {
+        !legacyImageFileNames.isEmpty && legacyResolution.fileNames != legacyImageFileNames
     }
 
     private func deletionAction(for item: ReviewComposerImageItem) -> (() -> Void)? {
@@ -406,16 +433,6 @@ private struct ReviewComposerImages: View {
         }
         return value.lowercased()
     }
-
-    private func legacyImageData(for fileName: String) -> Data? {
-        try? Data(
-            contentsOf: DiaryImageFileStore.imageURL(
-                for: fileName,
-                appSupportFolder: MobileImageStorage.appSupportFolder
-            ),
-            options: [.mappedIfSafe]
-        )
-    }
 }
 
 private struct ReviewComposerImageItem: Identifiable {
@@ -426,25 +443,33 @@ private struct ReviewComposerImageItem: Identifiable {
     var normalizedFileName: String?
     var sha256: String?
     var isLegacy: Bool
+
+    var thumbnailRequest: MobileImageThumbnailRequest? {
+        guard let data else { return nil }
+        return MobileImageThumbnailRequest(
+            data: data,
+            attachmentHash: sha256,
+            dataIdentity: id
+        )
+    }
 }
 
 private struct MobileReviewImagePreview: View {
-    var imageData: Data?
+    var request: MobileImageThumbnailRequest?
     var placeholderMessage: String
+    var accessibilityLabel: String
     var onDelete: (() -> Void)?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if let imageData, let image = UIImage(data: imageData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.input)
-            } else {
-                MobileMissingImagePlaceholder(message: placeholderMessage)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            MobileAsyncThumbnailImage(
+                request: request,
+                placeholderMessage: placeholderMessage,
+                accessibilityLabel: accessibilityLabel,
+                onAspectRatioChange: nil
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
             if let onDelete {
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "xmark")

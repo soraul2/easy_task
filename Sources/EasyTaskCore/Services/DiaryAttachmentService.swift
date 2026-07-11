@@ -428,6 +428,45 @@ private extension DiaryAttachmentService {
     }
 }
 
+@MainActor
+public struct DiaryAttachmentIndex {
+    private let attachmentsByReviewID: [UUID: [DiaryAttachment]]
+    private let imageBlocksByReviewID: [UUID: [DiaryBlock]]
+
+    public init(
+        attachments: [DiaryAttachment],
+        blocks: [DiaryBlock]
+    ) {
+        attachmentsByReviewID = Dictionary(
+            grouping: attachments.filter { $0.supersededAt == nil },
+            by: \.reviewId
+        )
+        imageBlocksByReviewID = Dictionary(
+            grouping: blocks.filter {
+                $0.supersededAt == nil &&
+                    $0.type == DiaryBlockType.image.rawValue &&
+                    $0.imageFileName != nil
+            },
+            by: \.reviewId
+        )
+    }
+
+    public func activeAttachments(for reviewID: UUID) -> [DiaryAttachment] {
+        DiaryAttachmentService.activeAttachments(
+            for: reviewID,
+            in: attachmentsByReviewID[reviewID] ?? []
+        )
+    }
+
+    public func unresolvedLegacyImageFileNames(for review: DailyReview) -> [String] {
+        DiaryAttachmentService.unresolvedLegacyImageFileNames(
+            for: review,
+            blocks: imageBlocksByReviewID[review.id] ?? [],
+            attachments: attachmentsByReviewID[review.id] ?? []
+        )
+    }
+}
+
 public struct LegacyDiaryAttachmentMigrationReport: Equatable, Sendable {
     public var importedCount: Int
     public var missingFileNames: [String]
