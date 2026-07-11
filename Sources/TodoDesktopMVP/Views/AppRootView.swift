@@ -32,10 +32,6 @@ struct AppRootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var tasks: [Task]
-    @Query private var events: [CalendarEvent]
-    @Query private var templates: [TaskTemplate]
-    @Query private var reviews: [DailyReview]
 
     @State private var selectedTab: AppTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
@@ -136,21 +132,39 @@ struct AppRootView: View {
                 )
             }
             try PersistenceCommandService.perform(in: modelContext) {
-                SeedService.seedIfNeeded(
-                    context: modelContext,
-                    tasks: tasks,
-                    events: events,
-                    templates: templates,
-                    reviews: reviews,
-                    policy: .appStartup(
-                        cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
-                    )
-                )
-                TaskRules.archiveIfNeeded(tasks)
+                try seedDemoDataIfNeeded()
+                try archiveTasksIfNeeded()
             }
         } catch {
             syncMonitor.recordStartupFailure(error)
         }
+    }
+
+    private func seedDemoDataIfNeeded() throws {
+        let policy = SeedPolicy.appStartup(
+            cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
+        )
+        guard case .demo = policy else { return }
+
+        let tasks = try modelContext.fetch(FetchDescriptor<Task>())
+        let events = try modelContext.fetch(FetchDescriptor<CalendarEvent>())
+        let templates = try modelContext.fetch(FetchDescriptor<TaskTemplate>())
+        let reviews = try modelContext.fetch(FetchDescriptor<DailyReview>())
+        SeedService.seedIfNeeded(
+            context: modelContext,
+            tasks: tasks,
+            events: events,
+            templates: templates,
+            reviews: reviews,
+            policy: policy
+        )
+    }
+
+    private func archiveTasksIfNeeded(todayKey: String = DayKey.today) throws {
+        let candidates = try modelContext.fetch(
+            BoundedQueryService.tasksNeedingArchiveDescriptor(before: todayKey)
+        )
+        TaskRules.archiveIfNeeded(candidates, todayKey: todayKey)
     }
 
     private func handleCloudKitEvent(_ notification: Notification) {
@@ -170,7 +184,7 @@ struct AppRootView: View {
     private func persistArchiveIfNeeded() {
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.archiveIfNeeded(tasks)
+                try archiveTasksIfNeeded()
             }
         } catch {
             syncMonitor.recordStartupFailure(error)

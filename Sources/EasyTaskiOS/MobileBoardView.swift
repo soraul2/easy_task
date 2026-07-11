@@ -24,8 +24,9 @@ private enum MobileBoardSheet: Identifiable {
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
     @Environment(\.modelContext) private var modelContext
-    @Query private var tasks: [TodoTask]
-    @Query private var events: [CalendarEvent]
+    @Query private var selectedDayTaskRows: [TodoTask]
+    @Query private var carryoverTaskRows: [TodoTask]
+    @Query private var overlappingEventRows: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
 
@@ -38,9 +39,33 @@ struct MobileBoardView: View {
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var isTodayBoard: Bool { selectedDayKey == DayKey.today }
 
+    init(selectedDate: Binding<Date>) {
+        _selectedDate = selectedDate
+
+        let dayKey = DayKey.key(for: selectedDate.wrappedValue)
+        _selectedDayTaskRows = Query(
+            BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
+        )
+        _carryoverTaskRows = Query(
+            BoundedQueryService.carryoverTasksDescriptor(before: dayKey)
+        )
+        _overlappingEventRows = Query(
+            BoundedQueryService.eventsDescriptor(
+                overlappingStartDayKey: dayKey,
+                endDayKey: dayKey
+            )
+        )
+    }
+
     private var boardTasks: [TodoTask] {
-        BoardQueryRules.tasksForBoard(
-            tasks,
+        var rows = selectedDayTaskRows
+        if isTodayBoard {
+            let selectedTaskIDs = Set(rows.map(\.id))
+            rows.append(contentsOf: carryoverTaskRows.filter { !selectedTaskIDs.contains($0.id) })
+        }
+
+        return BoardQueryRules.tasksForBoard(
+            rows,
             selectedDayKey: selectedDayKey,
             includeCarryoverOnToday: true
         )
@@ -51,11 +76,11 @@ struct MobileBoardView: View {
     }
 
     private var dayEvents: [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: selectedDayKey, in: events)
+        CalendarEventRules.events(onDayKey: selectedDayKey, in: overlappingEventRows)
     }
 
     private var carryoverTasks: [TodoTask] {
-        TaskRules.carryoverTasks(tasks, before: selectedDayKey)
+        TaskRules.carryoverTasks(carryoverTaskRows, before: selectedDayKey)
     }
 
     var body: some View {
@@ -127,7 +152,7 @@ struct MobileBoardView: View {
                         templates: templates,
                         items: templateItems,
                         selectedDate: selectedDate,
-                        existingTasks: tasks,
+                        existingTasks: selectedDayTaskRows,
                         onApplied: showBoardNotice
                     )
                 case .review:
@@ -144,11 +169,16 @@ struct MobileBoardView: View {
         guard !title.isEmpty else { return }
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                let nextOrder = try BoundedQueryService.nextOrder(
+                    in: modelContext,
+                    dayKey: selectedDayKey,
+                    status: .todo
+                )
                 let task = TodoTask(
                     title: title,
                     status: .todo,
                     plannedAt: selectedDate,
-                    order: BoardQueryRules.nextOrder(in: tasks, dayKey: selectedDayKey, status: .todo)
+                    order: nextOrder
                 )
                 modelContext.insert(task)
             }
@@ -600,7 +630,6 @@ private struct MobileTaskDetailSheet: View {
     var task: TodoTask
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var allTasks: [TodoTask]
     @State private var title: String
     @State private var note: String
     @State private var status: TaskStatus
@@ -687,17 +716,21 @@ private struct MobileTaskDetailSheet: View {
         saveError = nil
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                let nextOrder: Double?
+                if oldDayKey != newDayKey || oldStatus != status {
+                    nextOrder = try BoundedQueryService.nextOrder(
+                        in: modelContext,
+                        dayKey: newDayKey,
+                        status: status
+                    )
+                } else {
+                    nextOrder = nil
+                }
+
                 if oldStatus != status {
                     TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
                 }
 
-                var nextOrder: Double?
-                if oldDayKey != newDayKey || oldStatus != status {
-                    let dayTasks = allTasks.filter {
-                        $0.id != task.id && $0.plannedDayKey == newDayKey && $0.archivedAt == nil
-                    }
-                    nextOrder = BoardQueryRules.nextOrder(in: dayTasks, dayKey: newDayKey, status: status)
-                }
                 if oldDayKey != newDayKey || nextOrder != nil {
                     TaskRules.move(task, to: newPlannedAt, order: nextOrder)
                 }

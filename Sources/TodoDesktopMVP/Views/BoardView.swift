@@ -42,8 +42,9 @@ private extension View {
 
 struct BoardView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var tasks: [Task]
-    @Query private var events: [CalendarEvent]
+    @Query private var selectedDayTaskRows: [Task]
+    @Query private var carryoverTaskRows: [Task]
+    @Query private var overlappingEventRows: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
 
@@ -56,20 +57,38 @@ struct BoardView: View {
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var todayKey: String { DayKey.today }
 
+    init(selectedDate: Binding<Date>) {
+        _selectedDate = selectedDate
+
+        let dayKey = DayKey.key(for: selectedDate.wrappedValue)
+        _selectedDayTaskRows = Query(
+            BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
+        )
+        _carryoverTaskRows = Query(
+            BoundedQueryService.carryoverTasksDescriptor(before: DayKey.today)
+        )
+        _overlappingEventRows = Query(
+            BoundedQueryService.eventsDescriptor(
+                overlappingStartDayKey: dayKey,
+                endDayKey: dayKey
+            )
+        )
+    }
+
     private var boardEvents: [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: selectedDayKey, in: events)
+        CalendarEventRules.events(onDayKey: selectedDayKey, in: overlappingEventRows)
     }
 
     private var boardTasks: [Task] {
         BoardQueryRules.tasksForBoard(
-            tasks,
+            selectedDayTaskRows,
             selectedDayKey: selectedDayKey,
             todayKey: todayKey
         )
     }
 
     private var carryoverTasks: [Task] {
-        TaskRules.carryoverTasks(tasks, before: todayKey)
+        TaskRules.carryoverTasks(carryoverTaskRows, before: todayKey)
     }
 
     private var todoTasks: [Task] {
@@ -142,7 +161,7 @@ struct BoardView: View {
                                 template,
                                 items: templateItems,
                                 selectedDate: selectedDate,
-                                existingTasks: tasks,
+                                existingTasks: selectedDayTaskRows,
                                 in: modelContext
                             )
                         }
@@ -188,7 +207,7 @@ struct BoardView: View {
                     }
                 )
             case .taskDetail(let id):
-                if let task = tasks.first(where: { $0.supersededAt == nil && $0.id == id }) {
+                if let task = selectedDayTaskRows.first(where: { $0.supersededAt == nil && $0.id == id }) {
                     TaskDetailSheet(task: task)
                 } else {
                     EmptySheetState(
@@ -407,11 +426,16 @@ struct BoardView: View {
         let didAdd = performPersistenceCommand(
             failureMessage: "작업을 추가하지 못했습니다."
         ) {
+            let nextOrder = try BoundedQueryService.nextOrder(
+                in: modelContext,
+                dayKey: selectedDayKey,
+                status: .todo
+            )
             let task = Task(
                 title: title,
                 status: .todo,
                 plannedAt: selectedDate,
-                order: BoardQueryRules.nextOrder(in: tasks, dayKey: selectedDayKey, status: .todo)
+                order: nextOrder
             )
             modelContext.insert(task)
         }
@@ -421,15 +445,20 @@ struct BoardView: View {
 
     private func moveTask(idString: String, to status: TaskStatus) -> Bool {
         guard let id = UUID(uuidString: idString),
-              let task = tasks.first(where: { $0.supersededAt == nil && $0.id == id }) else {
+              let task = selectedDayTaskRows.first(where: { $0.supersededAt == nil && $0.id == id }) else {
             return false
         }
 
         return performPersistenceCommand(
             failureMessage: "작업 상태를 변경하지 못했습니다."
         ) {
+            let nextOrder = try BoundedQueryService.nextOrder(
+                in: modelContext,
+                dayKey: task.plannedDayKey,
+                status: status
+            )
             TaskRules.applyStatus(status, to: task)
-            task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
+            task.order = nextOrder
         }
     }
 
@@ -437,8 +466,13 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "작업 상태를 변경하지 못했습니다."
         ) {
+            let nextOrder = try BoundedQueryService.nextOrder(
+                in: modelContext,
+                dayKey: task.plannedDayKey,
+                status: status
+            )
             TaskRules.applyStatus(status, to: task)
-            task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
+            task.order = nextOrder
         }
     }
 
@@ -455,10 +489,15 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "작업을 오늘로 가져오지 못했습니다."
         ) {
+            let nextOrder = try BoundedQueryService.nextOrder(
+                in: modelContext,
+                dayKey: todayKey,
+                status: .todo
+            )
             task.plannedAt = DayKey.startOfDay(for: Date())
             task.plannedDayKey = todayKey
             task.status = TaskStatus.todo.rawValue
-            task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: todayKey, status: .todo)
+            task.order = nextOrder
             task.updatedAt = Date()
         }
     }
@@ -468,7 +507,10 @@ struct BoardView: View {
             failureMessage: "이월 작업을 완료 처리하지 못했습니다."
         ) {
             let now = Date()
-            var nextDoneOrder = TaskRules.nextOrder(in: tasks, status: .done)
+            var nextDoneOrder = try BoundedQueryService.nextOrder(
+                in: modelContext,
+                status: .done
+            )
 
             for task in carryoverTasks {
                 TaskRules.applyStatus(.done, to: task, now: now)
@@ -490,7 +532,11 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "이벤트를 삭제하지 못했습니다."
         ) {
-            CalendarEventRules.detachTasks(from: event, in: tasks)
+            let linkedTasks = try BoundedQueryService.tasksLinked(
+                toEventID: event.id,
+                in: modelContext
+            )
+            CalendarEventRules.detachTasks(from: event, in: linkedTasks)
             modelContext.delete(event)
         }
     }
@@ -518,7 +564,6 @@ struct TaskDetailSheet: View {
     var task: Task
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var allTasks: [Task]
     @State private var title: String
     @State private var note: String
     @State private var status: TaskStatus
@@ -704,23 +749,21 @@ struct TaskDetailSheet: View {
 
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                let nextOrder: Double?
+                if oldDayKey != newDayKey || oldStatus != status {
+                    nextOrder = try BoundedQueryService.nextOrder(
+                        in: modelContext,
+                        dayKey: newDayKey,
+                        status: status
+                    )
+                } else {
+                    nextOrder = nil
+                }
+
                 if oldStatus != status {
                     TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
                 }
 
-                var nextOrder: Double?
-                if oldDayKey != newDayKey || oldStatus != status {
-                    let dayTasks = allTasks.filter {
-                        $0.id != task.id &&
-                            $0.plannedDayKey == newDayKey &&
-                            $0.archivedAt == nil
-                    }
-                    nextOrder = BoardQueryRules.nextOrder(
-                        in: dayTasks,
-                        dayKey: newDayKey,
-                        status: status
-                    )
-                }
                 if oldDayKey != newDayKey || nextOrder != nil {
                     TaskRules.move(task, to: newPlannedAt, order: nextOrder)
                 }

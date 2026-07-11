@@ -16,12 +16,42 @@ private enum CalendarSheet: Identifiable {
     }
 }
 
+private struct DesktopCalendarQueryRange: Hashable {
+    let startDayKey: String
+    let endDayKey: String
+
+    init(visibleMonth: Date) {
+        let dates = DayKey.monthGridDates(for: visibleMonth)
+        let fallbackDayKey = DayKey.key(for: visibleMonth)
+        startDayKey = dates.first.map(DayKey.key(for:)) ?? fallbackDayKey
+        endDayKey = dates.last.map(DayKey.key(for:)) ?? fallbackDayKey
+    }
+}
+
+private struct DesktopCalendarEventsQueryHost<Content: View>: View {
+    @Query private var events: [CalendarEvent]
+    private let content: ([CalendarEvent]) -> Content
+
+    init(
+        range: DesktopCalendarQueryRange,
+        @ViewBuilder content: @escaping ([CalendarEvent]) -> Content
+    ) {
+        _events = Query(BoundedQueryService.eventsDescriptor(
+            overlappingStartDayKey: range.startDayKey,
+            endDayKey: range.endDayKey
+        ))
+        self.content = content
+    }
+
+    var body: some View {
+        content(events)
+    }
+}
+
 struct CalendarView: View {
     private static let specialDayStore = SpecialDayStore.load()
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var events: [CalendarEvent]
-    @Query private var tasks: [Task]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
 
@@ -44,6 +74,15 @@ struct CalendarView: View {
     }
 
     var body: some View {
+        let queryRange = DesktopCalendarQueryRange(visibleMonth: visibleMonth)
+
+        DesktopCalendarEventsQueryHost(range: queryRange) { events in
+            calendarContent(events: events)
+        }
+        .id(queryRange)
+    }
+
+    private func calendarContent(events: [CalendarEvent]) -> some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 22)
@@ -59,7 +98,7 @@ struct CalendarView: View {
             weekdayHeader
                 .padding(.horizontal, 22)
 
-            monthGrid
+            monthGrid(events: events)
                 .padding(.horizontal, 22)
                 .padding(.bottom, 24)
         }
@@ -293,7 +332,7 @@ struct CalendarView: View {
         }
     }
 
-    private var monthGrid: some View {
+    private func monthGrid(events: [CalendarEvent]) -> some View {
         GeometryReader { proxy in
             let cellWidth = proxy.size.width / 7
             let cellHeight = max((proxy.size.height - 5) / 6, 54)
@@ -301,7 +340,7 @@ struct CalendarView: View {
             let laneHeight: CGFloat = cellHeight < 76 ? 18 : 21
             let barHeight: CGFloat = cellHeight < 76 ? 16 : 18
             let maxEventLanes = max(1, min(4, Int((cellHeight - eventTopInset - 6) / laneHeight)))
-            let segments = eventSegments(maxLanes: maxEventLanes)
+            let segments = eventSegments(events: events, maxLanes: maxEventLanes)
 
             ZStack(alignment: .topLeading) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
@@ -399,7 +438,11 @@ struct CalendarView: View {
     private func removeEvent(_ event: CalendarEvent) -> String? {
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                CalendarEventRules.detachTasks(from: event, in: tasks)
+                let linkedTasks = try BoundedQueryService.tasksLinked(
+                    toEventID: event.id,
+                    in: modelContext
+                )
+                CalendarEventRules.detachTasks(from: event, in: linkedTasks)
                 modelContext.delete(event)
             }
             return nil
@@ -434,11 +477,18 @@ struct CalendarView: View {
 
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                let existingTasks = try placementDayKeys.sorted().flatMap { dayKey in
+                    try BoundedQueryService.tasks(
+                        from: dayKey,
+                        through: dayKey,
+                        in: modelContext
+                    )
+                }
                 TemplateService.applyTemplate(
                     placementTemplate,
                     items: templateItems,
                     selectedDates: selectedPlacementDates,
-                    existingTasks: tasks,
+                    existingTasks: existingTasks,
                     in: modelContext
                 )
             }
@@ -448,11 +498,10 @@ struct CalendarView: View {
         }
     }
 
-    private func eventsFor(dayKey: String) -> [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: dayKey, in: events)
-    }
-
-    private func eventSegments(maxLanes: Int = 4) -> [CalendarEventSegment] {
+    private func eventSegments(
+        events: [CalendarEvent],
+        maxLanes: Int = 4
+    ) -> [CalendarEventSegment] {
         let weeks = stride(from: 0, to: monthDates.count, by: 7).map {
             Array(monthDates[$0..<min($0 + 7, monthDates.count)])
         }

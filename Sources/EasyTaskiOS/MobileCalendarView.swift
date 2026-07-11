@@ -17,14 +17,48 @@ private enum CalendarSheet: Identifiable {
     }
 }
 
+private struct MobileCalendarQueryRange: Hashable {
+    let startDayKey: String
+    let endDayKey: String
+
+    init(visibleMonth: Date) {
+        let dates = DayKey.monthGridDates(for: visibleMonth)
+        let fallbackDayKey = DayKey.key(for: visibleMonth)
+        startDayKey = dates.first.map(DayKey.key(for:)) ?? fallbackDayKey
+        endDayKey = dates.last.map(DayKey.key(for:)) ?? fallbackDayKey
+    }
+}
+
+private struct MobileCalendarMonthQueryHost<Content: View>: View {
+    @Query private var events: [CalendarEvent]
+    @Query private var templatePlacements: [TemplatePlacement]
+    private let content: ([CalendarEvent], [TemplatePlacement]) -> Content
+
+    init(
+        range: MobileCalendarQueryRange,
+        @ViewBuilder content: @escaping ([CalendarEvent], [TemplatePlacement]) -> Content
+    ) {
+        _events = Query(BoundedQueryService.eventsDescriptor(
+            overlappingStartDayKey: range.startDayKey,
+            endDayKey: range.endDayKey
+        ))
+        _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
+            from: range.startDayKey,
+            through: range.endDayKey
+        ))
+        self.content = content
+    }
+
+    var body: some View {
+        content(events, templatePlacements)
+    }
+}
+
 struct MobileCalendarView: View {
     var onOpenBoardDate: (Date) -> Void
     @Environment(\.modelContext) private var modelContext
-    @Query private var events: [CalendarEvent]
-    @Query private var tasks: [TodoTask]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
-    @Query private var templatePlacements: [TemplatePlacement]
 
     @State private var visibleMonth = DayKey.startOfMonth(for: Date())
     @State private var selectedDate = DayKey.startOfDay(for: Date())
@@ -43,6 +77,18 @@ struct MobileCalendarView: View {
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
+        let queryRange = MobileCalendarQueryRange(visibleMonth: visibleMonth)
+
+        MobileCalendarMonthQueryHost(range: queryRange) { events, templatePlacements in
+            calendarContent(events: events, templatePlacements: templatePlacements)
+        }
+        .id(queryRange)
+    }
+
+    private func calendarContent(
+        events: [CalendarEvent],
+        templatePlacements: [TemplatePlacement]
+    ) -> some View {
         NavigationStack {
             VStack(spacing: 6) {
                 CalendarHeader(
@@ -63,7 +109,7 @@ struct MobileCalendarView: View {
                         }
                     )
                 }
-                monthGrid
+                monthGrid(events: events, templatePlacements: templatePlacements)
             }
             .padding(.top, 4)
             .background(AppTheme.background.ignoresSafeArea())
@@ -102,16 +148,17 @@ struct MobileCalendarView: View {
                         onComplete: showCalendarNotice
                     )
                 case .day(let date):
-                    MobileCalendarDaySheet(
+                    let dayKey = DayKey.key(for: date)
+                    MobileCalendarDayQueryHost(
+                        dayKey: dayKey,
                         date: date,
-                        events: eventsForDate(date),
-                        templatePlacements: placementsForDate(date),
-                        tasks: tasksForDate(date),
-                        allTasks: tasks,
+                        events: eventsForDate(date, in: events),
+                        templatePlacements: placementsForDate(date, in: templatePlacements),
                         onOpenBoard: {
                             onOpenBoardDate(date)
                         }
                     )
+                    .id(dayKey)
                 case .templates:
                     MobileTemplatePlacementSheet(
                         templates: templates,
@@ -141,7 +188,10 @@ struct MobileCalendarView: View {
         }
     }
 
-    private var monthGrid: some View {
+    private func monthGrid(
+        events: [CalendarEvent],
+        templatePlacements: [TemplatePlacement]
+    ) -> some View {
         GeometryReader { proxy in
             let dates = DayKey.monthGridDates(for: visibleMonth)
             let isPlacementMode = placementTemplate != nil
@@ -153,7 +203,11 @@ struct MobileCalendarView: View {
             let laneHeight: CGFloat = 18
             let barHeight: CGFloat = 16
             let maxEventLanes = max(1, min(3, Int((cellHeight - eventTopInset - 6) / laneHeight)))
-            let segments: [MobileCalendarEventSegment] = isPlacementMode ? [] : eventSegments(in: dates, maxLanes: maxEventLanes)
+            let segments: [MobileCalendarEventSegment] = isPlacementMode ? [] : eventSegments(
+                in: dates,
+                events: events,
+                maxLanes: maxEventLanes
+            )
 
             VStack(spacing: 0) {
                 CalendarWeekdayHeader()
@@ -167,8 +221,8 @@ struct MobileCalendarView: View {
                                 visibleMonth: visibleMonth,
                                 isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
                                 isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
-                                events: isPlacementMode ? [] : eventsForDate(date),
-                                templatePlacements: isPlacementMode ? [] : placementsForDate(date),
+                                events: isPlacementMode ? [] : eventsForDate(date, in: events),
+                                templatePlacements: isPlacementMode ? [] : placementsForDate(date, in: templatePlacements),
                                 specialDays: specialDayStore.days(on: date),
                                 showsTrailingDivider: (index + 1) % 7 != 0,
                                 showsBottomDivider: index < 35
@@ -211,18 +265,14 @@ struct MobileCalendarView: View {
         }
     }
 
-    private func tasksForDate(_ date: Date) -> [TodoTask] {
-        BoardQueryRules.tasksForBoard(
-            tasks,
-            selectedDayKey: DayKey.key(for: date)
-        )
-    }
-
-    private func eventsForDate(_ date: Date) -> [CalendarEvent] {
+    private func eventsForDate(_ date: Date, in events: [CalendarEvent]) -> [CalendarEvent] {
         CalendarEventRules.events(on: date, in: events)
     }
 
-    private func placementsForDate(_ date: Date) -> [TemplatePlacement] {
+    private func placementsForDate(
+        _ date: Date,
+        in templatePlacements: [TemplatePlacement]
+    ) -> [TemplatePlacement] {
         TemplateService.placements(on: date, in: templatePlacements)
     }
 
@@ -230,7 +280,11 @@ struct MobileCalendarView: View {
         placementDrafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
-    private func eventSegments(in monthDates: [Date], maxLanes: Int) -> [MobileCalendarEventSegment] {
+    private func eventSegments(
+        in monthDates: [Date],
+        events: [CalendarEvent],
+        maxLanes: Int
+    ) -> [MobileCalendarEventSegment] {
         let weeks = stride(from: 0, to: monthDates.count, by: 7).map {
             Array(monthDates[$0..<min($0 + 7, monthDates.count)])
         }
@@ -328,11 +382,18 @@ struct MobileCalendarView: View {
         guard let placementTemplate else { return }
         do {
             let createdCount = try PersistenceCommandService.perform(in: modelContext) {
-                TemplateService.applyTemplate(
+                let existingTasks = try placementDayKeys.sorted().flatMap { dayKey in
+                    try BoundedQueryService.tasks(
+                        from: dayKey,
+                        through: dayKey,
+                        in: modelContext
+                    )
+                }
+                return TemplateService.applyTemplate(
                     placementTemplate,
                     drafts: validPlacementDrafts,
                     selectedDates: placementDayKeys.sorted().compactMap(DayKey.date(from:)),
-                    existingTasks: tasks,
+                    existingTasks: existingTasks,
                     in: modelContext
                 )
             }
@@ -732,7 +793,6 @@ private enum MobileEventDurationPreset: Int, CaseIterable, Identifiable {
 private struct MobileEventEditorSheet: View {
     var initialDate: Date
     var event: CalendarEvent?
-    var allTasks: [TodoTask] = []
     var onComplete: ((String) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -744,6 +804,7 @@ private struct MobileEventEditorSheet: View {
     @State private var message: String?
     @State private var showingAddConfirmation = false
     @State private var showingDeleteConfirmation = false
+    @State private var linkedTaskCount = 0
 
     private var isEditing: Bool {
         event != nil
@@ -761,20 +822,13 @@ private struct MobileEventEditorSheet: View {
         DayKey.startOfDay(for: max(startDate, endDate))
     }
 
-    private var linkedTaskCount: Int {
-        guard let event else { return 0 }
-        return allTasks.filter { $0.supersededAt == nil && $0.eventId == event.id }.count
-    }
-
     init(
         initialDate: Date,
         event: CalendarEvent? = nil,
-        allTasks: [TodoTask] = [],
         onComplete: ((String) -> Void)? = nil
     ) {
         self.initialDate = initialDate
         self.event = event
-        self.allTasks = allTasks
         self.onComplete = onComplete
         _title = State(initialValue: event?.title ?? "")
         _note = State(initialValue: event?.note ?? "")
@@ -809,7 +863,7 @@ private struct MobileEventEditorSheet: View {
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
-                            showingDeleteConfirmation = true
+                            requestEventDeletion()
                         } label: {
                             Label("이벤트 삭제", systemImage: "trash")
                         }
@@ -905,7 +959,11 @@ private struct MobileEventEditorSheet: View {
         message = nil
         do {
             let detachedCount = try PersistenceCommandService.perform(in: modelContext) {
-                let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
+                let linkedTasks = try BoundedQueryService.tasksLinked(
+                    toEventID: event.id,
+                    in: modelContext
+                )
+                let detachedCount = CalendarEventRules.detachTasks(from: event, in: linkedTasks)
                 modelContext.delete(event)
                 return detachedCount
             }
@@ -917,6 +975,19 @@ private struct MobileEventEditorSheet: View {
             dismiss()
         } catch {
             message = "이벤트를 삭제하지 못했어요"
+        }
+    }
+
+    private func requestEventDeletion() {
+        guard let event else { return }
+        do {
+            linkedTaskCount = try BoundedQueryService.tasksLinked(
+                toEventID: event.id,
+                in: modelContext
+            ).count
+            showingDeleteConfirmation = true
+        } catch {
+            message = "이벤트 정보를 불러오지 못했어요"
         }
     }
 }
@@ -1041,12 +1112,43 @@ private struct MobileEventColorSelector: View {
     }
 }
 
+private struct MobileCalendarDayQueryHost: View {
+    private let date: Date
+    private let events: [CalendarEvent]
+    private let templatePlacements: [TemplatePlacement]
+    private let onOpenBoard: () -> Void
+    @Query private var tasks: [TodoTask]
+
+    init(
+        dayKey: String,
+        date: Date,
+        events: [CalendarEvent],
+        templatePlacements: [TemplatePlacement],
+        onOpenBoard: @escaping () -> Void
+    ) {
+        self.date = date
+        self.events = events
+        self.templatePlacements = templatePlacements
+        self.onOpenBoard = onOpenBoard
+        _tasks = Query(BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey))
+    }
+
+    var body: some View {
+        MobileCalendarDaySheet(
+            date: date,
+            events: events,
+            templatePlacements: templatePlacements,
+            tasks: tasks,
+            onOpenBoard: onOpenBoard
+        )
+    }
+}
+
 private struct MobileCalendarDaySheet: View {
     var date: Date
     var events: [CalendarEvent]
     var templatePlacements: [TemplatePlacement]
     var tasks: [TodoTask]
-    var allTasks: [TodoTask]
     var onOpenBoard: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -1055,8 +1157,17 @@ private struct MobileCalendarDaySheet: View {
     @State private var pendingDeletePlacement: TemplatePlacement?
     @State private var showingDeleteConfirmation = false
     @State private var showingPlacementDeleteConfirmation = false
+    @State private var pendingDeleteEventLinkedTaskCount = 0
+    @State private var pendingPlacementDeleteSummary: TemplatePlacementDeleteSummary?
     @State private var dayNotice: String?
     @State private var dayNoticeToken = UUID()
+
+    private var boardTasks: [TodoTask] {
+        BoardQueryRules.tasksForBoard(
+            tasks,
+            selectedDayKey: DayKey.key(for: date)
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -1096,8 +1207,7 @@ private struct MobileCalendarDaySheet: View {
                             .accessibilityLabel("이벤트 편집")
 
                             Button(role: .destructive) {
-                                pendingDeleteEvent = event
-                                showingDeleteConfirmation = true
+                                requestEventDeletion(event)
                             } label: {
                                 Image(systemName: "trash")
                             }
@@ -1112,19 +1222,16 @@ private struct MobileCalendarDaySheet: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(templatePlacements) { placement in
-                        MobileTemplatePlacementSummaryRow(
+                        MobileTemplatePlacementSummaryQueryHost(
                             placement: placement,
-                            tasks: placementTasks(for: placement),
-                            deleteSummary: placementDeleteSummary(for: placement),
                             onDelete: {
-                                pendingDeletePlacement = placement
-                                showingPlacementDeleteConfirmation = true
+                                requestPlacementDeletion(placement)
                             }
                         )
                     }
                 }
                 Section("작업") {
-                    ForEach(tasks.prefix(6)) { task in
+                    ForEach(boardTasks.prefix(6)) { task in
                         HStack {
                             Text(task.title)
                                 .lineLimit(2)
@@ -1134,12 +1241,12 @@ private struct MobileCalendarDaySheet: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if tasks.count > 6 {
-                        Text("외 \(tasks.count - 6)개 작업")
+                    if boardTasks.count > 6 {
+                        Text("외 \(boardTasks.count - 6)개 작업")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    if tasks.isEmpty {
+                    if boardTasks.isEmpty {
                         Text("작업 없음")
                             .foregroundStyle(.secondary)
                     }
@@ -1171,14 +1278,14 @@ private struct MobileCalendarDaySheet: View {
         .alert("이벤트를 삭제할까요?", isPresented: $showingDeleteConfirmation, presenting: pendingDeleteEvent) { event in
             Button("취소", role: .cancel) {
                 pendingDeleteEvent = nil
+                pendingDeleteEventLinkedTaskCount = 0
             }
             Button("삭제", role: .destructive) {
                 deleteEvent(event)
             }
         } message: { event in
-            let linkedCount = linkedTaskCount(for: event)
-            if linkedCount > 0 {
-                Text("연결된 작업 \(linkedCount)개의 이벤트 연결도 함께 해제됩니다.")
+            if pendingDeleteEventLinkedTaskCount > 0 {
+                Text("연결된 작업 \(pendingDeleteEventLinkedTaskCount)개의 이벤트 연결도 함께 해제됩니다.")
             } else {
                 Text("삭제한 이벤트는 되돌릴 수 없습니다.")
             }
@@ -1186,17 +1293,18 @@ private struct MobileCalendarDaySheet: View {
         .alert("템플릿 배치를 삭제할까요?", isPresented: $showingPlacementDeleteConfirmation, presenting: pendingDeletePlacement) { placement in
             Button("취소", role: .cancel) {
                 pendingDeletePlacement = nil
+                pendingPlacementDeleteSummary = nil
             }
             Button("작업 유지") {
                 deletePlacement(placement, deleteTasks: false)
             }
-            if canDeletePlacementTasks(placement) {
+            if pendingPlacementDeleteSummary?.canDeleteTasks == true {
                 Button("작업 삭제", role: .destructive) {
                     deletePlacement(placement, deleteTasks: true)
                 }
             }
         } message: { placement in
-            Text(placementDeleteMessage(for: placement))
+            Text(placementDeleteMessage)
         }
         .sheet(item: $eventEditorRoute) { route in
             switch route {
@@ -1209,45 +1317,65 @@ private struct MobileCalendarDaySheet: View {
                 MobileEventEditorSheet(
                     initialDate: event.startAt,
                     event: event,
-                    allTasks: allTasks,
                     onComplete: showDayNotice
                 )
             }
         }
     }
 
-    private func linkedTaskCount(for event: CalendarEvent) -> Int {
-        allTasks.filter { $0.supersededAt == nil && $0.eventId == event.id }.count
-    }
-
-    private func placementTasks(for placement: TemplatePlacement) -> [TodoTask] {
-        TemplateService.tasks(for: placement, in: allTasks)
-    }
-
-    private func placementDeleteSummary(for placement: TemplatePlacement) -> TemplatePlacementDeleteSummary {
-        TemplateService.deleteSummary(for: placement, in: allTasks)
-    }
-
-    private func canDeletePlacementTasks(_ placement: TemplatePlacement) -> Bool {
-        placementDeleteSummary(for: placement).canDeleteTasks
-    }
-
-    private func placementDeleteMessage(for placement: TemplatePlacement) -> String {
-        let summary = placementDeleteSummary(for: placement)
+    private var placementDeleteMessage: String {
+        guard let summary = pendingPlacementDeleteSummary else {
+            return "연결된 작업 정보를 확인하지 못했습니다."
+        }
         if summary.canDeleteTasks {
             return "이 배치와 연결된 작업 \(summary.taskCount)개를 함께 삭제할 수 있습니다."
         }
         return "진행 중이거나 완료된 작업이 있어 작업 삭제는 사용할 수 없습니다. 작업 유지를 선택하면 배치 연결만 해제됩니다."
     }
 
+    private func requestEventDeletion(_ event: CalendarEvent) {
+        do {
+            pendingDeleteEventLinkedTaskCount = try BoundedQueryService.tasksLinked(
+                toEventID: event.id,
+                in: modelContext
+            ).count
+            pendingDeleteEvent = event
+            showingDeleteConfirmation = true
+        } catch {
+            showDayNotice("이벤트 정보를 불러오지 못했어요")
+        }
+    }
+
+    private func requestPlacementDeletion(_ placement: TemplatePlacement) {
+        do {
+            let linkedTasks = try BoundedQueryService.tasksLinked(
+                toTemplatePlacementID: placement.id,
+                in: modelContext
+            )
+            pendingPlacementDeleteSummary = TemplateService.deleteSummary(
+                for: placement,
+                in: linkedTasks
+            )
+            pendingDeletePlacement = placement
+            showingPlacementDeleteConfirmation = true
+        } catch {
+            showDayNotice("템플릿 배치 정보를 불러오지 못했어요")
+        }
+    }
+
     private func deleteEvent(_ event: CalendarEvent) {
         do {
             let detachedCount = try PersistenceCommandService.perform(in: modelContext) {
-                let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
+                let linkedTasks = try BoundedQueryService.tasksLinked(
+                    toEventID: event.id,
+                    in: modelContext
+                )
+                let detachedCount = CalendarEventRules.detachTasks(from: event, in: linkedTasks)
                 modelContext.delete(event)
                 return detachedCount
             }
             pendingDeleteEvent = nil
+            pendingDeleteEventLinkedTaskCount = 0
             if detachedCount > 0 {
                 showDayNotice("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
             } else {
@@ -1260,22 +1388,31 @@ private struct MobileCalendarDaySheet: View {
 
     private func deletePlacement(_ placement: TemplatePlacement, deleteTasks: Bool) {
         let placementName = placement.templateName
-        guard !deleteTasks || canDeletePlacementTasks(placement) else {
-            pendingDeletePlacement = nil
-            showDayNotice("진행 중이거나 완료된 작업이 있어 작업 삭제를 막았어요")
-            return
-        }
-
         do {
-            let affectedCount = try PersistenceCommandService.perform(in: modelContext) {
-                TemplateService.deletePlacement(
+            let affectedCount: Int? = try PersistenceCommandService.perform(in: modelContext) {
+                let linkedTasks = try BoundedQueryService.tasksLinked(
+                    toTemplatePlacementID: placement.id,
+                    in: modelContext
+                )
+                guard !deleteTasks || TemplateService.canDeleteTasks(
+                    for: placement,
+                    in: linkedTasks
+                ) else {
+                    return nil
+                }
+                return TemplateService.deletePlacement(
                     placement,
-                    tasks: allTasks,
+                    tasks: linkedTasks,
                     in: modelContext,
                     deleteTasks: deleteTasks
                 )
             }
             pendingDeletePlacement = nil
+            pendingPlacementDeleteSummary = nil
+            guard let affectedCount else {
+                showDayNotice("진행 중이거나 완료된 작업이 있어 작업 삭제를 막았어요")
+                return
+            }
             if deleteTasks {
                 showDayNotice("\"\(placementName)\" 배치와 작업 \(affectedCount)개를 삭제했어요")
             } else {
@@ -1295,6 +1432,37 @@ private struct MobileCalendarDaySheet: View {
             guard dayNoticeToken == token else { return }
             dayNotice = nil
         }
+    }
+}
+
+private struct MobileTemplatePlacementSummaryQueryHost: View {
+    var placement: TemplatePlacement
+    var onDelete: () -> Void
+    @Query private var linkedTasks: [TodoTask]
+
+    init(
+        placement: TemplatePlacement,
+        onDelete: @escaping () -> Void
+    ) {
+        self.placement = placement
+        self.onDelete = onDelete
+        _linkedTasks = Query(
+            BoundedQueryService.tasksLinkedToTemplatePlacementDescriptor(
+                placementID: placement.id
+            )
+        )
+    }
+
+    var body: some View {
+        MobileTemplatePlacementSummaryRow(
+            placement: placement,
+            tasks: linkedTasks,
+            deleteSummary: TemplateService.deleteSummary(
+                for: placement,
+                in: linkedTasks
+            ),
+            onDelete: onDelete
+        )
     }
 }
 
