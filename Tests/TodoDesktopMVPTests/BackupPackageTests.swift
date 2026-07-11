@@ -536,6 +536,40 @@ func rewiredAttachmentImportAcceptsPartiallyOverlappingSnapshot() throws {
 
 @Test
 @MainActor
+func olderSnapshotPreservesNewerLocalAttachmentOrder() throws {
+    let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x5C)
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+
+    let review = try #require(destination.mainContext
+        .fetch(FetchDescriptor<DailyReview>()).first { $0.supersededAt == nil })
+    let originalAttachments = DiaryAttachmentService.activeAttachments(
+        for: review.id,
+        in: try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>())
+    )
+    let reversedDrafts = originalAttachments.reversed().map {
+        DiaryAttachmentDraft(attachment: $0)
+    }
+    _ = try DiaryAttachmentService.replaceAttachments(
+        for: review,
+        with: reversedDrafts,
+        in: destination.mainContext,
+        now: contents.manifest.exportedAt.addingTimeInterval(3_600)
+    )
+    try destination.mainContext.save()
+
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+
+    let restoredOrder = DiaryAttachmentService.activeAttachments(
+        for: review.id,
+        in: try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>())
+    ).map(\.instanceID)
+    #expect(restoredOrder == originalAttachments.reversed().map(\.instanceID))
+}
+
+@Test
+@MainActor
 func equalTimestampCandidatesConvergeRegardlessOfImportOrder() throws {
     let logicalID = UUID()
     let lowerInstanceID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!

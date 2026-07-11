@@ -1005,24 +1005,31 @@ private extension BackupPackageCodec {
             ) else {
                 throw BackupPackageError.danglingReviewReference(sourceReviewID)
             }
-            let incomingInstanceIDs = records
+            let orderedIncomingRecords = records
                 .sorted {
                     if $0.order != $1.order { return $0.order < $1.order }
                     return $0.instanceID.uuidString < $1.instanceID.uuidString
                 }
-                .map(\.instanceID)
-            let incomingInstanceIDSet = Set(incomingInstanceIDs)
-            let activeIncomingInstanceIDSet = Set(localAttachments.lazy.filter {
-                $0.supersededAt == nil && incomingInstanceIDSet.contains($0.instanceID)
-            }.map(\.instanceID))
-            let expectedInstanceIDs = incomingInstanceIDs.filter(
-                activeIncomingInstanceIDSet.contains
+            let activeLocalByInstanceID = Dictionary(
+                uniqueKeysWithValues: localAttachments.compactMap { attachment in
+                    attachment.supersededAt == nil
+                        ? (attachment.instanceID, attachment)
+                        : nil
+                }
             )
+            let expectedInstanceIDs: [UUID] = orderedIncomingRecords.compactMap { record -> UUID? in
+                guard let local = activeLocalByInstanceID[record.instanceID],
+                      local.updatedAt <= record.updatedAt else {
+                    return nil
+                }
+                return record.instanceID
+            }
+            let expectedInstanceIDSet = Set(expectedInstanceIDs)
             let actualInstanceIDs = localAttachments
                 .filter {
                     $0.supersededAt == nil &&
                         $0.reviewId == canonicalReview.id &&
-                        activeIncomingInstanceIDSet.contains($0.instanceID)
+                        expectedInstanceIDSet.contains($0.instanceID)
                 }
                 .sorted {
                     if $0.order != $1.order { return $0.order < $1.order }
