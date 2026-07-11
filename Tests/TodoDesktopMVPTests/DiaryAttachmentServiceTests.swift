@@ -265,6 +265,50 @@ func legacyMigrationRetainsReferencesUntilMissingFilesCanRetry() throws {
 
 @Test
 @MainActor
+func legacyMigrationDefersImagesBeyondAttachmentLimitWithoutLosingReferences() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let folder = "EasyTaskTests-\(UUID().uuidString)"
+    let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
+    defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
+
+    let fileNames = try (0..<12).map { index in
+        let png = try #require(encodedTestImage(type: .png, marker: UInt8(index)))
+        return try DiaryImageFileStore.writeImageData(
+            png,
+            preferredExtension: "png",
+            appSupportFolder: folder
+        )
+    }
+    let review = DailyReview(
+        dayKey: "2026-07-11",
+        content: "기존 이미지 12개",
+        imageFileNames: fileNames
+    )
+    context.insert(review)
+    try context.save()
+
+    let first = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+        context: context,
+        appSupportFolder: folder
+    )
+    let second = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+        context: context,
+        appSupportFolder: folder
+    )
+
+    let activeAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        .filter { $0.supersededAt == nil }
+    #expect(first.importedCount == 10)
+    #expect(first.deferredFileNames.count == 2)
+    #expect(second.importedCount == 0)
+    #expect(second.deferredFileNames.count == 2)
+    #expect(activeAttachments.count == 10)
+    #expect(review.imageFileNames == fileNames)
+}
+
+@Test
+@MainActor
 func integrityReconciliationRewiresAttachmentsWithoutLosingImages() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext

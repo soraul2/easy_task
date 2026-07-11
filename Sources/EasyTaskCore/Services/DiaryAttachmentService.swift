@@ -128,6 +128,21 @@ public enum DiaryAttachmentService {
     }
 
     @MainActor
+    public static func validateActiveAttachmentCounts(in context: ModelContext) throws {
+        let activeAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+            .filter { $0.supersededAt == nil }
+        let countsByReview = Dictionary(grouping: activeAttachments, by: \.reviewId)
+        if let overflow = countsByReview.values.first(where: {
+            $0.count > maximumAttachmentCount
+        }) {
+            throw DiaryAttachmentServiceError.tooManyAttachments(
+                actual: overflow.count,
+                maximum: maximumAttachmentCount
+            )
+        }
+    }
+
+    @MainActor
     @discardableResult
     public static func replaceAttachments(
         for review: DailyReview,
@@ -335,15 +350,18 @@ public struct LegacyDiaryAttachmentMigrationReport: Equatable, Sendable {
     public var importedCount: Int
     public var missingFileNames: [String]
     public var rejectedFileNames: [String]
+    public var deferredFileNames: [String]
 
     public init(
         importedCount: Int = 0,
         missingFileNames: [String] = [],
-        rejectedFileNames: [String] = []
+        rejectedFileNames: [String] = [],
+        deferredFileNames: [String] = []
     ) {
         self.importedCount = importedCount
         self.missingFileNames = missingFileNames
         self.rejectedFileNames = rejectedFileNames
+        self.deferredFileNames = deferredFileNames
     }
 }
 
@@ -385,6 +403,9 @@ public enum LegacyDiaryAttachmentMigrationService {
             guard !candidates.isEmpty else { continue }
 
             var didResolveAllCandidates = true
+            var activeAttachmentCount = existing.lazy.filter {
+                $0.reviewId == review.id
+            }.count
             for (index, candidate) in candidates.enumerated() {
                 let fileName = candidate.fileName
                 let attachmentID = stableAttachmentID(
@@ -396,6 +417,11 @@ public enum LegacyDiaryAttachmentMigrationService {
                     if let attachment = existing.first(where: { $0.id == attachmentID }) {
                         attachment.order = Double(index) * 100
                     }
+                    continue
+                }
+                guard activeAttachmentCount < DiaryAttachmentService.maximumAttachmentCount else {
+                    report.deferredFileNames.append(fileName)
+                    didResolveAllCandidates = false
                     continue
                 }
                 let url: URL
@@ -431,6 +457,7 @@ public enum LegacyDiaryAttachmentMigrationService {
                         updatedAt: now
                     ))
                     knownIDs.insert(attachmentID)
+                    activeAttachmentCount += 1
                     report.importedCount += 1
                 } catch {
                     report.rejectedFileNames.append(fileName)
@@ -464,6 +491,7 @@ public enum LegacyDiaryAttachmentMigrationService {
         }
         report.missingFileNames.sort()
         report.rejectedFileNames.sort()
+        report.deferredFileNames.sort()
         return report
     }
 

@@ -128,11 +128,14 @@ private struct MobileAppRootView: View {
                 context: modelContext,
                 appSupportFolder: MobileImageStorage.appSupportFolder
             )
-            if !migration.missingFileNames.isEmpty || !migration.rejectedFileNames.isEmpty {
+            if !migration.missingFileNames.isEmpty ||
+                !migration.rejectedFileNames.isEmpty ||
+                !migration.deferredFileNames.isEmpty {
                 print(
                     "EasyTask legacy image migration pending: " +
                         "missing=\(migration.missingFileNames.count), " +
-                        "rejected=\(migration.rejectedFileNames.count)"
+                        "rejected=\(migration.rejectedFileNames.count), " +
+                        "deferred=\(migration.deferredFileNames.count)"
                 )
             }
         } catch {
