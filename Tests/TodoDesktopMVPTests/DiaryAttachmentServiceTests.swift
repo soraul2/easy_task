@@ -136,6 +136,45 @@ func textOnlyReviewSavePreservesAttachmentIdentity() throws {
 
 @Test
 @MainActor
+func deletingAttachmentRemainsDeletedAfterFileStoreReopen() throws {
+    try withTemporaryAttachmentStore { storeURL in
+        let png = try #require(encodedTestImage(type: .png, marker: 0x31))
+        let firstContainer = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let review = try #require(try DiaryAttachmentService.saveReview(
+            review: nil,
+            dayKey: "2026-07-12",
+            content: "삭제 수명주기",
+            attachments: [DiaryAttachmentDraft(data: png)],
+            in: firstContainer.mainContext
+        ))
+        #expect(try firstContainer.mainContext.fetch(
+            FetchDescriptor<DiaryAttachment>()
+        ).count == 1)
+
+        let secondContainer = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let reopenedReview = try #require(secondContainer.mainContext.fetch(
+            BoundedQueryService.dailyReviewDescriptor(id: review.id)
+        ).first)
+        _ = try DiaryAttachmentService.saveReview(
+            review: reopenedReview,
+            dayKey: reopenedReview.dayKey,
+            content: reopenedReview.content,
+            attachments: [],
+            in: secondContainer.mainContext
+        )
+
+        let finalContainer = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        #expect(try finalContainer.mainContext.fetch(
+            FetchDescriptor<DiaryAttachment>()
+        ).isEmpty)
+        #expect(try finalContainer.mainContext.fetch(
+            BoundedQueryService.dailyReviewDescriptor(id: review.id)
+        ).first?.content == "삭제 수명주기")
+    }
+}
+
+@Test
+@MainActor
 func legacyFileMigrationIsIdempotent() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
@@ -482,4 +521,21 @@ private func encodedTestImage(type: UTType, marker: UInt8? = nil) -> Data? {
     var data = output as Data
     if let marker { data.append(marker) }
     return data
+}
+
+@MainActor
+private func withTemporaryAttachmentStore(
+    _ operation: (URL) throws -> Void
+) throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "EasyTaskAttachmentLifecycle-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try operation(directory.appendingPathComponent("default.store"))
 }

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import EasyTaskCore
 
@@ -141,6 +142,73 @@ func onlySuccessfulCompletedImportsTriggerReconciliation(
 ) {
     let expected = summary.kind == .import && summary.isCompleted && summary.succeeded
     #expect(CloudKitSyncService.shouldReconcile(after: summary) == expected)
+}
+
+@Test
+@MainActor
+func successfulCloudKitImportPersistsReconciliationRepairs() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let olderReview = DailyReview(
+        id: UUID(),
+        instanceID: UUID(),
+        dayKey: "2026-07-12",
+        content: "older",
+        createdAt: Date(timeIntervalSince1970: 10),
+        updatedAt: Date(timeIntervalSince1970: 20)
+    )
+    let newerReview = DailyReview(
+        id: UUID(),
+        instanceID: UUID(),
+        dayKey: "2026-07-12",
+        content: "newer",
+        createdAt: Date(timeIntervalSince1970: 11),
+        updatedAt: Date(timeIntervalSince1970: 30)
+    )
+    let image = try #require(Data(base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    ))
+    let metadata = try DiaryAttachmentService.inspect(image)
+    let attachment = DiaryAttachment(
+        reviewId: olderReview.id,
+        order: 100,
+        mimeType: metadata.mediaType.rawValue,
+        byteCount: metadata.byteCount,
+        sha256: metadata.sha256,
+        data: image,
+        updatedAt: Date(timeIntervalSince1970: 25)
+    )
+    let danglingTask = Task(
+        title: "원격 이벤트가 먼저 삭제된 작업",
+        plannedAt: day,
+        order: 100,
+        eventId: UUID()
+    )
+    context.insert(olderReview)
+    context.insert(newerReview)
+    context.insert(attachment)
+    context.insert(danglingTask)
+    try context.save()
+
+    try CloudKitSyncService.reconcileIfNeeded(
+        after: CloudKitSyncEventSummary(
+            kind: .import,
+            isCompleted: true,
+            succeeded: true
+        ),
+        context: context
+    )
+
+    let reviews = try context.fetch(FetchDescriptor<DailyReview>())
+    let activeReview = try #require(reviews.first { $0.supersededAt == nil })
+    let reopenedAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+
+    #expect(reviews.filter { $0.supersededAt == nil }.count == 1)
+    #expect(activeReview.id == newerReview.id)
+    #expect(activeReview.content == "newer")
+    #expect(reopenedAttachments.first?.reviewId == newerReview.id)
+    #expect(danglingTask.eventId == nil)
 }
 
 #if DEBUG

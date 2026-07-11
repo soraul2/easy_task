@@ -42,12 +42,30 @@ struct EasyTaskiOSApp: App {
 #if DEBUG
             _ = try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
-            return .ready(try EasyTaskContainerFactory.makeAppPersistent())
+            let modelContainer = try EasyTaskContainerFactory.makeAppPersistent()
+#if DEBUG
+            startCloudKitProbeIfRequested(modelContainer: modelContainer)
+#endif
+            return .ready(modelContainer)
         } catch {
             print("EasyTask 저장소를 열 수 없습니다: \(error.localizedDescription)")
             return .failed(error.localizedDescription)
         }
     }
+
+#if DEBUG
+    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
+        guard CloudKitConvergenceProbe.configuration(
+            arguments: ProcessInfo.processInfo.arguments
+        ) != nil else { return }
+
+        Swift.Task { @MainActor in
+            _ = await CloudKitConvergenceProbe.runIfRequested(
+                context: modelContainer.mainContext
+            )
+        }
+    }
+#endif
 }
 
 private enum PersistenceState {
