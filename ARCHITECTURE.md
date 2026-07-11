@@ -24,6 +24,8 @@ Tests/
 - SwiftData 모델: `Task`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`
 - 저장소 구성: `EasyTaskSchemaV1`, `EasyTaskSchemaV2`, `EasyTaskSchemaV3`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
+- 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
+- 동기화 상태: `CloudKitSyncMonitor`, 이벤트별 진행·오류 추적
 - 날짜/보드 규칙: `DayKey`, `TaskRules`
 - 기록 조회 규칙: `ArchiveQueryRules`, `ArchiveFilter`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
@@ -55,16 +57,25 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 ## 데이터 흐름
 
-1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V3 스키마의 로컬 컨테이너를 생성한다.
+1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V3 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
 2. 저장소는 V1 → V2 → V3 순서로 이동하며 이미 배포된 V1/V2 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
-3. 앱 시작 시 무결성 정리와 레거시 이미지 이관을 실행한 뒤 demo seed와 lazy archive 규칙을 실행한다.
+3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
 5. 완료된 작업은 당일에는 보드에 남고, 이후 조회 시 보관 흐름으로 이동한다.
 6. 캘린더 이벤트는 기간 이벤트로 보이며, 작업 세부 계획은 보드에서 조정한다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
 9. 백업 V2는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지다.
+
+## 저장과 동기화 런타임
+
+- 컨테이너 개방 실패는 앱을 종료하지 않고 원인과 재시도 버튼이 있는 복구 화면으로 표시한다.
+- 주요 생성·수정·이동·삭제는 `PersistenceCommandService`를 거쳐 저장하며 실패 시 해당 명령을 rollback한다.
+- CloudKit setup/import/export 이벤트는 식별자별로 추적한다. 동시에 실행 중인 이벤트가 있으면 동기화 중 상태를 유지하고, 다른 이벤트의 성공이 기존 실패를 숨기지 않는다.
+- 성공한 import 뒤 무결성 정리를 같은 저장 명령 안에서 실행한다. 정리나 저장이 실패하면 변경을 남기지 않는다.
+- 앱 활성화, 자정, 시스템 시간대 변경 때 오늘 키를 갱신한다. 사용자가 오늘 보드를 보고 있었다면 새 오늘을 따라가고, 과거·미래 날짜를 보고 있었다면 날짜 키를 보존해 새 시간대에서 다시 구성한다.
+- 동기화 상태 화면은 iCloud 계정 상태, 진행 여부, 최근 성공 시각, 동기화 오류와 데이터 정리 오류를 구분해 표시한다.
 
 ## 무결성 규칙
 
@@ -82,6 +93,8 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 ## 이미지와 백업
 
 - PNG, JPEG, HEIC만 허용하며 20MB 이하인지와 ImageIO 실제 디코딩 가능 여부를 저장 전에 확인한다.
+- 목록과 작성 화면의 미리보기는 원본을 직접 디코딩하지 않는다. iOS는 최대 1,280px, macOS는 최대 1,600px로 백그라운드 다운샘플하고 제한된 메모리 캐시와 진행 중 요청 병합을 사용한다.
+- 기록 화면은 회고별 첨부·레거시 블록 인덱스를 한 번 구성해 카드마다 전체 배열을 반복 검색하지 않는다.
 - 새 이미지 추가·삭제는 회고 본문과 한 번의 SwiftData 저장으로 확정되어 별도 고아 파일을 만들지 않는다.
 - V2의 `imageFileNames`와 이미지 `DiaryBlock`은 V3 개방 후 앱 지원 폴더에서 점진적으로 옮긴다.
 - 누락되거나 손상된 기존 파일은 참조를 지우지 않고 다음 실행에서 재시도하며, 모두 옮긴 회고만 레거시 참조를 정리한다.
@@ -110,9 +123,14 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - 개발 스키마만 사용하며 운영 스키마 승격은 실기기 수렴 검증 전까지 금지한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
+- 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그를 편집한다.
+- iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
 - 기본 내보내기는 이미지 원본을 포함한 백업 V2이며 JSON V1은 가져오기 호환 경로로만 유지한다.
 
 ## 다음 단계
+
+다음 우선순위는 기간·페이지 기반 조회, 검색 debounce, 자동 복구 백업, UI smoke test,
+두 기기 오프라인 충돌 수렴 검증과 CloudKit 운영 스키마 승격이다.
 
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
