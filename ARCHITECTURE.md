@@ -27,7 +27,8 @@ Tests/
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
 - 동기화 상태: `CloudKitSyncMonitor`, 이벤트별 진행·오류 추적
 - 날짜/보드 규칙: `DayKey`, `TaskRules`
-- 기록 조회 규칙: `ArchiveQueryRules`, `ArchiveFilter`
+- 제한 조회: `BoundedQueryService`, 날짜 범위 descriptor와 action-time 관계 fetch
+- 기록 조회: `ArchiveQueryRules`, `ArchiveFilter`, `ArchiveQuerySession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
 - 백업: JSON V1 호환 `BackupCodec`, 이미지 포함 V2 `BackupPackageCodec`
@@ -67,6 +68,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
 9. 백업 V2는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지다.
+10. 보드와 캘린더는 선택 날짜 또는 42일 월 그리드 범위만 live query하고, 기록은 완전한 날짜 그룹 30개씩 조회한다.
 
 ## 저장과 동기화 런타임
 
@@ -76,6 +78,8 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - 성공한 import 뒤 무결성 정리를 같은 저장 명령 안에서 실행한다. 정리나 저장이 실패하면 변경을 남기지 않는다.
 - 앱 활성화, 자정, 시스템 시간대 변경 때 오늘 키를 갱신한다. 사용자가 오늘 보드를 보고 있었다면 새 오늘을 따라가고, 과거·미래 날짜를 보고 있었다면 날짜 키를 보존해 새 시간대에서 다시 구성한다.
 - 동기화 상태 화면은 iCloud 계정 상태, 진행 여부, 최근 성공 시각, 동기화 오류와 데이터 정리 오류를 구분해 표시한다.
+- 앱 루트는 전체 모델을 상시 구독하지 않는다. 데모 seed는 로컬 demo 정책에서만 일회성 fetch하고 lazy archive는 미보관 완료 후보만 조회한다.
+- 성공한 저장 명령은 데이터 변경 알림을 게시하며, 기록 세션은 이미 불러온 페이지 깊이를 보존해 다시 조회한다.
 
 ## 무결성 규칙
 
@@ -126,11 +130,15 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그를 편집한다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
 - 기본 내보내기는 이미지 원본을 포함한 백업 V2이며 JSON V1은 가져오기 호환 경로로만 유지한다.
+- Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
+- Calendar는 표시 월의 42일 범위 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
+- 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
+- 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
 
 ## 다음 단계
 
-다음 우선순위는 기간·페이지 기반 조회, 검색 debounce, 자동 복구 백업, UI smoke test,
-두 기기 오프라인 충돌 수렴 검증과 CloudKit 운영 스키마 승격이다.
+다음 우선순위는 자동 복구 백업, UI smoke test, 두 기기 오프라인 충돌 수렴 검증과
+CloudKit 운영 스키마 승격이다.
 
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
