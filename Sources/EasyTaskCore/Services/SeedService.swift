@@ -12,6 +12,10 @@ public enum SeedPolicy: Sendable {
         .release
 #endif
     }
+
+    public static func appStartup(cloudKitEnabled: Bool) -> Self {
+        cloudKitEnabled ? .release : appStartup
+    }
 }
 
 public enum SeedService {

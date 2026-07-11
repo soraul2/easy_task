@@ -1,4 +1,5 @@
 #if os(iOS)
+import Combine
 import EasyTaskCore
 import Foundation
 import SwiftData
@@ -20,7 +21,12 @@ struct EasyTaskiOSApp: App {
         }
 
         do {
-            modelContainer = try EasyTaskContainerFactory.makePersistent()
+#if DEBUG
+            _ = try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
+#endif
+            modelContainer = try EasyTaskContainerFactory.makePersistent(
+                mode: EasyTaskContainerFactory.appStoreMode
+            )
         } catch {
             fatalError("EasyTask 저장소를 열 수 없습니다: \(error.localizedDescription)")
         }
@@ -113,6 +119,11 @@ private struct MobileAppRootView: View {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
             themeRevision += 1
         }
+        .onReceive(NotificationCenter.default.publisher(
+            for: CloudKitSyncService.eventChangedNotification
+        )) { notification in
+            handleCloudKitEvent(notification)
+        }
     }
 
     private func start() {
@@ -146,9 +157,32 @@ private struct MobileAppRootView: View {
             tasks: tasks,
             events: events,
             templates: templates,
-            reviews: reviews
+            reviews: reviews,
+            policy: .appStartup(
+                cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
+            )
         )
         TaskRules.archiveIfNeeded(tasks)
+    }
+
+    private func handleCloudKitEvent(_ notification: Notification) {
+        do {
+            guard let summary = try CloudKitSyncService.handle(
+                notification,
+                context: modelContext
+            ), summary.isCompleted else { return }
+
+            if summary.succeeded {
+                print("EasyTask CloudKit \(summary.kind.rawValue) completed")
+            } else {
+                print(
+                    "EasyTask CloudKit \(summary.kind.rawValue) failed: " +
+                        (summary.errorDescription ?? "unknown error")
+                )
+            }
+        } catch {
+            print("EasyTask post-sync reconciliation failed: \(error.localizedDescription)")
+        }
     }
 }
 #else

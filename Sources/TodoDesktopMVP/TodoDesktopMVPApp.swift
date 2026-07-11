@@ -8,7 +8,12 @@ struct TodoDesktopMVPApp: App {
 
     init() {
         do {
-            modelContainer = try EasyTaskContainerFactory.makePersistent()
+#if DEBUG
+            _ = try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
+#endif
+            modelContainer = try EasyTaskContainerFactory.makePersistent(
+                mode: EasyTaskContainerFactory.appStoreMode
+            )
         } catch {
             fatalError("EasyTask 저장소를 열 수 없습니다: \(error.localizedDescription)")
         }

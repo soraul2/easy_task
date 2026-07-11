@@ -1,3 +1,5 @@
+import Combine
+import Foundation
 import SwiftData
 import SwiftUI
 import EasyTaskCore
@@ -87,7 +89,10 @@ struct AppRootView: View {
                 tasks: tasks,
                 events: events,
                 templates: templates,
-                reviews: reviews
+                reviews: reviews,
+                policy: .appStartup(
+                    cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
+                )
             )
             TaskRules.archiveIfNeeded(tasks)
         }
@@ -102,10 +107,35 @@ struct AppRootView: View {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
             themeRevision += 1
         }
+        .onReceive(NotificationCenter.default.publisher(
+            for: CloudKitSyncService.eventChangedNotification
+        )) { notification in
+            handleCloudKitEvent(notification)
+        }
     }
 
     private var bottomContentInset: CGFloat {
         selectedTab == .calendar ? 0 : 92
+    }
+
+    private func handleCloudKitEvent(_ notification: Notification) {
+        do {
+            guard let summary = try CloudKitSyncService.handle(
+                notification,
+                context: modelContext
+            ), summary.isCompleted else { return }
+
+            if summary.succeeded {
+                print("EasyTask CloudKit \(summary.kind.rawValue) completed")
+            } else {
+                print(
+                    "EasyTask CloudKit \(summary.kind.rawValue) failed: " +
+                        (summary.errorDescription ?? "unknown error")
+                )
+            }
+        } catch {
+            print("EasyTask post-sync reconciliation failed: \(error.localizedDescription)")
+        }
     }
 
     @ViewBuilder

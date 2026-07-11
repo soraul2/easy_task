@@ -42,6 +42,8 @@
 		D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/BoardView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/CalendarView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DiaryView.swift; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000005 /* Sources */,
+				E10000000000000000000001 /* Configuration */,
 				A10000000000000000000006 /* Resources */,
 				A10000000000000000000007 /* Products */,
 			);
@@ -92,6 +95,15 @@
 				D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */,
 			);
 			name = Sources;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000001 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */,
+				E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */,
+			);
+			name = Configuration;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000006 /* Resources */ = {
@@ -165,9 +177,28 @@
 				TargetAttributes = {
 					A10000000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 					C10000000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -364,6 +395,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -387,6 +419,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -408,6 +441,7 @@
 		C1000000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
@@ -429,6 +463,7 @@
 		C1000000000000000000000D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;

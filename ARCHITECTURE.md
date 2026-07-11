@@ -94,8 +94,11 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 ## 현재 MVP 범위
 
-- V3 버전 스키마와 로컬 SwiftData 저장만 사용하며 CloudKit은 명시적으로 비활성화한다.
-- iCloud/CloudKit 동기화는 다음 단계에서 적용한다.
+- V3 버전 스키마를 유지하며 앱 타겟은 private CloudKit 저장소를 사용한다.
+- 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS와 macOS가 같은 컨테이너를 명시적으로 선택한다.
+- 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
+- CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
+- 개발 스키마만 사용하며 운영 스키마 승격은 실기기 수렴 검증 전까지 금지한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
 - 기본 내보내기는 이미지 원본을 포함한 백업 V2이며 JSON V1은 가져오기 호환 경로로만 유지한다.
@@ -104,3 +107,4 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
+개발 컨테이너 발급과 검증 절차는 [`CLOUDKIT_SYNC.md`](CLOUDKIT_SYNC.md)를 따른다.
