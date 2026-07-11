@@ -137,8 +137,10 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 ## 다음 단계
 
-다음 우선순위는 자동 복구 백업, UI smoke test, 두 기기 오프라인 충돌 수렴 검증과
-CloudKit 운영 스키마 승격이다.
+2026-07-12 기준으로 동일 개발 컨테이너의 macOS ↔ iPhone 양방향 create/delete 전파는
+고유 진단 레코드로 통과했다. 다음 우선순위는 같은 레코드의 오프라인 동시 편집,
+이미지 추가·삭제·재설치, iCloud 로그아웃·재로그인, 자동 복구 백업과 UI smoke test다.
+이 조건과 Debug/Release 서명 검증을 모두 통과한 뒤 CloudKit 운영 스키마 승격을 판단한다.
 
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.

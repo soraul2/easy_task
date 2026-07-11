@@ -315,6 +315,7 @@ private extension CloudKitConvergenceProbe {
     static func log(_ message: String) {
         logger.notice("\(message, privacy: .public)")
         print("\(logPrefix) \(message)")
+        fflush(stdout)
     }
 
     static func terminateProcess(success: Bool) -> Never {
