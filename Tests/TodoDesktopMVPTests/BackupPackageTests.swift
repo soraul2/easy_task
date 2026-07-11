@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SwiftData
 import Testing
@@ -72,6 +73,110 @@ func importingSamePackageTwiceCreatesNoDuplicates() throws {
     #expect(try destination.mainContext.fetch(FetchDescriptor<DailyReview>()).count == 1)
     #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>()).count == 1)
     #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryBlock>()).count == 1)
+}
+
+@Test
+@MainActor
+func repeatedImportRemainsIdempotentAfterReviewReconciliation() throws {
+    let lowerInstanceID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+    let higherInstanceID = UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!
+    let timestamp = Date(timeIntervalSince1970: 450)
+    let source = try reviewContainer(
+        id: UUID(),
+        instanceID: lowerInstanceID,
+        content: "백업 회고",
+        updatedAt: timestamp
+    )
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let destination = try reviewContainer(
+        id: UUID(),
+        instanceID: higherInstanceID,
+        content: "동일 날짜 로컬 회고",
+        updatedAt: timestamp
+    )
+
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+
+    let reviews = try destination.mainContext.fetch(FetchDescriptor<DailyReview>())
+    let active = try #require(reviews.first { $0.supersededAt == nil })
+    #expect(reviews.count == 2)
+    #expect(active.instanceID == lowerInstanceID)
+    #expect(active.content == "동일 날짜 로컬 회고")
+}
+
+@Test
+@MainActor
+func reconciledDuplicateDoesNotMaskLaterIdentityCorruption() throws {
+    let logicalID = UUID()
+    let lowerInstanceID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+    let higherInstanceID = UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!
+    let timestamp = Date(timeIntervalSince1970: 460)
+    let source = try reviewContainer(
+        id: logicalID,
+        instanceID: lowerInstanceID,
+        content: "백업 원본",
+        updatedAt: timestamp
+    )
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    destination.mainContext.insert(DailyReview(
+        id: logicalID,
+        instanceID: lowerInstanceID,
+        dayKey: "2026-07-11",
+        content: "낮은 인스턴스",
+        createdAt: Date(timeIntervalSince1970: 10),
+        updatedAt: timestamp
+    ))
+    destination.mainContext.insert(DailyReview(
+        id: UUID(),
+        instanceID: higherInstanceID,
+        dayKey: "2026-07-11",
+        content: "정상 승자",
+        createdAt: Date(timeIntervalSince1970: 10),
+        updatedAt: timestamp
+    ))
+    try destination.mainContext.save()
+    _ = try DataIntegrityService.reconcile(context: destination.mainContext)
+    let active = try #require(destination.mainContext
+        .fetch(FetchDescriptor<DailyReview>()).first { $0.supersededAt == nil })
+    active.content = "타임스탬프 없는 손상"
+    try destination.mainContext.save()
+
+    #expect(throws: BackupPackageError.identityCorruption(
+        recordType: "DailyReview",
+        instanceID: lowerInstanceID
+    )) {
+        try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    }
+}
+
+@Test
+@MainActor
+func mergeRollsBackWhenReconciledReviewExceedsAttachmentLimit() throws {
+    let firstSource = try packageSourceContainer(
+        imageCount: 6,
+        markerOffset: 0x20
+    )
+    let secondSource = try packageSourceContainer(
+        imageCount: 6,
+        markerOffset: 0x30
+    )
+    let firstContents = try BackupPackageCodec.makeContents(context: firstSource.mainContext)
+    let secondContents = try BackupPackageCodec.makeContents(context: secondSource.mainContext)
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+
+    _ = try BackupPackageCodec.restoreMerging(firstContents, into: destination.mainContext)
+    #expect(throws: BackupPackageError.tooManyAttachments(actual: 12, maximum: 10)) {
+        try BackupPackageCodec.restoreMerging(secondContents, into: destination.mainContext)
+    }
+
+    let activeReviews = try destination.mainContext.fetch(FetchDescriptor<DailyReview>())
+        .filter { $0.supersededAt == nil }
+    let activeAttachments = try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>())
+        .filter { $0.supersededAt == nil }
+    #expect(activeReviews.count == 1)
+    #expect(activeAttachments.count == 6)
 }
 
 @Test
@@ -196,6 +301,22 @@ func packageValidationRejectsDuplicateManifestEntries() throws {
     contents.manifest.attachments.append(duplicate)
 
     #expect(throws: BackupPackageError.duplicateAttachmentID(duplicate.id)) {
+        try BackupPackageCodec.validate(contents)
+    }
+}
+
+@Test
+@MainActor
+func packageValidationRejectsDuplicateAttachmentInstanceIDs() throws {
+    let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x40)
+    var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    contents.records.attachments[1].instanceID = contents.records.attachments[0].instanceID
+    refreshRecordsMetadata(&contents)
+
+    #expect(throws: BackupPackageError.duplicateInstanceID(
+        recordType: "DiaryAttachment",
+        instanceID: contents.records.attachments[0].instanceID
+    )) {
         try BackupPackageCodec.validate(contents)
     }
 }
@@ -339,6 +460,57 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
 
 @Test
 @MainActor
+func repeatedLegacyJSONImportSurvivesReviewAndBlockReconciliation() throws {
+    let timestamp = Date(timeIntervalSince1970: 600)
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    let sourceReview = DailyReview(
+        id: UUID(),
+        dayKey: "2026-07-11",
+        content: "V1 백업 회고",
+        createdAt: timestamp,
+        updatedAt: timestamp
+    )
+    source.mainContext.insert(sourceReview)
+    source.mainContext.insert(DiaryBlock(
+        reviewId: sourceReview.id,
+        dayKey: sourceReview.dayKey,
+        type: .text,
+        text: sourceReview.content,
+        order: 0,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    ))
+    try source.mainContext.save()
+    var payload = try BackupCodec.makePayload(context: source.mainContext)
+    payload.dailyReviews?[0].instanceID = nil
+    payload.diaryBlocks?[0].instanceID = nil
+
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    destination.mainContext.insert(DailyReview(
+        id: UUID(),
+        instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
+        dayKey: sourceReview.dayKey,
+        content: "동일 날짜 로컬 회고",
+        createdAt: timestamp,
+        updatedAt: timestamp
+    ))
+    try destination.mainContext.save()
+
+    _ = try BackupPackageCodec.restoreLegacyJSONMerging(payload, into: destination.mainContext)
+    _ = try BackupPackageCodec.restoreLegacyJSONMerging(payload, into: destination.mainContext)
+
+    let reviews = try destination.mainContext.fetch(FetchDescriptor<DailyReview>())
+    let blocks = try destination.mainContext.fetch(FetchDescriptor<DiaryBlock>())
+        .filter { $0.supersededAt == nil }
+    let activeReview = try #require(reviews.first { $0.supersededAt == nil })
+    #expect(reviews.count == 2)
+    #expect(activeReview.content == "동일 날짜 로컬 회고")
+    #expect(blocks.count == 1)
+    #expect(blocks.first?.reviewId == activeReview.id)
+}
+
+@Test
+@MainActor
 func legacyReplaceAllDoesNotLeaveV3AttachmentOrphans() throws {
     let source = try EasyTaskContainerFactory.makeInMemory()
     let emptyPayload = try BackupCodec.makePayload(context: source.mainContext)
@@ -361,6 +533,27 @@ private func packageSourceContainer(image: Data) throws -> ModelContainer {
         content: "첨부가 있는 회고",
         attachments: [DiaryAttachmentDraft(data: image)],
         in: container.mainContext
+    )
+    return container
+}
+
+@MainActor
+private func packageSourceContainer(
+    imageCount: Int,
+    markerOffset: UInt8
+) throws -> ModelContainer {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let drafts = (0..<imageCount).map { index in
+        DiaryAttachmentDraft(data: testPNG(markerOffset &+ UInt8(index)))
+    }
+    _ = try DiaryAttachmentService.saveReview(
+        review: nil,
+        dayKey: "2026-07-11",
+        title: "병합 제한 테스트",
+        content: "첨부 \(imageCount)개",
+        attachments: drafts,
+        in: container.mainContext,
+        now: Date(timeIntervalSince1970: 500)
     )
     return container
 }
@@ -399,4 +592,15 @@ private func temporaryPackageURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("EasyTaskBackupTests-\(UUID().uuidString)")
         .appendingPathExtension("easytaskbackup")
+}
+
+private func refreshRecordsMetadata(_ contents: inout BackupPackageContents) {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try! encoder.encode(contents.records)
+    contents.manifest.recordsByteCount = data.count
+    contents.manifest.recordsSHA256 = SHA256.hash(data: data)
+        .map { String(format: "%02x", $0) }
+        .joined()
 }

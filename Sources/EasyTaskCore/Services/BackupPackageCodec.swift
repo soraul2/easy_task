@@ -165,6 +165,7 @@ public enum BackupPackageError: LocalizedError, Equatable {
     case packageTooLarge(actualBytes: Int, maximumBytes: Int)
     case metadataTooLarge(fileName: String, actualBytes: Int, maximumBytes: Int)
     case unresolvedLegacyAttachments(Int)
+    case tooManyAttachments(actual: Int, maximum: Int)
     case identityCorruption(recordType: String, instanceID: UUID)
     case fileSystem(String)
 
@@ -210,6 +211,8 @@ public enum BackupPackageError: LocalizedError, Equatable {
             return "백업 메타데이터 파일이 너무 큽니다. file=\(fileName), size=\(actualBytes), max=\(maximumBytes)"
         case .unresolvedLegacyAttachments(let count):
             return "이관되지 않은 기존 이미지 \(count)개가 있어 백업을 만들 수 없습니다. 앱을 다시 연 뒤 이미지를 확인하세요."
+        case .tooManyAttachments(let actual, let maximum):
+            return "회고 한 건의 이미지가 제한을 초과했습니다. count=\(actual), max=\(maximum)"
         case .identityCorruption(let recordType, let instanceID):
             return "같은 인스턴스가 서로 다른 내용을 가집니다. type=\(recordType), instanceID=\(instanceID)"
         case .fileSystem(let description):
@@ -233,6 +236,7 @@ public enum BackupPackageCodec {
         exportedAt: Date = Date()
     ) throws -> BackupPackageContents {
         _ = try DataIntegrityService.reconcile(context: context)
+        try validateFinalAttachmentCounts(context: context)
         var payload = try BackupCodec.makePayload(context: context)
         payload.exportedAt = exportedAt
 
@@ -545,6 +549,10 @@ public enum BackupPackageCodec {
             throw BackupPackageError.unresolvedLegacyAttachments(legacyReferenceCount)
         }
         try validateRecordInstanceIDs(contents.records.payload)
+        try validateInstanceIDs(
+            contents.records.attachments.map { ($0.id, Optional($0.instanceID)) },
+            recordType: "DiaryAttachment"
+        )
         let canonicalRecordsData = try encoded(contents.records)
         guard canonicalRecordsData.count == contents.manifest.recordsByteCount else {
             throw BackupPackageError.recordsSizeMismatch
@@ -642,6 +650,17 @@ public enum BackupPackageCodec {
                 actualBytes: totalBytes,
                 maximumBytes: maximumTotalAttachmentBytes
             )
+        }
+    }
+}
+
+extension BackupPackageCodec {
+    @MainActor
+    static func validateFinalAttachmentCounts(context: ModelContext) throws {
+        do {
+            try DiaryAttachmentService.validateActiveAttachmentCounts(in: context)
+        } catch DiaryAttachmentServiceError.tooManyAttachments(let actual, let maximum) {
+            throw BackupPackageError.tooManyAttachments(actual: actual, maximum: maximum)
         }
     }
 }

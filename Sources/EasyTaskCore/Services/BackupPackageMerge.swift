@@ -55,6 +55,7 @@ public extension BackupPackageCodec {
                 preserveLegacyImages: true
             )
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
+            try validateFinalAttachmentCounts(context: context)
             try context.save()
 
             let reviewNames = (payload.dailyReviews ?? []).flatMap { $0.imageFileNames ?? [] }
@@ -94,6 +95,7 @@ extension BackupPackageCodec {
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
             try mergeAttachments(contents, context: context, report: &report)
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
+            try validateFinalAttachmentCounts(context: context)
             try beforeFinalSave()
             try context.save()
             return report
@@ -198,8 +200,9 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
+        let records = try context.fetch(FetchDescriptor<CalendarEvent>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<CalendarEvent>()),
+            records,
             recordType: "CalendarEvent",
             instanceID: \.instanceID
         )
@@ -212,10 +215,17 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "CalendarEvent", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameEvent(dto, current) else {
+                    guard sameEvent(dto, current) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: { $0.id == current.id },
+                        sameScalars: sameEventScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "CalendarEvent", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -261,8 +271,9 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
+        let records = try context.fetch(FetchDescriptor<TaskTemplate>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<TaskTemplate>()),
+            records,
             recordType: "TaskTemplate",
             instanceID: \.instanceID
         )
@@ -275,10 +286,23 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TaskTemplate", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameTemplate(dto, current) else {
+                    guard sameTemplate(dto, current) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: {
+                            if $0.id == current.id { return true }
+                            guard let currentSeedKey = normalizedNaturalKey(current.seedKey) else {
+                                return false
+                            }
+                            return normalizedNaturalKey($0.seedKey) == currentSeedKey
+                        },
+                        sameScalars: sameTemplateScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "TaskTemplate", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -316,8 +340,9 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
+        let records = try context.fetch(FetchDescriptor<TaskTemplateItem>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<TaskTemplateItem>()),
+            records,
             recordType: "TaskTemplateItem",
             instanceID: \.instanceID
         )
@@ -331,10 +356,22 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TaskTemplateItem", instanceID: instanceID)
                 }
                 if incomingUpdatedAt == current.updatedAt {
-                    guard sameTemplateItem(dto, current) else {
+                    guard sameTemplateItem(dto, current) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: {
+                            $0.id == current.id ||
+                                (normalizedNaturalKey($0.seedKey) != nil &&
+                                    normalizedNaturalKey($0.seedKey) == normalizedNaturalKey(current.seedKey) &&
+                                    $0.templateId == current.templateId)
+                        },
+                        sameScalars: sameTemplateItemScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "TaskTemplateItem", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -384,8 +421,9 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
+        let records = try context.fetch(FetchDescriptor<TemplatePlacement>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<TemplatePlacement>()),
+            records,
             recordType: "TemplatePlacement",
             instanceID: \.instanceID
         )
@@ -398,10 +436,17 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TemplatePlacement", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard samePlacement(dto, current) else {
+                    guard samePlacement(dto, current) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: { $0.id == current.id },
+                        sameScalars: samePlacementScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "TemplatePlacement", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -440,8 +485,9 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
+        let records = try context.fetch(FetchDescriptor<Task>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<Task>()),
+            records,
             recordType: "Task",
             instanceID: \.instanceID
         )
@@ -454,10 +500,17 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameTask(dto, current) else {
+                    guard sameTask(dto, current) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: { $0.id == current.id },
+                        sameScalars: sameTaskScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -521,8 +574,9 @@ private extension BackupPackageCodec {
         report: inout BackupPackageMergeReport,
         preserveLegacyImages: Bool = false
     ) throws {
+        let records = try context.fetch(FetchDescriptor<DailyReview>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<DailyReview>()),
+            records,
             recordType: "DailyReview",
             instanceID: \.instanceID
         )
@@ -535,10 +589,23 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "DailyReview", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameReview(dto, current, preserveLegacyImages: preserveLegacyImages) else {
+                    guard sameReview(
+                        dto,
+                        current,
+                        preserveLegacyImages: preserveLegacyImages
+                    ) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: {
+                            $0.id == current.id || $0.dayKey == current.dayKey
+                        },
+                        sameScalars: sameReviewScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "DailyReview", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -551,7 +618,9 @@ private extension BackupPackageCodec {
                 current.weather = dto.weather ?? ""
                 current.mood = dto.mood ?? ""
                 current.content = dto.content
-                current.imageFileNames = preserveLegacyImages ? (dto.imageFileNames ?? []) : []
+                if preserveLegacyImages {
+                    current.imageFileNames = dto.imageFileNames ?? []
+                }
                 current.createdAt = min(current.createdAt, dto.createdAt)
                 current.updatedAt = dto.updatedAt
                 current.supersededAt = nil
@@ -583,8 +652,9 @@ private extension BackupPackageCodec {
         report: inout BackupPackageMergeReport,
         preserveLegacyImages: Bool = false
     ) throws {
+        let records = try context.fetch(FetchDescriptor<DiaryBlock>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<DiaryBlock>()),
+            records,
             recordType: "DiaryBlock",
             instanceID: \.instanceID
         )
@@ -597,10 +667,21 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "DiaryBlock", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard sameDiaryBlock(dto, current, preserveLegacyImages: preserveLegacyImages) else {
+                    guard sameDiaryBlock(
+                        dto,
+                        current,
+                        preserveLegacyImages: preserveLegacyImages
+                    ) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: { $0.id == current.id },
+                        sameScalars: sameDiaryBlockScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "DiaryBlock", instanceID: instanceID)
                     }
-                    current.supersededAt = nil
                     report.preservedLocalRecords += 1
                     continue
                 }
@@ -644,8 +725,9 @@ private extension BackupPackageCodec {
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
+        let records = try context.fetch(FetchDescriptor<DiaryAttachment>())
         var existing = try uniqueByInstanceID(
-            context.fetch(FetchDescriptor<DiaryAttachment>()),
+            records,
             recordType: "DiaryAttachment",
             instanceID: \.instanceID
         )
@@ -661,13 +743,20 @@ private extension BackupPackageCodec {
                     )
                 }
                 if record.updatedAt == current.updatedAt {
-                    guard sameAttachment(record, data: data, current) else {
+                    guard sameAttachment(record, data: data, current) || hasReconciledDuplicate(
+                        in: records,
+                        current: current,
+                        instanceID: \.instanceID,
+                        recordUpdatedAt: \.updatedAt,
+                        supersededAt: \.supersededAt,
+                        sharesGroup: { $0.id == current.id },
+                        sameScalars: sameAttachmentScalars
+                    ) else {
                         throw BackupPackageError.identityCorruption(
                             recordType: "DiaryAttachment",
                             instanceID: record.instanceID
                         )
                     }
-                    current.supersededAt = nil
                     continue
                 }
                 guard record.updatedAt > current.updatedAt else { continue }
@@ -743,7 +832,6 @@ private extension BackupPackageCodec {
         _ item: TaskTemplateItem
     ) -> Bool {
         item.seedKey == dto.seedKey &&
-            item.templateId == dto.templateId &&
             item.title == dto.title &&
             item.note == dto.note &&
             item.priority == dto.priority &&
@@ -756,8 +844,7 @@ private extension BackupPackageCodec {
         _ dto: TemplatePlacementDTO,
         _ placement: TemplatePlacement
     ) -> Bool {
-        placement.sourceTemplateId == dto.sourceTemplateId &&
-            placement.templateName == dto.templateName &&
+        placement.templateName == dto.templateName &&
             placement.dayKey == dto.dayKey
     }
 
@@ -768,8 +855,6 @@ private extension BackupPackageCodec {
             task.plannedAt == dto.plannedAt &&
             task.plannedDayKey == dto.plannedDayKey &&
             task.order == dto.order &&
-            task.eventId == dto.eventId &&
-            task.templatePlacementId == dto.templatePlacementId &&
             task.priority == dto.priority &&
             task.tags == dto.tags &&
             task.estimatedMinutes == dto.estimatedMinutes &&
@@ -784,13 +869,16 @@ private extension BackupPackageCodec {
         _ review: DailyReview,
         preserveLegacyImages: Bool
     ) -> Bool {
-        let imageFileNames = preserveLegacyImages ? (dto.imageFileNames ?? []) : []
-        return review.dayKey == dto.dayKey &&
+        let sameScalars = review.dayKey == dto.dayKey &&
             review.title == (dto.title ?? "") &&
             review.weather == (dto.weather ?? "") &&
             review.mood == (dto.mood ?? "") &&
-            review.content == dto.content &&
-            review.imageFileNames == imageFileNames
+            review.content == dto.content
+        guard preserveLegacyImages else { return sameScalars }
+        return sameScalars && containsLegacyFileNames(
+            review.imageFileNames,
+            expected: dto.imageFileNames ?? []
+        )
     }
 
     static func sameDiaryBlock(
@@ -799,9 +887,7 @@ private extension BackupPackageCodec {
         preserveLegacyImages: Bool
     ) -> Bool {
         let imageFileName = preserveLegacyImages ? dto.imageFileName : nil
-        return block.reviewId == dto.reviewId &&
-            block.dayKey == dto.dayKey &&
-            block.type == dto.type &&
+        return block.type == dto.type &&
             block.text == dto.text &&
             block.imageFileName == imageFileName &&
             block.order == dto.order
@@ -812,12 +898,133 @@ private extension BackupPackageCodec {
         data: Data,
         _ attachment: DiaryAttachment
     ) -> Bool {
-        attachment.reviewId == record.reviewId &&
-            attachment.order == record.order &&
-            attachment.originalFileName == record.originalFileName &&
+        attachment.originalFileName == record.originalFileName &&
             attachment.mimeType == record.mimeType &&
             attachment.byteCount == record.byteCount &&
             attachment.sha256 == record.sha256 &&
             attachment.data == data
+    }
+
+    static func sameEventScalars(_ lhs: CalendarEvent, _ rhs: CalendarEvent) -> Bool {
+        lhs.title == rhs.title &&
+            lhs.startAt == rhs.startAt &&
+            lhs.endAt == rhs.endAt &&
+            lhs.startDayKey == rhs.startDayKey &&
+            lhs.endDayKey == rhs.endDayKey &&
+            lhs.note == rhs.note &&
+            lhs.color == rhs.color
+    }
+
+    static func sameTemplateScalars(_ lhs: TaskTemplate, _ rhs: TaskTemplate) -> Bool {
+        lhs.seedKey == rhs.seedKey &&
+            lhs.name == rhs.name &&
+            lhs.isFavorite == rhs.isFavorite
+    }
+
+    static func sameTemplateItemScalars(
+        _ lhs: TaskTemplateItem,
+        _ rhs: TaskTemplateItem
+    ) -> Bool {
+        lhs.seedKey == rhs.seedKey &&
+            lhs.title == rhs.title &&
+            lhs.note == rhs.note &&
+            lhs.priority == rhs.priority &&
+            lhs.tags == rhs.tags &&
+            lhs.estimatedMinutes == rhs.estimatedMinutes &&
+            lhs.order == rhs.order
+    }
+
+    static func samePlacementScalars(
+        _ lhs: TemplatePlacement,
+        _ rhs: TemplatePlacement
+    ) -> Bool {
+        lhs.templateName == rhs.templateName &&
+            lhs.dayKey == rhs.dayKey
+    }
+
+    static func sameTaskScalars(_ lhs: Task, _ rhs: Task) -> Bool {
+        lhs.title == rhs.title &&
+            lhs.note == rhs.note &&
+            lhs.status == rhs.status &&
+            lhs.plannedAt == rhs.plannedAt &&
+            lhs.plannedDayKey == rhs.plannedDayKey &&
+            lhs.order == rhs.order &&
+            lhs.priority == rhs.priority &&
+            lhs.tags == rhs.tags &&
+            lhs.estimatedMinutes == rhs.estimatedMinutes &&
+            lhs.completedAt == rhs.completedAt &&
+            lhs.completedDayKey == rhs.completedDayKey &&
+            lhs.archivedAt == rhs.archivedAt &&
+            lhs.archivedDayKey == rhs.archivedDayKey
+    }
+
+    static func sameReviewScalars(_ lhs: DailyReview, _ rhs: DailyReview) -> Bool {
+        lhs.dayKey == rhs.dayKey &&
+            lhs.title == rhs.title &&
+            lhs.weather == rhs.weather &&
+            lhs.mood == rhs.mood &&
+            lhs.content == rhs.content
+    }
+
+    static func sameDiaryBlockScalars(_ lhs: DiaryBlock, _ rhs: DiaryBlock) -> Bool {
+        lhs.type == rhs.type &&
+            lhs.text == rhs.text &&
+            lhs.imageFileName == rhs.imageFileName &&
+            lhs.order == rhs.order
+    }
+
+    static func sameAttachmentScalars(
+        _ lhs: DiaryAttachment,
+        _ rhs: DiaryAttachment
+    ) -> Bool {
+        lhs.originalFileName == rhs.originalFileName &&
+            lhs.mimeType == rhs.mimeType &&
+            lhs.byteCount == rhs.byteCount &&
+            lhs.sha256 == rhs.sha256 &&
+            lhs.data == rhs.data
+    }
+
+    static func hasReconciledDuplicate<Record>(
+        in records: [Record],
+        current: Record,
+        instanceID instanceIDKeyPath: KeyPath<Record, UUID>,
+        recordUpdatedAt updatedAtKeyPath: KeyPath<Record, Date>,
+        supersededAt supersededAtKeyPath: KeyPath<Record, Date?>,
+        sharesGroup: (Record) -> Bool,
+        sameScalars: (Record, Record) -> Bool
+    ) -> Bool {
+        let currentInstanceID = current[keyPath: instanceIDKeyPath]
+        let currentUpdatedAt = current[keyPath: updatedAtKeyPath]
+        let candidates = records.filter { record in
+            record[keyPath: instanceIDKeyPath] != currentInstanceID &&
+                record[keyPath: supersededAtKeyPath] != nil &&
+                record[keyPath: updatedAtKeyPath] == currentUpdatedAt &&
+                sharesGroup(record)
+        }
+        guard let winner = candidates.max(by: {
+            $0[keyPath: instanceIDKeyPath].uuidString <
+                $1[keyPath: instanceIDKeyPath].uuidString
+        }),
+              winner[keyPath: instanceIDKeyPath].uuidString > currentInstanceID.uuidString else {
+            return false
+        }
+        return sameScalars(current, winner)
+    }
+
+    static func containsLegacyFileNames(_ actual: [String], expected: [String]) -> Bool {
+        var remaining = Dictionary(grouping: actual, by: { $0 }).mapValues(\.count)
+        for fileName in expected {
+            guard let count = remaining[fileName], count > 0 else { return false }
+            remaining[fileName] = count - 1
+        }
+        return true
+    }
+
+    static func normalizedNaturalKey(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
     }
 }
