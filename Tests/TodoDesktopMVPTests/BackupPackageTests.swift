@@ -460,6 +460,40 @@ func repeatedAttachmentImportSurvivesCanonicalReviewRewire() throws {
 
 @Test
 @MainActor
+func rewiredAttachmentImportRejectsRelativeOrderTampering() throws {
+    let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x58)
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let sourceReview = try #require(contents.records.payload.dailyReviews?.first)
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    destination.mainContext.insert(DailyReview(
+        id: UUID(),
+        instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
+        dayKey: sourceReview.dayKey,
+        content: "동일 날짜 로컬 회고",
+        createdAt: sourceReview.createdAt,
+        updatedAt: sourceReview.updatedAt
+    ))
+    try destination.mainContext.save()
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+
+    var tampered = contents
+    let firstInstanceID = tampered.records.attachments[0].instanceID
+    let firstOrder = tampered.records.attachments[0].order
+    tampered.records.attachments[0].order = tampered.records.attachments[1].order
+    tampered.records.attachments[1].order = firstOrder
+    refreshRecordsMetadata(&tampered)
+    try BackupPackageCodec.validate(tampered)
+
+    #expect(throws: BackupPackageError.identityCorruption(
+        recordType: "DiaryAttachment",
+        instanceID: firstInstanceID
+    )) {
+        try BackupPackageCodec.restoreMerging(tampered, into: destination.mainContext)
+    }
+}
+
+@Test
+@MainActor
 func equalTimestampCandidatesConvergeRegardlessOfImportOrder() throws {
     let logicalID = UUID()
     let lowerInstanceID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!

@@ -671,6 +671,7 @@ private extension BackupPackageCodec {
                         record,
                         data: data,
                         current,
+                        allRecords: contents.records.attachments,
                         context: context
                     ) else {
                         throw BackupPackageError.identityCorruption(
@@ -853,6 +854,7 @@ private extension BackupPackageCodec {
         _ record: BackupPackageAttachmentRecord,
         data: Data,
         _ attachment: DiaryAttachment,
+        allRecords: [BackupPackageAttachmentRecord],
         context: ModelContext
     ) throws -> Bool {
         let canonicalReview = attachment.supersededAt == nil
@@ -860,11 +862,17 @@ private extension BackupPackageCodec {
             : nil
         let expectedReviewID = canonicalReview?.id ?? record.reviewId
         let reviewWasRewritten = expectedReviewID != record.reviewId
-        let hasNormalizedOrder = reviewWasRewritten
-            ? try hasCanonicalAttachmentOrder(attachment, context: context)
+        let preservesRelativeOrder = reviewWasRewritten
+            ? try preservesRelativeAttachmentOrder(
+                sourceReviewID: record.reviewId,
+                canonicalReviewID: expectedReviewID,
+                allRecords: allRecords,
+                context: context
+            )
             : false
-        let orderMatches = attachment.order == record.order ||
-            hasNormalizedOrder
+        let orderMatches = reviewWasRewritten
+            ? preservesRelativeOrder
+            : attachment.order == record.order
         return attachment.reviewId == expectedReviewID &&
             orderMatches &&
             attachment.originalFileName == record.originalFileName &&
@@ -884,7 +892,14 @@ private extension BackupPackageCodec {
         if templates.contains(where: { $0.id == sourceID && $0.supersededAt == nil }) {
             return sourceID
         }
-        guard let source = templates.first(where: { $0.id == sourceID }),
+        guard let source = templates.filter({ $0.id == sourceID }).max(by: {
+            mergeRecordPrecedes(
+                lhsUpdatedAt: $0.updatedAt,
+                lhsInstanceID: $0.instanceID,
+                rhsUpdatedAt: $1.updatedAt,
+                rhsInstanceID: $1.instanceID
+            )
+        }),
               let seedKey = normalizedNaturalKey(source.seedKey) else {
             return nil
         }
@@ -904,7 +919,14 @@ private extension BackupPackageCodec {
         }) {
             return active
         }
-        guard let source = reviews.first(where: { $0.id == sourceID }) else { return nil }
+        guard let source = reviews.filter({ $0.id == sourceID }).max(by: {
+            mergeRecordPrecedes(
+                lhsUpdatedAt: $0.updatedAt,
+                lhsInstanceID: $0.instanceID,
+                rhsUpdatedAt: $1.updatedAt,
+                rhsInstanceID: $1.instanceID
+            )
+        }) else { return nil }
         return reviews.first {
             $0.supersededAt == nil && $0.dayKey == source.dayKey
         }
@@ -933,24 +955,33 @@ private extension BackupPackageCodec {
     }
 
     @MainActor
-    static func hasCanonicalAttachmentOrder(
-        _ attachment: DiaryAttachment,
+    static func preservesRelativeAttachmentOrder(
+        sourceReviewID: UUID,
+        canonicalReviewID: UUID,
+        allRecords: [BackupPackageAttachmentRecord],
         context: ModelContext
     ) throws -> Bool {
-        let ordered = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        let incomingInstanceIDs = allRecords
+            .filter { $0.reviewId == sourceReviewID }
+            .sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+            .map(\.instanceID)
+        guard !incomingInstanceIDs.isEmpty else { return false }
+        let incomingInstanceIDSet = Set(incomingInstanceIDs)
+        let localInstanceIDs = try context.fetch(FetchDescriptor<DiaryAttachment>())
             .filter {
-                $0.supersededAt == nil && $0.reviewId == attachment.reviewId
+                $0.supersededAt == nil &&
+                    $0.reviewId == canonicalReviewID &&
+                    incomingInstanceIDSet.contains($0.instanceID)
             }
             .sorted {
                 if $0.order != $1.order { return $0.order < $1.order }
                 return $0.instanceID.uuidString < $1.instanceID.uuidString
             }
-        guard let index = ordered.firstIndex(where: {
-            $0.instanceID == attachment.instanceID
-        }) else {
-            return false
-        }
-        return attachment.order == Double(index) * 100
+            .map(\.instanceID)
+        return localInstanceIDs == incomingInstanceIDs
     }
 
     static func containsLegacyFileNames(_ actual: [String], expected: [String]) -> Bool {
@@ -968,5 +999,17 @@ private extension BackupPackageCodec {
             return nil
         }
         return value.lowercased()
+    }
+
+    static func mergeRecordPrecedes(
+        lhsUpdatedAt: Date,
+        lhsInstanceID: UUID,
+        rhsUpdatedAt: Date,
+        rhsInstanceID: UUID
+    ) -> Bool {
+        if lhsUpdatedAt != rhsUpdatedAt {
+            return lhsUpdatedAt < rhsUpdatedAt
+        }
+        return lhsInstanceID.uuidString < rhsInstanceID.uuidString
     }
 }
