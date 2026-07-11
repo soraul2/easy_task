@@ -256,8 +256,8 @@ private struct MobileArchiveRecordCard: View {
 
             if !attachments.isEmpty || !review.imageFileNames.isEmpty {
                 MobileArchiveImageCarousel(
-                    attachmentData: attachments.map(\.data),
-                    legacyFileNames: attachments.isEmpty ? review.imageFileNames : []
+                    attachments: attachments,
+                    legacyFileNames: review.imageFileNames
                 )
             }
         }
@@ -377,31 +377,25 @@ private struct MobileExpandableReviewText: View {
 }
 
 private struct MobileArchiveImageCarousel: View {
-    var attachmentData: [Data]
+    var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     @State private var selectedIndex = 0
 
-    private var imageCount: Int {
-        attachmentData.isEmpty ? legacyFileNames.count : attachmentData.count
-    }
-
-    private var selectedImage: UIImage? {
-        image(at: selectedIndex)
-    }
-
-    private var selectedAspectRatio: CGFloat {
-        guard let image = selectedImage, image.size.height > 0 else { return 4.0 / 3.0 }
-        return min(max(image.size.width / image.size.height, 0.82), 2.0)
-    }
-
     var body: some View {
+        let items = mixedImageItems
+        let safeIndex = items.indices.contains(selectedIndex) ? selectedIndex : 0
+        let selectedImage = items.indices.contains(safeIndex)
+            ? items[safeIndex].data.flatMap { UIImage(data: $0) }
+            : nil
+        let selectedAspectRatio = aspectRatio(for: selectedImage)
+
         ZStack(alignment: .bottomTrailing) {
             TabView(selection: $selectedIndex) {
-                ForEach(Array(0..<imageCount), id: \.self) { index in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     ZStack {
                         AppTheme.input
 
-                        if let image = image(at: index) {
+                        if let data = item.data, let image = UIImage(data: data) {
                             Image(uiImage: image)
                                 .resizable()
                                 .scaledToFit()
@@ -420,15 +414,15 @@ private struct MobileArchiveImageCarousel: View {
             .aspectRatio(selectedAspectRatio, contentMode: .fit)
             .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
 
-            if imageCount > 1 {
-                Text("\(selectedIndex + 1)/\(imageCount)")
+            if items.count > 1 {
+                Text("\(safeIndex + 1)/\(items.count)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.58), in: Capsule())
                     .padding(9)
-                    .accessibilityLabel("이미지 \(selectedIndex + 1) / \(imageCount)")
+                    .accessibilityLabel("이미지 \(safeIndex + 1) / \(items.count)")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -436,31 +430,72 @@ private struct MobileArchiveImageCarousel: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
-        .onChange(of: imageCount) { _, newImageCount in
+        .onChange(of: items.count) { _, newImageCount in
             if selectedIndex >= newImageCount {
                 selectedIndex = 0
             }
         }
     }
 
-    private func image(at index: Int) -> UIImage? {
-        if attachmentData.indices.contains(index) {
-            return UIImage(data: attachmentData[index])
+    private var mixedImageItems: [MobileArchiveImageItem] {
+        var items = attachments.enumerated().map { index, attachment in
+            MobileArchiveImageItem(
+                id: "canonical-\(attachment.id.uuidString)-\(index)",
+                data: attachment.data
+            )
         }
-        guard attachmentData.isEmpty, legacyFileNames.indices.contains(index) else {
-            return nil
+        let canonicalFileNames = Set(attachments.compactMap {
+            normalizedFileName($0.originalFileName)
+        })
+        let canonicalHashes = Set(attachments.map(\.sha256).filter { !$0.isEmpty })
+        var seenLegacyFileNames: Set<String> = []
+        var seenLegacyHashes: Set<String> = []
+
+        for (index, fileName) in legacyFileNames.enumerated() {
+            guard let fileNameKey = normalizedFileName(fileName) else { continue }
+            let data = legacyImageData(for: fileName)
+            let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
+            let duplicatesCanonical = canonicalFileNames.contains(fileNameKey) ||
+                hash.map(canonicalHashes.contains) == true
+            let duplicatesLegacy = !seenLegacyFileNames.insert(fileNameKey).inserted ||
+                hash.map { !seenLegacyHashes.insert($0).inserted } == true
+            guard !duplicatesCanonical, !duplicatesLegacy else { continue }
+
+            items.append(MobileArchiveImageItem(
+                id: "legacy-\(fileNameKey)-\(index)",
+                data: data
+            ))
         }
-        guard let data = try? Data(
+        return items
+    }
+
+    private func aspectRatio(for image: UIImage?) -> CGFloat {
+        guard let image, image.size.height > 0 else { return 4.0 / 3.0 }
+        return min(max(image.size.width / image.size.height, 0.82), 2.0)
+    }
+
+    private func legacyImageData(for fileName: String) -> Data? {
+        try? Data(
             contentsOf: DiaryImageFileStore.imageURL(
-                for: legacyFileNames[index],
+                for: fileName,
                 appSupportFolder: MobileImageStorage.appSupportFolder
             ),
             options: [.mappedIfSafe]
-        ) else {
+        )
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
             return nil
         }
-        return UIImage(data: data)
+        return value.lowercased()
     }
+}
+
+private struct MobileArchiveImageItem: Identifiable {
+    var id: String
+    var data: Data?
 }
 
 private struct MobileArchiveTaskCompactRow: View {
