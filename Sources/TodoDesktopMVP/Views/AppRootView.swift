@@ -65,6 +65,17 @@ struct AppRootView: View {
             themeRevision += 1
             do {
                 try DataIntegrityService.reconcile(context: modelContext)
+                let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+                    context: modelContext,
+                    appSupportFolder: "TodoDesktopMVP"
+                )
+                if !migration.missingFileNames.isEmpty || !migration.rejectedFileNames.isEmpty {
+                    print(
+                        "EasyTask legacy image migration pending: " +
+                            "missing=\(migration.missingFileNames.count), " +
+                            "rejected=\(migration.rejectedFileNames.count)"
+                    )
+                }
             } catch {
                 print("EasyTask data reconciliation failed: \(error.localizedDescription)")
             }

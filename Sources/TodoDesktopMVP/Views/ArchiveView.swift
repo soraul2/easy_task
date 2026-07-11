@@ -127,9 +127,9 @@ struct ArchiveView: View {
 
     private func exportBackup() {
         do {
-            switch try BackupService.exportJSON(context: modelContext) {
-            case .completed:
-                message = "백업을 내보냈습니다."
+            switch try BackupService.exportPackage(context: modelContext) {
+            case .completed(let completionMessage):
+                message = completionMessage
             case .cancelled:
                 message = nil
             }
@@ -140,9 +140,9 @@ struct ArchiveView: View {
 
     private func importBackup() {
         do {
-            switch try BackupService.importReplacingAll(context: modelContext) {
-            case .completed:
-                message = "백업을 가져왔습니다."
+            switch try BackupService.importBackup(context: modelContext) {
+            case .completed(let completionMessage):
+                message = completionMessage
             case .cancelled:
                 message = nil
             }
