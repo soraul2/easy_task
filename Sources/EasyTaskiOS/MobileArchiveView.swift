@@ -1,4 +1,5 @@
 #if os(iOS)
+import Combine
 import EasyTaskCore
 import Foundation
 import SwiftData
@@ -7,16 +8,10 @@ import SwiftUI
 struct MobileArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
 
-    @Query private var tasks: [TodoTask]
-    @Query private var reviews: [DailyReview]
-    @Query private var diaryBlocks: [DiaryBlock]
-    @Query private var attachments: [DiaryAttachment]
+    @Environment(\.modelContext) private var modelContext
     @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
-
-    private var records: [ArchiveDayRecord] {
-        ArchiveQueryRules.records(tasks: tasks, reviews: reviews, filter: filter)
-    }
+    @State private var querySession: ArchiveQuerySession?
 
     private var hasActiveFilterOptions: Bool {
         filter.period != .all || filter.scope != .all
@@ -24,13 +19,19 @@ struct MobileArchiveView: View {
 
     var body: some View {
         let attachmentIndex = DiaryAttachmentIndex(
-            attachments: attachments,
-            blocks: diaryBlocks
+            attachments: querySession?.attachments ?? [],
+            blocks: querySession?.blocks ?? []
         )
+        let records = querySession?.records ?? []
 
         NavigationStack {
             List {
-                if records.isEmpty {
+                if querySession?.isLoading == true && records.isEmpty {
+                    ProgressView("기록 불러오는 중")
+                        .frame(maxWidth: .infinity, minHeight: 260)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                } else if records.isEmpty {
                     emptyState
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -51,6 +52,40 @@ struct MobileArchiveView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     }
+
+                    if querySession?.hasMore == true {
+                        Button {
+                            querySession?.loadNextPage()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                if querySession?.isLoading == true {
+                                    ProgressView()
+                                } else {
+                                    Label("이전 기록 더 보기", systemImage: "chevron.down")
+                                }
+                                Spacer()
+                            }
+                        }
+                        .disabled(querySession?.isLoading == true)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
+                if let errorMessage = querySession?.errorMessage {
+                    VStack(spacing: 10) {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Button("다시 시도") {
+                            querySession?.retry()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
             }
             .listStyle(.plain)
@@ -75,6 +110,39 @@ struct MobileArchiveView: View {
                 MobileArchiveFilterSheet(filter: $filter)
             }
         }
+        .task {
+            guard querySession == nil else { return }
+            let session = ArchiveQuerySession(context: modelContext)
+            querySession = session
+            session.apply(filter, debounceSearch: false)
+        }
+        .onChange(of: filter) { oldFilter, newFilter in
+            querySession?.apply(
+                newFilter,
+                debounceSearch: shouldDebounceSearch(
+                    from: oldFilter,
+                    to: newFilter
+                )
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: PersistenceCommandService.dataChangedNotification
+        )) { notification in
+            guard let sourceContext = notification.object as? ModelContext,
+                  sourceContext === modelContext else { return }
+            querySession?.refreshPreservingDepth()
+        }
+    }
+
+    private func shouldDebounceSearch(
+        from oldFilter: ArchiveFilter,
+        to newFilter: ArchiveFilter
+    ) -> Bool {
+        oldFilter.searchText != newFilter.searchText &&
+            oldFilter.period == newFilter.period &&
+            oldFilter.scope == newFilter.scope &&
+            oldFilter.customStartDate == newFilter.customStartDate &&
+            oldFilter.customEndDate == newFilter.customEndDate
     }
 
     private var emptyState: some View {
