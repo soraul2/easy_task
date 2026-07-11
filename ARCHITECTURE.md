@@ -21,15 +21,15 @@ Tests/
 
 `EasyTaskCore`는 플랫폼 UI에 의존하지 않는 영역이다.
 
-- SwiftData 모델: `Task`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`
-- 저장소 구성: `EasyTaskSchemaV1`, `EasyTaskSchemaV2`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
+- SwiftData 모델: `Task`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`
+- 저장소 구성: `EasyTaskSchemaV1`, `EasyTaskSchemaV2`, `EasyTaskSchemaV3`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 날짜/보드 규칙: `DayKey`, `TaskRules`
 - 기록 조회 규칙: `ArchiveQueryRules`, `ArchiveFilter`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
-- 백업 코덱: `BackupCodec`
-- 이미지 파일 저장: `DiaryImageFileStore`
+- 백업: JSON V1 호환 `BackupCodec`, 이미지 포함 V2 `BackupPackageCodec`
+- 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일 JSON: `SpecialDays.kr.json`
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
 
@@ -55,13 +55,15 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 ## 데이터 흐름
 
-1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V2 스키마의 로컬 컨테이너를 생성한다.
-2. 기존 V1 저장소는 명시적인 마이그레이션 단계에서 V2로 이동한다.
-3. 앱 시작 시 무결성 정리를 실행한 뒤 정책에 따라 demo seed와 lazy archive 규칙을 실행한다.
+1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V3 스키마의 로컬 컨테이너를 생성한다.
+2. 저장소는 V1 → V2 → V3 순서로 이동하며 이미 배포된 V1/V2 정의는 수정하지 않는다.
+3. 앱 시작 시 무결성 정리와 레거시 이미지 이관을 실행한 뒤 demo seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
 5. 완료된 작업은 당일에는 보드에 남고, 이후 조회 시 보관 흐름으로 이동한다.
 6. 캘린더 이벤트는 기간 이벤트로 보이며, 작업 세부 계획은 보드에서 조정한다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
+8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
+9. 백업 V2는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지다.
 
 ## 무결성 규칙
 
@@ -72,14 +74,25 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - 중복 레코드는 즉시 삭제하지 않고 참조를 대표 레코드로 옮긴 뒤 `supersededAt`으로 표시한다.
 - 상태, 우선순위, 이벤트 색상, 날짜 키와 UUID 참조는 앱 시작과 백업 직전에 정리한다.
 - 템플릿 배치 소속의 원본은 `Task.templatePlacementId`이며, 백업의 `taskIds`는 내보낼 때 계산하는 호환 값이다.
+- 첨부는 `reviewId`로 대표 회고에 재연결하며 MIME, 크기, SHA-256을 원본 데이터에서 다시 계산한다.
+- 백업 병합은 `(id, instanceID)` 후보를 보존하고 최종 저장 전에 같은 무결성 규칙으로 수렴시킨다.
+
+## 이미지와 백업
+
+- PNG, JPEG, HEIC만 허용하며 20MB 이하인지와 ImageIO 실제 디코딩 가능 여부를 저장 전에 확인한다.
+- 새 이미지 추가·삭제는 회고 본문과 한 번의 SwiftData 저장으로 확정되어 별도 고아 파일을 만들지 않는다.
+- V2의 `imageFileNames`와 이미지 `DiaryBlock`은 V3 개방 후 앱 지원 폴더에서 점진적으로 옮긴다.
+- 누락되거나 손상된 기존 파일은 참조를 지우지 않고 다음 실행에서 재시도하며, 모두 옮긴 회고만 레거시 참조를 정리한다.
+- 백업 V2는 records와 각 첨부의 크기·SHA-256, MIME, 참조 무결성을 전부 확인한 뒤 비파괴 병합한다.
+- JSON V1은 계속 읽지만 이미지 바이트를 포함하지 않으므로 누락 파일을 보고하고 결정적 `instanceID`로 병합한다.
 
 ## 현재 MVP 범위
 
-- V2 버전 스키마와 로컬 SwiftData 저장만 사용하며 CloudKit은 명시적으로 비활성화한다.
+- V3 버전 스키마와 로컬 SwiftData 저장만 사용하며 CloudKit은 명시적으로 비활성화한다.
 - iCloud/CloudKit 동기화는 다음 단계에서 적용한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
-- JSON 백업은 기존 V1 포맷을 유지하고 대표 레코드만 내보낸다. 이미지/백업 V2는 다음 단계에서 처리한다.
+- 기본 내보내기는 이미지 원본을 포함한 백업 V2이며 JSON V1은 가져오기 호환 경로로만 유지한다.
 
 ## 다음 단계
 
