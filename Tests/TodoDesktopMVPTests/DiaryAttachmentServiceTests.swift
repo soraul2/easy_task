@@ -1,13 +1,16 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import SwiftData
 import Testing
+import UniformTypeIdentifiers
 @testable import EasyTaskCore
 
 @Test
 func attachmentInspectionDetectsSupportedFormatsFromBytes() throws {
-    let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00])
-    let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00])
-    let heic = Data([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63])
+    let jpeg = try #require(encodedTestImage(type: .jpeg))
+    let png = try #require(encodedTestImage(type: .png))
+    let heic = try #require(encodedTestImage(type: .heic))
 
     #expect(try DiaryAttachmentService.inspect(jpeg).mediaType == .jpeg)
     #expect(try DiaryAttachmentService.inspect(png).mediaType == .png)
@@ -38,7 +41,7 @@ func attachmentInspectionRejectsUnknownAndOversizedData() {
 func savingReviewAndAttachmentsCommitsOneConsistentGraph() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
-    let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01])
+    let png = try #require(encodedTestImage(type: .png, marker: 0x01))
 
     let review = try #require(try DiaryAttachmentService.saveReview(
         review: nil,
@@ -63,7 +66,7 @@ func savingReviewAndAttachmentsCommitsOneConsistentGraph() throws {
 func invalidReplacementLeavesExistingAttachmentUntouched() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
-    let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01])
+    let png = try #require(encodedTestImage(type: .png, marker: 0x01))
     let review = try #require(try DiaryAttachmentService.saveReview(
         review: nil,
         dayKey: "2026-07-11",
@@ -96,7 +99,7 @@ func legacyFileMigrationIsIdempotent() throws {
     let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
     defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
 
-    let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x02])
+    let png = try #require(encodedTestImage(type: .png, marker: 0x02))
     let fileName = try DiaryImageFileStore.writeImageData(
         png,
         preferredExtension: "png",
@@ -134,7 +137,7 @@ func legacyMigrationRecoversBlockOnlyImages() throws {
     let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
     defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
 
-    let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x03])
+    let png = try #require(encodedTestImage(type: .png, marker: 0x03))
     let fileName = try DiaryImageFileStore.writeImageData(
         png,
         preferredExtension: "png",
@@ -181,8 +184,8 @@ func integrityReconciliationRewiresAttachmentsWithoutLosingImages() throws {
     )
     context.insert(older)
     context.insert(newer)
-    let pngA = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x04])
-    let pngB = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x05])
+    let pngA = try #require(encodedTestImage(type: .png, marker: 0x04))
+    let pngB = try #require(encodedTestImage(type: .png, marker: 0x05))
     context.insert(DiaryAttachment(
         reviewId: older.id,
         order: 100,
@@ -212,4 +215,39 @@ func integrityReconciliationRewiresAttachmentsWithoutLosingImages() throws {
     #expect(Set(activeAttachments.map(\.reviewId)) == Set([activeReviews[0].id]))
     #expect(Set(activeAttachments.map(\.data)) == Set([pngA, pngB]))
     #expect(activeAttachments.map(\.order).sorted() == [0, 100])
+}
+
+private func encodedTestImage(type: UTType, marker: UInt8? = nil) -> Data? {
+    let pixel = Data([0xF0, 0x30, 0x50, 0xFF])
+    guard let provider = CGDataProvider(data: pixel as CFData),
+          let image = CGImage(
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+          ) else {
+        return nil
+    }
+
+    let output = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(
+        output,
+        type.identifier as CFString,
+        1,
+        nil
+    ) else {
+        return nil
+    }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else { return nil }
+    var data = output as Data
+    if let marker { data.append(marker) }
+    return data
 }

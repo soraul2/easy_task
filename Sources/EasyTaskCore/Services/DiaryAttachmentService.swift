@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import ImageIO
 import SwiftData
 
 public enum DiaryAttachmentMediaType: String, Codable, CaseIterable, Sendable {
@@ -79,6 +80,9 @@ public enum DiaryAttachmentService {
             )
         }
         guard let mediaType = detectedMediaType(in: data) else {
+            throw DiaryAttachmentServiceError.unsupportedImageFormat
+        }
+        guard isDecodableImage(data) else {
             throw DiaryAttachmentServiceError.unsupportedImageFormat
         }
 
@@ -235,6 +239,21 @@ private extension DiaryAttachmentService {
             }
         }
         return nil
+    }
+
+    static func isDecodableImage(_ data: Data) -> Bool {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [
+            kCGImageSourceShouldCache: false
+        ] as CFDictionary),
+              CGImageSourceGetCount(source) > 0 else {
+            return false
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) != nil
     }
 
     static func normalizedFileName(_ fileName: String?) -> String? {

@@ -272,6 +272,13 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
         imageFileNames: ["legacy.jpg"],
         in: source.mainContext
     )
+    let template = TaskTemplate(name: "V1 템플릿")
+    source.mainContext.insert(template)
+    source.mainContext.insert(TaskTemplateItem(
+        templateId: template.id,
+        title: "V1 항목",
+        order: 100
+    ))
     try source.mainContext.save()
     var payload = try BackupCodec.makePayload(context: source.mainContext)
     payload.dailyReviews?[0].instanceID = nil
@@ -279,6 +286,11 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
     if (payload.diaryBlocks?.count ?? 0) > 1 {
         payload.diaryBlocks?[1].instanceID = nil
     }
+    payload.taskTemplates[0].instanceID = nil
+    payload.taskTemplateItems[0].instanceID = nil
+    payload.taskTemplateItems[0].createdAt = nil
+    payload.taskTemplateItems[0].updatedAt = nil
+    payload = try BackupCodec.decode(BackupCodec.encode(payload))
 
     let destination = try EasyTaskContainerFactory.makeInMemory()
     let first = try BackupPackageCodec.restoreLegacyJSONMerging(
@@ -298,6 +310,7 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
     #expect(second.merge.insertedRecords == 0)
     #expect(try destination.mainContext.fetch(FetchDescriptor<DailyReview>()).count == countsAfterFirst.0)
     #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryBlock>()).count == countsAfterFirst.1)
+    #expect(try destination.mainContext.fetch(FetchDescriptor<TaskTemplateItem>()).count == 1)
 }
 
 @MainActor
@@ -335,7 +348,13 @@ private func reviewContainer(
 }
 
 private func testPNG(_ marker: UInt8) -> Data {
-    Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, marker])
+    guard var data = Data(base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    ) else {
+        preconditionFailure("Invalid embedded PNG fixture")
+    }
+    data.append(marker)
+    return data
 }
 
 private func temporaryPackageURL() -> URL {
