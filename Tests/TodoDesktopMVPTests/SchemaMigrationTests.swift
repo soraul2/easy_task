@@ -159,6 +159,13 @@ func versionedV2StoreMigratesToV3WithoutDataLoss() throws {
 
         let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "v2 fixture")
+        let review = try #require(migrated.mainContext.fetch(FetchDescriptor<DailyReview>()).first)
+        let imageBlock = try #require(
+            migrated.mainContext.fetch(FetchDescriptor<DiaryBlock>())
+                .first { $0.type == DiaryBlockType.image.rawValue }
+        )
+        #expect(review.imageFileNames == ["legacy-review.png"])
+        #expect(imageBlock.imageFileName == "legacy-block.png")
         #expect(try migrated.mainContext.fetchCount(FetchDescriptor<DiaryAttachment>()) == 0)
     }
 }
@@ -326,7 +333,8 @@ private func writeV2Fixture(to container: ModelContainer, title: String) throws 
     )
     let review = EasyTaskSchemaV2.DailyReview(
         dayKey: DayKey.key(for: day),
-        content: "\(title) review"
+        content: "\(title) review",
+        imageFileNames: ["legacy-review.png"]
     )
     let block = EasyTaskSchemaV2.DiaryBlock(
         reviewId: review.id,
@@ -334,6 +342,13 @@ private func writeV2Fixture(to container: ModelContainer, title: String) throws 
         type: .text,
         text: review.content,
         order: 100
+    )
+    let imageBlock = EasyTaskSchemaV2.DiaryBlock(
+        reviewId: review.id,
+        dayKey: review.dayKey,
+        type: .image,
+        imageFileName: "legacy-block.png",
+        order: 200
     )
 
     context.insert(event)
@@ -343,6 +358,7 @@ private func writeV2Fixture(to container: ModelContainer, title: String) throws 
     context.insert(task)
     context.insert(review)
     context.insert(block)
+    context.insert(imageBlock)
     try context.save()
 }
 
@@ -398,7 +414,7 @@ private func expectFixture(in container: ModelContainer, title: String) throws {
     #expect(try context.fetchCount(FetchDescriptor<TaskTemplateItem>()) == 1)
     #expect(try context.fetchCount(FetchDescriptor<TemplatePlacement>()) == 1)
     #expect(try context.fetchCount(FetchDescriptor<DailyReview>()) == 1)
-    #expect(try context.fetchCount(FetchDescriptor<DiaryBlock>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<DiaryBlock>()) >= 1)
 
     let event = try #require(context.fetch(FetchDescriptor<CalendarEvent>()).first)
     let template = try #require(context.fetch(FetchDescriptor<TaskTemplate>()).first)
@@ -406,7 +422,10 @@ private func expectFixture(in container: ModelContainer, title: String) throws {
     let placement = try #require(context.fetch(FetchDescriptor<TemplatePlacement>()).first)
     let task = try #require(context.fetch(FetchDescriptor<Task>()).first)
     let review = try #require(context.fetch(FetchDescriptor<DailyReview>()).first)
-    let block = try #require(context.fetch(FetchDescriptor<DiaryBlock>()).first)
+    let block = try #require(
+        context.fetch(FetchDescriptor<DiaryBlock>())
+            .first { $0.type == DiaryBlockType.text.rawValue }
+    )
     #expect(event.title == "\(title) event")
     #expect(template.name == "\(title) template")
     #expect(templateItem.title == "\(title) template item")

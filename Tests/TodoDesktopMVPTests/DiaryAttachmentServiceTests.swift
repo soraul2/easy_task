@@ -169,6 +169,63 @@ func legacyMigrationRecoversBlockOnlyImages() throws {
 
 @Test
 @MainActor
+func legacyMigrationRetainsReferencesUntilMissingFilesCanRetry() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let folder = "EasyTaskTests-\(UUID().uuidString)"
+    let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
+    defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
+
+    let png = try #require(encodedTestImage(type: .png, marker: 0x06))
+    let existingFileName = try DiaryImageFileStore.writeImageData(
+        png,
+        preferredExtension: "png",
+        appSupportFolder: folder
+    )
+    let missingFileName = "\(UUID().uuidString).png"
+    let review = DailyReview(
+        dayKey: "2026-07-11",
+        content: "부분 이관",
+        imageFileNames: [existingFileName, missingFileName, existingFileName]
+    )
+    context.insert(review)
+    try context.save()
+
+    let first = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+        context: context,
+        appSupportFolder: folder
+    )
+    let second = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+        context: context,
+        appSupportFolder: folder
+    )
+    #expect(first.importedCount == 2)
+    #expect(first.missingFileNames == [missingFileName])
+    #expect(second.importedCount == 0)
+    #expect(review.imageFileNames.count == 3)
+    #expect(try context.fetch(FetchDescriptor<DiaryAttachment>()).count == 2)
+
+    let missingURL = try DiaryImageFileStore.validatedImageURL(
+        for: missingFileName,
+        appSupportFolder: folder
+    )
+    try png.write(to: missingURL, options: .atomic)
+    let third = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+        context: context,
+        appSupportFolder: folder
+    )
+    let attachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        .sorted { $0.order < $1.order }
+
+    #expect(third.importedCount == 1)
+    #expect(review.imageFileNames.isEmpty)
+    #expect(attachments.count == 3)
+    #expect(attachments.map(\.order) == [0, 100, 200])
+    #expect(Set(attachments.map(\.id)).count == 3)
+}
+
+@Test
+@MainActor
 func integrityReconciliationRewiresAttachmentsWithoutLosingImages() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
