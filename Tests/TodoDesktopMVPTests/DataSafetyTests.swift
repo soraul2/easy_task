@@ -3,6 +3,45 @@ import SwiftData
 import Testing
 @testable import EasyTaskCore
 
+private enum PersistenceCommandTestError: Error {
+    case injected
+}
+
+@Test
+@MainActor
+func persistenceCommandCommitsSuccessfulMutation() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+
+    let task = try PersistenceCommandService.perform(in: context) {
+        let task = EasyTaskSchemaV3.Task(title: "저장 경계 확인", plannedAt: Date(), order: 100)
+        context.insert(task)
+        return task
+    }
+
+    let storedTasks = try context.fetch(FetchDescriptor<EasyTaskSchemaV3.Task>())
+    #expect(storedTasks.map(\.id) == [task.id])
+}
+
+@Test
+@MainActor
+func persistenceCommandRollsBackFailedMutationWithoutLosingPriorSave() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let existingTask = EasyTaskSchemaV3.Task(title: "기존 작업", plannedAt: Date(), order: 100)
+    context.insert(existingTask)
+
+    #expect(throws: PersistenceCommandTestError.injected) {
+        try PersistenceCommandService.perform(in: context) {
+            context.insert(EasyTaskSchemaV3.Task(title: "롤백 작업", plannedAt: Date(), order: 200))
+            throw PersistenceCommandTestError.injected
+        }
+    }
+
+    let storedTitles = try context.fetch(FetchDescriptor<EasyTaskSchemaV3.Task>()).map(\.title)
+    #expect(storedTitles == ["기존 작업"])
+}
+
 @Test
 @MainActor
 func releaseSeedPolicyCreatesNoRecords() throws {

@@ -72,33 +72,56 @@ public struct TemplatePlacementDeleteSummary: Equatable {
 }
 
 public enum TemplateService {
+    @discardableResult
     public static func saveTemplate(
         named name: String,
         from tasks: [Task],
         in context: ModelContext
-    ) {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-
-        let template = TaskTemplate(name: trimmedName)
-        context.insert(template)
-
+    ) -> TaskTemplate? {
         let sourceTasks = tasks
             .filter { $0.supersededAt == nil && $0.archivedAt == nil }
             .sorted { $0.order < $1.order }
-
-        for (index, task) in sourceTasks.enumerated() {
-            let item = TaskTemplateItem(
-                templateId: template.id,
+        let drafts = sourceTasks.enumerated().map { index, task in
+            TemplateTaskDraft(
                 title: task.title,
-                note: task.note,
+                note: task.note ?? "",
                 priority: task.priority,
                 tags: task.tags,
                 estimatedMinutes: task.estimatedMinutes,
                 order: Double(index + 1) * 100
             )
+        }
+        return saveTemplate(named: name, from: drafts, in: context)
+    }
+
+    @discardableResult
+    public static func saveTemplate(
+        named name: String,
+        from drafts: [TemplateTaskDraft],
+        in context: ModelContext
+    ) -> TaskTemplate? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceDrafts = drafts
+            .filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted { $0.order < $1.order }
+        guard !trimmedName.isEmpty, !sourceDrafts.isEmpty else { return nil }
+
+        let template = TaskTemplate(name: trimmedName)
+        context.insert(template)
+
+        for (index, draft) in sourceDrafts.enumerated() {
+            let item = TaskTemplateItem(
+                templateId: template.id,
+                title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                note: normalizedOptionalText(draft.note),
+                priority: draft.priority.flatMap { TaskPriority(rawValue: $0)?.rawValue },
+                tags: draft.tags,
+                estimatedMinutes: draft.estimatedMinutes,
+                order: Double(index + 1) * 100
+            )
             context.insert(item)
         }
+        return template
     }
 
     @discardableResult

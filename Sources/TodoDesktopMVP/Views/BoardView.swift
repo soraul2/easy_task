@@ -18,6 +18,28 @@ private enum BoardSheet: Identifiable {
     }
 }
 
+private extension View {
+    func persistenceFailureAlert(message: Binding<String?>) -> some View {
+        alert(
+            "저장 오류",
+            isPresented: Binding(
+                get: { message.wrappedValue != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        message.wrappedValue = nil
+                    }
+                }
+            )
+        ) {
+            Button("확인", role: .cancel) {
+                message.wrappedValue = nil
+            }
+        } message: {
+            Text(message.wrappedValue ?? "변경사항을 저장하지 못했습니다.")
+        }
+    }
+}
+
 struct BoardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var tasks: [Task]
@@ -29,6 +51,7 @@ struct BoardView: View {
     @State private var quickTitle = ""
     @State private var presentedSheet: BoardSheet?
     @State private var templateName = ""
+    @State private var persistenceFailureMessage: String?
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var todayKey: String { DayKey.today }
@@ -61,6 +84,20 @@ struct BoardView: View {
         BoardQueryRules.tasks(boardTasks, matching: .done)
     }
 
+    private var boardFailureMessage: Binding<String?> {
+        Binding(
+            get: {
+                switch presentedSheet {
+                case nil:
+                    persistenceFailureMessage
+                case .some:
+                    nil
+                }
+            },
+            set: { persistenceFailureMessage = $0 }
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -83,6 +120,7 @@ struct BoardView: View {
             case .carryover:
                 CarryoverSheet(
                     tasks: carryoverTasks,
+                    failureMessage: $persistenceFailureMessage,
                     onBringToToday: bringToToday,
                     onCompleteAll: completeAllCarryoverTasks,
                     onDelete: deleteTask
@@ -92,17 +130,23 @@ struct BoardView: View {
                     templates: templates,
                     items: templateItems,
                     templateName: $templateName,
+                    failureMessage: $persistenceFailureMessage,
                     currentBoardTasks: boardTasks
                         .filter { $0.plannedDayKey == selectedDayKey }
                         .sorted { $0.order < $1.order },
                     onApply: { template in
-                        TemplateService.applyTemplate(
-                            template,
-                            items: templateItems,
-                            selectedDate: selectedDate,
-                            existingTasks: tasks,
-                            in: modelContext
-                        )
+                        let didApply = performPersistenceCommand(
+                            failureMessage: "템플릿을 적용하지 못했습니다."
+                        ) {
+                            TemplateService.applyTemplate(
+                                template,
+                                items: templateItems,
+                                selectedDate: selectedDate,
+                                existingTasks: tasks,
+                                in: modelContext
+                            )
+                        }
+                        guard didApply else { return }
                         presentedSheet = nil
                     },
                     onSaveCurrentBoard: { sourceTasks in
@@ -110,13 +154,37 @@ struct BoardView: View {
                         let trimmedName = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmedName.isEmpty else { return }
 
-                        TemplateService.saveTemplate(
-                            named: trimmedName,
-                            from: sourceTasks,
-                            in: modelContext
-                        )
+                        let didSave = performPersistenceCommand(
+                            failureMessage: "템플릿을 저장하지 못했습니다."
+                        ) {
+                            TemplateService.saveTemplate(
+                                named: trimmedName,
+                                from: sourceTasks,
+                                in: modelContext
+                            )
+                        }
+                        guard didSave else { return }
                         templateName = ""
                         presentedSheet = nil
+                    },
+                    onToggleFavorite: { template in
+                        performPersistenceCommand(
+                            failureMessage: "즐겨찾기를 변경하지 못했습니다."
+                        ) {
+                            template.isFavorite.toggle()
+                            template.updatedAt = Date()
+                        }
+                    },
+                    onDelete: { template in
+                        performPersistenceCommand(
+                            failureMessage: "템플릿을 삭제하지 못했습니다."
+                        ) {
+                            TemplateService.deleteTemplate(
+                                template,
+                                items: templateItems,
+                                in: modelContext
+                            )
+                        }
                     }
                 )
             case .taskDetail(let id):
@@ -136,12 +204,7 @@ struct BoardView: View {
                 DailyReviewSheet(selectedDate: selectedDate)
             }
         }
-        .onAppear {
-            TaskRules.archiveIfNeeded(tasks)
-        }
-        .onChange(of: selectedDate) {
-            TaskRules.archiveIfNeeded(tasks)
-        }
+        .persistenceFailureAlert(message: boardFailureMessage)
     }
 
     private var header: some View {
@@ -252,8 +315,7 @@ struct BoardView: View {
                             .padding(.vertical, 4)
                             .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
                         Button(role: .destructive) {
-                            CalendarEventRules.detachTasks(from: event, in: tasks)
-                            modelContext.delete(event)
+                            deleteEvent(event)
                         } label: {
                             Image(systemName: "trash")
                                 .frame(width: 26, height: 26)
@@ -305,6 +367,7 @@ struct BoardView: View {
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
+                onTitleChange: updateTaskTitle,
                 onEdit: editTask,
                 onDelete: deleteTask
             )
@@ -317,6 +380,7 @@ struct BoardView: View {
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
+                onTitleChange: updateTaskTitle,
                 onEdit: editTask,
                 onDelete: deleteTask
             )
@@ -329,6 +393,7 @@ struct BoardView: View {
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
+                onTitleChange: updateTaskTitle,
                 onEdit: editTask,
                 onDelete: deleteTask
             )
@@ -339,13 +404,18 @@ struct BoardView: View {
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
 
-        let task = Task(
-            title: title,
-            status: .todo,
-            plannedAt: selectedDate,
-            order: BoardQueryRules.nextOrder(in: tasks, dayKey: selectedDayKey, status: .todo)
-        )
-        modelContext.insert(task)
+        let didAdd = performPersistenceCommand(
+            failureMessage: "작업을 추가하지 못했습니다."
+        ) {
+            let task = Task(
+                title: title,
+                status: .todo,
+                plannedAt: selectedDate,
+                order: BoardQueryRules.nextOrder(in: tasks, dayKey: selectedDayKey, status: .todo)
+            )
+            modelContext.insert(task)
+        }
+        guard didAdd else { return }
         quickTitle = ""
     }
 
@@ -355,40 +425,87 @@ struct BoardView: View {
             return false
         }
 
-        TaskRules.applyStatus(status, to: task)
-        task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
-        return true
+        return performPersistenceCommand(
+            failureMessage: "작업 상태를 변경하지 못했습니다."
+        ) {
+            TaskRules.applyStatus(status, to: task)
+            task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
+        }
     }
 
     private func moveTask(_ task: Task, to status: TaskStatus) {
-        TaskRules.applyStatus(status, to: task)
-        task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
+        performPersistenceCommand(
+            failureMessage: "작업 상태를 변경하지 못했습니다."
+        ) {
+            TaskRules.applyStatus(status, to: task)
+            task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: task.plannedDayKey, status: status)
+        }
+    }
+
+    private func updateTaskTitle(_ task: Task, to title: String) -> Bool {
+        performPersistenceCommand(
+            failureMessage: "작업 제목을 저장하지 못했습니다."
+        ) {
+            task.title = title
+            task.updatedAt = Date()
+        }
     }
 
     private func bringToToday(_ task: Task) {
-        task.plannedAt = DayKey.startOfDay(for: Date())
-        task.plannedDayKey = todayKey
-        task.status = TaskStatus.todo.rawValue
-        task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: todayKey, status: .todo)
-        task.updatedAt = Date()
+        performPersistenceCommand(
+            failureMessage: "작업을 오늘로 가져오지 못했습니다."
+        ) {
+            task.plannedAt = DayKey.startOfDay(for: Date())
+            task.plannedDayKey = todayKey
+            task.status = TaskStatus.todo.rawValue
+            task.order = BoardQueryRules.nextOrder(in: tasks, dayKey: todayKey, status: .todo)
+            task.updatedAt = Date()
+        }
     }
 
     private func completeAllCarryoverTasks() {
-        let now = Date()
-        var nextDoneOrder = TaskRules.nextOrder(in: tasks, status: .done)
+        performPersistenceCommand(
+            failureMessage: "이월 작업을 완료 처리하지 못했습니다."
+        ) {
+            let now = Date()
+            var nextDoneOrder = TaskRules.nextOrder(in: tasks, status: .done)
 
-        for task in carryoverTasks {
-            TaskRules.applyStatus(.done, to: task, now: now)
-            task.order = nextDoneOrder
-            nextDoneOrder += 100
+            for task in carryoverTasks {
+                TaskRules.applyStatus(.done, to: task, now: now)
+                task.order = nextDoneOrder
+                nextDoneOrder += 100
+            }
         }
     }
 
     private func deleteTask(_ task: Task) {
-        do {
+        performPersistenceCommand(
+            failureMessage: "작업을 삭제하지 못했습니다."
+        ) {
             try TaskRules.delete(task, from: modelContext)
+        }
+    }
+
+    private func deleteEvent(_ event: CalendarEvent) {
+        performPersistenceCommand(
+            failureMessage: "이벤트를 삭제하지 못했습니다."
+        ) {
+            CalendarEventRules.detachTasks(from: event, in: tasks)
+            modelContext.delete(event)
+        }
+    }
+
+    @discardableResult
+    private func performPersistenceCommand(
+        failureMessage: String,
+        _ mutation: () throws -> Void
+    ) -> Bool {
+        do {
+            try PersistenceCommandService.perform(in: modelContext, mutation)
+            return true
         } catch {
-            assertionFailure("작업 삭제 중 배치 참조를 정리하지 못했습니다: \(error)")
+            persistenceFailureMessage = failureMessage
+            return false
         }
     }
 
@@ -399,17 +516,24 @@ struct BoardView: View {
 
 struct TaskDetailSheet: View {
     var task: Task
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Query private var allTasks: [Task]
     @State private var title: String
     @State private var note: String
+    @State private var status: TaskStatus
+    @State private var plannedDate: Date
     @State private var selectedPriority: TaskPriority?
     @State private var tagsText: String
     @State private var estimatedMinutesText: String
+    @State private var persistenceFailureMessage: String?
 
     init(task: Task) {
         self.task = task
         _title = State(initialValue: task.title)
         _note = State(initialValue: task.note ?? "")
+        _status = State(initialValue: TaskStatus(rawValue: task.status) ?? .todo)
+        _plannedDate = State(initialValue: task.plannedAt)
         _selectedPriority = State(initialValue: task.priority.flatMap(TaskPriority.init(rawValue:)))
         _tagsText = State(initialValue: task.tags.joined(separator: ", "))
         _estimatedMinutesText = State(initialValue: task.estimatedMinutes.map(String.init) ?? "")
@@ -455,6 +579,18 @@ struct TaskDetailSheet: View {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(AppTheme.border, lineWidth: 1)
                     }
+
+                DetailFieldLabel("보드 날짜")
+                DatePicker("보드 날짜", selection: $plannedDate, displayedComponents: .date)
+                    .labelsHidden()
+
+                DetailFieldLabel("상태")
+                Picker("상태", selection: $status) {
+                    ForEach(TaskStatus.allCases) { status in
+                        Text(status.title).tag(status)
+                    }
+                }
+                .pickerStyle(.segmented)
 
                 DetailFieldLabel("메모")
                 TextEditor(text: $note)
@@ -546,6 +682,7 @@ struct TaskDetailSheet: View {
         .padding(22)
         .frame(width: 520)
         .background(AppTheme.panel)
+        .persistenceFailureAlert(message: $persistenceFailureMessage)
     }
 
     private func save() {
@@ -553,19 +690,61 @@ struct TaskDetailSheet: View {
         guard !trimmedTitle.isEmpty else { return }
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        task.title = trimmedTitle
-        task.note = trimmedNote.isEmpty ? nil : trimmedNote
-        task.priority = selectedPriority?.rawValue
-        task.tags = parsedTags()
-        task.estimatedMinutes = parsedEstimatedMinutes()
-        task.updatedAt = Date()
-        dismiss()
+        let tags = parsedTags()
+        let estimateInput = parsedEstimatedMinutesInput()
+        if let errorMessage = estimateInput.errorMessage {
+            persistenceFailureMessage = errorMessage
+            return
+        }
+        let estimatedMinutes = estimateInput.value
+        let oldDayKey = task.plannedDayKey
+        let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
+        let newPlannedAt = DayKey.startOfDay(for: plannedDate)
+        let newDayKey = DayKey.key(for: newPlannedAt)
+
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                if oldStatus != status {
+                    TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
+                }
+
+                var nextOrder: Double?
+                if oldDayKey != newDayKey || oldStatus != status {
+                    let dayTasks = allTasks.filter {
+                        $0.id != task.id &&
+                            $0.plannedDayKey == newDayKey &&
+                            $0.archivedAt == nil
+                    }
+                    nextOrder = BoardQueryRules.nextOrder(
+                        in: dayTasks,
+                        dayKey: newDayKey,
+                        status: status
+                    )
+                }
+                if oldDayKey != newDayKey || nextOrder != nil {
+                    TaskRules.move(task, to: newPlannedAt, order: nextOrder)
+                }
+
+                task.title = trimmedTitle
+                task.note = trimmedNote.isEmpty ? nil : trimmedNote
+                task.priority = selectedPriority?.rawValue
+                task.tags = tags
+                task.estimatedMinutes = estimatedMinutes
+                task.updatedAt = Date()
+            }
+            dismiss()
+        } catch {
+            persistenceFailureMessage = "작업을 저장하지 못했습니다."
+        }
     }
 
-    private func parsedEstimatedMinutes() -> Int? {
-        let digits = estimatedMinutesText.filter(\.isNumber)
-        guard let minutes = Int(digits), minutes > 0 else { return nil }
-        return min(minutes, 24 * 60)
+    private func parsedEstimatedMinutesInput() -> (value: Int?, errorMessage: String?) {
+        let value = estimatedMinutesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return (nil, nil) }
+        guard let minutes = Int(value), (1...(24 * 60)).contains(minutes) else {
+            return (nil, "예상 시간은 1~1440분 사이의 숫자로 입력해 주세요.")
+        }
+        return (minutes, nil)
     }
 
     private func parsedTags() -> [String] {
@@ -597,6 +776,7 @@ struct DetailFieldLabel: View {
 
 struct CarryoverSheet: View {
     var tasks: [Task]
+    @Binding var failureMessage: String?
     var onBringToToday: (Task) -> Void
     var onCompleteAll: () -> Void
     var onDelete: (Task) -> Void
@@ -661,6 +841,7 @@ struct CarryoverSheet: View {
         .padding(22)
         .frame(minWidth: 520, idealWidth: 620, minHeight: 360, idealHeight: 480)
         .background(AppTheme.panel)
+        .persistenceFailureAlert(message: $failureMessage)
     }
 }
 
@@ -668,13 +849,17 @@ struct TemplateLibrarySheet: View {
     var templates: [TaskTemplate]
     var items: [TaskTemplateItem]
     @Binding var templateName: String
+    @Binding var failureMessage: String?
     var currentBoardTasks: [Task]
     var onApply: (TaskTemplate) -> Void
     var onSaveCurrentBoard: ([Task]) -> Void
+    var onToggleFavorite: (TaskTemplate) -> Void
+    var onDelete: (TaskTemplate) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedScope: TemplateListScope = .favorites
     @State private var excludedTaskIDs: Set<UUID> = []
+    @State private var pendingDeleteTemplate: TaskTemplate?
 
     private var canSaveCurrentBoard: Bool {
         !templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -751,6 +936,25 @@ struct TemplateLibrarySheet: View {
         .onChange(of: currentBoardTasks.map(\.id)) { _, ids in
             excludedTaskIDs.formIntersection(Set(ids))
         }
+        .alert("템플릿을 삭제할까요?", isPresented: Binding(
+            get: { pendingDeleteTemplate != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeleteTemplate = nil
+                }
+            }
+        ), presenting: pendingDeleteTemplate) { template in
+            Button("취소", role: .cancel) {
+                pendingDeleteTemplate = nil
+            }
+            Button("삭제", role: .destructive) {
+                onDelete(template)
+                pendingDeleteTemplate = nil
+            }
+        } message: { template in
+            Text("\"\(template.name)\" 템플릿과 하위 작업 \(itemsForTemplate(template).count)개를 삭제합니다.")
+        }
+        .persistenceFailureAlert(message: $failureMessage)
     }
 
     @ViewBuilder
@@ -785,6 +989,12 @@ struct TemplateLibrarySheet: View {
                                 items: itemsForTemplate(template),
                                 onApply: {
                                     onApply(template)
+                                },
+                                onToggleFavorite: {
+                                    onToggleFavorite(template)
+                                },
+                                onDelete: {
+                                    pendingDeleteTemplate = template
                                 }
                             )
                         }
@@ -964,12 +1174,13 @@ struct TemplateRow: View {
     @Bindable var template: TaskTemplate
     var items: [TaskTemplateItem]
     var onApply: () -> Void
+    var onToggleFavorite: () -> Void
+    var onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Button {
-                template.isFavorite.toggle()
-                template.updatedAt = Date()
+                onToggleFavorite()
             } label: {
                 Image(systemName: template.isFavorite ? "star.fill" : "star")
                     .frame(width: 24, height: 24)
@@ -1010,6 +1221,16 @@ struct TemplateRow: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(items.isEmpty)
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(AppTheme.secondaryText)
+            .help("템플릿 삭제")
         }
         .padding(12)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
@@ -1094,6 +1315,7 @@ struct KanbanColumn: View {
     var selectedDayKey: String
     var onMove: (String, TaskStatus) -> Bool
     var onStatusChange: (Task, TaskStatus) -> Void
+    var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onDelete: (Task) -> Void
 
@@ -1133,6 +1355,7 @@ struct KanbanColumn: View {
                             task: task,
                             selectedDayKey: selectedDayKey,
                             onStatusChange: onStatusChange,
+                            onTitleChange: onTitleChange,
                             onEdit: onEdit,
                             onDelete: onDelete
                         )
@@ -1160,6 +1383,7 @@ struct TaskCard: View {
     @Bindable var task: Task
     var selectedDayKey: String
     var onStatusChange: (Task, TaskStatus) -> Void
+    var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onDelete: (Task) -> Void
     @State private var draftTitle = ""
@@ -1311,9 +1535,11 @@ struct TaskCard: View {
             return
         }
 
-        task.title = trimmedTitle
-        task.updatedAt = Date()
-        draftTitle = trimmedTitle
+        if onTitleChange(task, trimmedTitle) {
+            draftTitle = trimmedTitle
+        } else {
+            draftTitle = task.title
+        }
     }
 }
 

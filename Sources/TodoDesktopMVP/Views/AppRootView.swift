@@ -31,6 +31,7 @@ enum AppTab: String, CaseIterable, Identifiable {
 struct AppRootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var tasks: [Task]
     @Query private var events: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
@@ -39,6 +40,10 @@ struct AppRootView: View {
     @State private var selectedTab: AppTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
     @State private var themeRevision = 0
+    @State private var activeDayKey = DayKey.today
+    @State private var selectedBoardDayKey = DayKey.today
+    @State private var isFollowingToday = true
+    @State private var syncMonitor = CloudKitSyncMonitor()
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     var body: some View {
@@ -52,52 +57,29 @@ struct AppRootView: View {
 
             HStack(spacing: 14) {
                 FloatingTabBar(selectedTab: $selectedTab)
+                CloudKitSyncStatusButton(monitor: syncMonitor)
                 ThemeSelectorButton(selectedThemeID: $selectedThemeID)
             }
             .padding(.bottom, 20)
         }
         .background(AppTheme.background)
         .foregroundStyle(AppTheme.primaryText)
+        .environment(syncMonitor)
         .task {
-            let migratedThemeID = AppTheme.migrateStoredDefaultIfNeeded(selectedThemeID)
-            if migratedThemeID != selectedThemeID {
-                selectedThemeID = migratedThemeID
-            }
-            AppTheme.activate(migratedThemeID, colorScheme: colorScheme)
-            themeRevision += 1
-            do {
-                try DataIntegrityService.reconcile(context: modelContext)
-                let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
-                    context: modelContext,
-                    appSupportFolder: "TodoDesktopMVP"
-                )
-                if !migration.missingFileNames.isEmpty ||
-                    !migration.rejectedFileNames.isEmpty ||
-                    !migration.deferredFileNames.isEmpty {
-                    print(
-                        "EasyTask legacy image migration pending: " +
-                            "missing=\(migration.missingFileNames.count), " +
-                            "rejected=\(migration.rejectedFileNames.count), " +
-                            "deferred=\(migration.deferredFileNames.count)"
-                    )
-                }
-            } catch {
-                print("EasyTask data reconciliation failed: \(error.localizedDescription)")
-            }
-            SeedService.seedIfNeeded(
-                context: modelContext,
-                tasks: tasks,
-                events: events,
-                templates: templates,
-                reviews: reviews,
-                policy: .appStartup(
-                    cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
-                )
-            )
-            TaskRules.archiveIfNeeded(tasks)
+            start()
+            await syncMonitor.refreshAccountStatus()
         }
         .onChange(of: selectedTab) {
-            TaskRules.archiveIfNeeded(tasks)
+            persistArchiveIfNeeded()
+        }
+        .onChange(of: selectedBoardDate) { _, newDate in
+            selectedBoardDayKey = DayKey.key(for: newDate)
+            isFollowingToday = selectedBoardDayKey == activeDayKey
+        }
+        .onChange(of: scenePhase) {
+            guard scenePhase == .active else { return }
+            refreshCurrentDay()
+            Swift.Task { await syncMonitor.refreshAccountStatus() }
         }
         .onChange(of: selectedThemeID) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
@@ -112,30 +94,99 @@ struct AppRootView: View {
         )) { notification in
             handleCloudKitEvent(notification)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            refreshCurrentDay()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            refreshCurrentDay()
+        }
     }
 
     private var bottomContentInset: CGFloat {
         selectedTab == .calendar ? 0 : 92
     }
 
-    private func handleCloudKitEvent(_ notification: Notification) {
-        do {
-            guard let summary = try CloudKitSyncService.handle(
-                notification,
-                context: modelContext
-            ), summary.isCompleted else { return }
+    private func start() {
+        let migratedThemeID = AppTheme.migrateStoredDefaultIfNeeded(selectedThemeID)
+        if migratedThemeID != selectedThemeID {
+            selectedThemeID = migratedThemeID
+        }
+        AppTheme.activate(migratedThemeID, colorScheme: colorScheme)
+        themeRevision += 1
 
-            if summary.succeeded {
-                print("EasyTask CloudKit \(summary.kind.rawValue) completed")
-            } else {
-                print(
-                    "EasyTask CloudKit \(summary.kind.rawValue) failed: " +
-                        (summary.errorDescription ?? "unknown error")
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                _ = try DataIntegrityService.reconcile(
+                    context: modelContext,
+                    saveChanges: false
                 )
             }
+            let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+                context: modelContext,
+                appSupportFolder: "TodoDesktopMVP"
+            )
+            if !migration.missingFileNames.isEmpty ||
+                !migration.rejectedFileNames.isEmpty ||
+                !migration.deferredFileNames.isEmpty {
+                syncMonitor.recordIssue(
+                    "이전 회고 이미지 정리가 필요합니다. " +
+                        "누락 \(migration.missingFileNames.count)개, " +
+                        "거부 \(migration.rejectedFileNames.count)개, " +
+                        "보류 \(migration.deferredFileNames.count)개"
+                )
+            }
+            try PersistenceCommandService.perform(in: modelContext) {
+                SeedService.seedIfNeeded(
+                    context: modelContext,
+                    tasks: tasks,
+                    events: events,
+                    templates: templates,
+                    reviews: reviews,
+                    policy: .appStartup(
+                        cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
+                    )
+                )
+                TaskRules.archiveIfNeeded(tasks)
+            }
         } catch {
-            print("EasyTask post-sync reconciliation failed: \(error.localizedDescription)")
+            syncMonitor.recordStartupFailure(error)
         }
+    }
+
+    private func handleCloudKitEvent(_ notification: Notification) {
+        guard let summary = CloudKitSyncService.summary(from: notification) else { return }
+        syncMonitor.record(summary)
+
+        do {
+            try CloudKitSyncService.reconcileIfNeeded(
+                after: summary,
+                context: modelContext
+            )
+        } catch {
+            syncMonitor.recordReconciliationFailure(error)
+        }
+    }
+
+    private func persistArchiveIfNeeded() {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskRules.archiveIfNeeded(tasks)
+            }
+        } catch {
+            syncMonitor.recordStartupFailure(error)
+        }
+    }
+
+    private func refreshCurrentDay() {
+        let nextDayKey = DayKey.today
+        let targetDayKey = isFollowingToday ? nextDayKey : selectedBoardDayKey
+        activeDayKey = nextDayKey
+        selectedBoardDayKey = targetDayKey
+        isFollowingToday = targetDayKey == nextDayKey
+        if let reconstructedDate = DayKey.date(from: targetDayKey) {
+            selectedBoardDate = reconstructedDate
+        }
+        persistArchiveIfNeeded()
     }
 
     @ViewBuilder
@@ -151,6 +202,93 @@ struct AppRootView: View {
                 selectedTab = .board
             }
         }
+    }
+}
+
+struct CloudKitSyncStatusButton: View {
+    let monitor: CloudKitSyncMonitor
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Image(systemName: monitor.systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 54, height: 44)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(monitor.lastErrorDescription == nil ? AppTheme.primaryText : Color.red)
+        .padding(8)
+        .background(AppTheme.floatingBar, in: Capsule())
+        .overlay {
+            Capsule().stroke(AppTheme.border, lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 8)
+        .help(monitor.title)
+        .accessibilityLabel(monitor.title)
+        .sheet(isPresented: $isPresented) {
+            CloudKitSyncStatusSheet(monitor: monitor)
+        }
+    }
+}
+
+private struct CloudKitSyncStatusSheet: View {
+    let monitor: CloudKitSyncMonitor
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("iCloud 동기화")
+                    .font(.title2.weight(.bold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("닫기")
+            }
+
+            Label(monitor.title, systemImage: monitor.systemImage)
+                .font(.headline)
+
+            LabeledContent("계정", value: monitor.accountAvailability.title)
+            if let lastSuccessfulSyncAt = monitor.lastSuccessfulSyncAt {
+                LabeledContent(
+                    "마지막 성공",
+                    value: lastSuccessfulSyncAt.formatted(date: .abbreviated, time: .shortened)
+                )
+            } else {
+                LabeledContent("마지막 성공", value: "확인 전")
+            }
+
+            if let errorDescription = monitor.lastErrorDescription {
+                Text(errorDescription)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    Swift.Task { await monitor.refreshAccountStatus() }
+                } label: {
+                    Label("계정 상태 다시 확인", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(22)
+        .frame(width: 420)
+        .background(AppTheme.panel)
+        .foregroundStyle(AppTheme.primaryText)
     }
 }
 

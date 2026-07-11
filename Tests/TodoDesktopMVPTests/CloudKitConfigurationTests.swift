@@ -3,6 +3,102 @@ import Testing
 @testable import EasyTaskCore
 
 @Test
+@MainActor
+func cloudKitSyncMonitorTracksProgressSuccessAndFailure() {
+    let monitor = CloudKitSyncMonitor()
+    let successDate = Date(timeIntervalSince1970: 1234)
+    let importID = UUID()
+
+    monitor.record(CloudKitSyncEventSummary(
+        identifier: importID,
+        kind: .import,
+        isCompleted: false,
+        succeeded: false
+    ))
+    #expect(monitor.isSyncing)
+
+    monitor.record(CloudKitSyncEventSummary(
+        identifier: importID,
+        kind: .import,
+        isCompleted: true,
+        succeeded: true
+    ), at: successDate)
+    #expect(!monitor.isSyncing)
+    #expect(monitor.lastSuccessfulSyncAt == successDate)
+    #expect(monitor.lastErrorDescription == nil)
+
+    monitor.record(CloudKitSyncEventSummary(
+        kind: .export,
+        isCompleted: true,
+        succeeded: false,
+        errorDescription: "네트워크 오류"
+    ))
+    #expect(monitor.lastSuccessfulSyncAt == successDate)
+    #expect(monitor.lastErrorDescription == "네트워크 오류")
+}
+
+@Test
+@MainActor
+func cloudKitSyncMonitorKeepsConcurrentOperationsAndErrorsIndependent() {
+    let monitor = CloudKitSyncMonitor()
+    let importID = UUID()
+    let exportID = UUID()
+
+    monitor.record(CloudKitSyncEventSummary(
+        identifier: importID,
+        kind: .import,
+        isCompleted: false,
+        succeeded: false
+    ))
+    monitor.record(CloudKitSyncEventSummary(
+        identifier: exportID,
+        kind: .export,
+        isCompleted: false,
+        succeeded: false
+    ))
+
+    monitor.record(CloudKitSyncEventSummary(
+        identifier: importID,
+        kind: .import,
+        isCompleted: true,
+        succeeded: true
+    ))
+    #expect(monitor.isSyncing)
+
+    monitor.record(CloudKitSyncEventSummary(
+        identifier: exportID,
+        kind: .export,
+        isCompleted: true,
+        succeeded: false,
+        errorDescription: "내보내기 실패"
+    ))
+    #expect(!monitor.isSyncing)
+    #expect(monitor.syncErrorDescription == "내보내기 실패")
+
+    monitor.record(CloudKitSyncEventSummary(
+        kind: .setup,
+        isCompleted: true,
+        succeeded: true
+    ))
+    #expect(monitor.syncErrorDescription == "내보내기 실패")
+}
+
+@Test
+@MainActor
+func cloudKitSyncSuccessDoesNotHideUnrelatedDataIssue() {
+    let monitor = CloudKitSyncMonitor()
+    monitor.recordIssue("이전 회고 이미지 정리가 필요합니다")
+
+    monitor.record(CloudKitSyncEventSummary(
+        kind: .export,
+        isCompleted: true,
+        succeeded: true
+    ))
+
+    #expect(monitor.lastErrorDescription == "이전 회고 이미지 정리가 필요합니다")
+}
+
+@Test
 func cloudKitConfigurationUsesExplicitSharedContainer() {
     let configuration = EasyTaskContainerFactory.makeConfiguration(
         storeURL: nil,

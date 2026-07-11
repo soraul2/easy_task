@@ -31,7 +31,7 @@ struct MobileCalendarView: View {
     @State private var sheet: CalendarSheet?
     @State private var placementTemplate: TaskTemplate?
     @State private var placementDrafts: [TemplateTaskDraft] = []
-    @State private var placementDatesByKey: [String: Date] = [:]
+    @State private var placementDayKeys: Set<String> = []
     @State private var placementMessage: String?
     @State private var calendarNotice: String?
     @State private var calendarNoticeToken = UUID()
@@ -55,7 +55,7 @@ struct MobileCalendarView: View {
                 if let placementTemplate {
                     CalendarTemplatePlacementStatus(
                         templateName: placementTemplate.name,
-                        selectedCount: placementDatesByKey.count,
+                        selectedCount: placementDayKeys.count,
                         taskCount: validPlacementDrafts.count,
                         message: placementMessage,
                         onDelete: {
@@ -89,7 +89,7 @@ struct MobileCalendarView: View {
                         Button("적용") {
                             requestTemplatePlacementConfirmation()
                         }
-                        .disabled(placementDatesByKey.isEmpty || validPlacementDrafts.isEmpty)
+                        .disabled(placementDayKeys.isEmpty || validPlacementDrafts.isEmpty)
                     }
                 }
             }
@@ -126,7 +126,7 @@ struct MobileCalendarView: View {
                     applyTemplatePlacement()
                 }
             } message: { template in
-                Text("\"\(template.name)\" 템플릿의 작업 \(validPlacementDrafts.count)개를 선택한 \(placementDatesByKey.count)일에 적용합니다.")
+                Text("\"\(template.name)\" 템플릿의 작업 \(validPlacementDrafts.count)개를 선택한 \(placementDayKeys.count)일에 적용합니다.")
             }
             .alert("템플릿을 삭제할까요?", isPresented: $showingPlacementTemplateDeleteConfirmation, presenting: pendingPlacementTemplateDeletion) { template in
                 Button("취소", role: .cancel) {
@@ -166,7 +166,7 @@ struct MobileCalendarView: View {
                                 date: date,
                                 visibleMonth: visibleMonth,
                                 isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
-                                isPlacementSelected: placementDatesByKey[DayKey.key(for: date)] != nil,
+                                isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
                                 events: isPlacementMode ? [] : eventsForDate(date),
                                 templatePlacements: isPlacementMode ? [] : placementsForDate(date),
                                 specialDays: specialDayStore.days(on: date),
@@ -287,14 +287,14 @@ struct MobileCalendarView: View {
     private func startTemplatePlacement(_ template: TaskTemplate, drafts: [TemplateTaskDraft]) {
         placementTemplate = template
         placementDrafts = drafts
-        placementDatesByKey = [:]
+        placementDayKeys = []
         placementMessage = nil
     }
 
     private func cancelTemplatePlacement() {
         placementTemplate = nil
         placementDrafts = []
-        placementDatesByKey = [:]
+        placementDayKeys = []
         placementMessage = nil
         showingTemplateApplyConfirmation = false
         showingPlacementTemplateDeleteConfirmation = false
@@ -302,12 +302,11 @@ struct MobileCalendarView: View {
     }
 
     private func togglePlacementDate(_ date: Date) {
-        let day = DayKey.startOfDay(for: date)
-        let key = DayKey.key(for: day)
-        if placementDatesByKey[key] == nil {
-            placementDatesByKey[key] = day
+        let key = DayKey.key(for: date)
+        if placementDayKeys.contains(key) {
+            placementDayKeys.remove(key)
         } else {
-            placementDatesByKey.removeValue(forKey: key)
+            placementDayKeys.insert(key)
         }
         placementMessage = nil
     }
@@ -318,7 +317,7 @@ struct MobileCalendarView: View {
             placementMessage = "적용할 작업을 남겨두세요"
             return
         }
-        guard !placementDatesByKey.isEmpty else {
+        guard !placementDayKeys.isEmpty else {
             placementMessage = "날짜를 선택하세요"
             return
         }
@@ -327,21 +326,27 @@ struct MobileCalendarView: View {
 
     private func applyTemplatePlacement() {
         guard let placementTemplate else { return }
-        let createdCount = TemplateService.applyTemplate(
-            placementTemplate,
-            drafts: validPlacementDrafts,
-            selectedDates: Array(placementDatesByKey.values),
-            existingTasks: tasks,
-            in: modelContext
-        )
-        guard createdCount > 0 else {
-            placementMessage = "추가할 새 작업이 없어요"
-            return
-        }
+        do {
+            let createdCount = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.applyTemplate(
+                    placementTemplate,
+                    drafts: validPlacementDrafts,
+                    selectedDates: placementDayKeys.sorted().compactMap(DayKey.date(from:)),
+                    existingTasks: tasks,
+                    in: modelContext
+                )
+            }
+            guard createdCount > 0 else {
+                placementMessage = "추가할 새 작업이 없어요"
+                return
+            }
 
-        let selectedDayCount = placementDatesByKey.count
-        cancelTemplatePlacement()
-        showCalendarNotice("\"\(placementTemplate.name)\" 템플릿으로 \(createdCount)개 작업을 \(selectedDayCount)일에 배치했어요")
+            let selectedDayCount = placementDayKeys.count
+            cancelTemplatePlacement()
+            showCalendarNotice("\"\(placementTemplate.name)\" 템플릿으로 \(createdCount)개 작업을 \(selectedDayCount)일에 배치했어요")
+        } catch {
+            placementMessage = "템플릿을 적용하지 못했어요"
+        }
     }
 
     private func requestPlacementTemplateDeletion(_ template: TaskTemplate) {
@@ -351,13 +356,19 @@ struct MobileCalendarView: View {
 
     private func deletePlacementTemplate(_ template: TaskTemplate) {
         let templateName = template.name
-        let deletedItemCount = TemplateService.deleteTemplate(
-            template,
-            items: templateItems,
-            in: modelContext
-        )
-        cancelTemplatePlacement()
-        showCalendarNotice("\"\(templateName)\" 템플릿과 작업 \(deletedItemCount)개를 삭제했어요")
+        do {
+            let deletedItemCount = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.deleteTemplate(
+                    template,
+                    items: templateItems,
+                    in: modelContext
+                )
+            }
+            cancelTemplatePlacement()
+            showCalendarNotice("\"\(templateName)\" 템플릿과 작업 \(deletedItemCount)개를 삭제했어요")
+        } catch {
+            placementMessage = "템플릿을 삭제하지 못했어요"
+        }
     }
 
     private func showCalendarNotice(_ message: String) {
@@ -730,6 +741,7 @@ private struct MobileEventEditorSheet: View {
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var color: String
+    @State private var message: String?
     @State private var showingAddConfirmation = false
     @State private var showingDeleteConfirmation = false
 
@@ -774,6 +786,13 @@ private struct MobileEventEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let message {
+                    Section {
+                        Label(message, systemImage: "exclamationmark.circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section("일정") {
                     TextField("큰 일정 또는 작업 맥락", text: $title)
                 }
@@ -843,43 +862,62 @@ private struct MobileEventEditorSheet: View {
 
     @discardableResult
     private func saveEvent() -> Bool {
-        if let event {
-            let didUpdate = CalendarEventRules.update(
-                event,
-                title: trimmedTitle,
-                startAt: startDate,
-                endAt: endDate,
-                note: note,
-                color: color
-            )
-            if didUpdate {
-                onComplete?("이벤트를 저장했어요")
+        message = nil
+        do {
+            let didSave = try PersistenceCommandService.perform(in: modelContext) {
+                if let event {
+                    return CalendarEventRules.update(
+                        event,
+                        title: trimmedTitle,
+                        startAt: startDate,
+                        endAt: endDate,
+                        note: note,
+                        color: color
+                    )
+                }
+                guard let event = CalendarEventRules.makeEvent(
+                    title: trimmedTitle,
+                    startAt: startDate,
+                    endAt: endDate,
+                    note: note,
+                    color: color
+                ) else {
+                    return false
+                }
+                modelContext.insert(event)
+                return true
             }
-            return didUpdate
-        } else if let event = CalendarEventRules.makeEvent(
-            title: trimmedTitle,
-            startAt: startDate,
-            endAt: endDate,
-            note: note,
-            color: color
-        ) {
-            modelContext.insert(event)
-            onComplete?("이벤트를 추가했어요")
+            guard didSave else {
+                message = "이벤트 내용을 확인해 주세요"
+                return false
+            }
+
+            onComplete?(isEditing ? "이벤트를 저장했어요" : "이벤트를 추가했어요")
             return true
+        } catch {
+            message = isEditing ? "이벤트를 저장하지 못했어요" : "이벤트를 추가하지 못했어요"
+            return false
         }
-        return false
     }
 
     private func deleteEvent() {
         guard let event else { return }
-        let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
-        modelContext.delete(event)
-        if detachedCount > 0 {
-            onComplete?("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
-        } else {
-            onComplete?("이벤트를 삭제했어요")
+        message = nil
+        do {
+            let detachedCount = try PersistenceCommandService.perform(in: modelContext) {
+                let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
+                modelContext.delete(event)
+                return detachedCount
+            }
+            if detachedCount > 0 {
+                onComplete?("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
+            } else {
+                onComplete?("이벤트를 삭제했어요")
+            }
+            dismiss()
+        } catch {
+            message = "이벤트를 삭제하지 못했어요"
         }
-        dismiss()
     }
 }
 
@@ -1203,13 +1241,20 @@ private struct MobileCalendarDaySheet: View {
     }
 
     private func deleteEvent(_ event: CalendarEvent) {
-        let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
-        modelContext.delete(event)
-        pendingDeleteEvent = nil
-        if detachedCount > 0 {
-            showDayNotice("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
-        } else {
-            showDayNotice("이벤트를 삭제했어요")
+        do {
+            let detachedCount = try PersistenceCommandService.perform(in: modelContext) {
+                let detachedCount = CalendarEventRules.detachTasks(from: event, in: allTasks)
+                modelContext.delete(event)
+                return detachedCount
+            }
+            pendingDeleteEvent = nil
+            if detachedCount > 0 {
+                showDayNotice("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
+            } else {
+                showDayNotice("이벤트를 삭제했어요")
+            }
+        } catch {
+            showDayNotice("이벤트를 삭제하지 못했어요")
         }
     }
 
@@ -1221,17 +1266,23 @@ private struct MobileCalendarDaySheet: View {
             return
         }
 
-        let affectedCount = TemplateService.deletePlacement(
-            placement,
-            tasks: allTasks,
-            in: modelContext,
-            deleteTasks: deleteTasks
-        )
-        pendingDeletePlacement = nil
-        if deleteTasks {
-            showDayNotice("\"\(placementName)\" 배치와 작업 \(affectedCount)개를 삭제했어요")
-        } else {
-            showDayNotice("\"\(placementName)\" 배치 연결을 작업 \(affectedCount)개에서 해제했어요")
+        do {
+            let affectedCount = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.deletePlacement(
+                    placement,
+                    tasks: allTasks,
+                    in: modelContext,
+                    deleteTasks: deleteTasks
+                )
+            }
+            pendingDeletePlacement = nil
+            if deleteTasks {
+                showDayNotice("\"\(placementName)\" 배치와 작업 \(affectedCount)개를 삭제했어요")
+            } else {
+                showDayNotice("\"\(placementName)\" 배치 연결을 작업 \(affectedCount)개에서 해제했어요")
+            }
+        } catch {
+            showDayNotice("템플릿 배치를 삭제하지 못했어요")
         }
     }
 
@@ -1517,13 +1568,20 @@ private struct MobileTemplatePlacementSheet: View {
     }
 
     private func toggleFavorite(_ template: TaskTemplate) {
-        template.isFavorite.toggle()
-        template.updatedAt = Date()
-        if selectedTemplate?.id == template.id && !template.isFavorite && scope == .favorites {
-            selectedTemplate = nil
-            drafts = []
+        do {
+            let isFavorite = try PersistenceCommandService.perform(in: modelContext) {
+                template.isFavorite.toggle()
+                template.updatedAt = Date()
+                return template.isFavorite
+            }
+            if selectedTemplate?.id == template.id && !isFavorite && scope == .favorites {
+                selectedTemplate = nil
+                drafts = []
+            }
+            message = isFavorite ? "즐겨찾기에 추가했어요" : "즐겨찾기에서 제거했어요"
+        } catch {
+            message = "즐겨찾기를 변경하지 못했어요"
         }
-        message = template.isFavorite ? "즐겨찾기에 추가했어요" : "즐겨찾기에서 제거했어요"
     }
 
     private func removeDraft(_ id: UUID) {
@@ -1544,25 +1602,32 @@ private struct MobileTemplatePlacementSheet: View {
     }
 
     private func deleteTemplate(_ template: TaskTemplate) {
+        let templateID = template.id
         let templateName = template.name
-        let deletedItemCount = TemplateService.deleteTemplate(
-            template,
-            items: items,
-            in: modelContext
-        )
-        if selectedTemplate?.id == template.id {
-            selectedTemplate = nil
-            drafts = []
+        do {
+            let deletedItemCount = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.deleteTemplate(
+                    template,
+                    items: items,
+                    in: modelContext
+                )
+            }
+            if selectedTemplate?.id == templateID {
+                selectedTemplate = nil
+                drafts = []
+            }
+            if detailTemplate?.id == templateID {
+                detailTemplate = nil
+            }
+            pendingDeleteTemplate = nil
+            message = "\"\(templateName)\" 템플릿과 작업 \(deletedItemCount)개를 삭제했어요"
+        } catch {
+            message = "템플릿을 삭제하지 못했어요"
         }
-        if detailTemplate?.id == template.id {
-            detailTemplate = nil
-        }
-        pendingDeleteTemplate = nil
-        message = "\"\(templateName)\" 템플릿과 작업 \(deletedItemCount)개를 삭제했어요"
     }
 }
 
-private struct MobileTemplateDraftEditRow: View {
+struct MobileTemplateDraftEditRow: View {
     @Binding var draft: TemplateTaskDraft
     var onRemove: (UUID) -> Void
 
@@ -1592,7 +1657,7 @@ private struct MobileTemplateDraftEditRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("이번 배치에서 제외")
+                .accessibilityLabel("목록에서 제외")
             }
 
             TextField("메모", text: $draft.note, axis: .vertical)
