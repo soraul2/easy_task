@@ -132,3 +132,97 @@ func boundedNextOrderAndEventLinksAvoidWholeTaskArray() throws {
         in: context
     ).map(\.id)) == Set([first.id, second.id]))
 }
+
+@Test
+@MainActor
+func archivePagesKeepCompleteDaysAndDoNotDuplicateAcrossCursors() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let referenceDate = try #require(DayKey.date(from: "2026-07-12"))
+
+    for offset in 0..<40 {
+        let date = DayKey.addingDays(-offset, to: referenceDate)
+        let taskCount = offset == 29 ? 31 : 1
+        for index in 0..<taskCount {
+            let task = Task(
+                title: "완료 \(offset)-\(index)",
+                status: .done,
+                plannedAt: date,
+                order: Double(index * 100)
+            )
+            task.completedAt = date
+            task.completedDayKey = DayKey.key(for: date)
+            context.insert(task)
+        }
+    }
+
+    let imageDayKey = DayKey.key(for: DayKey.addingDays(-2, to: referenceDate))
+    let imageOnlyReview = DailyReview(dayKey: imageDayKey, content: "")
+    context.insert(imageOnlyReview)
+    context.insert(DiaryAttachment(
+        reviewId: imageOnlyReview.id,
+        order: 100,
+        mimeType: "image/jpeg",
+        byteCount: 3,
+        sha256: "archive-page-test",
+        data: Data([1, 2, 3])
+    ))
+    try context.save()
+
+    let firstPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: ArchiveFilter(),
+        referenceDate: referenceDate
+    )
+    let secondPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: ArchiveFilter(),
+        beforeDayKey: firstPage.nextBeforeDayKey,
+        referenceDate: referenceDate
+    )
+
+    #expect(firstPage.records.count == 30)
+    #expect(firstPage.records.last?.tasks.count == 31)
+    #expect(firstPage.records.first { $0.dayKey == imageDayKey }?.review?.id == imageOnlyReview.id)
+    #expect(firstPage.attachments.count == 1)
+    #expect(firstPage.hasMore)
+    #expect(secondPage.records.count == 10)
+    #expect(!secondPage.hasMore)
+    #expect(Set(firstPage.records.map(\.dayKey)).isDisjoint(
+        with: Set(secondPage.records.map(\.dayKey))
+    ))
+}
+
+@Test
+@MainActor
+func archiveSearchScansBoundedWindowsUntilSparseMatch() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let referenceDate = try #require(DayKey.date(from: "2026-07-12"))
+
+    for offset in 0..<95 {
+        let date = DayKey.addingDays(-offset, to: referenceDate)
+        let task = Task(
+            title: offset == 94 ? "needle 작업" : "일반 작업 \(offset)",
+            status: .done,
+            plannedAt: date,
+            order: 100
+        )
+        task.completedAt = date
+        task.completedDayKey = DayKey.key(for: date)
+        context.insert(task)
+    }
+    try context.save()
+
+    var filter = ArchiveFilter()
+    filter.searchText = "needle"
+    let page = try BoundedQueryService.archivePage(
+        in: context,
+        filter: filter,
+        referenceDate: referenceDate
+    )
+
+    #expect(page.records.count == 1)
+    #expect(page.records.first?.tasks.map(\.title) == ["needle 작업"])
+    #expect(!page.hasMore)
+}

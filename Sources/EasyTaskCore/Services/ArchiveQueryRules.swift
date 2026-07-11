@@ -94,11 +94,22 @@ public struct ArchiveDayRecord: Identifiable {
     }
 }
 
+public struct ArchiveDayKeyRange: Equatable, Sendable {
+    public var lowerBound: String?
+    public var upperBound: String
+
+    public init(lowerBound: String?, upperBound: String) {
+        self.lowerBound = lowerBound
+        self.upperBound = upperBound
+    }
+}
+
 public enum ArchiveQueryRules {
     public static func records(
         tasks: [Task],
         reviews: [DailyReview],
         filter: ArchiveFilter,
+        reviewIDsWithContent: Set<UUID> = [],
         referenceDate: Date = Date()
     ) -> [ArchiveDayRecord] {
         let completedTasks = tasks
@@ -106,7 +117,9 @@ public enum ArchiveQueryRules {
             .filter { matchesPeriod(dayKey(for: $0), filter: filter, referenceDate: referenceDate) }
         let nonEmptyReviews = reviews
             .filter { $0.supersededAt == nil }
-            .filter(DailyReviewRules.hasContent)
+            .filter {
+                DailyReviewRules.hasContent($0) || reviewIDsWithContent.contains($0.id)
+            }
             .filter { matchesPeriod($0.dayKey, filter: filter, referenceDate: referenceDate) }
 
         let tasksByDay = Dictionary(grouping: completedTasks, by: dayKey)
@@ -145,6 +158,34 @@ public enum ArchiveQueryRules {
                 )
             }
             .filter { !$0.tasks.isEmpty || $0.review != nil }
+    }
+
+    public static func dayKeyRange(
+        for filter: ArchiveFilter,
+        referenceDate: Date = Date()
+    ) -> ArchiveDayKeyRange {
+        let referenceDay = DayKey.startOfDay(for: referenceDate)
+        let referenceKey = DayKey.key(for: referenceDay)
+
+        switch filter.period {
+        case .all:
+            return ArchiveDayKeyRange(lowerBound: nil, upperBound: referenceKey)
+        case .last7Days:
+            return ArchiveDayKeyRange(
+                lowerBound: DayKey.key(for: DayKey.addingDays(-6, to: referenceDay)),
+                upperBound: referenceKey
+            )
+        case .last30Days:
+            return ArchiveDayKeyRange(
+                lowerBound: DayKey.key(for: DayKey.addingDays(-29, to: referenceDay)),
+                upperBound: referenceKey
+            )
+        case .custom:
+            return ArchiveDayKeyRange(
+                lowerBound: DayKey.key(for: min(filter.customStartDate, filter.customEndDate)),
+                upperBound: DayKey.key(for: max(filter.customStartDate, filter.customEndDate))
+            )
+        }
     }
 
     public static func dayKey(for task: Task) -> String {
@@ -202,6 +243,12 @@ public enum ArchiveQueryRules {
     private static func tasksNewestFirst(_ lhs: Task, _ rhs: Task) -> Bool {
         let lhsDate = lhs.completedAt ?? lhs.archivedAt ?? .distantPast
         let rhsDate = rhs.completedAt ?? rhs.archivedAt ?? .distantPast
-        return lhsDate > rhsDate
+        if lhsDate != rhsDate {
+            return lhsDate > rhsDate
+        }
+        if lhs.order != rhs.order {
+            return lhs.order < rhs.order
+        }
+        return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 }

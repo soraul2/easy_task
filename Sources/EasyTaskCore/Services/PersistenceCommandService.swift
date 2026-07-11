@@ -1,6 +1,11 @@
+import Foundation
 import SwiftData
 
 public enum PersistenceCommandService {
+    public static let dataChangedNotification = Notification.Name(
+        "EasyTaskPersistenceDataChanged"
+    )
+
     @MainActor
     @discardableResult
     public static func perform<Result>(
@@ -13,6 +18,10 @@ public enum PersistenceCommandService {
         do {
             let result = try mutation()
             try context.save()
+            NotificationCenter.default.post(
+                name: dataChangedNotification,
+                object: context
+            )
             return result
         } catch {
             context.rollback()
