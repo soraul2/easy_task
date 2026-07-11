@@ -9,6 +9,8 @@ struct ArchiveView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var tasks: [Task]
     @Query private var reviews: [DailyReview]
+    @Query private var diaryBlocks: [DiaryBlock]
+    @Query private var attachments: [DiaryAttachment]
     @State private var filter = ArchiveFilter()
     @State private var message: String?
 
@@ -50,6 +52,19 @@ struct ArchiveView: View {
                         ForEach(archiveGroups) { group in
                             ArchiveDayGroupView(
                                 group: group,
+                                attachments: group.review.map {
+                                    DiaryAttachmentService.activeAttachments(
+                                        for: $0.id,
+                                        in: attachments
+                                    )
+                                } ?? [],
+                                legacyFileNames: group.review.map {
+                                    DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                                        for: $0,
+                                        blocks: diaryBlocks,
+                                        attachments: attachments
+                                    )
+                                } ?? [],
                                 onOpenBoardDate: onOpenBoardDate
                             )
                         }
@@ -127,9 +142,9 @@ struct ArchiveView: View {
 
     private func exportBackup() {
         do {
-            switch try BackupService.exportJSON(context: modelContext) {
-            case .completed:
-                message = "백업을 내보냈습니다."
+            switch try BackupService.exportPackage(context: modelContext) {
+            case .completed(let completionMessage):
+                message = completionMessage
             case .cancelled:
                 message = nil
             }
@@ -140,9 +155,9 @@ struct ArchiveView: View {
 
     private func importBackup() {
         do {
-            switch try BackupService.importReplacingAll(context: modelContext) {
-            case .completed:
-                message = "백업을 가져왔습니다."
+            switch try BackupService.importBackup(context: modelContext) {
+            case .completed(let completionMessage):
+                message = completionMessage
             case .cancelled:
                 message = nil
             }
@@ -303,6 +318,8 @@ private struct ArchiveMessageView: View {
 
 private struct ArchiveDayGroupView: View {
     var group: ArchiveDayRecord
+    var attachments: [DiaryAttachment]
+    var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
     @State private var isTaskListExpanded = false
 
@@ -376,8 +393,11 @@ private struct ArchiveDayGroupView: View {
                     .textSelection(.enabled)
             }
 
-            if !review.imageFileNames.isEmpty {
-                ArchiveReviewImagePreview(fileNames: review.imageFileNames)
+            if !attachments.isEmpty || !legacyFileNames.isEmpty {
+                ArchiveReviewImagePreview(
+                    attachments: attachments,
+                    legacyFileNames: legacyFileNames
+                )
             }
         }
     }
@@ -478,12 +498,19 @@ private struct ArchiveDayGroupView: View {
 }
 
 private struct ArchiveReviewImagePreview: View {
-    var fileNames: [String]
+    var attachments: [DiaryAttachment]
+    var legacyFileNames: [String]
+    @State private var selectedIndex = 0
 
     var body: some View {
+        let items = mixedImageItems
+        let safeIndex = items.indices.contains(selectedIndex) ? selectedIndex : 0
+        let image = items.indices.contains(safeIndex)
+            ? items[safeIndex].data.flatMap { NSImage(data: $0) }
+            : nil
+
         ZStack(alignment: .bottomTrailing) {
-            if let fileName = fileNames.first,
-               let image = NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName)) {
+            if let image {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
@@ -501,8 +528,26 @@ private struct ArchiveReviewImagePreview: View {
                     }
             }
 
-            if fileNames.count > 1 {
-                Text("1/\(fileNames.count)")
+            if items.count > 1 {
+                HStack {
+                    if safeIndex > 0 {
+                        navigationButton(systemImage: "chevron.left", label: "이전 이미지") {
+                            selectedIndex = safeIndex - 1
+                        }
+                    }
+                    Spacer()
+                    if safeIndex < items.count - 1 {
+                        navigationButton(systemImage: "chevron.right", label: "다음 이미지") {
+                            selectedIndex = safeIndex + 1
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 10)
+            }
+
+            if items.count > 1 {
+                Text("\(safeIndex + 1)/\(items.count)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 9)
@@ -512,7 +557,76 @@ private struct ArchiveReviewImagePreview: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .onChange(of: items.count) { _, count in
+            if selectedIndex >= count {
+                selectedIndex = 0
+            }
+        }
     }
+
+    private var mixedImageItems: [ArchiveReviewImageItem] {
+        var items = attachments.enumerated().map { index, attachment in
+            ArchiveReviewImageItem(
+                id: "canonical-\(attachment.id.uuidString)-\(index)",
+                data: attachment.data
+            )
+        }
+        let canonicalFileNames = Set(attachments.compactMap {
+            normalizedFileName($0.originalFileName)
+        })
+        let canonicalHashes = Set(attachments.map(\.sha256).filter { !$0.isEmpty })
+        var seenLegacyFileNames: Set<String> = []
+        var seenLegacyHashes: Set<String> = []
+
+        for (index, fileName) in legacyFileNames.enumerated() {
+            guard let fileNameKey = normalizedFileName(fileName) else { continue }
+            let data = try? Data(
+                contentsOf: DiaryImageStore.imageURL(for: fileName),
+                options: [.mappedIfSafe]
+            )
+            let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
+            let duplicatesCanonical = canonicalFileNames.contains(fileNameKey) ||
+                hash.map(canonicalHashes.contains) == true
+            let duplicatesLegacy = !seenLegacyFileNames.insert(fileNameKey).inserted ||
+                hash.map { !seenLegacyHashes.insert($0).inserted } == true
+            guard !duplicatesCanonical, !duplicatesLegacy else { continue }
+
+            items.append(ArchiveReviewImageItem(
+                id: "legacy-\(fileNameKey)-\(index)",
+                data: data
+            ))
+        }
+        return items
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
+
+    private func navigationButton(
+        systemImage: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(.black.opacity(0.52), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+    }
+}
+
+private struct ArchiveReviewImageItem: Identifiable {
+    var id: String
+    var data: Data?
 }
 
 private struct ArchiveTaskCompactRow: View {

@@ -32,7 +32,10 @@ public enum DataIntegrityService {
 
     @MainActor
     @discardableResult
-    public static func reconcile(context: ModelContext) throws -> Report {
+    public static func reconcile(
+        context: ModelContext,
+        saveChanges: Bool = true
+    ) throws -> Report {
         let events = try context.fetch(FetchDescriptor<CalendarEvent>())
         let templates = try context.fetch(FetchDescriptor<TaskTemplate>())
         let templateItems = try context.fetch(FetchDescriptor<TaskTemplateItem>())
@@ -40,49 +43,49 @@ public enum DataIntegrityService {
         let tasks = try context.fetch(FetchDescriptor<Task>())
         let reviews = try context.fetch(FetchDescriptor<DailyReview>())
         let diaryBlocks = try context.fetch(FetchDescriptor<DiaryBlock>())
+        let diaryAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
 
         var report = Report()
 
         _ = mergeActive(
             events,
             groupedBy: { $0.id },
-            copying: copyCalendarEventScalars,
             report: &report
         )
         _ = mergeActive(
             templates,
             groupedBy: { $0.id },
-            copying: copyTemplateScalars,
             report: &report
         )
         _ = mergeActive(
             templateItems,
             groupedBy: { $0.id },
-            copying: copyTemplateItemScalars,
             report: &report
         )
         _ = mergeActive(
             placements,
             groupedBy: { $0.id },
-            copying: copyPlacementScalars,
             report: &report
         )
         _ = mergeActive(
             tasks,
             groupedBy: { $0.id },
-            copying: copyTaskScalars,
             report: &report
         )
         _ = mergeActive(
             reviews,
             groupedBy: { $0.id },
-            copying: copyReviewScalars,
-            report: &report
+            report: &report,
+            mergingSupplemental: mergeReviewLegacyFileNames
         )
         _ = mergeActive(
             diaryBlocks,
             groupedBy: { $0.id },
-            copying: copyDiaryBlockScalars,
+            report: &report
+        )
+        _ = mergeActive(
+            diaryAttachments,
+            groupedBy: { $0.id },
             report: &report
         )
 
@@ -93,11 +96,11 @@ public enum DataIntegrityService {
         normalizeActive(tasks, with: normalizeTask, report: &report)
         normalizeActive(reviews, with: normalizeReview, report: &report)
         normalizeActive(diaryBlocks, with: normalizeDiaryBlock, report: &report)
+        normalizeActive(diaryAttachments, with: normalizeDiaryAttachment, report: &report)
 
         let templateRewrites = mergeActive(
             templates,
             groupedBy: { normalizedNaturalKey($0.seedKey) },
-            copying: copyTemplateScalars,
             report: &report
         )
         reconcileTemplateReferences(
@@ -124,19 +127,19 @@ public enum DataIntegrityService {
                 guard let seedKey = normalizedNaturalKey(item.seedKey) else { return nil }
                 return SeededItemKey(templateID: item.templateId, seedKey: seedKey)
             },
-            copying: copyTemplateItemScalars,
             report: &report
         )
 
         let reviewRewrites = mergeActive(
             reviews,
             groupedBy: { validDayKey($0.dayKey) },
-            copying: copyReviewScalars,
-            report: &report
+            report: &report,
+            mergingSupplemental: mergeReviewLegacyFileNames
         )
         reconcileDiaryBlockReferences(
             reviews: reviews,
             blocks: diaryBlocks,
+            attachments: diaryAttachments,
             directRewrites: reviewRewrites,
             report: &report
         )
@@ -148,7 +151,7 @@ public enum DataIntegrityService {
             report: &report
         )
 
-        if report.hasChanges {
+        if report.hasChanges && saveChanges {
             try context.save()
         }
         return report
@@ -167,8 +170,8 @@ private extension DataIntegrityService {
     static func mergeActive<Record: IntegrityRecord, Key: Hashable>(
         _ records: [Record],
         groupedBy key: (Record) -> Key?,
-        copying copyScalars: (Record, Record) -> Void,
-        report: inout Report
+        report: inout Report,
+        mergingSupplemental: (Record, Record) -> Void = { _, _ in }
     ) -> [UUID: UUID] {
         var groups: [Key: [Record]] = [:]
         for record in records where isActive(record) {
@@ -183,23 +186,22 @@ private extension DataIntegrityService {
 
         for group in duplicateGroups {
             let ordered = group.sorted { uuidPrecedes($0.instanceID, $1.instanceID) }
-            guard let canonical = ordered.first else { continue }
-            var winner = canonical
+            guard var winner = ordered.first else { continue }
             for candidate in ordered.dropFirst() where scalarPrecedes(winner, candidate) {
                 winner = candidate
             }
 
-            copyScalars(winner, canonical)
             if let earliestCreatedAt = earliestValidTimestamp(in: ordered) {
-                _ = assign(&canonical.createdAt, earliestCreatedAt)
+                _ = assign(&winner.createdAt, earliestCreatedAt)
             }
 
-            for loser in ordered.dropFirst() {
+            for loser in ordered where loser.instanceID != winner.instanceID {
+                mergingSupplemental(loser, winner)
                 loser.supersededAt = winner.updatedAt
                 report.mergedRecords += 1
                 report.supersededRecords += 1
-                if loser.id != canonical.id {
-                    rewrites[loser.id] = canonical.id
+                if loser.id != winner.id {
+                    rewrites[loser.id] = winner.id
                 }
             }
         }
@@ -313,6 +315,7 @@ private extension DataIntegrityService {
     static func reconcileDiaryBlockReferences(
         reviews: [DailyReview],
         blocks: [DiaryBlock],
+        attachments: [DiaryAttachment],
         directRewrites: [UUID: UUID],
         report: inout Report
     ) {
@@ -353,6 +356,38 @@ private extension DataIntegrityService {
 
             if isBlankDiaryBlock(block) {
                 supersede(block, report: &report)
+            }
+        }
+
+        for attachment in attachments where isActive(attachment) {
+            if let canonicalID = rewrites[attachment.reviewId],
+               canonicalID != attachment.reviewId {
+                attachment.reviewId = canonicalID
+                report.rewiredReferences += 1
+            }
+
+            guard activeReviewIDs.contains(attachment.reviewId),
+                  (try? DiaryAttachmentService.inspect(attachment.data)) != nil else {
+                supersede(attachment, report: &report)
+                continue
+            }
+        }
+
+        let attachmentsByReview = Dictionary(
+            grouping: attachments.filter(isActive),
+            by: \.reviewId
+        )
+        for reviewAttachments in attachmentsByReview.values {
+            let ordered = reviewAttachments.sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                return uuidPrecedes($0.instanceID, $1.instanceID)
+            }
+            for (index, attachment) in ordered.enumerated() {
+                let normalizedOrder = Double(index) * 100
+                if attachment.order != normalizedOrder {
+                    attachment.order = normalizedOrder
+                    report.normalizedFields += 1
+                }
             }
         }
     }
@@ -541,6 +576,24 @@ private extension DataIntegrityService {
     }
 
     @MainActor
+    static func normalizeDiaryAttachment(_ attachment: DiaryAttachment) -> Int {
+        var changes = normalizeTimestamps(attachment)
+        if !attachment.order.isFinite {
+            changes += assign(&attachment.order, 0)
+        }
+        changes += assign(
+            &attachment.originalFileName,
+            normalizedOptionalText(attachment.originalFileName).map { String($0.prefix(255)) }
+        )
+        if let metadata = try? DiaryAttachmentService.inspect(attachment.data) {
+            changes += assign(&attachment.mimeType, metadata.mediaType.rawValue)
+            changes += assign(&attachment.byteCount, metadata.byteCount)
+            changes += assign(&attachment.sha256, metadata.sha256)
+        }
+        return changes
+    }
+
+    @MainActor
     static func normalizeTimestamps<Record: IntegrityRecord>(_ record: Record) -> Int {
         var createdAt = finiteDate(record.createdAt)
         var updatedAt = finiteDate(record.updatedAt)
@@ -568,86 +621,11 @@ private extension DataIntegrityService {
 
 private extension DataIntegrityService {
     @MainActor
-    static func copyCalendarEventScalars(from source: CalendarEvent, to target: CalendarEvent) {
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.startAt, source.startAt)
-        _ = assign(&target.endAt, source.endAt)
-        _ = assign(&target.startDayKey, source.startDayKey)
-        _ = assign(&target.endDayKey, source.endDayKey)
-        _ = assign(&target.note, source.note)
-        _ = assign(&target.color, source.color)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyTemplateScalars(from source: TaskTemplate, to target: TaskTemplate) {
-        _ = assign(&target.seedKey, source.seedKey)
-        _ = assign(&target.name, source.name)
-        _ = assign(&target.isFavorite, source.isFavorite)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyTemplateItemScalars(from source: TaskTemplateItem, to target: TaskTemplateItem) {
-        _ = assign(&target.seedKey, source.seedKey)
-        _ = assign(&target.templateId, source.templateId)
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.note, source.note)
-        _ = assign(&target.priority, source.priority)
-        _ = assign(&target.tags, source.tags)
-        _ = assign(&target.estimatedMinutes, source.estimatedMinutes)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyPlacementScalars(from source: TemplatePlacement, to target: TemplatePlacement) {
-        _ = assign(&target.sourceTemplateId, source.sourceTemplateId)
-        _ = assign(&target.templateName, source.templateName)
-        _ = assign(&target.dayKey, source.dayKey)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyTaskScalars(from source: Task, to target: Task) {
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.note, source.note)
-        _ = assign(&target.status, source.status)
-        _ = assign(&target.plannedAt, source.plannedAt)
-        _ = assign(&target.plannedDayKey, source.plannedDayKey)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.eventId, source.eventId)
-        _ = assign(&target.templatePlacementId, source.templatePlacementId)
-        _ = assign(&target.priority, source.priority)
-        _ = assign(&target.tags, source.tags)
-        _ = assign(&target.estimatedMinutes, source.estimatedMinutes)
-        _ = assign(&target.updatedAt, source.updatedAt)
-        _ = assign(&target.completedAt, source.completedAt)
-        _ = assign(&target.completedDayKey, source.completedDayKey)
-        _ = assign(&target.archivedAt, source.archivedAt)
-        _ = assign(&target.archivedDayKey, source.archivedDayKey)
-    }
-
-    @MainActor
-    static func copyReviewScalars(from source: DailyReview, to target: DailyReview) {
-        _ = assign(&target.dayKey, source.dayKey)
-        _ = assign(&target.title, source.title)
-        _ = assign(&target.weather, source.weather)
-        _ = assign(&target.mood, source.mood)
-        _ = assign(&target.content, source.content)
-        _ = assign(&target.imageFileNames, source.imageFileNames)
-        _ = assign(&target.updatedAt, source.updatedAt)
-    }
-
-    @MainActor
-    static func copyDiaryBlockScalars(from source: DiaryBlock, to target: DiaryBlock) {
-        _ = assign(&target.reviewId, source.reviewId)
-        _ = assign(&target.dayKey, source.dayKey)
-        _ = assign(&target.type, source.type)
-        _ = assign(&target.text, source.text)
-        _ = assign(&target.imageFileName, source.imageFileName)
-        _ = assign(&target.order, source.order)
-        _ = assign(&target.updatedAt, source.updatedAt)
+    static func mergeReviewLegacyFileNames(from source: DailyReview, to target: DailyReview) {
+        _ = assign(
+            &target.imageFileNames,
+            mergedLegacyFileNames(target.imageFileNames, source.imageFileNames)
+        )
     }
 }
 
@@ -680,6 +658,20 @@ private extension DataIntegrityService {
             guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
             return trimmed
         }
+    }
+
+    static func mergedLegacyFileNames(_ preferred: [String], _ other: [String]) -> [String] {
+        var remainingCounts = Dictionary(grouping: preferred, by: { $0 }).mapValues(\.count)
+        var result = preferred
+        for fileName in other {
+            let count = remainingCounts[fileName, default: 0]
+            if count > 0 {
+                remainingCounts[fileName] = count - 1
+            } else {
+                result.append(fileName)
+            }
+        }
+        return result
     }
 
     static func isBlank(_ value: String) -> Bool {
@@ -721,10 +713,11 @@ private protocol IntegrityRecord: AnyObject {
     var supersededAt: Date? { get set }
 }
 
-extension EasyTaskSchemaV2.CalendarEvent: IntegrityRecord {}
-extension EasyTaskSchemaV2.TaskTemplate: IntegrityRecord {}
-extension EasyTaskSchemaV2.TaskTemplateItem: IntegrityRecord {}
-extension EasyTaskSchemaV2.TemplatePlacement: IntegrityRecord {}
-extension EasyTaskSchemaV2.Task: IntegrityRecord {}
-extension EasyTaskSchemaV2.DailyReview: IntegrityRecord {}
-extension EasyTaskSchemaV2.DiaryBlock: IntegrityRecord {}
+extension EasyTaskSchemaV3.CalendarEvent: IntegrityRecord {}
+extension EasyTaskSchemaV3.TaskTemplate: IntegrityRecord {}
+extension EasyTaskSchemaV3.TaskTemplateItem: IntegrityRecord {}
+extension EasyTaskSchemaV3.TemplatePlacement: IntegrityRecord {}
+extension EasyTaskSchemaV3.Task: IntegrityRecord {}
+extension EasyTaskSchemaV3.DailyReview: IntegrityRecord {}
+extension EasyTaskSchemaV3.DiaryBlock: IntegrityRecord {}
+extension EasyTaskSchemaV3.DiaryAttachment: IntegrityRecord {}

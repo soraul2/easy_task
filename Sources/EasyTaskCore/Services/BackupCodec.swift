@@ -32,6 +32,7 @@ public struct TaskDTO: Codable {
     public var completedDayKey: String?
     public var archivedAt: Date?
     public var archivedDayKey: String?
+    public var instanceID: UUID? = nil
 }
 
 public struct CalendarEventDTO: Codable {
@@ -45,6 +46,7 @@ public struct CalendarEventDTO: Codable {
     public var color: String?
     public var createdAt: Date
     public var updatedAt: Date
+    public var instanceID: UUID? = nil
 }
 
 public struct TaskTemplateDTO: Codable {
@@ -53,6 +55,8 @@ public struct TaskTemplateDTO: Codable {
     public var isFavorite: Bool?
     public var createdAt: Date
     public var updatedAt: Date
+    public var instanceID: UUID? = nil
+    public var seedKey: String? = nil
 }
 
 public struct TaskTemplateItemDTO: Codable {
@@ -64,6 +68,10 @@ public struct TaskTemplateItemDTO: Codable {
     public var tags: [String]
     public var estimatedMinutes: Int?
     public var order: Double
+    public var instanceID: UUID? = nil
+    public var seedKey: String? = nil
+    public var createdAt: Date? = nil
+    public var updatedAt: Date? = nil
 }
 
 public struct TemplatePlacementDTO: Codable {
@@ -74,6 +82,7 @@ public struct TemplatePlacementDTO: Codable {
     public var taskIds: [UUID]
     public var createdAt: Date
     public var updatedAt: Date
+    public var instanceID: UUID? = nil
 }
 
 public struct DailyReviewDTO: Codable {
@@ -86,6 +95,7 @@ public struct DailyReviewDTO: Codable {
     public var imageFileNames: [String]?
     public var createdAt: Date
     public var updatedAt: Date
+    public var instanceID: UUID? = nil
 }
 
 public struct DiaryBlockDTO: Codable {
@@ -98,6 +108,7 @@ public struct DiaryBlockDTO: Codable {
     public var order: Double
     public var createdAt: Date
     public var updatedAt: Date
+    public var instanceID: UUID? = nil
 }
 
 public enum BackupServiceError: LocalizedError, Equatable {
@@ -223,6 +234,9 @@ public enum BackupCodec {
             }
             for event in try context.fetch(FetchDescriptor<CalendarEvent>()) {
                 context.delete(event)
+            }
+            for attachment in try context.fetch(FetchDescriptor<DiaryAttachment>()) {
+                context.delete(attachment)
             }
             for block in try context.fetch(FetchDescriptor<DiaryBlock>()) {
                 context.delete(block)
@@ -538,6 +552,7 @@ private extension TaskDTO {
         completedDayKey = task.completedDayKey
         archivedAt = task.archivedAt
         archivedDayKey = task.archivedDayKey
+        instanceID = task.instanceID
     }
 }
 
@@ -553,6 +568,7 @@ private extension CalendarEventDTO {
         color = event.color
         createdAt = event.createdAt
         updatedAt = event.updatedAt
+        instanceID = event.instanceID
     }
 }
 
@@ -563,6 +579,8 @@ private extension TaskTemplateDTO {
         isFavorite = template.isFavorite
         createdAt = template.createdAt
         updatedAt = template.updatedAt
+        instanceID = template.instanceID
+        seedKey = template.seedKey
     }
 }
 
@@ -576,6 +594,10 @@ private extension TaskTemplateItemDTO {
         tags = item.tags
         estimatedMinutes = item.estimatedMinutes
         order = item.order
+        instanceID = item.instanceID
+        seedKey = item.seedKey
+        createdAt = item.createdAt
+        updatedAt = item.updatedAt
     }
 }
 
@@ -588,6 +610,7 @@ private extension TemplatePlacementDTO {
         taskIds = []
         createdAt = placement.createdAt
         updatedAt = placement.updatedAt
+        instanceID = placement.instanceID
     }
 }
 
@@ -602,6 +625,7 @@ private extension DailyReviewDTO {
         imageFileNames = review.imageFileNames
         createdAt = review.createdAt
         updatedAt = review.updatedAt
+        instanceID = review.instanceID
     }
 }
 
@@ -616,6 +640,7 @@ private extension DiaryBlockDTO {
         order = block.order
         createdAt = block.createdAt
         updatedAt = block.updatedAt
+        instanceID = block.instanceID
     }
 }
 
@@ -623,6 +648,7 @@ private extension CalendarEvent {
     convenience init(dto: CalendarEventDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
             title: dto.title,
             startAt: dto.startAt,
             endAt: dto.endAt,
@@ -640,6 +666,8 @@ private extension TaskTemplate {
     convenience init(dto: TaskTemplateDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
+            seedKey: dto.seedKey,
             name: dto.name,
             isFavorite: dto.isFavorite ?? false,
             createdAt: dto.createdAt,
@@ -652,13 +680,17 @@ private extension TaskTemplateItem {
     convenience init(dto: TaskTemplateItemDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
+            seedKey: dto.seedKey,
             templateId: dto.templateId,
             title: dto.title,
             note: dto.note,
             priority: dto.priority,
             tags: dto.tags,
             estimatedMinutes: dto.estimatedMinutes,
-            order: dto.order
+            order: dto.order,
+            createdAt: dto.createdAt ?? Date(),
+            updatedAt: dto.updatedAt ?? dto.createdAt ?? Date()
         )
     }
 }
@@ -667,6 +699,7 @@ private extension TemplatePlacement {
     convenience init(dto: TemplatePlacementDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
             sourceTemplateId: dto.sourceTemplateId,
             templateName: dto.templateName,
             dayKey: dto.dayKey,
@@ -681,6 +714,7 @@ private extension Task {
     convenience init(dto: TaskDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
             title: dto.title,
             note: dto.note,
             status: TaskStatus(rawValue: dto.status) ?? .todo,
@@ -708,6 +742,7 @@ private extension DailyReview {
     convenience init(dto: DailyReviewDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
             dayKey: dto.dayKey,
             title: dto.title ?? "",
             weather: dto.weather ?? "",
@@ -724,6 +759,7 @@ private extension DiaryBlock {
     convenience init(dto: DiaryBlockDTO) {
         self.init(
             id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
             reviewId: dto.reviewId,
             dayKey: dto.dayKey,
             type: DiaryBlockType(rawValue: dto.type) ?? .text,

@@ -21,8 +21,25 @@ func schemaV1ContainsEveryPersistedModel() {
 }
 
 @Test
-func schemaV2ContainsEveryCurrentPersistedModel() {
+func schemaV2ContainsEveryFrozenPersistedModel() {
     let modelNames = Set(EasyTaskSchemaV2.models.map { String(reflecting: $0) })
+    let expectedNames = Set([
+        String(reflecting: EasyTaskSchemaV2.Task.self),
+        String(reflecting: EasyTaskSchemaV2.CalendarEvent.self),
+        String(reflecting: EasyTaskSchemaV2.TaskTemplate.self),
+        String(reflecting: EasyTaskSchemaV2.TaskTemplateItem.self),
+        String(reflecting: EasyTaskSchemaV2.TemplatePlacement.self),
+        String(reflecting: EasyTaskSchemaV2.DailyReview.self),
+        String(reflecting: EasyTaskSchemaV2.DiaryBlock.self)
+    ])
+
+    #expect(EasyTaskSchemaV2.versionIdentifier == Schema.Version(2, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV3ContainsEveryCurrentPersistedModel() {
+    let modelNames = Set(EasyTaskSchemaV3.models.map { String(reflecting: $0) })
     let expectedNames = Set([
         String(reflecting: Task.self),
         String(reflecting: CalendarEvent.self),
@@ -30,10 +47,11 @@ func schemaV2ContainsEveryCurrentPersistedModel() {
         String(reflecting: TaskTemplateItem.self),
         String(reflecting: TemplatePlacement.self),
         String(reflecting: DailyReview.self),
-        String(reflecting: DiaryBlock.self)
+        String(reflecting: DiaryBlock.self),
+        String(reflecting: DiaryAttachment.self)
     ])
 
-    #expect(EasyTaskSchemaV2.versionIdentifier == Schema.Version(2, 0, 0))
+    #expect(EasyTaskSchemaV3.versionIdentifier == Schema.Version(3, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -48,6 +66,52 @@ func versionedContainerReopensFileBackedStore() throws {
 
         let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: reopened, title: "versioned fixture")
+    }
+}
+
+@Test
+@MainActor
+func v3AttachmentPersistsInFileBackedStore() throws {
+    try withTemporaryStore { storeURL in
+        let id = UUID(uuidString: "30000000-0000-0000-0000-000000000001")!
+        let instanceID = UUID(uuidString: "30000000-0000-0000-0000-000000000002")!
+        let reviewID = UUID(uuidString: "30000000-0000-0000-0000-000000000003")!
+        let createdAt = Date(timeIntervalSince1970: 100)
+        let updatedAt = Date(timeIntervalSince1970: 200)
+        let data = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01])
+        let sha256 = "275f1bcbbb585c71e3b2184304eccfa0e37de92022ca3b6f4e9c10df32318d85"
+        let container = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        container.mainContext.insert(DiaryAttachment(
+            id: id,
+            instanceID: instanceID,
+            reviewId: reviewID,
+            order: 200,
+            originalFileName: "review.png",
+            mimeType: "image/png",
+            byteCount: data.count,
+            sha256: sha256,
+            data: data,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        ))
+        try container.mainContext.save()
+
+        let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let attachment = try #require(
+            reopened.mainContext.fetch(FetchDescriptor<DiaryAttachment>()).first
+        )
+        #expect(attachment.id == id)
+        #expect(attachment.instanceID == instanceID)
+        #expect(attachment.reviewId == reviewID)
+        #expect(attachment.order == 200)
+        #expect(attachment.originalFileName == "review.png")
+        #expect(attachment.mimeType == "image/png")
+        #expect(attachment.byteCount == data.count)
+        #expect(attachment.sha256 == sha256)
+        #expect(attachment.data == data)
+        #expect(attachment.createdAt == createdAt)
+        #expect(attachment.updatedAt == updatedAt)
+        #expect(attachment.supersededAt == nil)
     }
 }
 
@@ -72,6 +136,37 @@ func versionedV1StoreMigratesToV2WithoutDataLoss() throws {
         let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "v1 fixture")
         try expectStableInstanceIdentityBackfill(in: migrated)
+    }
+}
+
+@Test
+@MainActor
+func versionedV2StoreMigratesToV3WithoutDataLoss() throws {
+    try withTemporaryStore { storeURL in
+        let v2Schema = Schema(versionedSchema: EasyTaskSchemaV2.self)
+        let configuration = ModelConfiguration(
+            "EasyTaskV2",
+            schema: v2Schema,
+            url: storeURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let v2Container = try ModelContainer(
+            for: v2Schema,
+            configurations: configuration
+        )
+        try writeV2Fixture(to: v2Container, title: "v2 fixture")
+
+        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        try expectFixture(in: migrated, title: "v2 fixture")
+        let review = try #require(migrated.mainContext.fetch(FetchDescriptor<DailyReview>()).first)
+        let imageBlock = try #require(
+            migrated.mainContext.fetch(FetchDescriptor<DiaryBlock>())
+                .first { $0.type == DiaryBlockType.image.rawValue }
+        )
+        #expect(review.imageFileNames == ["legacy-review.png"])
+        #expect(imageBlock.imageFileName == "legacy-block.png")
+        #expect(try migrated.mainContext.fetchCount(FetchDescriptor<DiaryAttachment>()) == 0)
     }
 }
 
@@ -210,6 +305,64 @@ private func writeV1Fixture(to container: ModelContainer, title: String) throws 
 }
 
 @MainActor
+private func writeV2Fixture(to container: ModelContainer, title: String) throws {
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-10"))
+    let event = EasyTaskSchemaV2.CalendarEvent(
+        title: "\(title) event",
+        startAt: day,
+        endAt: day
+    )
+    let template = EasyTaskSchemaV2.TaskTemplate(name: "\(title) template")
+    let templateItem = EasyTaskSchemaV2.TaskTemplateItem(
+        templateId: template.id,
+        title: "\(title) template item",
+        order: 100
+    )
+    let placement = EasyTaskSchemaV2.TemplatePlacement(
+        sourceTemplateId: template.id,
+        templateName: template.name,
+        dayKey: DayKey.key(for: day)
+    )
+    let task = EasyTaskSchemaV2.Task(
+        title: title,
+        plannedAt: day,
+        order: 100,
+        eventId: event.id,
+        templatePlacementId: placement.id
+    )
+    let review = EasyTaskSchemaV2.DailyReview(
+        dayKey: DayKey.key(for: day),
+        content: "\(title) review",
+        imageFileNames: ["legacy-review.png"]
+    )
+    let block = EasyTaskSchemaV2.DiaryBlock(
+        reviewId: review.id,
+        dayKey: review.dayKey,
+        type: .text,
+        text: review.content,
+        order: 100
+    )
+    let imageBlock = EasyTaskSchemaV2.DiaryBlock(
+        reviewId: review.id,
+        dayKey: review.dayKey,
+        type: .image,
+        imageFileName: "legacy-block.png",
+        order: 200
+    )
+
+    context.insert(event)
+    context.insert(template)
+    context.insert(templateItem)
+    context.insert(placement)
+    context.insert(task)
+    context.insert(review)
+    context.insert(block)
+    context.insert(imageBlock)
+    try context.save()
+}
+
+@MainActor
 private func writeFixture(to container: ModelContainer, title: String) throws {
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-10"))
@@ -261,14 +414,27 @@ private func expectFixture(in container: ModelContainer, title: String) throws {
     #expect(try context.fetchCount(FetchDescriptor<TaskTemplateItem>()) == 1)
     #expect(try context.fetchCount(FetchDescriptor<TemplatePlacement>()) == 1)
     #expect(try context.fetchCount(FetchDescriptor<DailyReview>()) == 1)
-    #expect(try context.fetchCount(FetchDescriptor<DiaryBlock>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<DiaryBlock>()) >= 1)
 
-    let task = try #require(context.fetch(FetchDescriptor<Task>()).first)
+    let event = try #require(context.fetch(FetchDescriptor<CalendarEvent>()).first)
+    let template = try #require(context.fetch(FetchDescriptor<TaskTemplate>()).first)
+    let templateItem = try #require(context.fetch(FetchDescriptor<TaskTemplateItem>()).first)
     let placement = try #require(context.fetch(FetchDescriptor<TemplatePlacement>()).first)
+    let task = try #require(context.fetch(FetchDescriptor<Task>()).first)
+    let review = try #require(context.fetch(FetchDescriptor<DailyReview>()).first)
+    let block = try #require(
+        context.fetch(FetchDescriptor<DiaryBlock>())
+            .first { $0.type == DiaryBlockType.text.rawValue }
+    )
+    #expect(event.title == "\(title) event")
+    #expect(template.name == "\(title) template")
+    #expect(templateItem.title == "\(title) template item")
+    #expect(placement.templateName == "\(title) template")
     #expect(task.title == title)
     #expect(task.templatePlacementId == placement.id)
+    #expect(review.content == "\(title) review")
+    #expect(block.text == "\(title) review")
     #expect(placement.taskIds.isEmpty)
-
 }
 
 @MainActor

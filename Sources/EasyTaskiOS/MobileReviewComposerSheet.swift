@@ -11,13 +11,18 @@ struct MobileReviewComposerSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [DailyReview]
+    @Query private var diaryBlocks: [DiaryBlock]
+    @Query private var attachments: [DiaryAttachment]
     @State private var title = ""
     @State private var content = ""
     @State private var selectedItems: [PhotosPickerItem] = []
-    @State private var imageFileNames: [String] = []
+    @State private var attachmentDrafts: [DiaryAttachmentDraft] = []
+    @State private var legacyImageFileNames: [String] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
     @State private var messageIsError = false
+    @State private var isImportingImages = false
+    @State private var isSaving = false
 
     private var dayKey: String { DayKey.key(for: selectedDate) }
     private var selectedReview: DailyReview? {
@@ -32,11 +37,16 @@ struct MobileReviewComposerSheet: View {
     }
 
     private var canSave: Bool {
-        DailyReviewRules.hasContent(
-            title: title,
-            content: content,
-            imageFileNames: imageFileNames
-        )
+        guard !isImportingImages, !isSaving else { return false }
+        return selectedReview != nil ||
+            !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !attachmentDrafts.isEmpty
+    }
+
+    private var remainingAttachmentCount: Int {
+        guard legacyImageFileNames.isEmpty else { return 0 }
+        return max(DiaryAttachmentService.maximumAttachmentCount - attachmentDrafts.count, 0)
     }
 
     var body: some View {
@@ -46,14 +56,22 @@ struct MobileReviewComposerSheet: View {
                     ReviewComposerHeader(title: $title, selectedDate: selectedDate)
                     ReviewComposerEditor(content: $content)
                     ReviewComposerImages(
-                        imageFileNames: imageFileNames,
+                        attachmentDrafts: attachmentDrafts,
+                        legacyImageFileNames: legacyImageFileNames,
                         selectedImageIndex: $selectedImageIndex,
-                        onDelete: removeImage
+                        allowsCanonicalDeletion: legacyImageFileNames.isEmpty,
+                        onDeleteCanonical: removeCanonicalImage,
+                        onDeleteLegacy: removeLegacyImages
                     )
-                    PhotosPicker(selection: $selectedItems, maxSelectionCount: 10, matching: .images) {
+                    PhotosPicker(
+                        selection: $selectedItems,
+                        maxSelectionCount: max(remainingAttachmentCount, 1),
+                        matching: .images
+                    ) {
                         Label("이미지 추가", systemImage: "photo")
                     }
                     .buttonStyle(.bordered)
+                    .disabled(remainingAttachmentCount == 0 || isImportingImages || isSaving)
                     if let message {
                         Label(
                             message,
@@ -69,12 +87,10 @@ struct MobileReviewComposerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("저장") {
-                        save()
-                        dismiss()
-                    }
+                    Button("저장", action: save)
                     .disabled(!canSave)
                 }
             }
@@ -83,82 +99,177 @@ struct MobileReviewComposerSheet: View {
                 importImages()
             }
         }
+        .interactiveDismissDisabled(isSaving)
     }
 
     private func load() {
-        title = selectedReview?.title ?? ""
-        content = selectedReview?.content ?? ""
-        imageFileNames = selectedReview?.imageFileNames ?? []
+        let review = selectedReview
+        let orderedAttachments = review.map {
+            DiaryAttachmentService.activeAttachments(for: $0.id, in: attachments)
+        } ?? []
+
+        title = review?.title ?? ""
+        content = review?.content ?? ""
+        attachmentDrafts = orderedAttachments.map {
+            DiaryAttachmentDraft(attachment: $0)
+        }
+        legacyImageFileNames = review.map {
+            DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: $0,
+                blocks: diaryBlocks,
+                attachments: attachments
+            )
+        } ?? []
         selectedImageIndex = 0
         message = nil
         messageIsError = false
+        isImportingImages = false
+        isSaving = false
     }
 
     private func save() {
-        guard DailyReviewService.save(
-            review: selectedReview,
-            dayKey: dayKey,
-            title: title,
-            content: content,
-            imageFileNames: imageFileNames,
-            in: modelContext
-        ) != nil else {
-            return
+        guard canSave else { return }
+        isSaving = true
+        message = nil
+
+        do {
+            let savedReview: DailyReview?
+            if legacyImageFileNames.isEmpty {
+                savedReview = try DiaryAttachmentService.saveReview(
+                    review: selectedReview,
+                    dayKey: dayKey,
+                    title: title,
+                    content: content,
+                    attachments: attachmentDrafts,
+                    in: modelContext
+                )
+            } else {
+                savedReview = try saveLegacyReview()
+            }
+            guard savedReview != nil else {
+                isSaving = false
+                message = "회고를 저장하지 못했어요"
+                messageIsError = true
+                return
+            }
+
+            message = "회고가 저장됐어요"
+            messageIsError = false
+            Swift.Task { @MainActor in
+                try? await Swift.Task<Never, Never>.sleep(nanoseconds: 800_000_000)
+                dismiss()
+            }
+        } catch {
+            isSaving = false
+            message = error.localizedDescription
+            messageIsError = true
         }
-        message = "회고가 저장됐어요"
-        messageIsError = false
+    }
+
+    private func saveLegacyReview() throws -> DailyReview? {
+        // Establish a rollback point before the legacy service mutates the shared context.
+        try modelContext.save()
+        do {
+            guard let review = DailyReviewService.save(
+                review: selectedReview,
+                dayKey: dayKey,
+                title: title,
+                content: content,
+                imageFileNames: legacyImageFileNames,
+                in: modelContext
+            ) else {
+                modelContext.rollback()
+                return nil
+            }
+            try modelContext.save()
+            return review
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     private func importImages() {
         let items = selectedItems
         selectedItems = []
         guard !items.isEmpty else { return }
+        isImportingImages = true
 
         Swift.Task {
-            var imported: [String] = []
-            var failedCount = 0
+            var imported: [DiaryAttachmentDraft] = []
+            var failureMessages: [String] = []
             for item in items {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let fileName = try? DiaryImageFileStore.writeImageData(
-                    data,
-                    preferredExtension: "jpg",
-                    appSupportFolder: MobileImageStorage.appSupportFolder
-                   ) {
-                    imported.append(fileName)
-                } else {
-                    failedCount += 1
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        failureMessages.append("선택한 이미지 데이터를 읽을 수 없습니다.")
+                        continue
+                    }
+                    _ = try DiaryAttachmentService.inspect(data)
+                    imported.append(DiaryAttachmentDraft(data: data))
+                } catch {
+                    failureMessages.append(error.localizedDescription)
                 }
             }
-            await MainActor.run {
-                guard !imported.isEmpty else {
-                    message = "이미지를 가져오지 못했어요"
-                    messageIsError = true
-                    return
-                }
-                imageFileNames.append(contentsOf: imported)
-                selectedImageIndex = max(imageFileNames.count - imported.count, 0)
-                save()
-                if failedCount > 0 {
-                    message = "이미지 \(imported.count)개 추가됨, \(failedCount)개 실패"
-                    messageIsError = true
-                } else {
-                    message = imported.count == 1 ? "이미지 추가됨" : "이미지 \(imported.count)개 추가됨"
-                    messageIsError = false
-                }
+
+            let accepted = Array(imported.prefix(remainingAttachmentCount))
+            let overflowCount = imported.count - accepted.count
+            if overflowCount > 0 {
+                failureMessages.append(
+                    DiaryAttachmentServiceError.tooManyAttachments(
+                        actual: attachmentDrafts.count + imported.count,
+                        maximum: DiaryAttachmentService.maximumAttachmentCount
+                    ).localizedDescription
+                )
+            }
+
+            let firstImportedIndex = attachmentDrafts.count
+            attachmentDrafts.append(contentsOf: accepted)
+            if !accepted.isEmpty {
+                selectedImageIndex = firstImportedIndex
+            }
+
+            let failedCount = failureMessages.count + max(overflowCount - 1, 0)
+            isImportingImages = false
+            guard !accepted.isEmpty else {
+                message = failureMessages.first ?? "이미지를 가져오지 못했어요"
+                messageIsError = true
+                return
+            }
+            if failedCount > 0 {
+                let detail = failureMessages.first.map { " \($0)" } ?? ""
+                message = "이미지 \(accepted.count)개 추가됨, \(failedCount)개 실패.\(detail)"
+                messageIsError = true
+            } else {
+                message = accepted.count == 1 ? "이미지 추가됨" : "이미지 \(accepted.count)개 추가됨"
+                messageIsError = false
             }
         }
     }
 
-    private func removeImage(at index: Int) {
-        guard imageFileNames.indices.contains(index) else { return }
-        let fileName = imageFileNames.remove(at: index)
-        DiaryImageFileStore.removeImage(
-            fileName: fileName,
-            appSupportFolder: MobileImageStorage.appSupportFolder
+    private func removeCanonicalImage(at index: Int) {
+        guard legacyImageFileNames.isEmpty else { return }
+        guard attachmentDrafts.indices.contains(index) else { return }
+        attachmentDrafts.remove(at: index)
+        selectedImageIndex = min(selectedImageIndex, max(attachmentDrafts.count - 1, 0))
+        message = "이미지를 삭제했어요. 저장하면 반영됩니다."
+        messageIsError = false
+    }
+
+    private func removeLegacyImages(at indexes: [Int]) {
+        let validIndexes = indexes
+            .filter(legacyImageFileNames.indices.contains)
+            .sorted(by: >)
+        guard !validIndexes.isEmpty else { return }
+        for index in validIndexes {
+            legacyImageFileNames.remove(at: index)
+        }
+        selectedImageIndex = min(
+            selectedImageIndex,
+            max(attachmentDrafts.count + legacyImageFileNames.count - 1, 0)
         )
-        selectedImageIndex = min(selectedImageIndex, max(imageFileNames.count - 1, 0))
-        save()
-        message = "이미지 삭제됨"
+        message = legacyImageFileNames.isEmpty
+            ? "이전 이미지를 모두 정리했어요. 저장하면 백업할 수 있습니다."
+            : "이전 이미지를 삭제했어요. 저장하면 반영됩니다."
         messageIsError = false
     }
 }
@@ -200,54 +311,151 @@ private struct ReviewComposerEditor: View {
 }
 
 private struct ReviewComposerImages: View {
-    var imageFileNames: [String]
+    var attachmentDrafts: [DiaryAttachmentDraft]
+    var legacyImageFileNames: [String]
     @Binding var selectedImageIndex: Int
-    var onDelete: (Int) -> Void
+    var allowsCanonicalDeletion: Bool
+    var onDeleteCanonical: (Int) -> Void
+    var onDeleteLegacy: ([Int]) -> Void
 
     var body: some View {
-        if !imageFileNames.isEmpty {
-            TabView(selection: $selectedImageIndex) {
-                ForEach(Array(imageFileNames.enumerated()), id: \.offset) { index, fileName in
-                    MobileReviewImagePreview(fileName: fileName) {
-                        onDelete(index)
+        let items = mixedImageItems
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                TabView(selection: $selectedImageIndex) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        MobileReviewImagePreview(
+                            imageData: item.data,
+                            placeholderMessage: item.isLegacy
+                                ? "이전 이미지를 불러올 수 없음"
+                                : "이미지를 불러올 수 없음",
+                            onDelete: deletionAction(for: item)
+                        )
+                        .tag(index)
                     }
-                    .tag(index)
+                }
+                .frame(height: 260)
+                .tabViewStyle(.page)
+            }
+            .onChange(of: items.count) { _, count in
+                if selectedImageIndex >= count {
+                    selectedImageIndex = 0
                 }
             }
-            .frame(height: 260)
-            .tabViewStyle(.page)
         }
+        if !allowsCanonicalDeletion, !legacyImageFileNames.isEmpty {
+            Label("이전 이미지를 정리하면 새 이미지 추가와 저장된 이미지 삭제를 사용할 수 있어요.", systemImage: "lock")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var mixedImageItems: [ReviewComposerImageItem] {
+        var items: [ReviewComposerImageItem] = []
+
+        for (index, draft) in attachmentDrafts.enumerated() {
+            let hash = (try? DiaryAttachmentService.inspect(draft.data))?.sha256
+            items.append(ReviewComposerImageItem(
+                id: "canonical-\(draft.id?.uuidString ?? hash ?? String(index))-\(index)",
+                data: draft.data,
+                canonicalIndex: index,
+                legacyIndexes: [],
+                normalizedFileName: normalizedFileName(draft.originalFileName),
+                sha256: hash,
+                isLegacy: false
+            ))
+        }
+
+        for (index, fileName) in legacyImageFileNames.enumerated() {
+            guard let normalizedFileName = normalizedFileName(fileName) else { continue }
+            let data = legacyImageData(for: fileName)
+            let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
+            if let existingIndex = items.firstIndex(where: {
+                $0.normalizedFileName == normalizedFileName ||
+                    (hash != nil && $0.sha256 == hash)
+            }) {
+                items[existingIndex].legacyIndexes.append(index)
+                continue
+            }
+
+            items.append(ReviewComposerImageItem(
+                id: "legacy-\(normalizedFileName)-\(index)",
+                data: data,
+                canonicalIndex: nil,
+                legacyIndexes: [index],
+                normalizedFileName: normalizedFileName,
+                sha256: hash,
+                isLegacy: true
+            ))
+        }
+        return items
+    }
+
+    private func deletionAction(for item: ReviewComposerImageItem) -> (() -> Void)? {
+        if !item.legacyIndexes.isEmpty {
+            return { onDeleteLegacy(item.legacyIndexes) }
+        }
+        guard allowsCanonicalDeletion, let index = item.canonicalIndex else { return nil }
+        return { onDeleteCanonical(index) }
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
+
+    private func legacyImageData(for fileName: String) -> Data? {
+        try? Data(
+            contentsOf: DiaryImageFileStore.imageURL(
+                for: fileName,
+                appSupportFolder: MobileImageStorage.appSupportFolder
+            ),
+            options: [.mappedIfSafe]
+        )
     }
 }
 
+private struct ReviewComposerImageItem: Identifiable {
+    var id: String
+    var data: Data?
+    var canonicalIndex: Int?
+    var legacyIndexes: [Int]
+    var normalizedFileName: String?
+    var sha256: String?
+    var isLegacy: Bool
+}
+
 private struct MobileReviewImagePreview: View {
-    var fileName: String
-    var onDelete: () -> Void
+    var imageData: Data?
+    var placeholderMessage: String
+    var onDelete: (() -> Void)?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            if let image = UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
-                for: fileName,
-                appSupportFolder: MobileImageStorage.appSupportFolder
-            ).path) {
+            if let imageData, let image = UIImage(data: imageData) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(AppTheme.input)
             } else {
-                MobileMissingImagePlaceholder(message: "이미지를 불러올 수 없음")
+                MobileMissingImagePlaceholder(message: placeholderMessage)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "xmark")
-                    .font(.headline)
-                    .padding(8)
-                    .background(.black.opacity(0.5), in: Circle())
-                    .foregroundStyle(.white)
+            if let onDelete {
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .padding(8)
+                        .background(.black.opacity(0.5), in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .padding(10)
+                .accessibilityLabel("이미지 삭제")
             }
-            .padding(10)
-            .accessibilityLabel("이미지 삭제")
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
