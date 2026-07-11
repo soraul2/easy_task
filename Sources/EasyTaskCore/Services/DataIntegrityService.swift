@@ -40,6 +40,7 @@ public enum DataIntegrityService {
         let tasks = try context.fetch(FetchDescriptor<Task>())
         let reviews = try context.fetch(FetchDescriptor<DailyReview>())
         let diaryBlocks = try context.fetch(FetchDescriptor<DiaryBlock>())
+        let diaryAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
 
         var report = Report()
 
@@ -85,6 +86,12 @@ public enum DataIntegrityService {
             copying: copyDiaryBlockScalars,
             report: &report
         )
+        _ = mergeActive(
+            diaryAttachments,
+            groupedBy: { $0.id },
+            copying: copyDiaryAttachmentScalars,
+            report: &report
+        )
 
         normalizeActive(events, with: normalizeEvent, report: &report)
         normalizeActive(templates, with: normalizeTemplate, report: &report)
@@ -93,6 +100,7 @@ public enum DataIntegrityService {
         normalizeActive(tasks, with: normalizeTask, report: &report)
         normalizeActive(reviews, with: normalizeReview, report: &report)
         normalizeActive(diaryBlocks, with: normalizeDiaryBlock, report: &report)
+        normalizeActive(diaryAttachments, with: normalizeDiaryAttachment, report: &report)
 
         let templateRewrites = mergeActive(
             templates,
@@ -137,6 +145,7 @@ public enum DataIntegrityService {
         reconcileDiaryBlockReferences(
             reviews: reviews,
             blocks: diaryBlocks,
+            attachments: diaryAttachments,
             directRewrites: reviewRewrites,
             report: &report
         )
@@ -313,6 +322,7 @@ private extension DataIntegrityService {
     static func reconcileDiaryBlockReferences(
         reviews: [DailyReview],
         blocks: [DiaryBlock],
+        attachments: [DiaryAttachment],
         directRewrites: [UUID: UUID],
         report: inout Report
     ) {
@@ -353,6 +363,38 @@ private extension DataIntegrityService {
 
             if isBlankDiaryBlock(block) {
                 supersede(block, report: &report)
+            }
+        }
+
+        for attachment in attachments where isActive(attachment) {
+            if let canonicalID = rewrites[attachment.reviewId],
+               canonicalID != attachment.reviewId {
+                attachment.reviewId = canonicalID
+                report.rewiredReferences += 1
+            }
+
+            guard activeReviewIDs.contains(attachment.reviewId),
+                  (try? DiaryAttachmentService.inspect(attachment.data)) != nil else {
+                supersede(attachment, report: &report)
+                continue
+            }
+        }
+
+        let attachmentsByReview = Dictionary(
+            grouping: attachments.filter(isActive),
+            by: \.reviewId
+        )
+        for reviewAttachments in attachmentsByReview.values {
+            let ordered = reviewAttachments.sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                return uuidPrecedes($0.instanceID, $1.instanceID)
+            }
+            for (index, attachment) in ordered.enumerated() {
+                let normalizedOrder = Double(index) * 100
+                if attachment.order != normalizedOrder {
+                    attachment.order = normalizedOrder
+                    report.normalizedFields += 1
+                }
             }
         }
     }
@@ -541,6 +583,24 @@ private extension DataIntegrityService {
     }
 
     @MainActor
+    static func normalizeDiaryAttachment(_ attachment: DiaryAttachment) -> Int {
+        var changes = normalizeTimestamps(attachment)
+        if !attachment.order.isFinite {
+            changes += assign(&attachment.order, 0)
+        }
+        changes += assign(
+            &attachment.originalFileName,
+            normalizedOptionalText(attachment.originalFileName).map { String($0.prefix(255)) }
+        )
+        if let metadata = try? DiaryAttachmentService.inspect(attachment.data) {
+            changes += assign(&attachment.mimeType, metadata.mediaType.rawValue)
+            changes += assign(&attachment.byteCount, metadata.byteCount)
+            changes += assign(&attachment.sha256, metadata.sha256)
+        }
+        return changes
+    }
+
+    @MainActor
     static func normalizeTimestamps<Record: IntegrityRecord>(_ record: Record) -> Int {
         var createdAt = finiteDate(record.createdAt)
         var updatedAt = finiteDate(record.updatedAt)
@@ -635,7 +695,10 @@ private extension DataIntegrityService {
         _ = assign(&target.weather, source.weather)
         _ = assign(&target.mood, source.mood)
         _ = assign(&target.content, source.content)
-        _ = assign(&target.imageFileNames, source.imageFileNames)
+        _ = assign(
+            &target.imageFileNames,
+            mergedLegacyFileNames(source.imageFileNames, target.imageFileNames)
+        )
         _ = assign(&target.updatedAt, source.updatedAt)
     }
 
@@ -647,6 +710,21 @@ private extension DataIntegrityService {
         _ = assign(&target.text, source.text)
         _ = assign(&target.imageFileName, source.imageFileName)
         _ = assign(&target.order, source.order)
+        _ = assign(&target.updatedAt, source.updatedAt)
+    }
+
+    @MainActor
+    static func copyDiaryAttachmentScalars(
+        from source: DiaryAttachment,
+        to target: DiaryAttachment
+    ) {
+        _ = assign(&target.reviewId, source.reviewId)
+        _ = assign(&target.order, source.order)
+        _ = assign(&target.originalFileName, source.originalFileName)
+        _ = assign(&target.mimeType, source.mimeType)
+        _ = assign(&target.byteCount, source.byteCount)
+        _ = assign(&target.sha256, source.sha256)
+        _ = assign(&target.data, source.data)
         _ = assign(&target.updatedAt, source.updatedAt)
     }
 }
@@ -680,6 +758,20 @@ private extension DataIntegrityService {
             guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
             return trimmed
         }
+    }
+
+    static func mergedLegacyFileNames(_ preferred: [String], _ other: [String]) -> [String] {
+        var remainingCounts = Dictionary(grouping: preferred, by: { $0 }).mapValues(\.count)
+        var result = preferred
+        for fileName in other {
+            let count = remainingCounts[fileName, default: 0]
+            if count > 0 {
+                remainingCounts[fileName] = count - 1
+            } else {
+                result.append(fileName)
+            }
+        }
+        return result
     }
 
     static func isBlank(_ value: String) -> Bool {
@@ -721,10 +813,11 @@ private protocol IntegrityRecord: AnyObject {
     var supersededAt: Date? { get set }
 }
 
-extension EasyTaskSchemaV2.CalendarEvent: IntegrityRecord {}
-extension EasyTaskSchemaV2.TaskTemplate: IntegrityRecord {}
-extension EasyTaskSchemaV2.TaskTemplateItem: IntegrityRecord {}
-extension EasyTaskSchemaV2.TemplatePlacement: IntegrityRecord {}
-extension EasyTaskSchemaV2.Task: IntegrityRecord {}
-extension EasyTaskSchemaV2.DailyReview: IntegrityRecord {}
-extension EasyTaskSchemaV2.DiaryBlock: IntegrityRecord {}
+extension EasyTaskSchemaV3.CalendarEvent: IntegrityRecord {}
+extension EasyTaskSchemaV3.TaskTemplate: IntegrityRecord {}
+extension EasyTaskSchemaV3.TaskTemplateItem: IntegrityRecord {}
+extension EasyTaskSchemaV3.TemplatePlacement: IntegrityRecord {}
+extension EasyTaskSchemaV3.Task: IntegrityRecord {}
+extension EasyTaskSchemaV3.DailyReview: IntegrityRecord {}
+extension EasyTaskSchemaV3.DiaryBlock: IntegrityRecord {}
+extension EasyTaskSchemaV3.DiaryAttachment: IntegrityRecord {}
