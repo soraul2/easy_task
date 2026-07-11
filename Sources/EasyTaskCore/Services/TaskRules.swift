@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 public enum TaskRules {
     public static func applyStatus(
@@ -7,6 +8,7 @@ public enum TaskRules {
         now: Date = Date(),
         completionDayKey: String? = nil
     ) {
+        guard task.supersededAt == nil else { return }
         let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard oldStatus != status else { return }
 
@@ -30,7 +32,8 @@ public enum TaskRules {
     public static func carryoverTasks(_ tasks: [Task], before dayKey: String = DayKey.today) -> [Task] {
         tasks
             .filter {
-                $0.archivedAt == nil &&
+                $0.supersededAt == nil &&
+                    $0.archivedAt == nil &&
                     $0.status != TaskStatus.done.rawValue &&
                     $0.plannedDayKey < dayKey
             }
@@ -43,6 +46,7 @@ public enum TaskRules {
     }
 
     public static func move(_ task: Task, to date: Date, order: Double? = nil, now: Date = Date()) {
+        guard task.supersededAt == nil else { return }
         let plannedAt = DayKey.startOfDay(for: date)
         task.plannedAt = plannedAt
         task.plannedDayKey = DayKey.key(for: plannedAt)
@@ -53,13 +57,13 @@ public enum TaskRules {
     }
 
     public static func completeAll(_ tasks: [Task], now: Date = Date(), completionDayKey: String? = nil) {
-        for task in tasks {
+        for task in tasks where task.supersededAt == nil {
             applyStatus(.done, to: task, now: now, completionDayKey: completionDayKey)
         }
     }
 
     public static func archiveIfNeeded(_ tasks: [Task], todayKey: String = DayKey.today, now: Date = Date()) {
-        for task in tasks where task.status == TaskStatus.done.rawValue {
+        for task in tasks where task.supersededAt == nil && task.status == TaskStatus.done.rawValue {
             guard let completedDayKey = task.completedDayKey else { continue }
             guard completedDayKey < todayKey, task.archivedAt == nil else { continue }
 
@@ -71,9 +75,21 @@ public enum TaskRules {
 
     public static func nextOrder(in tasks: [Task], status: TaskStatus = .todo) -> Double {
         let maxOrder = tasks
-            .filter { $0.status == status.rawValue && $0.archivedAt == nil }
+            .filter {
+                $0.supersededAt == nil &&
+                    $0.status == status.rawValue &&
+                    $0.archivedAt == nil
+            }
             .map(\.order)
             .max() ?? 0
         return maxOrder + 100
+    }
+
+    @MainActor
+    public static func delete(
+        _ task: Task,
+        from context: ModelContext
+    ) throws {
+        context.delete(task)
     }
 }

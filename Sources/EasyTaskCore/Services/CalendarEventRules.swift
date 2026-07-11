@@ -98,7 +98,9 @@ public enum CalendarEventRules {
     }
 
     public static func events(onDayKey dayKey: String, in events: [CalendarEvent]) -> [CalendarEvent] {
-        sorted(events.filter { $0.startDayKey <= dayKey && dayKey <= $0.endDayKey })
+        sorted(events.filter {
+            $0.supersededAt == nil && $0.startDayKey <= dayKey && dayKey <= $0.endDayKey
+        })
     }
 
     public static func events(
@@ -108,7 +110,9 @@ public enum CalendarEventRules {
     ) -> [CalendarEvent] {
         let startDayKey = DayKey.key(for: DayKey.startOfDay(for: min(startDate, endDate)))
         let endDayKey = DayKey.key(for: DayKey.startOfDay(for: max(startDate, endDate)))
-        return sorted(events.filter { $0.startDayKey <= endDayKey && $0.endDayKey >= startDayKey })
+        return sorted(events.filter {
+            $0.supersededAt == nil && $0.startDayKey <= endDayKey && $0.endDayKey >= startDayKey
+        })
     }
 
     public static func sorted(_ events: [CalendarEvent]) -> [CalendarEvent] {
@@ -131,7 +135,7 @@ public enum CalendarEventRules {
         now: Date = Date()
     ) -> Int {
         var detachedCount = 0
-        for task in tasks where task.eventId == eventID {
+        for task in tasks where task.supersededAt == nil && task.eventId == eventID {
             task.eventId = nil
             task.updatedAt = now
             detachedCount += 1

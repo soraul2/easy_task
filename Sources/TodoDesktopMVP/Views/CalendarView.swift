@@ -16,12 +16,42 @@ private enum CalendarSheet: Identifiable {
     }
 }
 
+private struct DesktopCalendarQueryRange: Hashable {
+    let startDayKey: String
+    let endDayKey: String
+
+    init(visibleMonth: Date) {
+        let dates = DayKey.monthGridDates(for: visibleMonth)
+        let fallbackDayKey = DayKey.key(for: visibleMonth)
+        startDayKey = dates.first.map(DayKey.key(for:)) ?? fallbackDayKey
+        endDayKey = dates.last.map(DayKey.key(for:)) ?? fallbackDayKey
+    }
+}
+
+private struct DesktopCalendarEventsQueryHost<Content: View>: View {
+    @Query private var events: [CalendarEvent]
+    private let content: ([CalendarEvent]) -> Content
+
+    init(
+        range: DesktopCalendarQueryRange,
+        @ViewBuilder content: @escaping ([CalendarEvent]) -> Content
+    ) {
+        _events = Query(BoundedQueryService.eventsDescriptor(
+            overlappingStartDayKey: range.startDayKey,
+            endDayKey: range.endDayKey
+        ))
+        self.content = content
+    }
+
+    var body: some View {
+        content(events)
+    }
+}
+
 struct CalendarView: View {
     private static let specialDayStore = SpecialDayStore.load()
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var events: [CalendarEvent]
-    @Query private var tasks: [Task]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
 
@@ -33,16 +63,26 @@ struct CalendarView: View {
     @State private var selectedEventColor = CalendarEventPalette.defaultColor
     @State private var presentedSheet: CalendarSheet?
     @State private var placementTemplate: TaskTemplate?
-    @State private var placementDatesByKey: [String: Date] = [:]
+    @State private var placementDayKeys: Set<String> = []
+    @State private var calendarMessage: String?
 
     private var monthDates: [Date] { DayKey.monthGridDates(for: visibleMonth) }
     private var isPlacementMode: Bool { placementTemplate != nil }
 
     private var selectedPlacementDates: [Date] {
-        placementDatesByKey.keys.sorted().compactMap { placementDatesByKey[$0] }
+        placementDayKeys.sorted().compactMap(DayKey.date(from:))
     }
 
     var body: some View {
+        let queryRange = DesktopCalendarQueryRange(visibleMonth: visibleMonth)
+
+        DesktopCalendarEventsQueryHost(range: queryRange) { events in
+            calendarContent(events: events)
+        }
+        .id(queryRange)
+    }
+
+    private func calendarContent(events: [CalendarEvent]) -> some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 22)
@@ -58,7 +98,7 @@ struct CalendarView: View {
             weekdayHeader
                 .padding(.horizontal, 22)
 
-            monthGrid
+            monthGrid(events: events)
                 .padding(.horizontal, 22)
                 .padding(.bottom, 24)
         }
@@ -70,11 +110,7 @@ struct CalendarView: View {
                     startDate: $startDate,
                     endDate: $endDate,
                     color: $selectedEventColor,
-                    onAdd: {
-                        if addEvent() {
-                            presentedSheet = nil
-                        }
-                    }
+                    onAdd: addEvent
                 )
             case .templatePlacement:
                 TemplatePlacementSheet(
@@ -86,13 +122,10 @@ struct CalendarView: View {
                     }
                 )
             case .editEvent(let eventID):
-                if let event = events.first(where: { $0.id == eventID }) {
+                if let event = events.first(where: { $0.supersededAt == nil && $0.id == eventID }) {
                     EventEditorSheet(
                         event: event,
-                        onDelete: { event in
-                            removeEvent(event)
-                            presentedSheet = nil
-                        }
+                        onDelete: removeEvent
                     )
                 } else {
                     EmptySheetState(
@@ -105,6 +138,18 @@ struct CalendarView: View {
                     .background(AppTheme.panel)
                 }
             }
+        }
+        .alert("저장 실패", isPresented: Binding(
+            get: { calendarMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    calendarMessage = nil
+                }
+            }
+        )) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(calendarMessage ?? "")
         }
     }
 
@@ -234,7 +279,7 @@ struct CalendarView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(AppTheme.primaryText)
 
-            Text("\(placementDatesByKey.count)일 선택")
+            Text("\(placementDayKeys.count)일 선택")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.secondaryText)
                 .padding(.horizontal, 8)
@@ -254,7 +299,7 @@ struct CalendarView: View {
                 Label("배치", systemImage: "plus.circle")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(placementDatesByKey.isEmpty)
+            .disabled(placementDayKeys.isEmpty)
         }
         .padding(12)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
@@ -287,7 +332,7 @@ struct CalendarView: View {
         }
     }
 
-    private var monthGrid: some View {
+    private func monthGrid(events: [CalendarEvent]) -> some View {
         GeometryReader { proxy in
             let cellWidth = proxy.size.width / 7
             let cellHeight = max((proxy.size.height - 5) / 6, 54)
@@ -295,7 +340,7 @@ struct CalendarView: View {
             let laneHeight: CGFloat = cellHeight < 76 ? 18 : 21
             let barHeight: CGFloat = cellHeight < 76 ? 16 : 18
             let maxEventLanes = max(1, min(4, Int((cellHeight - eventTopInset - 6) / laneHeight)))
-            let segments = eventSegments(maxLanes: maxEventLanes)
+            let segments = eventSegments(events: events, maxLanes: maxEventLanes)
 
             ZStack(alignment: .topLeading) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
@@ -305,7 +350,7 @@ struct CalendarView: View {
                             visibleMonth: visibleMonth,
                             selectedDate: selectedDate,
                             placementMode: isPlacementMode,
-                            isPlacementSelected: placementDatesByKey[DayKey.key(for: date)] != nil,
+                            isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
                             specialDays: Self.specialDayStore.days(on: date),
                             onSelect: {
                                 if isPlacementMode {
@@ -336,7 +381,11 @@ struct CalendarView: View {
                         onEdit: { event in
                             presentedSheet = .editEvent(event.id)
                         },
-                        onDelete: removeEvent
+                        onDelete: { event in
+                            if let failureMessage = removeEvent(event) {
+                                calendarMessage = failureMessage
+                            }
+                        }
                     )
                 }
             }
@@ -349,19 +398,27 @@ struct CalendarView: View {
         }
     }
 
-    private func addEvent() -> Bool {
+    private func addEvent() -> String? {
         guard let event = CalendarEventRules.makeEvent(
             title: title,
             startAt: startDate,
             endAt: endDate,
             color: selectedEventColor
         ) else {
-            return false
+            return "이벤트 정보를 확인해 주세요."
         }
-        modelContext.insert(event)
+
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                modelContext.insert(event)
+            }
+        } catch {
+            return "이벤트를 추가하지 못했어요."
+        }
+
         title = ""
         selectedEventColor = CalendarEventPalette.defaultColor
-        return true
+        return nil
     }
 
     private func prepareAddEvent(for date: Date) {
@@ -378,51 +435,73 @@ struct CalendarView: View {
         presentedSheet = .addEvent
     }
 
-    private func removeEvent(_ event: CalendarEvent) {
-        CalendarEventRules.detachTasks(from: event, in: tasks)
-        modelContext.delete(event)
+    private func removeEvent(_ event: CalendarEvent) -> String? {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                let linkedTasks = try BoundedQueryService.tasksLinked(
+                    toEventID: event.id,
+                    in: modelContext
+                )
+                CalendarEventRules.detachTasks(from: event, in: linkedTasks)
+                modelContext.delete(event)
+            }
+            return nil
+        } catch {
+            return "이벤트를 삭제하지 못했어요."
+        }
     }
 
     private func beginPlacement(with template: TaskTemplate) {
         placementTemplate = template
-        placementDatesByKey = [:]
+        placementDayKeys = []
     }
 
     private func cancelPlacement() {
         placementTemplate = nil
-        placementDatesByKey = [:]
+        placementDayKeys = []
     }
 
     private func togglePlacementDate(_ date: Date) {
-        let normalizedDate = DayKey.startOfDay(for: date)
-        let dayKey = DayKey.key(for: normalizedDate)
-        selectedDate = normalizedDate
+        let dayKey = DayKey.key(for: date)
+        selectedDate = DayKey.date(from: dayKey) ?? DayKey.startOfDay(for: date)
 
-        if placementDatesByKey[dayKey] == nil {
-            placementDatesByKey[dayKey] = normalizedDate
+        if placementDayKeys.contains(dayKey) {
+            placementDayKeys.remove(dayKey)
         } else {
-            placementDatesByKey.removeValue(forKey: dayKey)
+            placementDayKeys.insert(dayKey)
         }
     }
 
     private func applyTemplatePlacement() {
         guard let placementTemplate else { return }
 
-        TemplateService.applyTemplate(
-            placementTemplate,
-            items: templateItems,
-            selectedDates: selectedPlacementDates,
-            existingTasks: tasks,
-            in: modelContext
-        )
-        cancelPlacement()
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                let existingTasks = try placementDayKeys.sorted().flatMap { dayKey in
+                    try BoundedQueryService.tasks(
+                        from: dayKey,
+                        through: dayKey,
+                        in: modelContext
+                    )
+                }
+                TemplateService.applyTemplate(
+                    placementTemplate,
+                    items: templateItems,
+                    selectedDates: selectedPlacementDates,
+                    existingTasks: existingTasks,
+                    in: modelContext
+                )
+            }
+            cancelPlacement()
+        } catch {
+            calendarMessage = "템플릿을 배치하지 못했어요."
+        }
     }
 
-    private func eventsFor(dayKey: String) -> [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: dayKey, in: events)
-    }
-
-    private func eventSegments(maxLanes: Int = 4) -> [CalendarEventSegment] {
+    private func eventSegments(
+        events: [CalendarEvent],
+        maxLanes: Int = 4
+    ) -> [CalendarEventSegment] {
         let weeks = stride(from: 0, to: monthDates.count, by: 7).map {
             Array(monthDates[$0..<min($0 + 7, monthDates.count)])
         }
@@ -530,8 +609,9 @@ struct AddEventSheet: View {
     @Binding var startDate: Date
     @Binding var endDate: Date
     @Binding var color: String
-    var onAdd: () -> Void
+    var onAdd: () -> String?
     @Environment(\.dismiss) private var dismiss
+    @State private var message: String?
 
     private var canAdd: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -563,13 +643,23 @@ struct AddEventSheet: View {
                 EventColorSelector(selection: $color)
             }
 
+            if let message {
+                Label(message, systemImage: "exclamationmark.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+
             HStack {
                 Spacer()
                 Button("취소") {
                     dismiss()
                 }
                 Button {
-                    onAdd()
+                    if let failureMessage = onAdd() {
+                        message = failureMessage
+                    } else {
+                        dismiss()
+                    }
                 } label: {
                     Label("추가", systemImage: "plus")
                 }
@@ -585,17 +675,19 @@ struct AddEventSheet: View {
 
 struct EventEditorSheet: View {
     @Bindable var event: CalendarEvent
-    var onDelete: (CalendarEvent) -> Void
+    var onDelete: (CalendarEvent) -> String?
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     @State private var draftTitle: String
     @State private var draftStartDate: Date
     @State private var draftEndDate: Date
     @State private var draftColor: String
+    @State private var message: String?
 
     init(
         event: CalendarEvent,
-        onDelete: @escaping (CalendarEvent) -> Void
+        onDelete: @escaping (CalendarEvent) -> String?
     ) {
         self.event = event
         self.onDelete = onDelete
@@ -635,10 +727,19 @@ struct EventEditorSheet: View {
                 EventColorSelector(selection: $draftColor)
             }
 
+            if let message {
+                Label(message, systemImage: "exclamationmark.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+
             HStack {
                 Button(role: .destructive) {
-                    onDelete(event)
-                    dismiss()
+                    if let failureMessage = onDelete(event) {
+                        message = failureMessage
+                    } else {
+                        dismiss()
+                    }
                 } label: {
                     Label("삭제", systemImage: "trash")
                 }
@@ -664,17 +765,25 @@ struct EventEditorSheet: View {
     }
 
     private func save() {
-        guard CalendarEventRules.update(
-            event,
-            title: draftTitle,
-            startAt: draftStartDate,
-            endAt: draftEndDate,
-            note: event.note,
-            color: draftColor
-        ) else {
-            return
+        do {
+            let didUpdate = try PersistenceCommandService.perform(in: modelContext) {
+                CalendarEventRules.update(
+                    event,
+                    title: draftTitle,
+                    startAt: draftStartDate,
+                    endAt: draftEndDate,
+                    note: event.note,
+                    color: draftColor
+                )
+            }
+            guard didUpdate else {
+                message = "이벤트 정보를 확인해 주세요."
+                return
+            }
+            dismiss()
+        } catch {
+            message = "이벤트를 저장하지 못했어요."
         }
-        dismiss()
     }
 }
 
@@ -843,9 +952,12 @@ struct TemplatePlacementSheet: View {
     var templates: [TaskTemplate]
     var items: [TaskTemplateItem]
     var onSelect: (TaskTemplate) -> Void
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var selectedScope: TemplateListScope = .favorites
+    @State private var message: String?
+    @State private var pendingDeleteTemplate: TaskTemplate?
 
     private var visibleTemplates: [TaskTemplate] {
         TemplateListRules.filterAndSort(
@@ -893,6 +1005,12 @@ struct TemplatePlacementSheet: View {
 
             TemplateSearchField(text: $searchText)
 
+            if let message {
+                Label(message, systemImage: "exclamationmark.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+            }
+
             if templates.isEmpty {
                 EmptySheetState(
                     symbol: "square.grid.3x3",
@@ -912,6 +1030,12 @@ struct TemplatePlacementSheet: View {
                             TemplatePlacementRow(
                                 template: template,
                                 items: itemsForTemplate(template),
+                                onToggleFavorite: {
+                                    toggleFavorite(template)
+                                },
+                                onDelete: {
+                                    pendingDeleteTemplate = template
+                                },
                                 onSelect: {
                                     onSelect(template)
                                     dismiss()
@@ -929,23 +1053,70 @@ struct TemplatePlacementSheet: View {
         .onAppear {
             selectedScope = TemplateListRules.preferredScope(for: templates)
         }
+        .alert("템플릿을 삭제할까요?", isPresented: Binding(
+            get: { pendingDeleteTemplate != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeleteTemplate = nil
+                }
+            }
+        ), presenting: pendingDeleteTemplate) { template in
+            Button("취소", role: .cancel) {
+                pendingDeleteTemplate = nil
+            }
+            Button("삭제", role: .destructive) {
+                deleteTemplate(template)
+            }
+        } message: { template in
+            Text("\"\(template.name)\" 템플릿과 하위 작업 \(itemsForTemplate(template).count)개를 삭제합니다.")
+        }
     }
 
     private func itemsForTemplate(_ template: TaskTemplate) -> [TaskTemplateItem] {
         TemplateListRules.itemsForTemplate(template, in: items)
+    }
+
+    private func toggleFavorite(_ template: TaskTemplate) {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                template.isFavorite.toggle()
+                template.updatedAt = Date()
+            }
+            message = nil
+        } catch {
+            message = "즐겨찾기를 변경하지 못했어요."
+        }
+    }
+
+    private func deleteTemplate(_ template: TaskTemplate) {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.deleteTemplate(
+                    template,
+                    items: items,
+                    in: modelContext
+                )
+            }
+            pendingDeleteTemplate = nil
+            message = nil
+        } catch {
+            pendingDeleteTemplate = nil
+            message = "템플릿을 삭제하지 못했어요."
+        }
     }
 }
 
 struct TemplatePlacementRow: View {
     @Bindable var template: TaskTemplate
     var items: [TaskTemplateItem]
+    var onToggleFavorite: () -> Void
+    var onDelete: () -> Void
     var onSelect: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Button {
-                template.isFavorite.toggle()
-                template.updatedAt = Date()
+                onToggleFavorite()
             } label: {
                 Image(systemName: template.isFavorite ? "star.fill" : "star")
                     .frame(width: 24, height: 24)
@@ -981,6 +1152,16 @@ struct TemplatePlacementRow: View {
             }
 
             Spacer()
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(AppTheme.secondaryText)
+            .help("템플릿 삭제")
 
             Button("선택") {
                 onSelect()

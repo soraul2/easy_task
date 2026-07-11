@@ -7,64 +7,43 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A30000000000000000000001 /* Sources/EasyTaskCore/Components/TemplateScopePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* Sources/EasyTaskCore/Components/TemplateScopePicker.swift */; };
-		A30000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift */; };
-		A30000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift */; };
-		A30000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift */; };
-		A30000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift */; };
-		A30000000000000000000006 /* Sources/EasyTaskCore/Services/CalendarEventTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* Sources/EasyTaskCore/Services/CalendarEventTimeline.swift */; };
-		A30000000000000000000007 /* Sources/EasyTaskCore/Services/DayKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Sources/EasyTaskCore/Services/DayKey.swift */; };
-		A30000000000000000000008 /* Sources/EasyTaskCore/Services/DiaryImageFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Sources/EasyTaskCore/Services/DiaryImageFileStore.swift */; };
-		A30000000000000000000009 /* Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift */; };
-		A3000000000000000000000A /* Sources/EasyTaskCore/Services/SeedService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* Sources/EasyTaskCore/Services/SeedService.swift */; };
-		A3000000000000000000000B /* Sources/EasyTaskCore/Services/TaskRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* Sources/EasyTaskCore/Services/TaskRules.swift */; };
-		A3000000000000000000000C /* Sources/EasyTaskCore/Services/TemplateListRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* Sources/EasyTaskCore/Services/TemplateListRules.swift */; };
-		A3000000000000000000000D /* Sources/EasyTaskCore/Services/TemplateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* Sources/EasyTaskCore/Services/TemplateService.swift */; };
-		A3000000000000000000000E /* Sources/EasyTaskCore/Theme/AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* Sources/EasyTaskCore/Theme/AppTheme.swift */; };
-		A3000000000000000000000F /* Sources/EasyTaskCore/Theme/CalendarEventPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* Sources/EasyTaskCore/Theme/CalendarEventPalette.swift */; };
 		A30000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */; };
-		A30000000000000000000011 /* Sources/EasyTaskCore/Resources/SpecialDays.kr.json in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* Sources/EasyTaskCore/Resources/SpecialDays.kr.json */; };
 		A30000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */; };
 		A30000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */; };
 		A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */; };
 		A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */; };
 		A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */; };
-		A30000000000000000000017 /* Sources/EasyTaskCore/Services/DailyReviewRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* Sources/EasyTaskCore/Services/DailyReviewRules.swift */; };
-		A30000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift */; };
-		A30000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift */; };
-		A3000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift */; };
-		A3000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift */; };
+		B10000000000000000000003 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* EasyTaskCore */; };
+		B10000000000000000000004 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* EasyTaskCore */; };
+		D30000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */; };
+		D30000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */; };
+		D30000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */; };
+		D30000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift */; };
+		D30000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift */; };
+		D30000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */; };
+		D30000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */; };
+		D30000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000010 /* EasyTask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyTask.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A20000000000000000000001 /* Sources/EasyTaskCore/Components/TemplateScopePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Components/TemplateScopePicker.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Components/TemplateSearchField.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Models/AppModels.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Models/SpecialDay.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/BackupCodec.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000006 /* Sources/EasyTaskCore/Services/CalendarEventTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/CalendarEventTimeline.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000007 /* Sources/EasyTaskCore/Services/DayKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DayKey.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000008 /* Sources/EasyTaskCore/Services/DiaryImageFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DiaryImageFileStore.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000009 /* Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000000A /* Sources/EasyTaskCore/Services/SeedService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/SeedService.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000000B /* Sources/EasyTaskCore/Services/TaskRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/TaskRules.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000000C /* Sources/EasyTaskCore/Services/TemplateListRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/TemplateListRules.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000000D /* Sources/EasyTaskCore/Services/TemplateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/TemplateService.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000000E /* Sources/EasyTaskCore/Theme/AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Theme/AppTheme.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000000F /* Sources/EasyTaskCore/Theme/CalendarEventPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Theme/CalendarEventPalette.swift; sourceTree = SOURCE_ROOT; };
+		C10000000000000000000010 /* EasyTask macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EasyTask macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000011 /* Sources/EasyTaskCore/Resources/SpecialDays.kr.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Sources/EasyTaskCore/Resources/SpecialDays.kr.json; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileShared.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000017 /* Sources/EasyTaskCore/Services/DailyReviewRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DailyReviewRules.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/BoardQueryRules.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/DailyReviewService.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/CalendarEventRules.swift; sourceTree = SOURCE_ROOT; };
-		A2000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskCore/Services/ArchiveQueryRules.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Services/DiaryImageStore.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/AppRootView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/ArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/BoardView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/CalendarView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DiaryView.swift; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +51,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000003 /* EasyTaskCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000004 /* EasyTaskCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -82,6 +70,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000005 /* Sources */,
+				E10000000000000000000001 /* Configuration */,
 				A10000000000000000000006 /* Resources */,
 				A10000000000000000000007 /* Products */,
 			);
@@ -90,40 +79,36 @@
 		A10000000000000000000005 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000001 /* Sources/EasyTaskCore/Components/TemplateScopePicker.swift */,
-				A20000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift */,
-				A20000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift */,
-				A20000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift */,
-				A2000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift */,
-				A20000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift */,
-				A20000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift */,
-				A2000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift */,
-				A20000000000000000000006 /* Sources/EasyTaskCore/Services/CalendarEventTimeline.swift */,
-				A20000000000000000000017 /* Sources/EasyTaskCore/Services/DailyReviewRules.swift */,
-				A20000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift */,
-				A20000000000000000000007 /* Sources/EasyTaskCore/Services/DayKey.swift */,
-				A20000000000000000000008 /* Sources/EasyTaskCore/Services/DiaryImageFileStore.swift */,
-				A20000000000000000000009 /* Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift */,
-				A2000000000000000000000A /* Sources/EasyTaskCore/Services/SeedService.swift */,
-				A2000000000000000000000B /* Sources/EasyTaskCore/Services/TaskRules.swift */,
-				A2000000000000000000000C /* Sources/EasyTaskCore/Services/TemplateListRules.swift */,
-				A2000000000000000000000D /* Sources/EasyTaskCore/Services/TemplateService.swift */,
-				A2000000000000000000000E /* Sources/EasyTaskCore/Theme/AppTheme.swift */,
-				A2000000000000000000000F /* Sources/EasyTaskCore/Theme/CalendarEventPalette.swift */,
 				A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */,
 				A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */,
 				A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */,
 				A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */,
 				A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */,
 				A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */,
+				D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */,
+				D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */,
+				D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */,
+				D20000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift */,
+				D20000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift */,
+				D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */,
+				D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */,
+				D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */,
 			);
 			name = Sources;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000001 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */,
+				E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */,
+			);
+			name = Configuration;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000006 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000011 /* Sources/EasyTaskCore/Resources/SpecialDays.kr.json */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -132,6 +117,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000010 /* EasyTask.app */,
+				C10000000000000000000010 /* EasyTask macOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -152,8 +138,31 @@
 			dependencies = (
 			);
 			name = EasyTask;
+			packageProductDependencies = (
+				B10000000000000000000001 /* EasyTaskCore */,
+			);
 			productName = EasyTask;
 			productReference = A10000000000000000000010 /* EasyTask.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C10000000000000000000001 /* EasyTask-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask-macOS" */;
+			buildPhases = (
+				C10000000000000000000002 /* Sources */,
+				C10000000000000000000009 /* Resources */,
+				C10000000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "EasyTask-macOS";
+			packageProductDependencies = (
+				B10000000000000000000002 /* EasyTaskCore */,
+			);
+			productName = "EasyTask macOS";
+			productReference = C10000000000000000000010 /* EasyTask macOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -168,6 +177,28 @@
 				TargetAttributes = {
 					A10000000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
+					};
+					C10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -180,11 +211,15 @@
 				Base,
 			);
 			mainGroup = A10000000000000000000004;
+			packageReferences = (
+				B10000000000000000000000 /* XCLocalSwiftPackageReference "." */,
+			);
 			productRefGroup = A10000000000000000000007 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				A10000000000000000000001 /* EasyTask */,
+				C10000000000000000000001 /* EasyTask-macOS */,
 			);
 		};
 /* End PBXProject section */
@@ -194,7 +229,13 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A30000000000000000000011 /* Sources/EasyTaskCore/Resources/SpecialDays.kr.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -205,32 +246,27 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A30000000000000000000001 /* Sources/EasyTaskCore/Components/TemplateScopePicker.swift in Sources */,
-				A30000000000000000000002 /* Sources/EasyTaskCore/Components/TemplateSearchField.swift in Sources */,
-				A30000000000000000000003 /* Sources/EasyTaskCore/Models/AppModels.swift in Sources */,
-				A30000000000000000000004 /* Sources/EasyTaskCore/Models/SpecialDay.swift in Sources */,
-				A3000000000000000000001B /* Sources/EasyTaskCore/Services/ArchiveQueryRules.swift in Sources */,
-				A30000000000000000000005 /* Sources/EasyTaskCore/Services/BackupCodec.swift in Sources */,
-				A30000000000000000000018 /* Sources/EasyTaskCore/Services/BoardQueryRules.swift in Sources */,
-				A3000000000000000000001A /* Sources/EasyTaskCore/Services/CalendarEventRules.swift in Sources */,
-				A30000000000000000000006 /* Sources/EasyTaskCore/Services/CalendarEventTimeline.swift in Sources */,
-				A30000000000000000000017 /* Sources/EasyTaskCore/Services/DailyReviewRules.swift in Sources */,
-				A30000000000000000000019 /* Sources/EasyTaskCore/Services/DailyReviewService.swift in Sources */,
-				A30000000000000000000007 /* Sources/EasyTaskCore/Services/DayKey.swift in Sources */,
-				A30000000000000000000008 /* Sources/EasyTaskCore/Services/DiaryImageFileStore.swift in Sources */,
-				A30000000000000000000009 /* Sources/EasyTaskCore/Services/EstimatedTimeFormatter.swift in Sources */,
-				A3000000000000000000000A /* Sources/EasyTaskCore/Services/SeedService.swift in Sources */,
-				A3000000000000000000000B /* Sources/EasyTaskCore/Services/TaskRules.swift in Sources */,
-				A3000000000000000000000C /* Sources/EasyTaskCore/Services/TemplateListRules.swift in Sources */,
-				A3000000000000000000000D /* Sources/EasyTaskCore/Services/TemplateService.swift in Sources */,
-				A3000000000000000000000E /* Sources/EasyTaskCore/Theme/AppTheme.swift in Sources */,
-				A3000000000000000000000F /* Sources/EasyTaskCore/Theme/CalendarEventPalette.swift in Sources */,
 				A30000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift in Sources */,
 				A30000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift in Sources */,
 				A30000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift in Sources */,
 				A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */,
 				A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */,
 				A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D30000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift in Sources */,
+				D30000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift in Sources */,
+				D30000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift in Sources */,
+				D30000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift in Sources */,
+				D30000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift in Sources */,
+				D30000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift in Sources */,
+				D30000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift in Sources */,
+				D30000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -293,7 +329,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG XCODE_APP_BUNDLE";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
 			};
@@ -348,7 +384,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = XCODE_APP_BUNDLE;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
@@ -360,26 +395,21 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = EasyTask;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "회고에 첨부할 사진을 선택하기 위해 사진 보관함을 사용합니다.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/EasyTask-iOS-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG XCODE_APP_BUNDLE";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -389,28 +419,65 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = EasyTask;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "회고에 첨부할 사진을 선택하기 위해 사진 보관함을 사용합니다.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/EasyTask-iOS-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = XCODE_APP_BUNDLE;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		C1000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/EasyTask-macOS-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.macos;
+				PRODUCT_NAME = "EasyTask macOS";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		C1000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/EasyTask-macOS-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.macos;
+				PRODUCT_NAME = "EasyTask macOS";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -435,7 +502,36 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask-macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1000000000000000000000C /* Debug */,
+				C1000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B10000000000000000000000 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B10000000000000000000001 /* EasyTaskCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
+			productName = EasyTaskCore;
+		};
+		B10000000000000000000002 /* EasyTaskCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
+			productName = EasyTaskCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10000000000000000000000 /* Project object */;
 }

@@ -9,14 +9,19 @@ struct DiaryView: View {
     private let threadColumnWidth: CGFloat = 40
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var reviews: [DailyReview]
-    @Query private var diaryBlocks: [DiaryBlock]
+    @State private var reviews: [DailyReview] = []
+    @State private var diaryBlocks: [DiaryBlock] = []
+    @State private var attachments: [DiaryAttachment] = []
 
     @State private var selectedDate: Date
     @State private var reviewTitle = ""
     @State private var content = ""
+    @State private var attachmentDrafts: [DiaryAttachmentDraft] = []
+    @State private var attachmentPreviewCacheKeys: [String] = []
+    @State private var legacyImageFileNames: [String] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
+    @State private var isImportingImages = false
 
     init(initialDate: Date = DayKey.startOfDay(for: Date()), showsHeader: Bool = true) {
         self.showsHeader = showsHeader
@@ -28,18 +33,85 @@ struct DiaryView: View {
     }
 
     private var selectedReview: DailyReview? {
-        reviews.first { $0.dayKey == selectedDayKey }
+        reviews
+            .filter { $0.supersededAt == nil && $0.dayKey == selectedDayKey }
+            .max {
+                if $0.updatedAt != $1.updatedAt {
+                    return $0.updatedAt < $1.updatedAt
+                }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
     }
 
-    private var imageFileNames: [String] {
-        selectedReview?.imageFileNames ?? []
+    private var selectedAttachments: [DiaryAttachment] {
+        guard let selectedReview else { return [] }
+        return DiaryAttachmentService.activeAttachments(
+            for: selectedReview.id,
+            in: attachments
+        )
+    }
+
+    private var displayedImages: [DiaryImageItem] {
+        var images = attachmentDrafts.enumerated().map { index, draft in
+            let cacheKey = attachmentPreviewCacheKeys[safe: index] ??
+                "diary-attachment-fallback-\(draft.instanceID?.uuidString ?? String(index))-\(draft.data.count)"
+            return DiaryImageItem(
+                id: cacheKey,
+                source: .attachment(index: index),
+                request: DiaryPreviewImageRequest(
+                    cacheKey: cacheKey,
+                    source: .data(draft.data)
+                ),
+                normalizedFileName: normalizedFileName(draft.originalFileName),
+                legacyIndexes: []
+            )
+        }
+
+        for (index, fileName) in legacyImageFileNames.enumerated() {
+            let fileNameKey = normalizedFileName(fileName)
+            if let existingIndex = images.firstIndex(where: {
+                fileNameKey != nil && $0.normalizedFileName == fileNameKey
+            }) {
+                images[existingIndex].legacyIndexes.append(index)
+                continue
+            }
+            let fileURL = DiaryImageStore.imageURL(for: fileName)
+            let cacheKey = DiaryImageStore.filePreviewCacheKey(for: fileURL)
+            images.append(DiaryImageItem(
+                id: "\(cacheKey)-\(index)",
+                source: .legacyFileName(index: index, fileName: fileName),
+                request: DiaryPreviewImageRequest(
+                    cacheKey: cacheKey,
+                    source: .file(fileURL)
+                ),
+                normalizedFileName: fileNameKey,
+                legacyIndexes: [index]
+            ))
+        }
+        return images
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
+
+    private var hasImages: Bool {
+        !displayedImages.isEmpty
+    }
+
+    private var hasLegacyImageReferences: Bool {
+        !legacyImageFileNames.isEmpty
     }
 
     private var canSave: Bool {
         DailyReviewRules.hasContent(
             title: reviewTitle,
             content: content,
-            imageFileNames: imageFileNames
+            imageFileNames: hasImages ? ["attachment"] : []
         )
     }
 
@@ -60,11 +132,11 @@ struct DiaryView: View {
     }
 
     private var captionMinHeight: CGFloat {
-        showsHeader ? 96 : (imageFileNames.isEmpty ? 44 : 26)
+        showsHeader ? 96 : (hasImages ? 26 : 44)
     }
 
     private var captionMaxHeight: CGFloat {
-        showsHeader ? .infinity : (imageFileNames.isEmpty ? 56 : 34)
+        showsHeader ? .infinity : (hasImages ? 34 : 56)
     }
 
     private var imagePreviewHeight: CGFloat {
@@ -90,15 +162,15 @@ struct DiaryView: View {
         let lineHeight: CGFloat = 20
         let verticalPadding: CGFloat = 12
         let estimatedHeight = CGFloat(estimatedCaptionLineCount) * lineHeight + verticalPadding
-        let minHeight: CGFloat = imageFileNames.isEmpty ? 44 : 34
-        let maxHeight: CGFloat = imageFileNames.isEmpty ? 110 : 140
+        let minHeight: CGFloat = hasImages ? 34 : 44
+        let maxHeight: CGFloat = hasImages ? 140 : 110
         return min(max(ceil(estimatedHeight), minHeight), maxHeight)
     }
 
     private var estimatedCaptionLineCount: Int {
         guard !content.isEmpty else { return 1 }
 
-        let charactersPerLine = imageFileNames.isEmpty ? 38 : 34
+        let charactersPerLine = hasImages ? 34 : 38
         return content
             .components(separatedBy: .newlines)
             .reduce(0) { total, line in
@@ -146,6 +218,9 @@ struct DiaryView: View {
         .onChange(of: selectedDayKey) {
             loadSelectedReview()
         }
+        .onChange(of: displayedImages.count) {
+            selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
+        }
     }
 
     private var header: some View {
@@ -188,6 +263,7 @@ struct DiaryView: View {
                     .calendarToolbarButtonBackground()
             }
             .buttonStyle(.plain)
+            .disabled(isImportingImages)
 
             Button {
                 save()
@@ -247,7 +323,7 @@ struct DiaryView: View {
 
                     captionEditor
 
-                    if !imageFileNames.isEmpty {
+                    if hasImages {
                         inlineImagePreview
                     }
 
@@ -265,7 +341,7 @@ struct DiaryView: View {
             .padding(.top, showsHeader ? 14 : 0)
             .padding(.bottom, showsHeader ? 12 : 10)
 
-            if showsHeader || !imageFileNames.isEmpty {
+            if showsHeader || hasImages {
                 Spacer(minLength: 0)
             }
 
@@ -313,7 +389,7 @@ struct DiaryView: View {
             Rectangle()
                 .fill(AppTheme.border)
                 .frame(width: 2)
-                .frame(height: showsHeader ? 120 : (imageFileNames.isEmpty ? 74 : 430))
+                .frame(height: showsHeader ? 120 : (hasImages ? 430 : 74))
 
             if !showsHeader {
                 reviewTimelineIcon(size: 18, fontSize: 10)
@@ -344,6 +420,7 @@ struct DiaryView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(AppTheme.secondaryText)
+            .disabled(isImportingImages)
             .help("이미지 추가")
 
             if showsHeader {
@@ -354,8 +431,8 @@ struct DiaryView: View {
                 composerIcon("music.note")
             }
 
-            if !imageFileNames.isEmpty {
-                Text("\(selectedImageIndex + 1)/\(imageFileNames.count)")
+            if hasImages {
+                Text("\(selectedImageIndex + 1)/\(displayedImages.count)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -371,25 +448,28 @@ struct DiaryView: View {
 
     private var inlineImagePreview: some View {
         ZStack {
-            if let fileName = imageFileNames[safe: selectedImageIndex] {
-                DiaryImageView(fileName: fileName)
+            if let image = displayedImages[safe: selectedImageIndex] {
+                DiaryImageView(request: image.request)
+                    .id(image.id)
             }
 
             VStack {
                 HStack {
                     Spacer()
 
-                    Button(role: .destructive) {
-                        removeSelectedImage()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .bold))
-                            .frame(width: 30, height: 30)
-                            .background(.black.opacity(0.48), in: Circle())
+                    if canRemoveSelectedImage {
+                        Button(role: .destructive) {
+                            removeSelectedImage()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .frame(width: 30, height: 30)
+                                .background(.black.opacity(0.48), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .help("현재 이미지 삭제")
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white)
-                    .help("현재 이미지 삭제")
                 }
 
                 Spacer()
@@ -405,7 +485,7 @@ struct DiaryView: View {
 
                 Spacer()
 
-                if selectedImageIndex < imageFileNames.count - 1 {
+                if selectedImageIndex < displayedImages.count - 1 {
                     carouselButton(systemName: "chevron.right") {
                         moveImageSelection(1)
                     }
@@ -414,7 +494,7 @@ struct DiaryView: View {
             .padding(.horizontal, 10)
             .frame(maxHeight: .infinity, alignment: .center)
 
-            if imageFileNames.count > 1 {
+            if displayedImages.count > 1 {
                 VStack {
                     Spacer()
                     carouselDots
@@ -429,7 +509,7 @@ struct DiaryView: View {
 
     private var carouselDots: some View {
         HStack(spacing: 6) {
-            ForEach(imageFileNames.indices, id: \.self) { index in
+            ForEach(displayedImages.indices, id: \.self) { index in
                 Circle()
                     .fill(index == selectedImageIndex ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.45))
                     .frame(width: 6, height: 6)
@@ -473,12 +553,37 @@ struct DiaryView: View {
     }
 
     private func moveImageSelection(_ offset: Int) {
-        guard !imageFileNames.isEmpty else { return }
+        guard hasImages else { return }
         let nextIndex = selectedImageIndex + offset
-        selectedImageIndex = min(max(nextIndex, 0), imageFileNames.count - 1)
+        selectedImageIndex = min(max(nextIndex, 0), displayedImages.count - 1)
     }
 
     private func loadSelectedReview() {
+        do {
+            reviews = try modelContext.fetch(
+                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
+            )
+            if let review = selectedReview {
+                diaryBlocks = try modelContext.fetch(
+                    BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+                )
+                attachments = try modelContext.fetch(
+                    BoundedQueryService.diaryAttachmentsDescriptor(
+                        reviewID: review.id
+                    )
+                )
+            } else {
+                diaryBlocks = []
+                attachments = []
+            }
+        } catch {
+            reviews = []
+            diaryBlocks = []
+            attachments = []
+            message = "회고를 불러오지 못했습니다."
+            return
+        }
+
         if let review = selectedReview {
             DailyReviewService.migrateBlockSummaryIfNeeded(
                 for: review,
@@ -489,81 +594,175 @@ struct DiaryView: View {
         let review = selectedReview
         reviewTitle = review?.title ?? ""
         content = review?.content ?? ""
+        let activeAttachments = selectedAttachments
+        attachmentDrafts = activeAttachments.map { DiaryAttachmentDraft(attachment: $0) }
+        attachmentPreviewCacheKeys = activeAttachments.map {
+            DiaryImageStore.attachmentPreviewCacheKey(
+                instanceID: $0.instanceID,
+                sha256: $0.sha256
+            )
+        }
+        legacyImageFileNames = review.map {
+            DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: $0,
+                blocks: diaryBlocks,
+                attachments: attachments
+            )
+        } ?? []
         selectedImageIndex = 0
         message = nil
     }
 
     @discardableResult
     private func save(forceCreate: Bool = false) -> DailyReview? {
-        let review = DailyReviewService.save(
-            review: selectedReview,
-            dayKey: selectedDayKey,
-            title: reviewTitle,
-            content: content,
-            imageFileNames: imageFileNames,
-            in: modelContext,
-            forceCreate: forceCreate
-        )
-        guard let review else { return nil }
-        message = "회고가 저장됐어요"
-        return review
+        do {
+            let review: DailyReview?
+            if hasLegacyImageReferences {
+                review = try PersistenceCommandService.perform(in: modelContext) {
+                    DailyReviewService.save(
+                        review: selectedReview,
+                        dayKey: selectedDayKey,
+                        title: reviewTitle,
+                        content: content,
+                        imageFileNames: legacyImageFileNames,
+                        in: modelContext,
+                        forceCreate: forceCreate
+                    )
+                }
+            } else {
+                review = try DiaryAttachmentService.saveReview(
+                    review: selectedReview,
+                    dayKey: selectedDayKey,
+                    title: reviewTitle,
+                    content: content,
+                    attachments: attachmentDrafts,
+                    in: modelContext,
+                    forceCreate: forceCreate
+                )
+            }
+            guard let review else { return nil }
+            reviews = try modelContext.fetch(
+                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
+            )
+            diaryBlocks = try modelContext.fetch(
+                BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+            )
+            attachments = try modelContext.fetch(
+                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+            )
+            if !hasLegacyImageReferences {
+                let savedAttachments = attachments
+                attachmentDrafts = savedAttachments.map { DiaryAttachmentDraft(attachment: $0) }
+                attachmentPreviewCacheKeys = savedAttachments.map {
+                    DiaryImageStore.attachmentPreviewCacheKey(
+                        instanceID: $0.instanceID,
+                        sha256: $0.sha256
+                    )
+                }
+            }
+            message = "회고가 저장됐어요"
+            return review
+        } catch {
+            modelContext.rollback()
+            message = "회고 저장 실패: \(error.localizedDescription)"
+            return nil
+        }
     }
 
     private func addImages() {
-        do {
-            let fileNames = try DiaryImageStore.chooseAndCopyImages()
-            guard !fileNames.isEmpty else { return }
-            let nextImageFileNames = imageFileNames + fileNames
-            guard let review = DailyReviewService.save(
-                review: selectedReview,
-                dayKey: selectedDayKey,
-                title: reviewTitle,
-                content: content,
-                imageFileNames: nextImageFileNames,
-                in: modelContext,
-                forceCreate: true
-            ) else { return }
+        Swift.Task { @MainActor in
+            await chooseAndAddImages()
+        }
+    }
 
-            selectedImageIndex = max(review.imageFileNames.count - fileNames.count, 0)
-            message = fileNames.count == 1 ? "이미지 추가됨" : "이미지 \(fileNames.count)개 추가됨"
+    @MainActor
+    private func chooseAndAddImages() async {
+        guard !isImportingImages else { return }
+        guard !hasLegacyImageReferences else {
+            message = "기존 이미지는 읽기 전용으로 유지됩니다"
+            return
+        }
+
+        isImportingImages = true
+        defer { isImportingImages = false }
+        let targetDayKey = selectedDayKey
+        do {
+            let newDrafts = try await DiaryImageStore.chooseImageDrafts()
+            guard selectedDayKey == targetDayKey else { return }
+            guard !newDrafts.isEmpty else { return }
+            let availableCount = max(
+                DiaryAttachmentService.maximumAttachmentCount - attachmentDrafts.count,
+                0
+            )
+            guard availableCount > 0 else {
+                message = "이미지는 최대 \(DiaryAttachmentService.maximumAttachmentCount)개까지 추가할 수 있습니다"
+                return
+            }
+            let accepted = Array(newDrafts.prefix(availableCount))
+            let firstNewIndex = attachmentDrafts.count
+            attachmentDrafts.append(contentsOf: accepted)
+            attachmentPreviewCacheKeys.append(contentsOf: accepted.map { _ in
+                "diary-draft-\(UUID().uuidString)"
+            })
+            selectedImageIndex = firstNewIndex
+            if accepted.count < newDrafts.count {
+                message = "이미지 \(accepted.count)개 추가됨, 최대 개수 초과"
+            } else {
+                message = accepted.count == 1
+                    ? "이미지를 추가했습니다. 저장하면 반영됩니다"
+                    : "이미지 \(accepted.count)개를 추가했습니다. 저장하면 반영됩니다"
+            }
         } catch {
             message = "이미지 추가 실패: \(error.localizedDescription)"
         }
     }
 
     private func removeSelectedImage() {
-        guard let review = selectedReview,
-              review.imageFileNames.indices.contains(selectedImageIndex) else { return }
+        guard let image = displayedImages[safe: selectedImageIndex] else { return }
+        if !image.legacyIndexes.isEmpty {
+            for legacyIndex in image.legacyIndexes
+                .filter(legacyImageFileNames.indices.contains)
+                .sorted(by: >) {
+                legacyImageFileNames.remove(at: legacyIndex)
+            }
+            selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
+            message = legacyImageFileNames.isEmpty
+                ? "이전 이미지를 모두 정리했습니다. 저장하면 백업할 수 있습니다"
+                : "이전 이미지를 삭제했습니다. 저장하면 반영됩니다"
+            return
+        }
 
-        let fileName = review.imageFileNames.remove(at: selectedImageIndex)
-        let nextImageFileNames = review.imageFileNames
-        DiaryImageStore.removeImage(fileName: fileName)
-        selectedImageIndex = min(selectedImageIndex, max(review.imageFileNames.count - 1, 0))
-        DailyReviewService.save(
-            review: review,
-            dayKey: selectedDayKey,
-            title: reviewTitle,
-            content: content,
-            imageFileNames: nextImageFileNames,
-            in: modelContext,
-            forceCreate: true
-        )
-        message = "이미지 삭제됨"
+        guard !hasLegacyImageReferences,
+              case .attachment(let draftIndex) = image.source,
+              attachmentDrafts.indices.contains(draftIndex) else { return }
+        attachmentDrafts.remove(at: draftIndex)
+        if attachmentPreviewCacheKeys.indices.contains(draftIndex) {
+            attachmentPreviewCacheKeys.remove(at: draftIndex)
+        }
+        selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
+        message = "이미지를 삭제했습니다. 저장하면 반영됩니다"
+    }
+
+    private var canRemoveSelectedImage: Bool {
+        guard let image = displayedImages[safe: selectedImageIndex] else { return false }
+        if !image.legacyIndexes.isEmpty { return true }
+        switch image.source {
+        case .attachment:
+            return !hasLegacyImageReferences
+        case .legacyFileName:
+            return true
+        }
     }
 }
 
 struct DailyReviewSheet: View {
     var selectedDate: Date
     @Environment(\.dismiss) private var dismiss
-    @Query private var reviews: [DailyReview]
+    @Environment(\.modelContext) private var modelContext
+    @State private var hasReviewImages = false
 
     private var selectedDayKey: String {
         DayKey.key(for: selectedDate)
-    }
-
-    private var hasReviewImages: Bool {
-        guard let review = reviews.first(where: { $0.dayKey == selectedDayKey }) else { return false }
-        return !review.imageFileNames.isEmpty
     }
 
     private var sheetWidth: CGFloat {
@@ -610,30 +809,79 @@ struct DailyReviewSheet: View {
         .frame(width: sheetWidth, height: sheetHeight)
         .background(AppTheme.panel)
         .animation(.snappy(duration: 0.18), value: hasReviewImages)
+        .task {
+            loadReviewImageState()
+        }
+    }
+
+    private func loadReviewImageState() {
+        do {
+            guard let review = try modelContext.fetch(
+                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
+            ).first else {
+                hasReviewImages = false
+                return
+            }
+            let blocks = try modelContext.fetch(
+                BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+            )
+            let attachments = try modelContext.fetch(
+                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+            )
+            let unresolvedFileNames = DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: review,
+                blocks: blocks,
+                attachments: attachments
+            )
+            hasReviewImages = !attachments.isEmpty || !unresolvedFileNames.isEmpty
+        } catch {
+            hasReviewImages = false
+        }
     }
 }
 
+private struct DiaryImageItem: Identifiable {
+    var id: String
+    var source: DiaryImageSource
+    var request: DiaryPreviewImageRequest
+    var normalizedFileName: String?
+    var legacyIndexes: [Int]
+}
+
+private enum DiaryImageSource {
+    case attachment(index: Int)
+    case legacyFileName(index: Int, fileName: String)
+}
+
 private struct DiaryImageView: View {
-    var fileName: String?
+    var request: DiaryPreviewImageRequest
+    @State private var image: NSImage?
 
     var body: some View {
-        if let fileName,
-           let image = NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName)) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 28, weight: .semibold))
+                    Text("이미지를 불러올 수 없습니다.")
+                        .font(.callout)
+                }
+                .foregroundStyle(AppTheme.secondaryText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-        } else {
-            VStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 28, weight: .semibold))
-                Text("이미지를 불러올 수 없습니다.")
-                    .font(.callout)
+                .background(AppTheme.input)
             }
-            .foregroundStyle(AppTheme.secondaryText)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(AppTheme.input)
+        }
+        .task(id: request.cacheKey) {
+            image = nil
+            let loadedImage = await DiaryImageStore.previewImage(for: request)
+            guard !Swift.Task.isCancelled else { return }
+            image = loadedImage
         }
     }
 }

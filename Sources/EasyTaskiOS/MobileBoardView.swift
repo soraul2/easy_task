@@ -1,7 +1,5 @@
 #if os(iOS)
-#if !XCODE_APP_BUNDLE
 import EasyTaskCore
-#endif
 import SwiftData
 import SwiftUI
 
@@ -10,6 +8,7 @@ private enum MobileBoardSheet: Identifiable {
     case carryover
     case templates
     case review
+    case theme
 
     var id: String {
         switch self {
@@ -17,6 +16,7 @@ private enum MobileBoardSheet: Identifiable {
         case .carryover: "carryover"
         case .templates: "templates"
         case .review: "review"
+        case .theme: "theme"
         }
     }
 }
@@ -24,8 +24,9 @@ private enum MobileBoardSheet: Identifiable {
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
     @Environment(\.modelContext) private var modelContext
-    @Query private var tasks: [TodoTask]
-    @Query private var events: [CalendarEvent]
+    @Query private var selectedDayTaskRows: [TodoTask]
+    @Query private var carryoverTaskRows: [TodoTask]
+    @Query private var overlappingEventRows: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
 
@@ -38,9 +39,33 @@ struct MobileBoardView: View {
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var isTodayBoard: Bool { selectedDayKey == DayKey.today }
 
+    init(selectedDate: Binding<Date>) {
+        _selectedDate = selectedDate
+
+        let dayKey = DayKey.key(for: selectedDate.wrappedValue)
+        _selectedDayTaskRows = Query(
+            BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
+        )
+        _carryoverTaskRows = Query(
+            BoundedQueryService.carryoverTasksDescriptor(before: dayKey)
+        )
+        _overlappingEventRows = Query(
+            BoundedQueryService.eventsDescriptor(
+                overlappingStartDayKey: dayKey,
+                endDayKey: dayKey
+            )
+        )
+    }
+
     private var boardTasks: [TodoTask] {
-        BoardQueryRules.tasksForBoard(
-            tasks,
+        var rows = selectedDayTaskRows
+        if isTodayBoard {
+            let selectedTaskIDs = Set(rows.map(\.id))
+            rows.append(contentsOf: carryoverTaskRows.filter { !selectedTaskIDs.contains($0.id) })
+        }
+
+        return BoardQueryRules.tasksForBoard(
+            rows,
             selectedDayKey: selectedDayKey,
             includeCarryoverOnToday: true
         )
@@ -51,13 +76,11 @@ struct MobileBoardView: View {
     }
 
     private var dayEvents: [CalendarEvent] {
-        events
-            .filter { $0.startDayKey <= selectedDayKey && selectedDayKey <= $0.endDayKey }
-            .sorted { $0.startDayKey < $1.startDayKey }
+        CalendarEventRules.events(onDayKey: selectedDayKey, in: overlappingEventRows)
     }
 
     private var carryoverTasks: [TodoTask] {
-        TaskRules.carryoverTasks(tasks, before: selectedDayKey)
+        TaskRules.carryoverTasks(carryoverTaskRows, before: selectedDayKey)
     }
 
     var body: some View {
@@ -74,10 +97,9 @@ struct MobileBoardView: View {
                 BoardTaskList(
                     tasks: statusTasks,
                     selectedStatus: selectedStatus,
-                    completionDayKey: selectedDayKey,
                     onEdit: { presentedSheet = .task($0) },
-                    onDelete: { modelContext.delete($0) },
-                    onStatusChange: showStatusNotice
+                    onDelete: deleteTask,
+                    onStatusChange: changeTaskStatus
                 )
             }
             .background(AppTheme.background.ignoresSafeArea())
@@ -93,7 +115,9 @@ struct MobileBoardView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    MobileCloudKitSyncStatusButton()
+
                     Menu {
                         Button { presentedSheet = .carryover } label: {
                             Label("이월함", systemImage: "tray")
@@ -103,6 +127,9 @@ struct MobileBoardView: View {
                         }
                         Button { presentedSheet = .review } label: {
                             Label("회고 작성", systemImage: "book.closed")
+                        }
+                        Button { presentedSheet = .theme } label: {
+                            Label("테마", systemImage: "paintpalette")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -125,11 +152,13 @@ struct MobileBoardView: View {
                         templates: templates,
                         items: templateItems,
                         selectedDate: selectedDate,
-                        existingTasks: tasks,
+                        existingTasks: selectedDayTaskRows,
                         onApplied: showBoardNotice
                     )
                 case .review:
                     MobileReviewComposerSheet(selectedDate: selectedDate)
+                case .theme:
+                    MobileThemePickerSheet()
                 }
             }
         }
@@ -138,15 +167,47 @@ struct MobileBoardView: View {
     private func addQuickTask() {
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
-        let task = TodoTask(
-            title: title,
-            status: .todo,
-            plannedAt: selectedDate,
-            order: BoardQueryRules.nextOrder(in: tasks, dayKey: selectedDayKey, status: .todo)
-        )
-        modelContext.insert(task)
-        quickTitle = ""
-        selectedStatus = .todo
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                let nextOrder = try BoundedQueryService.nextOrder(
+                    in: modelContext,
+                    dayKey: selectedDayKey,
+                    status: .todo
+                )
+                let task = TodoTask(
+                    title: title,
+                    status: .todo,
+                    plannedAt: selectedDate,
+                    order: nextOrder
+                )
+                modelContext.insert(task)
+            }
+            quickTitle = ""
+            selectedStatus = .todo
+        } catch {
+            showBoardNotice("작업을 추가하지 못했습니다")
+        }
+    }
+
+    private func deleteTask(_ task: TodoTask) {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                try TaskRules.delete(task, from: modelContext)
+            }
+        } catch {
+            showBoardNotice("작업을 삭제하지 못했습니다")
+        }
+    }
+
+    private func changeTaskStatus(task: TodoTask, status: TaskStatus) {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskRules.applyStatus(status, to: task, completionDayKey: selectedDayKey)
+            }
+            showStatusNotice(task: task, status: status)
+        } catch {
+            showBoardNotice("작업 상태를 변경하지 못했습니다")
+        }
     }
 
     private func showStatusNotice(task: TodoTask, status: TaskStatus) {
@@ -281,7 +342,6 @@ private struct BoardStatusPicker: View {
 private struct BoardTaskList: View {
     var tasks: [TodoTask]
     var selectedStatus: TaskStatus
-    var completionDayKey: String
     var onEdit: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
@@ -299,7 +359,6 @@ private struct BoardTaskList: View {
                 ForEach(tasks) { task in
                     MobileTaskRow(
                         task: task,
-                        completionDayKey: completionDayKey,
                         onEdit: { onEdit(task) },
                         onDelete: { onDelete(task) },
                         onStatusChange: { onStatusChange(task, $0) }
@@ -319,7 +378,6 @@ private struct BoardTaskList: View {
 
 private struct MobileTaskRow: View {
     var task: TodoTask
-    var completionDayKey: String
     var onEdit: () -> Void
     var onDelete: () -> Void
     var onStatusChange: (TaskStatus) -> Void
@@ -433,9 +491,6 @@ private struct MobileTaskRow: View {
             }
 
             MobileTaskStatusSlider(status: status, accentColor: accentColor) { nextStatus in
-                withAnimation(.snappy) {
-                    TaskRules.applyStatus(nextStatus, to: task, completionDayKey: completionDayKey)
-                }
                 onStatusChange(nextStatus)
             }
         }
@@ -573,14 +628,16 @@ private struct MobileTaskStatusSlider: View {
 
 private struct MobileTaskDetailSheet: View {
     var task: TodoTask
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var allTasks: [TodoTask]
     @State private var title: String
     @State private var note: String
     @State private var status: TaskStatus
     @State private var plannedDate: Date
     @State private var priority: TaskPriority?
     @State private var estimatedMinutesText: String
+    @State private var tagsText: String
+    @State private var saveError: String?
 
     init(task: TodoTask) {
         self.task = task
@@ -590,6 +647,7 @@ private struct MobileTaskDetailSheet: View {
         _plannedDate = State(initialValue: task.plannedAt)
         _priority = State(initialValue: task.priority.flatMap(TaskPriority.init(rawValue:)))
         _estimatedMinutesText = State(initialValue: task.estimatedMinutes.map(String.init) ?? "")
+        _tagsText = State(initialValue: task.tags.joined(separator: ", "))
     }
 
     var body: some View {
@@ -615,6 +673,14 @@ private struct MobileTaskDetailSheet: View {
                     }
                     TextField("예상 시간(분)", text: $estimatedMinutesText)
                         .keyboardType(.numberPad)
+                    TextField("태그(쉼표로 구분)", text: $tagsText)
+                }
+                if let saveError {
+                    Section {
+                        Label(saveError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .navigationTitle("작업 상세")
@@ -623,11 +689,8 @@ private struct MobileTaskDetailSheet: View {
                     Button("취소") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("저장") {
-                        save()
-                        dismiss()
-                    }
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("저장", action: save)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -641,29 +704,68 @@ private struct MobileTaskDetailSheet: View {
         let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         let newPlannedAt = DayKey.startOfDay(for: plannedDate)
         let newDayKey = DayKey.key(for: newPlannedAt)
-
-        if oldStatus != status {
-            TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
-        }
-
-        var nextOrder: Double?
-        if oldDayKey != newDayKey || oldStatus != status {
-            let dayTasks = allTasks.filter {
-                $0.id != task.id && $0.plannedDayKey == newDayKey && $0.archivedAt == nil
-            }
-            nextOrder = BoardQueryRules.nextOrder(in: dayTasks, dayKey: newDayKey, status: status)
-        }
-        if oldDayKey != newDayKey || nextOrder != nil {
-            TaskRules.move(task, to: newPlannedAt, order: nextOrder)
-        }
-
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedMinutes = estimatedMinutesText.trimmingCharacters(in: .whitespacesAndNewlines)
-        task.title = trimmedTitle
-        task.note = trimmedNote.isEmpty ? nil : trimmedNote
-        task.priority = priority?.rawValue
-        task.estimatedMinutes = trimmedMinutes.isEmpty ? nil : Int(trimmedMinutes)
-        task.updatedAt = Date()
+        let estimateInput = parsedEstimatedMinutesInput()
+        if let errorMessage = estimateInput.errorMessage {
+            saveError = errorMessage
+            return
+        }
+        let estimatedMinutes = estimateInput.value
+        let tags = parsedTags()
+
+        saveError = nil
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                let nextOrder: Double?
+                if oldDayKey != newDayKey || oldStatus != status {
+                    nextOrder = try BoundedQueryService.nextOrder(
+                        in: modelContext,
+                        dayKey: newDayKey,
+                        status: status
+                    )
+                } else {
+                    nextOrder = nil
+                }
+
+                if oldStatus != status {
+                    TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
+                }
+
+                if oldDayKey != newDayKey || nextOrder != nil {
+                    TaskRules.move(task, to: newPlannedAt, order: nextOrder)
+                }
+
+                task.title = trimmedTitle
+                task.note = trimmedNote.isEmpty ? nil : trimmedNote
+                task.priority = priority?.rawValue
+                task.estimatedMinutes = estimatedMinutes
+                task.tags = tags
+                task.updatedAt = Date()
+            }
+            dismiss()
+        } catch {
+            saveError = "작업을 저장하지 못했습니다"
+        }
+    }
+
+    private func parsedEstimatedMinutesInput() -> (value: Int?, errorMessage: String?) {
+        let value = estimatedMinutesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return (nil, nil) }
+        guard let minutes = Int(value), (1...(24 * 60)).contains(minutes) else {
+            return (nil, "예상 시간은 1~1440분 사이의 숫자로 입력해 주세요")
+        }
+        return (minutes, nil)
+    }
+
+    private func parsedTags() -> [String] {
+        var seen: Set<String> = []
+        return tagsText
+            .split(separator: ",")
+            .compactMap { rawTag in
+                let tag = rawTag.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !tag.isEmpty, seen.insert(tag).inserted else { return nil }
+                return tag
+            }
     }
 }
 
@@ -671,9 +773,11 @@ private struct MobileCarryoverSheet: View {
     var tasks: [TodoTask]
     var targetDate: Date
     var onApplied: (String) -> Void
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var movedTaskIDs: Set<UUID> = []
     @State private var message: String?
+    @State private var isErrorMessage = false
 
     private var remainingTasks: [TodoTask] {
         tasks.filter { !movedTaskIDs.contains($0.id) }
@@ -687,9 +791,12 @@ private struct MobileCarryoverSheet: View {
                 } else {
                     Section {
                         if let message {
-                            Label(message, systemImage: "checkmark.circle.fill")
+                            Label(
+                                message,
+                                systemImage: isErrorMessage ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+                            )
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(isErrorMessage ? Color.red : Color.secondary)
                         }
                         Button {
                             moveAllToTargetDate()
@@ -732,32 +839,52 @@ private struct MobileCarryoverSheet: View {
     }
 
     private func completeAll() {
-        let count = remainingTasks.count
-        TaskRules.completeAll(remainingTasks, completionDayKey: DayKey.key(for: targetDate))
-        onApplied("\(count)개 이월 작업을 완료 처리했어요")
-        dismiss()
+        let tasksToComplete = remainingTasks
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskRules.completeAll(tasksToComplete, completionDayKey: DayKey.key(for: targetDate))
+            }
+            onApplied("\(tasksToComplete.count)개 이월 작업을 완료 처리했어요")
+            dismiss()
+        } catch {
+            showError("이월 작업을 완료하지 못했습니다")
+        }
     }
 
     private func moveAllToTargetDate() {
-        let count = remainingTasks.count
-        for task in remainingTasks {
-            move(task)
+        let tasksToMove = remainingTasks
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                for task in tasksToMove {
+                    TaskRules.move(task, to: targetDate)
+                }
+            }
+            onApplied("\(tasksToMove.count)개 작업을 \(DayKey.display(targetDate))로 이월했어요")
+            dismiss()
+        } catch {
+            showError("작업을 이월하지 못했습니다")
         }
-        onApplied("\(count)개 작업을 \(DayKey.display(targetDate))로 이월했어요")
-        dismiss()
     }
 
     private func moveToTargetDate(_ task: TodoTask) {
-        move(task)
-        movedTaskIDs.insert(task.id)
-        let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let notice = title.isEmpty ? "작업을 \(DayKey.display(targetDate))로 이월했어요" : "\(title) · \(DayKey.display(targetDate))로 이월했어요"
-        message = notice
-        onApplied(notice)
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskRules.move(task, to: targetDate)
+            }
+            movedTaskIDs.insert(task.id)
+            let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let notice = title.isEmpty ? "작업을 \(DayKey.display(targetDate))로 이월했어요" : "\(title) · \(DayKey.display(targetDate))로 이월했어요"
+            isErrorMessage = false
+            message = notice
+            onApplied(notice)
+        } catch {
+            showError("작업을 이월하지 못했습니다")
+        }
     }
 
-    private func move(_ task: TodoTask) {
-        TaskRules.move(task, to: targetDate)
+    private func showError(_ errorMessage: String) {
+        isErrorMessage = true
+        message = errorMessage
     }
 }
 
@@ -773,9 +900,29 @@ private struct MobileTemplateLibrarySheet: View {
     @State private var scope: TemplateListScope = .favorites
     @State private var message: String?
     @State private var pendingTemplate: TaskTemplate?
+    @State private var pendingDeleteTemplate: TaskTemplate?
+    @State private var templateName = ""
+    @State private var templateDrafts: [TemplateTaskDraft] = []
 
     private var filteredTemplates: [TaskTemplate] {
         TemplateListRules.filterAndSort(templates, items: items, query: searchText, scope: scope)
+    }
+
+    private var currentBoardTasks: [TodoTask] {
+        let dayKey = DayKey.key(for: selectedDate)
+        return existingTasks
+            .filter {
+                $0.supersededAt == nil &&
+                    $0.archivedAt == nil &&
+                    $0.plannedDayKey == dayKey
+            }
+            .sorted { $0.order < $1.order }
+    }
+
+    private var validTemplateDrafts: [TemplateTaskDraft] {
+        templateDrafts.filter {
+            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     private var isConfirmingTemplateApply: Binding<Bool> {
@@ -804,6 +951,43 @@ private struct MobileTemplateLibrarySheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("현재 보드 저장") {
+                    if currentBoardTasks.isEmpty {
+                        ContentUnavailableView("저장할 작업 없음", systemImage: "checklist")
+                            .listRowBackground(Color.clear)
+                    } else {
+                        TextField("템플릿 이름", text: $templateName)
+
+                        ForEach($templateDrafts) { $draft in
+                            MobileTemplateDraftEditRow(
+                                draft: $draft,
+                                onRemove: removeTemplateDraft
+                            )
+                        }
+
+                        HStack {
+                            Button {
+                                loadCurrentBoardDrafts()
+                            } label: {
+                                Label("다시 불러오기", systemImage: "arrow.clockwise")
+                            }
+
+                            Spacer()
+
+                            Button {
+                                saveCurrentBoardTemplate()
+                            } label: {
+                                Label("템플릿으로 저장", systemImage: "square.on.square")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(
+                                templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                                    validTemplateDrafts.isEmpty
+                            )
+                        }
+                    }
+                }
+
                 Section {
                     TextField("템플릿 검색", text: $searchText)
                     Picker("보기", selection: $scope) {
@@ -821,22 +1005,38 @@ private struct MobileTemplateLibrarySheet: View {
 
                 ForEach(filteredTemplates) { template in
                     let templateItems = TemplateListRules.itemsForTemplate(template, in: items)
-                    Button {
-                        requestApply(template, items: templateItems)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
+                    HStack(spacing: 10) {
+                        Button {
+                            toggleFavorite(template)
+                        } label: {
+                            Image(systemName: template.isFavorite ? "star.fill" : "star")
+                                .font(.headline)
+                                .foregroundStyle(template.isFavorite ? .yellow : .secondary)
+                                .frame(width: 34, height: 34)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(template.isFavorite ? "즐겨찾기 제거" : "즐겨찾기 추가")
+
+                        Button {
+                            requestApply(template, items: templateItems)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 5) {
                                 Text(template.name)
                                     .font(.headline)
-                                if template.isFavorite {
-                                    Image(systemName: "star.fill")
-                                        .foregroundStyle(.yellow)
-                                }
+                                Text(templateItems.map(\.title).prefix(3).joined(separator: " · "))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
-                            Text(templateItems.map(\.title).prefix(3).joined(separator: " · "))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            pendingDeleteTemplate = template
+                        } label: {
+                            Label("삭제", systemImage: "trash")
                         }
                     }
                 }
@@ -857,6 +1057,9 @@ private struct MobileTemplateLibrarySheet: View {
             }
             .onAppear {
                 scope = TemplateListRules.preferredScope(for: templates)
+                if templateDrafts.isEmpty {
+                    loadCurrentBoardDrafts()
+                }
             }
             .onChange(of: searchText) {
                 message = nil
@@ -881,6 +1084,24 @@ private struct MobileTemplateLibrarySheet: View {
             } message: { template in
                 Text("\"\(template.name)\" 템플릿을 \(DayKey.display(selectedDate))에 적용합니다.")
             }
+            .alert("템플릿을 삭제할까요?", isPresented: Binding(
+                get: { pendingDeleteTemplate != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteTemplate = nil
+                    }
+                }
+            ), presenting: pendingDeleteTemplate) { template in
+                Button("취소", role: .cancel) {
+                    pendingDeleteTemplate = nil
+                }
+                Button("삭제", role: .destructive) {
+                    deleteTemplate(template)
+                }
+            } message: { template in
+                let count = TemplateListRules.itemsForTemplate(template, in: items).count
+                Text("\"\(template.name)\" 템플릿과 하위 작업 \(count)개를 삭제합니다.")
+            }
         }
         .presentationDetents([.medium, .large])
     }
@@ -898,21 +1119,106 @@ private struct MobileTemplateLibrarySheet: View {
         pendingTemplate = template
     }
 
+    private func toggleFavorite(_ template: TaskTemplate) {
+        do {
+            let isFavorite = try PersistenceCommandService.perform(in: modelContext) {
+                template.isFavorite.toggle()
+                template.updatedAt = Date()
+                return template.isFavorite
+            }
+            if !isFavorite && scope == .favorites {
+                pendingTemplate = nil
+            }
+            message = isFavorite ? "즐겨찾기에 추가했어요" : "즐겨찾기에서 제거했어요"
+        } catch {
+            message = "즐겨찾기를 변경하지 못했습니다"
+        }
+    }
+
+    private func deleteTemplate(_ template: TaskTemplate) {
+        let name = template.name
+        do {
+            _ = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.deleteTemplate(
+                    template,
+                    items: items,
+                    in: modelContext
+                )
+            }
+            pendingDeleteTemplate = nil
+            message = "\"\(name)\" 템플릿을 삭제했어요"
+        } catch {
+            pendingDeleteTemplate = nil
+            message = "템플릿을 삭제하지 못했습니다"
+        }
+    }
+
+    private func loadCurrentBoardDrafts() {
+        templateDrafts = currentBoardTasks.enumerated().map { index, task in
+            TemplateTaskDraft(
+                id: task.id,
+                title: task.title,
+                note: task.note ?? "",
+                priority: task.priority,
+                tags: task.tags,
+                estimatedMinutes: task.estimatedMinutes,
+                order: Double(index + 1) * 100
+            )
+        }
+        message = nil
+    }
+
+    private func removeTemplateDraft(_ id: UUID) {
+        templateDrafts.removeAll { $0.id == id }
+    }
+
+    private func saveCurrentBoardTemplate() {
+        let name = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !validTemplateDrafts.isEmpty else { return }
+
+        do {
+            let template = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.saveTemplate(
+                    named: name,
+                    from: validTemplateDrafts,
+                    in: modelContext
+                )
+            }
+            guard template != nil else {
+                message = "템플릿 이름과 작업을 확인해 주세요"
+                return
+            }
+            templateName = ""
+            loadCurrentBoardDrafts()
+            scope = .all
+            message = "\"\(name)\" 템플릿을 저장했어요"
+        } catch {
+            message = "템플릿을 저장하지 못했습니다"
+        }
+    }
+
     private func apply(_ template: TaskTemplate, items templateItems: [TaskTemplateItem]) {
         pendingTemplate = nil
-        let createdCount = TemplateService.applyTemplate(
-            template,
-            items: templateItems,
-            selectedDate: selectedDate,
-            existingTasks: existingTasks,
-            in: modelContext
-        )
-        guard createdCount > 0 else {
-            message = "추가할 새 작업이 없어요"
-            return
+        let templateName = template.name
+        do {
+            let createdCount = try PersistenceCommandService.perform(in: modelContext) {
+                TemplateService.applyTemplate(
+                    template,
+                    items: templateItems,
+                    selectedDate: selectedDate,
+                    existingTasks: existingTasks,
+                    in: modelContext
+                )
+            }
+            guard createdCount > 0 else {
+                message = "추가할 새 작업이 없어요"
+                return
+            }
+            onApplied("\"\(templateName)\" 템플릿으로 \(createdCount)개 작업을 추가했어요")
+            dismiss()
+        } catch {
+            message = "템플릿을 적용하지 못했습니다"
         }
-        onApplied("\"\(template.name)\" 템플릿으로 \(createdCount)개 작업을 추가했어요")
-        dismiss()
     }
 }
 #endif

@@ -1,31 +1,37 @@
 #if os(iOS)
-#if !XCODE_APP_BUNDLE
+import Combine
 import EasyTaskCore
-#endif
+import Foundation
 import SwiftData
 import SwiftUI
-import UIKit
 
 struct MobileArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
 
-    @Query private var tasks: [TodoTask]
-    @Query private var reviews: [DailyReview]
+    @Environment(\.modelContext) private var modelContext
     @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
-
-    private var records: [ArchiveDayRecord] {
-        ArchiveQueryRules.records(tasks: tasks, reviews: reviews, filter: filter)
-    }
+    @State private var querySession: ArchiveQuerySession?
 
     private var hasActiveFilterOptions: Bool {
         filter.period != .all || filter.scope != .all
     }
 
     var body: some View {
+        let attachmentIndex = DiaryAttachmentIndex(
+            attachments: querySession?.attachments ?? [],
+            blocks: querySession?.blocks ?? []
+        )
+        let records = querySession?.records ?? []
+
         NavigationStack {
             List {
-                if records.isEmpty {
+                if querySession?.isLoading == true && records.isEmpty {
+                    ProgressView("기록 불러오는 중")
+                        .frame(maxWidth: .infinity, minHeight: 260)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                } else if records.isEmpty {
                     emptyState
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -34,12 +40,52 @@ struct MobileArchiveView: View {
                     ForEach(records) { record in
                         MobileArchiveRecordCard(
                             record: record,
+                            attachments: record.review.map {
+                                attachmentIndex.activeAttachments(for: $0.id)
+                            } ?? [],
+                            legacyFileNames: record.review.map {
+                                attachmentIndex.unresolvedLegacyImageFileNames(for: $0)
+                            } ?? [],
                             onOpenBoardDate: onOpenBoardDate
                         )
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     }
+
+                    if querySession?.hasMore == true {
+                        Button {
+                            querySession?.loadNextPage()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                if querySession?.isLoading == true {
+                                    ProgressView()
+                                } else {
+                                    Label("이전 기록 더 보기", systemImage: "chevron.down")
+                                }
+                                Spacer()
+                            }
+                        }
+                        .disabled(querySession?.isLoading == true)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
+                if let errorMessage = querySession?.errorMessage {
+                    VStack(spacing: 10) {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Button("다시 시도") {
+                            querySession?.retry()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
             }
             .listStyle(.plain)
@@ -64,6 +110,39 @@ struct MobileArchiveView: View {
                 MobileArchiveFilterSheet(filter: $filter)
             }
         }
+        .task {
+            guard querySession == nil else { return }
+            let session = ArchiveQuerySession(context: modelContext)
+            querySession = session
+            session.apply(filter, debounceSearch: false)
+        }
+        .onChange(of: filter) { oldFilter, newFilter in
+            querySession?.apply(
+                newFilter,
+                debounceSearch: shouldDebounceSearch(
+                    from: oldFilter,
+                    to: newFilter
+                )
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: PersistenceCommandService.dataChangedNotification
+        )) { notification in
+            guard let sourceContext = notification.object as? ModelContext,
+                  sourceContext === modelContext else { return }
+            querySession?.refreshPreservingDepth()
+        }
+    }
+
+    private func shouldDebounceSearch(
+        from oldFilter: ArchiveFilter,
+        to newFilter: ArchiveFilter
+    ) -> Bool {
+        oldFilter.searchText != newFilter.searchText &&
+            oldFilter.period == newFilter.period &&
+            oldFilter.scope == newFilter.scope &&
+            oldFilter.customStartDate == newFilter.customStartDate &&
+            oldFilter.customEndDate == newFilter.customEndDate
     }
 
     private var emptyState: some View {
@@ -155,6 +234,8 @@ private struct MobileArchiveFilterSheet: View {
 
 private struct MobileArchiveRecordCard: View {
     var record: ArchiveDayRecord
+    var attachments: [DiaryAttachment]
+    var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
 
     @State private var tasksExpanded = false
@@ -247,8 +328,11 @@ private struct MobileArchiveRecordCard: View {
                 MobileExpandableReviewText(text: content)
             }
 
-            if !review.imageFileNames.isEmpty {
-                MobileArchiveImageCarousel(fileNames: review.imageFileNames)
+            if !attachments.isEmpty || !legacyFileNames.isEmpty {
+                MobileArchiveImageCarousel(
+                    attachments: attachments,
+                    legacyFileNames: legacyFileNames
+                )
             }
         }
     }
@@ -367,54 +451,55 @@ private struct MobileExpandableReviewText: View {
 }
 
 private struct MobileArchiveImageCarousel: View {
-    var fileNames: [String]
+    var attachments: [DiaryAttachment]
+    var legacyFileNames: [String]
     @State private var selectedIndex = 0
-
-    private var selectedImage: UIImage? {
-        guard fileNames.indices.contains(selectedIndex) else { return nil }
-        return image(for: fileNames[selectedIndex])
-    }
-
-    private var selectedAspectRatio: CGFloat {
-        guard let image = selectedImage, image.size.height > 0 else { return 4.0 / 3.0 }
-        return min(max(image.size.width / image.size.height, 0.82), 2.0)
-    }
+    @State private var imageAspectRatios: [String: CGFloat] = [:]
+    @State private var legacyResolution = MobileLegacyImageResolution()
 
     var body: some View {
+        let items = mixedImageItems
+        let safeIndex = items.indices.contains(selectedIndex) ? selectedIndex : 0
+        let selectedAspectRatio = items.indices.contains(safeIndex)
+            ? imageAspectRatios[items[safeIndex].id] ?? 4.0 / 3.0
+            : 4.0 / 3.0
+
         ZStack(alignment: .bottomTrailing) {
-            TabView(selection: $selectedIndex) {
-                ForEach(Array(fileNames.enumerated()), id: \.offset) { index, fileName in
-                    ZStack {
-                        AppTheme.input
-
-                        if let image = image(for: fileName) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            MobileMissingImagePlaceholder(
-                                message: "이미지를 불러올 수 없음",
-                                minHeight: 160
-                            )
-                        }
+            if isResolvingLegacyImages {
+                MobileImageLoadingPlaceholder(minHeight: 160)
+                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
+            } else {
+                TabView(selection: $selectedIndex) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        MobileAsyncThumbnailImage(
+                            request: item.thumbnailRequest,
+                            placeholderMessage: "이미지를 불러올 수 없음",
+                            minHeight: 160,
+                            accessibilityLabel: "회고 이미지 \(index + 1)",
+                            onAspectRatioChange: { aspectRatio in
+                                let ratio = constrainedAspectRatio(aspectRatio)
+                                if imageAspectRatios[item.id] != ratio {
+                                    imageAspectRatios[item.id] = ratio
+                                }
+                            }
+                        )
+                        .tag(index)
                     }
-                    .tag(index)
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .aspectRatio(selectedAspectRatio, contentMode: .fit)
-            .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .aspectRatio(selectedAspectRatio, contentMode: .fit)
+                .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
 
-            if fileNames.count > 1 {
-                Text("\(selectedIndex + 1)/\(fileNames.count)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(.black.opacity(0.58), in: Capsule())
-                    .padding(9)
-                    .accessibilityLabel("이미지 \(selectedIndex + 1) / \(fileNames.count)")
+                if items.count > 1 {
+                    Text("\(safeIndex + 1)/\(items.count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.58), in: Capsule())
+                        .padding(9)
+                        .accessibilityLabel("이미지 \(safeIndex + 1) / \(items.count)")
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -422,18 +507,87 @@ private struct MobileArchiveImageCarousel: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
-        .onChange(of: fileNames) { _, newFileNames in
-            if !newFileNames.indices.contains(selectedIndex) {
+        .onChange(of: items.count) { _, newImageCount in
+            if selectedIndex >= newImageCount {
                 selectedIndex = 0
             }
         }
+        .task(id: legacyFileNames) {
+            let resolution = await MobileLegacyImageResolver.resolve(
+                fileNames: legacyFileNames
+            )
+            guard !Swift.Task<Never, Never>.isCancelled else { return }
+            legacyResolution = resolution
+        }
     }
 
-    private func image(for fileName: String) -> UIImage? {
-        UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
-            for: fileName,
-            appSupportFolder: MobileImageStorage.appSupportFolder
-        ).path)
+    private var mixedImageItems: [MobileArchiveImageItem] {
+        var items = attachments.enumerated().map { index, attachment in
+            MobileArchiveImageItem(
+                id: "canonical-\(attachment.id.uuidString)-\(index)",
+                data: attachment.data,
+                attachmentHash: attachment.sha256
+            )
+        }
+        let canonicalFileNames = Set(attachments.compactMap {
+            normalizedFileName($0.originalFileName)
+        })
+        let canonicalHashes = Set(attachments.map(\.sha256).filter { !$0.isEmpty })
+        var seenLegacyFileNames: Set<String> = []
+        var seenLegacyHashes: Set<String> = []
+
+        for legacyImage in resolvedLegacyImages {
+            let fileNameKey = legacyImage.normalizedFileName
+            let hash = legacyImage.attachmentHash
+            let duplicatesCanonical = canonicalFileNames.contains(fileNameKey) ||
+                hash.map(canonicalHashes.contains) == true
+            let duplicatesLegacy = !seenLegacyFileNames.insert(fileNameKey).inserted ||
+                hash.map { !seenLegacyHashes.insert($0).inserted } == true
+            guard !duplicatesCanonical, !duplicatesLegacy else { continue }
+
+            items.append(MobileArchiveImageItem(
+                id: "legacy-\(fileNameKey)-\(legacyImage.sourceIndex)",
+                data: legacyImage.data,
+                attachmentHash: hash
+            ))
+        }
+        return items
+    }
+
+    private var resolvedLegacyImages: [MobileResolvedLegacyImage] {
+        guard legacyResolution.fileNames == legacyFileNames else { return [] }
+        return legacyResolution.images
+    }
+
+    private var isResolvingLegacyImages: Bool {
+        !legacyFileNames.isEmpty && legacyResolution.fileNames != legacyFileNames
+    }
+
+    private func constrainedAspectRatio(_ aspectRatio: CGFloat) -> CGFloat {
+        min(max(aspectRatio, 0.82), 2.0)
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
+}
+
+private struct MobileArchiveImageItem: Identifiable {
+    var id: String
+    var data: Data?
+    var attachmentHash: String?
+
+    var thumbnailRequest: MobileImageThumbnailRequest? {
+        guard let data else { return nil }
+        return MobileImageThumbnailRequest(
+            data: data,
+            attachmentHash: attachmentHash,
+            dataIdentity: id
+        )
     }
 }
 

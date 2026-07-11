@@ -72,33 +72,56 @@ public struct TemplatePlacementDeleteSummary: Equatable {
 }
 
 public enum TemplateService {
+    @discardableResult
     public static func saveTemplate(
         named name: String,
         from tasks: [Task],
         in context: ModelContext
-    ) {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-
-        let template = TaskTemplate(name: trimmedName)
-        context.insert(template)
-
+    ) -> TaskTemplate? {
         let sourceTasks = tasks
-            .filter { $0.archivedAt == nil }
+            .filter { $0.supersededAt == nil && $0.archivedAt == nil }
             .sorted { $0.order < $1.order }
-
-        for (index, task) in sourceTasks.enumerated() {
-            let item = TaskTemplateItem(
-                templateId: template.id,
+        let drafts = sourceTasks.enumerated().map { index, task in
+            TemplateTaskDraft(
                 title: task.title,
-                note: task.note,
+                note: task.note ?? "",
                 priority: task.priority,
                 tags: task.tags,
                 estimatedMinutes: task.estimatedMinutes,
                 order: Double(index + 1) * 100
             )
+        }
+        return saveTemplate(named: name, from: drafts, in: context)
+    }
+
+    @discardableResult
+    public static func saveTemplate(
+        named name: String,
+        from drafts: [TemplateTaskDraft],
+        in context: ModelContext
+    ) -> TaskTemplate? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceDrafts = drafts
+            .filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted { $0.order < $1.order }
+        guard !trimmedName.isEmpty, !sourceDrafts.isEmpty else { return nil }
+
+        let template = TaskTemplate(name: trimmedName)
+        context.insert(template)
+
+        for (index, draft) in sourceDrafts.enumerated() {
+            let item = TaskTemplateItem(
+                templateId: template.id,
+                title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                note: normalizedOptionalText(draft.note),
+                priority: draft.priority.flatMap { TaskPriority(rawValue: $0)?.rawValue },
+                tags: draft.tags,
+                estimatedMinutes: draft.estimatedMinutes,
+                order: Double(index + 1) * 100
+            )
             context.insert(item)
         }
+        return template
     }
 
     @discardableResult
@@ -143,7 +166,7 @@ public enum TemplateService {
         items: [TaskTemplateItem]
     ) -> [TemplateTaskDraft] {
         items
-            .filter { $0.templateId == template.id }
+            .filter { $0.supersededAt == nil && $0.templateId == template.id }
             .sorted { $0.order < $1.order }
             .map(TemplateTaskDraft.init(item:))
     }
@@ -177,6 +200,9 @@ public enum TemplateService {
         skipDuplicateTitles: Bool = true,
         now: Date = Date()
     ) -> TemplateApplyResult {
+        guard template.supersededAt == nil else {
+            return TemplateApplyResult(createdTaskCount: 0, placements: [])
+        }
         let orderedDrafts = drafts
             .sorted { $0.order < $1.order }
         guard !orderedDrafts.isEmpty else {
@@ -196,7 +222,9 @@ public enum TemplateService {
 
         for date in orderedDates {
             let dayKey = DayKey.key(for: date)
-            let dayTasks = existingTasks.filter { $0.archivedAt == nil && $0.plannedDayKey == dayKey }
+            let dayTasks = existingTasks.filter {
+                $0.supersededAt == nil && $0.archivedAt == nil && $0.plannedDayKey == dayKey
+            }
             nextOrderByDayKey[dayKey] = ((dayTasks
                 .filter { $0.status == TaskStatus.todo.rawValue }
                 .map(\.order)
@@ -242,8 +270,6 @@ public enum TemplateService {
                     updatedAt: now
                 )
                 context.insert(task)
-                placement.taskIds.append(task.id)
-                placement.updatedAt = now
 
                 createdCount += 1
                 nextOrderByDayKey[dayKey] = order + 100
@@ -274,7 +300,7 @@ public enum TemplateService {
 
     public static func placements(onDayKey dayKey: String, in placements: [TemplatePlacement]) -> [TemplatePlacement] {
         placements
-            .filter { $0.dayKey == dayKey }
+            .filter { $0.supersededAt == nil && $0.dayKey == dayKey }
             .sorted(by: placementSort)
     }
 
@@ -283,7 +309,7 @@ public enum TemplateService {
         in placements: [TemplatePlacement]
     ) -> [TemplatePlacement] {
         placements
-            .filter { $0.sourceTemplateId == template.id }
+            .filter { $0.supersededAt == nil && $0.sourceTemplateId == template.id }
             .sorted(by: placementSort)
     }
 
@@ -291,9 +317,8 @@ public enum TemplateService {
         for placement: TemplatePlacement,
         in tasks: [Task]
     ) -> [Task] {
-        let taskIDs = Set(placement.taskIds)
         return tasks
-            .filter { $0.templatePlacementId == placement.id || taskIDs.contains($0.id) }
+            .filter { $0.supersededAt == nil && $0.templatePlacementId == placement.id }
             .sorted(by: taskSort)
     }
 

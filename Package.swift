@@ -13,14 +13,6 @@ let package = Package(
         .library(
             name: "EasyTaskCore",
             targets: ["EasyTaskCore"]
-        ),
-        .executable(
-            name: "TodoDesktopMVP",
-            targets: ["TodoDesktopMVP"]
-        ),
-        .executable(
-            name: "EasyTaskiOS",
-            targets: ["EasyTaskiOS"]
         )
     ],
     targets: [
@@ -29,14 +21,6 @@ let package = Package(
             resources: [
                 .process("Resources")
             ]
-        ),
-        .executableTarget(
-            name: "TodoDesktopMVP",
-            dependencies: ["EasyTaskCore"]
-        ),
-        .executableTarget(
-            name: "EasyTaskiOS",
-            dependencies: ["EasyTaskCore"]
         ),
         .testTarget(
             name: "TodoDesktopMVPTests",

@@ -113,8 +113,9 @@ func backupCodecRoundTripsTemplatePlacementLinks() throws {
     let restoredTask = try #require(restoredContext.fetch(FetchDescriptor<Task>()).first)
 
     #expect(restoredPlacement.templateName == "백업 루틴")
-    #expect(restoredPlacement.taskIds == [task.id])
+    #expect(restoredPlacement.taskIds.isEmpty)
     #expect(restoredTask.templatePlacementId == restoredPlacement.id)
+    #expect(TemplateService.tasks(for: restoredPlacement, in: [restoredTask]).map(\.id) == [restoredTask.id])
 }
 
 @Test
@@ -394,6 +395,42 @@ func templateDraftPlacementUsesEditedTasksWithoutChangingTemplate() throws {
 
 @Test
 @MainActor
+func templateCanBeSavedFromEditedDraftsWithoutMutatingBoardTasks() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let boardTask = Task(title: "원래 작업", plannedAt: Date(), order: 100)
+    context.insert(boardTask)
+
+    let drafts = [
+        TemplateTaskDraft(
+            title: "  수정한 템플릿 작업  ",
+            note: "템플릿 전용 메모",
+            priority: TaskPriority.high.rawValue,
+            tags: ["집중"],
+            estimatedMinutes: 45,
+            order: 100
+        ),
+        TemplateTaskDraft(title: "   ", order: 200)
+    ]
+
+    let template = try #require(TemplateService.saveTemplate(
+        named: "  집중 루틴  ",
+        from: drafts,
+        in: context
+    ))
+    try context.save()
+
+    let items = try context.fetch(FetchDescriptor<TaskTemplateItem>())
+    #expect(template.name == "집중 루틴")
+    #expect(items.count == 1)
+    #expect(items.first?.title == "수정한 템플릿 작업")
+    #expect(items.first?.note == "템플릿 전용 메모")
+    #expect(items.first?.estimatedMinutes == 45)
+    #expect(boardTask.title == "원래 작업")
+}
+
+@Test
+@MainActor
 func templatePlacementHistoryIsCreatedPerSelectedDate() throws {
     let container = try ModelContainer(
         for: Task.self,
@@ -435,7 +472,7 @@ func templatePlacementHistoryIsCreatedPerSelectedDate() throws {
     #expect(placements.map(\.dayKey) == ["2026-07-11", "2026-07-12"])
     #expect(placements.allSatisfy { $0.sourceTemplateId == template.id })
     #expect(placements.allSatisfy { $0.templateName == "운동 루틴" })
-    #expect(placements.allSatisfy { $0.taskIds.count == 2 })
+    #expect(placements.allSatisfy { $0.taskIds.isEmpty })
     #expect(TemplateService.placements(onDayKey: "2026-07-11", in: placements).map(\.id) == [placements[0].id])
 
     for placement in placements {

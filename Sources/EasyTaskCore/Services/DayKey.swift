@@ -1,28 +1,47 @@
 import Foundation
 
 public enum DayKey {
-    public static let calendar: Calendar = {
+    public static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "ko_KR")
         calendar.timeZone = .current
         return calendar
-    }()
-
-    private static let formatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+    }
 
     public static func key(for date: Date) -> String {
-        formatter.string(from: date)
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day else {
+            return ""
+        }
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 
     public static func date(from key: String) -> Date? {
-        formatter.date(from: key).map(startOfDay(for:))
+        let parts = key.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return nil
+        }
+
+        let calendar = calendar
+        guard let date = calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: year,
+            month: month,
+            day: day
+        )) else {
+            return nil
+        }
+        let normalized = calendar.startOfDay(for: date)
+        return self.key(for: normalized) == key ? normalized : nil
     }
 
     public static var today: String {
