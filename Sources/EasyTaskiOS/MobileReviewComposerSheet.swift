@@ -11,6 +11,7 @@ struct MobileReviewComposerSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [DailyReview]
+    @Query private var diaryBlocks: [DiaryBlock]
     @Query private var attachments: [DiaryAttachment]
     @State private var title = ""
     @State private var content = ""
@@ -58,8 +59,9 @@ struct MobileReviewComposerSheet: View {
                         attachmentDrafts: attachmentDrafts,
                         legacyImageFileNames: legacyImageFileNames,
                         selectedImageIndex: $selectedImageIndex,
-                        allowsDeletion: legacyImageFileNames.isEmpty,
-                        onDelete: removeImage
+                        allowsCanonicalDeletion: legacyImageFileNames.isEmpty,
+                        onDeleteCanonical: removeCanonicalImage,
+                        onDeleteLegacy: removeLegacyImages
                     )
                     PhotosPicker(
                         selection: $selectedItems,
@@ -111,7 +113,13 @@ struct MobileReviewComposerSheet: View {
         attachmentDrafts = orderedAttachments.map {
             DiaryAttachmentDraft(attachment: $0)
         }
-        legacyImageFileNames = review?.imageFileNames ?? []
+        legacyImageFileNames = review.map {
+            DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: $0,
+                blocks: diaryBlocks,
+                attachments: attachments
+            )
+        } ?? []
         selectedImageIndex = 0
         message = nil
         messageIsError = false
@@ -238,12 +246,30 @@ struct MobileReviewComposerSheet: View {
         }
     }
 
-    private func removeImage(at index: Int) {
+    private func removeCanonicalImage(at index: Int) {
         guard legacyImageFileNames.isEmpty else { return }
         guard attachmentDrafts.indices.contains(index) else { return }
         attachmentDrafts.remove(at: index)
         selectedImageIndex = min(selectedImageIndex, max(attachmentDrafts.count - 1, 0))
         message = "이미지를 삭제했어요. 저장하면 반영됩니다."
+        messageIsError = false
+    }
+
+    private func removeLegacyImages(at indexes: [Int]) {
+        let validIndexes = indexes
+            .filter(legacyImageFileNames.indices.contains)
+            .sorted(by: >)
+        guard !validIndexes.isEmpty else { return }
+        for index in validIndexes {
+            legacyImageFileNames.remove(at: index)
+        }
+        selectedImageIndex = min(
+            selectedImageIndex,
+            max(attachmentDrafts.count + legacyImageFileNames.count - 1, 0)
+        )
+        message = legacyImageFileNames.isEmpty
+            ? "이전 이미지를 모두 정리했어요. 저장하면 백업할 수 있습니다."
+            : "이전 이미지를 삭제했어요. 저장하면 반영됩니다."
         messageIsError = false
     }
 }
@@ -288,8 +314,9 @@ private struct ReviewComposerImages: View {
     var attachmentDrafts: [DiaryAttachmentDraft]
     var legacyImageFileNames: [String]
     @Binding var selectedImageIndex: Int
-    var allowsDeletion: Bool
-    var onDelete: (Int) -> Void
+    var allowsCanonicalDeletion: Bool
+    var onDeleteCanonical: (Int) -> Void
+    var onDeleteLegacy: ([Int]) -> Void
 
     var body: some View {
         let items = mixedImageItems
@@ -316,8 +343,8 @@ private struct ReviewComposerImages: View {
                 }
             }
         }
-        if !allowsDeletion, !legacyImageFileNames.isEmpty {
-            Label("이전 이미지 정리가 완료될 때까지 이미지 편집은 사용할 수 없어요.", systemImage: "lock")
+        if !allowsCanonicalDeletion, !legacyImageFileNames.isEmpty {
+            Label("이전 이미지를 정리하면 새 이미지 추가와 저장된 이미지 삭제를 사용할 수 있어요.", systemImage: "lock")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
@@ -325,41 +352,39 @@ private struct ReviewComposerImages: View {
 
     private var mixedImageItems: [ReviewComposerImageItem] {
         var items: [ReviewComposerImageItem] = []
-        var canonicalFileNames: Set<String> = []
-        var canonicalHashes: Set<String> = []
 
         for (index, draft) in attachmentDrafts.enumerated() {
-            if let fileName = normalizedFileName(draft.originalFileName) {
-                canonicalFileNames.insert(fileName)
-            }
             let hash = (try? DiaryAttachmentService.inspect(draft.data))?.sha256
-            if let hash {
-                canonicalHashes.insert(hash)
-            }
             items.append(ReviewComposerImageItem(
                 id: "canonical-\(draft.id?.uuidString ?? hash ?? String(index))-\(index)",
                 data: draft.data,
                 canonicalIndex: index,
+                legacyIndexes: [],
+                normalizedFileName: normalizedFileName(draft.originalFileName),
+                sha256: hash,
                 isLegacy: false
             ))
         }
 
-        var seenLegacyFileNames: Set<String> = []
-        var seenLegacyHashes: Set<String> = []
         for (index, fileName) in legacyImageFileNames.enumerated() {
             guard let normalizedFileName = normalizedFileName(fileName) else { continue }
             let data = legacyImageData(for: fileName)
             let hash = data.flatMap { (try? DiaryAttachmentService.inspect($0))?.sha256 }
-            let duplicatesCanonical = canonicalFileNames.contains(normalizedFileName) ||
-                hash.map(canonicalHashes.contains) == true
-            let duplicatesLegacy = !seenLegacyFileNames.insert(normalizedFileName).inserted ||
-                hash.map { !seenLegacyHashes.insert($0).inserted } == true
-            guard !duplicatesCanonical, !duplicatesLegacy else { continue }
+            if let existingIndex = items.firstIndex(where: {
+                $0.normalizedFileName == normalizedFileName ||
+                    (hash != nil && $0.sha256 == hash)
+            }) {
+                items[existingIndex].legacyIndexes.append(index)
+                continue
+            }
 
             items.append(ReviewComposerImageItem(
                 id: "legacy-\(normalizedFileName)-\(index)",
                 data: data,
                 canonicalIndex: nil,
+                legacyIndexes: [index],
+                normalizedFileName: normalizedFileName,
+                sha256: hash,
                 isLegacy: true
             ))
         }
@@ -367,8 +392,11 @@ private struct ReviewComposerImages: View {
     }
 
     private func deletionAction(for item: ReviewComposerImageItem) -> (() -> Void)? {
-        guard allowsDeletion, let index = item.canonicalIndex else { return nil }
-        return { onDelete(index) }
+        if !item.legacyIndexes.isEmpty {
+            return { onDeleteLegacy(item.legacyIndexes) }
+        }
+        guard allowsCanonicalDeletion, let index = item.canonicalIndex else { return nil }
+        return { onDeleteCanonical(index) }
     }
 
     private func normalizedFileName(_ fileName: String?) -> String? {
@@ -394,6 +422,9 @@ private struct ReviewComposerImageItem: Identifiable {
     var id: String
     var data: Data?
     var canonicalIndex: Int?
+    var legacyIndexes: [Int]
+    var normalizedFileName: String?
+    var sha256: String?
     var isLegacy: Bool
 }
 

@@ -9,6 +9,7 @@ struct ArchiveView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var tasks: [Task]
     @Query private var reviews: [DailyReview]
+    @Query private var diaryBlocks: [DiaryBlock]
     @Query private var attachments: [DiaryAttachment]
     @State private var filter = ArchiveFilter()
     @State private var message: String?
@@ -55,6 +56,13 @@ struct ArchiveView: View {
                                     DiaryAttachmentService.activeAttachments(
                                         for: $0.id,
                                         in: attachments
+                                    )
+                                } ?? [],
+                                legacyFileNames: group.review.map {
+                                    DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                                        for: $0,
+                                        blocks: diaryBlocks,
+                                        attachments: attachments
                                     )
                                 } ?? [],
                                 onOpenBoardDate: onOpenBoardDate
@@ -311,6 +319,7 @@ private struct ArchiveMessageView: View {
 private struct ArchiveDayGroupView: View {
     var group: ArchiveDayRecord
     var attachments: [DiaryAttachment]
+    var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
     @State private var isTaskListExpanded = false
 
@@ -384,10 +393,10 @@ private struct ArchiveDayGroupView: View {
                     .textSelection(.enabled)
             }
 
-            if !attachments.isEmpty || !review.imageFileNames.isEmpty {
+            if !attachments.isEmpty || !legacyFileNames.isEmpty {
                 ArchiveReviewImagePreview(
                     attachments: attachments,
-                    legacyFileNames: review.imageFileNames
+                    legacyFileNames: legacyFileNames
                 )
             }
         }

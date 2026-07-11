@@ -17,6 +17,7 @@ struct DiaryView: View {
     @State private var reviewTitle = ""
     @State private var content = ""
     @State private var attachmentDrafts: [DiaryAttachmentDraft] = []
+    @State private var legacyImageFileNames: [String] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
 
@@ -48,38 +49,43 @@ struct DiaryView: View {
         )
     }
 
-    private var unresolvedLegacyImageFileNames: [String] {
-        guard let selectedReview else { return [] }
-        var representedFileNames: [String: Int] = [:]
-        for attachment in selectedAttachments {
-            guard let fileName = attachment.originalFileName else { continue }
-            representedFileNames[fileName, default: 0] += 1
-        }
-
-        return selectedReview.imageFileNames.filter { fileName in
-            guard representedFileNames[fileName, default: 0] > 0 else { return true }
-            representedFileNames[fileName, default: 0] -= 1
-            return false
-        }
-    }
-
     private var displayedImages: [DiaryImageItem] {
-        let canonicalImages = attachmentDrafts.enumerated().map { index, draft in
+        var images = attachmentDrafts.enumerated().map { index, draft in
             DiaryImageItem(
                 id: draft.instanceID.map { "attachment-\($0.uuidString)" } ?? "draft-\(index)",
                 source: .attachment(
                     index: index,
                     data: draft.data
-                )
+                ),
+                normalizedFileName: normalizedFileName(draft.originalFileName),
+                legacyIndexes: []
             )
         }
-        let legacyImages = unresolvedLegacyImageFileNames.enumerated().map { index, fileName in
-            DiaryImageItem(
+
+        for (index, fileName) in legacyImageFileNames.enumerated() {
+            let fileNameKey = normalizedFileName(fileName)
+            if let existingIndex = images.firstIndex(where: {
+                fileNameKey != nil && $0.normalizedFileName == fileNameKey
+            }) {
+                images[existingIndex].legacyIndexes.append(index)
+                continue
+            }
+            images.append(DiaryImageItem(
                 id: "legacy-\(index)-\(fileName)",
-                source: .legacyFileName(fileName)
-            )
+                source: .legacyFileName(index: index, fileName: fileName),
+                normalizedFileName: fileNameKey,
+                legacyIndexes: [index]
+            ))
         }
-        return canonicalImages + legacyImages
+        return images
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
     }
 
     private var hasImages: Bool {
@@ -87,7 +93,7 @@ struct DiaryView: View {
     }
 
     private var hasLegacyImageReferences: Bool {
-        !(selectedReview?.imageFileNames.isEmpty ?? true)
+        !legacyImageFileNames.isEmpty
     }
 
     private var canSave: Bool {
@@ -550,6 +556,13 @@ struct DiaryView: View {
         reviewTitle = review?.title ?? ""
         content = review?.content ?? ""
         attachmentDrafts = selectedAttachments.map { DiaryAttachmentDraft(attachment: $0) }
+        legacyImageFileNames = review.map {
+            DiaryAttachmentService.unresolvedLegacyImageFileNames(
+                for: $0,
+                blocks: diaryBlocks,
+                attachments: attachments
+            )
+        } ?? []
         selectedImageIndex = 0
         message = nil
     }
@@ -559,12 +572,13 @@ struct DiaryView: View {
         do {
             let review: DailyReview?
             if hasLegacyImageReferences {
+                try modelContext.save()
                 review = DailyReviewService.save(
                     review: selectedReview,
                     dayKey: selectedDayKey,
                     title: reviewTitle,
                     content: content,
-                    imageFileNames: selectedReview?.imageFileNames ?? [],
+                    imageFileNames: legacyImageFileNames,
                     in: modelContext,
                     forceCreate: forceCreate
                 )
@@ -631,23 +645,37 @@ struct DiaryView: View {
     }
 
     private func removeSelectedImage() {
+        guard let image = displayedImages[safe: selectedImageIndex] else { return }
+        if !image.legacyIndexes.isEmpty {
+            for legacyIndex in image.legacyIndexes
+                .filter(legacyImageFileNames.indices.contains)
+                .sorted(by: >) {
+                legacyImageFileNames.remove(at: legacyIndex)
+            }
+            selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
+            message = legacyImageFileNames.isEmpty
+                ? "이전 이미지를 모두 정리했습니다. 저장하면 백업할 수 있습니다"
+                : "이전 이미지를 삭제했습니다. 저장하면 반영됩니다"
+            return
+        }
+
         guard !hasLegacyImageReferences,
-              let image = displayedImages[safe: selectedImageIndex],
               case .attachment(let draftIndex, _) = image.source,
               attachmentDrafts.indices.contains(draftIndex) else { return }
-
         attachmentDrafts.remove(at: draftIndex)
-        selectedImageIndex = min(selectedImageIndex, max(attachmentDrafts.count - 1, 0))
+        selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
         message = "이미지를 삭제했습니다. 저장하면 반영됩니다"
     }
 
     private var canRemoveSelectedImage: Bool {
-        guard !hasLegacyImageReferences,
-              let image = displayedImages[safe: selectedImageIndex],
-              case .attachment = image.source else {
-            return false
+        guard let image = displayedImages[safe: selectedImageIndex] else { return false }
+        if !image.legacyIndexes.isEmpty { return true }
+        switch image.source {
+        case .attachment:
+            return !hasLegacyImageReferences
+        case .legacyFileName:
+            return true
         }
-        return true
     }
 }
 
@@ -655,6 +683,7 @@ struct DailyReviewSheet: View {
     var selectedDate: Date
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [DailyReview]
+    @Query private var diaryBlocks: [DiaryBlock]
     @Query private var attachments: [DiaryAttachment]
 
     private var selectedDayKey: String {
@@ -665,10 +694,16 @@ struct DailyReviewSheet: View {
         guard let review = reviews.first(where: {
             $0.supersededAt == nil && $0.dayKey == selectedDayKey
         }) else { return false }
-        return !review.imageFileNames.isEmpty || !DiaryAttachmentService.activeAttachments(
+        let activeAttachments = DiaryAttachmentService.activeAttachments(
             for: review.id,
             in: attachments
-        ).isEmpty
+        )
+        let unresolvedFileNames = DiaryAttachmentService.unresolvedLegacyImageFileNames(
+            for: review,
+            blocks: diaryBlocks,
+            attachments: attachments
+        )
+        return !activeAttachments.isEmpty || !unresolvedFileNames.isEmpty
     }
 
     private var sheetWidth: CGFloat {
@@ -721,11 +756,13 @@ struct DailyReviewSheet: View {
 private struct DiaryImageItem: Identifiable {
     var id: String
     var source: DiaryImageSource
+    var normalizedFileName: String?
+    var legacyIndexes: [Int]
 }
 
 private enum DiaryImageSource {
     case attachment(index: Int, data: Data)
-    case legacyFileName(String)
+    case legacyFileName(index: Int, fileName: String)
 }
 
 private struct DiaryImageView: View {
@@ -735,7 +772,7 @@ private struct DiaryImageView: View {
         switch source {
         case .attachment(_, let data):
             NSImage(data: data)
-        case .legacyFileName(let fileName):
+        case .legacyFileName(_, let fileName):
             NSImage(contentsOf: DiaryImageStore.imageURL(for: fileName))
         case nil:
             nil

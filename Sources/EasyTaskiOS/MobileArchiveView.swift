@@ -10,6 +10,7 @@ struct MobileArchiveView: View {
 
     @Query private var tasks: [TodoTask]
     @Query private var reviews: [DailyReview]
+    @Query private var diaryBlocks: [DiaryBlock]
     @Query private var attachments: [DiaryAttachment]
     @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
@@ -35,6 +36,7 @@ struct MobileArchiveView: View {
                         MobileArchiveRecordCard(
                             record: record,
                             attachments: activeAttachments(for: record.review),
+                            legacyFileNames: unresolvedLegacyFileNames(for: record.review),
                             onOpenBoardDate: onOpenBoardDate
                         )
                         .listRowSeparator(.hidden)
@@ -70,6 +72,15 @@ struct MobileArchiveView: View {
     private func activeAttachments(for review: DailyReview?) -> [DiaryAttachment] {
         guard let review else { return [] }
         return DiaryAttachmentService.activeAttachments(for: review.id, in: attachments)
+    }
+
+    private func unresolvedLegacyFileNames(for review: DailyReview?) -> [String] {
+        guard let review else { return [] }
+        return DiaryAttachmentService.unresolvedLegacyImageFileNames(
+            for: review,
+            blocks: diaryBlocks,
+            attachments: attachments
+        )
     }
 
     private var emptyState: some View {
@@ -162,6 +173,7 @@ private struct MobileArchiveFilterSheet: View {
 private struct MobileArchiveRecordCard: View {
     var record: ArchiveDayRecord
     var attachments: [DiaryAttachment]
+    var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
 
     @State private var tasksExpanded = false
@@ -254,10 +266,10 @@ private struct MobileArchiveRecordCard: View {
                 MobileExpandableReviewText(text: content)
             }
 
-            if !attachments.isEmpty || !review.imageFileNames.isEmpty {
+            if !attachments.isEmpty || !legacyFileNames.isEmpty {
                 MobileArchiveImageCarousel(
                     attachments: attachments,
-                    legacyFileNames: review.imageFileNames
+                    legacyFileNames: legacyFileNames
                 )
             }
         }
