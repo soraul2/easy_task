@@ -128,6 +128,39 @@ public enum DiaryAttachmentService {
     }
 
     @MainActor
+    public static func unresolvedLegacyImageFileNames(
+        for review: DailyReview,
+        blocks: [DiaryBlock],
+        attachments: [DiaryAttachment]
+    ) -> [String] {
+        let imageBlocks = blocks
+            .filter {
+                $0.reviewId == review.id &&
+                    $0.supersededAt == nil &&
+                    $0.type == DiaryBlockType.image.rawValue &&
+                    $0.imageFileName != nil
+            }
+            .sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                return $0.instanceID.uuidString < $1.instanceID.uuidString
+            }
+        let activeAttachmentIDs = Set(
+            activeAttachments(for: review.id, in: attachments).map(\.id)
+        )
+        return legacyCandidates(
+            reviewFileNames: review.imageFileNames,
+            imageBlocks: imageBlocks
+        ).compactMap { candidate in
+            let attachmentID = stableLegacyAttachmentID(
+                reviewID: review.id,
+                fileName: candidate.fileName,
+                occurrence: candidate.occurrence
+            )
+            return activeAttachmentIDs.contains(attachmentID) ? nil : candidate.fileName
+        }
+    }
+
+    @MainActor
     public static func validateActiveAttachmentCounts(in context: ModelContext) throws {
         let activeAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
             .filter { $0.supersededAt == nil }
@@ -344,6 +377,53 @@ private extension DiaryAttachmentService {
         }
         return String(value.prefix(255))
     }
+
+    struct LegacyCandidate {
+        var fileName: String
+        var occurrence: Int
+    }
+
+    static func legacyCandidates(
+        reviewFileNames: [String],
+        imageBlocks: [DiaryBlock]
+    ) -> [LegacyCandidate] {
+        var candidates: [LegacyCandidate] = []
+        var reviewCounts: [String: Int] = [:]
+        for fileName in reviewFileNames {
+            let occurrence = reviewCounts[fileName, default: 0]
+            candidates.append(LegacyCandidate(fileName: fileName, occurrence: occurrence))
+            reviewCounts[fileName] = occurrence + 1
+        }
+
+        var blockCounts: [String: Int] = [:]
+        for block in imageBlocks {
+            guard let fileName = block.imageFileName else { continue }
+            let occurrence = blockCounts[fileName, default: 0]
+            blockCounts[fileName] = occurrence + 1
+            guard occurrence >= reviewCounts[fileName, default: 0] else { continue }
+            candidates.append(LegacyCandidate(fileName: fileName, occurrence: occurrence))
+        }
+        return candidates
+    }
+
+    static func stableLegacyAttachmentID(
+        reviewID: UUID,
+        fileName: String,
+        occurrence: Int
+    ) -> UUID {
+        let digest = SHA256.hash(
+            data: Data("DiaryAttachment|\(reviewID.uuidString)|\(fileName)|\(occurrence)".utf8)
+        )
+        var bytes = Array(digest.prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
 }
 
 public struct LegacyDiaryAttachmentMigrationReport: Equatable, Sendable {
@@ -396,7 +476,7 @@ public enum LegacyDiaryAttachmentMigrationService {
                     if $0.order != $1.order { return $0.order < $1.order }
                     return $0.instanceID.uuidString < $1.instanceID.uuidString
                 }
-            let candidates = legacyCandidates(
+            let candidates = DiaryAttachmentService.legacyCandidates(
                 reviewFileNames: review.imageFileNames,
                 imageBlocks: reviewBlocks
             )
@@ -408,7 +488,7 @@ public enum LegacyDiaryAttachmentMigrationService {
             }.count
             for (index, candidate) in candidates.enumerated() {
                 let fileName = candidate.fileName
-                let attachmentID = stableAttachmentID(
+                let attachmentID = DiaryAttachmentService.stableLegacyAttachmentID(
                     reviewID: review.id,
                     fileName: fileName,
                     occurrence: candidate.occurrence
@@ -495,50 +575,4 @@ public enum LegacyDiaryAttachmentMigrationService {
         return report
     }
 
-    private struct LegacyCandidate {
-        var fileName: String
-        var occurrence: Int
-    }
-
-    private static func legacyCandidates(
-        reviewFileNames: [String],
-        imageBlocks: [DiaryBlock]
-    ) -> [LegacyCandidate] {
-        var candidates: [LegacyCandidate] = []
-        var reviewCounts: [String: Int] = [:]
-        for fileName in reviewFileNames {
-            let occurrence = reviewCounts[fileName, default: 0]
-            candidates.append(LegacyCandidate(fileName: fileName, occurrence: occurrence))
-            reviewCounts[fileName] = occurrence + 1
-        }
-
-        var blockCounts: [String: Int] = [:]
-        for block in imageBlocks {
-            guard let fileName = block.imageFileName else { continue }
-            let occurrence = blockCounts[fileName, default: 0]
-            blockCounts[fileName] = occurrence + 1
-            guard occurrence >= reviewCounts[fileName, default: 0] else { continue }
-            candidates.append(LegacyCandidate(fileName: fileName, occurrence: occurrence))
-        }
-        return candidates
-    }
-
-    private static func stableAttachmentID(
-        reviewID: UUID,
-        fileName: String,
-        occurrence: Int
-    ) -> UUID {
-        let digest = SHA256.hash(
-            data: Data("DiaryAttachment|\(reviewID.uuidString)|\(fileName)|\(occurrence)".utf8)
-        )
-        var bytes = Array(digest.prefix(16))
-        bytes[6] = (bytes[6] & 0x0F) | 0x50
-        bytes[8] = (bytes[8] & 0x3F) | 0x80
-        return UUID(uuid: (
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5], bytes[6], bytes[7],
-            bytes[8], bytes[9], bytes[10], bytes[11],
-            bytes[12], bytes[13], bytes[14], bytes[15]
-        ))
-    }
 }

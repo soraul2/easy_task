@@ -194,6 +194,12 @@ func legacyMigrationRecoversBlockOnlyImages() throws {
     context.insert(block)
     try context.save()
 
+    #expect(DiaryAttachmentService.unresolvedLegacyImageFileNames(
+        for: review,
+        blocks: [block],
+        attachments: []
+    ) == [fileName])
+
     let report = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
         context: context,
         appSupportFolder: folder
@@ -204,6 +210,11 @@ func legacyMigrationRecoversBlockOnlyImages() throws {
     #expect(attachments.first?.reviewId == review.id)
     #expect(attachments.first?.data == png)
     #expect(block.supersededAt != nil)
+    #expect(DiaryAttachmentService.unresolvedLegacyImageFileNames(
+        for: review,
+        blocks: [block],
+        attachments: attachments
+    ).isEmpty)
 }
 
 @Test
@@ -305,6 +316,21 @@ func legacyMigrationDefersImagesBeyondAttachmentLimitWithoutLosingReferences() t
     #expect(second.deferredFileNames.count == 2)
     #expect(activeAttachments.count == 10)
     #expect(review.imageFileNames == fileNames)
+
+    let unresolved = DiaryAttachmentService.unresolvedLegacyImageFileNames(
+        for: review,
+        blocks: [],
+        attachments: activeAttachments
+    )
+    #expect(unresolved.count == 2)
+    #expect(throws: BackupPackageError.unresolvedLegacyAttachments(2)) {
+        try BackupPackageCodec.makeContents(context: context)
+    }
+
+    review.imageFileNames = []
+    try context.save()
+    let backup = try BackupPackageCodec.makeContents(context: context)
+    #expect(backup.records.attachments.count == 10)
 }
 
 @Test
