@@ -95,6 +95,7 @@ extension BackupPackageCodec {
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
             try mergeAttachments(contents, context: context, report: &report)
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
+            try validateImportedAttachmentRelativeOrder(contents, context: context)
             try validateFinalAttachmentCounts(context: context)
             try beforeFinalSave()
             try context.save()
@@ -981,7 +982,60 @@ private extension BackupPackageCodec {
                 return $0.instanceID.uuidString < $1.instanceID.uuidString
             }
             .map(\.instanceID)
-        return localInstanceIDs == incomingInstanceIDs
+        let localInstanceIDSet = Set(localInstanceIDs)
+        let commonIncomingInstanceIDs = incomingInstanceIDs.filter(
+            localInstanceIDSet.contains
+        )
+        return localInstanceIDs == commonIncomingInstanceIDs
+    }
+
+    @MainActor
+    static func validateImportedAttachmentRelativeOrder(
+        _ contents: BackupPackageContents,
+        context: ModelContext
+    ) throws {
+        let localAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        for (sourceReviewID, records) in Dictionary(
+            grouping: contents.records.attachments,
+            by: \.reviewId
+        ) {
+            guard let canonicalReview = try canonicalReview(
+                for: sourceReviewID,
+                context: context
+            ) else {
+                throw BackupPackageError.danglingReviewReference(sourceReviewID)
+            }
+            let incomingInstanceIDs = records
+                .sorted {
+                    if $0.order != $1.order { return $0.order < $1.order }
+                    return $0.instanceID.uuidString < $1.instanceID.uuidString
+                }
+                .map(\.instanceID)
+            let incomingInstanceIDSet = Set(incomingInstanceIDs)
+            let activeIncomingInstanceIDSet = Set(localAttachments.lazy.filter {
+                $0.supersededAt == nil && incomingInstanceIDSet.contains($0.instanceID)
+            }.map(\.instanceID))
+            let expectedInstanceIDs = incomingInstanceIDs.filter(
+                activeIncomingInstanceIDSet.contains
+            )
+            let actualInstanceIDs = localAttachments
+                .filter {
+                    $0.supersededAt == nil &&
+                        $0.reviewId == canonicalReview.id &&
+                        activeIncomingInstanceIDSet.contains($0.instanceID)
+                }
+                .sorted {
+                    if $0.order != $1.order { return $0.order < $1.order }
+                    return $0.instanceID.uuidString < $1.instanceID.uuidString
+                }
+                .map(\.instanceID)
+            guard actualInstanceIDs == expectedInstanceIDs else {
+                throw BackupPackageError.identityCorruption(
+                    recordType: "DiaryAttachment",
+                    instanceID: expectedInstanceIDs.first ?? records[0].instanceID
+                )
+            }
+        }
     }
 
     static func containsLegacyFileNames(_ actual: [String], expected: [String]) -> Bool {

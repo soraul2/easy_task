@@ -494,6 +494,48 @@ func rewiredAttachmentImportRejectsRelativeOrderTampering() throws {
 
 @Test
 @MainActor
+func rewiredAttachmentImportAcceptsPartiallyOverlappingSnapshot() throws {
+    let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x5A)
+    let fullContents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let sourceReview = try #require(fullContents.records.payload.dailyReviews?.first)
+    var partialContents = fullContents
+    let retainedRecord = partialContents.records.attachments[0]
+    partialContents.records.attachments = [retainedRecord]
+    partialContents.attachmentData = [
+        retainedRecord.id: try #require(partialContents.attachmentData[retainedRecord.id])
+    ]
+    partialContents.manifest.attachments = partialContents.manifest.attachments.filter {
+        $0.id == retainedRecord.id
+    }
+    partialContents.manifest.totalAttachmentBytes = retainedRecord.byteCount
+    refreshRecordsMetadata(&partialContents)
+    try BackupPackageCodec.validate(partialContents)
+
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let localReview = DailyReview(
+        id: UUID(),
+        instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
+        dayKey: sourceReview.dayKey,
+        content: "동일 날짜 로컬 회고",
+        createdAt: sourceReview.createdAt,
+        updatedAt: sourceReview.updatedAt
+    )
+    destination.mainContext.insert(localReview)
+    try destination.mainContext.save()
+
+    _ = try BackupPackageCodec.restoreMerging(partialContents, into: destination.mainContext)
+    _ = try BackupPackageCodec.restoreMerging(fullContents, into: destination.mainContext)
+
+    let activeAttachments = try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>())
+        .filter { $0.supersededAt == nil }
+        .sorted { $0.order < $1.order }
+    #expect(activeAttachments.count == 2)
+    #expect(activeAttachments.allSatisfy { $0.reviewId == localReview.id })
+    #expect(activeAttachments.map(\.instanceID) == fullContents.records.attachments.map(\.instanceID))
+}
+
+@Test
+@MainActor
 func equalTimestampCandidatesConvergeRegardlessOfImportOrder() throws {
     let logicalID = UUID()
     let lowerInstanceID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
