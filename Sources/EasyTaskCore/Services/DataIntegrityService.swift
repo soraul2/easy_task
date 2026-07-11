@@ -32,7 +32,10 @@ public enum DataIntegrityService {
 
     @MainActor
     @discardableResult
-    public static func reconcile(context: ModelContext) throws -> Report {
+    public static func reconcile(
+        context: ModelContext,
+        saveChanges: Bool = true
+    ) throws -> Report {
         let events = try context.fetch(FetchDescriptor<CalendarEvent>())
         let templates = try context.fetch(FetchDescriptor<TaskTemplate>())
         let templateItems = try context.fetch(FetchDescriptor<TaskTemplateItem>())
@@ -157,7 +160,7 @@ public enum DataIntegrityService {
             report: &report
         )
 
-        if report.hasChanges {
+        if report.hasChanges && saveChanges {
             try context.save()
         }
         return report
