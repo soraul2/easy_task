@@ -235,6 +235,9 @@ public enum BackupCodec {
             for event in try context.fetch(FetchDescriptor<CalendarEvent>()) {
                 context.delete(event)
             }
+            for attachment in try context.fetch(FetchDescriptor<DiaryAttachment>()) {
+                context.delete(attachment)
+            }
             for block in try context.fetch(FetchDescriptor<DiaryBlock>()) {
                 context.delete(block)
             }

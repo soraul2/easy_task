@@ -373,8 +373,12 @@ public enum BackupPackageCodec {
     }
 
     public static func read(from packageURL: URL) throws -> BackupPackageContents {
-        let values = try packageURL.resourceValues(forKeys: [.isDirectoryKey])
-        guard values.isDirectory == true else { throw BackupPackageError.notDirectory }
+        let values = try packageURL.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        )
+        guard values.isDirectory == true, values.isSymbolicLink != true else {
+            throw BackupPackageError.notDirectory
+        }
 
         let rootURLs = try FileManager.default.contentsOfDirectory(
             at: packageURL,
@@ -404,6 +408,32 @@ public enum BackupPackageCodec {
             throw BackupPackageError.invalidFileName(
                 "\(manifest.recordsFileName),\(manifest.attachmentsDirectoryName)"
             )
+        }
+        guard manifest.recordsByteCount > 0,
+              manifest.recordsByteCount <= maximumMetadataSizeBytes,
+              isSHA256(manifest.recordsSHA256),
+              manifest.totalAttachmentBytes >= 0,
+              manifest.totalAttachmentBytes <= maximumTotalAttachmentBytes else {
+            throw BackupPackageError.invalidRecordMetadata(
+                recordType: "Manifest",
+                id: zeroUUID
+            )
+        }
+        var earlyAttachmentIDs: Set<UUID> = []
+        var earlyFileNames: Set<String> = []
+        for entry in manifest.attachments {
+            try validateAssetFileName(entry.fileName)
+            guard earlyAttachmentIDs.insert(entry.id).inserted else {
+                throw BackupPackageError.duplicateAttachmentID(entry.id)
+            }
+            guard earlyFileNames.insert(entry.fileName).inserted else {
+                throw BackupPackageError.duplicateAttachmentFileName(entry.fileName)
+            }
+            guard entry.byteCount > 0,
+                  entry.byteCount <= DiaryAttachmentService.maximumImageSizeBytes,
+                  isSHA256(entry.sha256) else {
+                throw BackupPackageError.invalidAttachmentMetadata(entry.id)
+            }
         }
 
         let recordsURL = packageURL.appendingPathComponent(recordsFileName)
@@ -495,14 +525,14 @@ public enum BackupPackageCodec {
         }
         guard contents.manifest.recordsByteCount > 0,
               contents.manifest.recordsByteCount <= maximumMetadataSizeBytes,
-              contents.manifest.recordsSHA256.count == 64,
+              isSHA256(contents.manifest.recordsSHA256),
               contents.manifest.totalAttachmentBytes >= 0,
               contents.manifest.exportedAt.timeIntervalSinceReferenceDate.isFinite,
               contents.records.exportedAt.timeIntervalSinceReferenceDate.isFinite,
               contents.manifest.exportedAt == contents.records.exportedAt else {
             throw BackupPackageError.invalidRecordMetadata(
                 recordType: "Manifest",
-                id: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+                id: zeroUUID
             )
         }
         try BackupCodec.validate(contents.records.payload)
@@ -551,7 +581,7 @@ public enum BackupPackageCodec {
             }
             guard record.order.isFinite,
                   record.byteCount > 0,
-                  record.sha256.count == 64,
+                  isSHA256(record.sha256),
                   record.createdAt.timeIntervalSinceReferenceDate.isFinite,
                   record.updatedAt.timeIntervalSinceReferenceDate.isFinite,
                   DiaryAttachmentMediaType(rawValue: record.mimeType) != nil else {
@@ -617,6 +647,16 @@ public enum BackupPackageCodec {
 }
 
 private extension BackupPackageCodec {
+    static let zeroUUID = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
+
+    static func isSHA256(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy { byte in
+            (48...57).contains(byte) || (97...102).contains(byte)
+        }
+    }
+
     static func validateRecordInstanceIDs(_ payload: BackupPayload) throws {
         try validateInstanceIDs(
             payload.tasks.map { ($0.id, $0.instanceID) },

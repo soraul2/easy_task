@@ -165,6 +165,30 @@ func packageReadRejectsTamperedRecordsAndUndeclaredFiles() throws {
 
 @Test
 @MainActor
+func packageReadRejectsAttachmentTraversalBeforeFileAccess() throws {
+    let source = try packageSourceContainer(image: testPNG(0x19))
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let packageURL = temporaryPackageURL()
+    defer { try? FileManager.default.removeItem(at: packageURL) }
+    try BackupPackageCodec.write(contents, to: packageURL)
+
+    var manifest = contents.manifest
+    manifest.attachments[0].fileName = "../outside.png"
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(manifest).write(
+        to: packageURL.appendingPathComponent(BackupPackageCodec.manifestFileName),
+        options: .atomic
+    )
+
+    #expect(throws: BackupPackageError.invalidFileName("../outside.png")) {
+        try BackupPackageCodec.read(from: packageURL)
+    }
+}
+
+@Test
+@MainActor
 func packageValidationRejectsDuplicateManifestEntries() throws {
     let source = try packageSourceContainer(image: testPNG(0x18))
     var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
@@ -311,6 +335,20 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
     #expect(try destination.mainContext.fetch(FetchDescriptor<DailyReview>()).count == countsAfterFirst.0)
     #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryBlock>()).count == countsAfterFirst.1)
     #expect(try destination.mainContext.fetch(FetchDescriptor<TaskTemplateItem>()).count == 1)
+}
+
+@Test
+@MainActor
+func legacyReplaceAllDoesNotLeaveV3AttachmentOrphans() throws {
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    let emptyPayload = try BackupCodec.makePayload(context: source.mainContext)
+    let destination = try packageSourceContainer(image: testPNG(0x1A))
+    #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>()).count == 1)
+
+    try BackupCodec.replaceAll(with: emptyPayload, in: destination.mainContext)
+
+    #expect(try destination.mainContext.fetch(FetchDescriptor<DailyReview>()).isEmpty)
+    #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>()).isEmpty)
 }
 
 @MainActor

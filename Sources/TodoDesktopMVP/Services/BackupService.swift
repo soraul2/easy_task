@@ -50,9 +50,6 @@ enum BackupService {
         return .completed("JSON V1 백업을 가져왔습니다.")
     }
 
-    private static let backupPackageType = UTType(
-        importedAs: "com.easytask.backup",
-        conformingTo: .package
-    )
+    private static let backupPackageType = UTType(filenameExtension: "easytaskbackup") ?? .package
 
 }
