@@ -24,9 +24,7 @@ struct EasyTaskiOSApp: App {
 #if DEBUG
             _ = try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
-            modelContainer = try EasyTaskContainerFactory.makePersistent(
-                mode: EasyTaskContainerFactory.appStoreMode
-            )
+            modelContainer = try EasyTaskContainerFactory.makeAppPersistent()
         } catch {
             fatalError("EasyTask 저장소를 열 수 없습니다: \(error.localizedDescription)")
         }

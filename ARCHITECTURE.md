@@ -57,6 +57,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V3 스키마의 로컬 컨테이너를 생성한다.
 2. 저장소는 V1 → V2 → V3 순서로 이동하며 이미 배포된 V1/V2 정의는 수정하지 않는다.
+   TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리와 레거시 이미지 이관을 실행한 뒤 demo seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
 5. 완료된 작업은 당일에는 보드에 남고, 이후 조회 시 보관 흐름으로 이동한다.
@@ -91,6 +92,14 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - 다만 로컬 첨부가 백업 후보보다 최신이면 해당 후보는 과거 순서 검증에서 제외해 최신 로컬 정렬을 보존한다.
 - `.easytaskbackup`은 `public.package` 계열의 고정 UTI로 등록해 Finder와 파일 패널에서 하나의 패키지로 다룬다.
 - JSON V1은 계속 읽지만 이미지 바이트를 포함하지 않으므로 누락 파일을 보고하고 결정적 `instanceID`로 병합한다.
+
+## 초기 macOS 저장소 브리지
+
+- `EasyTaskContainerFactory.makeAppPersistent`는 앱 저장소를 열기 전에 초기 macOS 스키마인지 검사한다.
+- 해당하는 경우 SQLite 원본과 WAL/SHM, 검증된 JSON 스냅샷을 `EasyTaskLegacyBackups`에 먼저 보존한다.
+- 원본 백업이 끝난 뒤 새 V3 저장소를 만들고 기존 레코드를 비파괴 병합한다.
+- 병합이 끝나기 전에는 pending marker를 유지한다. 중단되면 다음 실행에서 불완전한 V3 저장소만 버리고 보존된 스냅샷으로 재시도한다.
+- 성공 후에도 원본 백업은 자동 삭제하지 않는다. 테스트용 `makePersistent`는 이 앱 시작 전용 브리지를 실행하지 않는다.
 
 ## 현재 MVP 범위
 

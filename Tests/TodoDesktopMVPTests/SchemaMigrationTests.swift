@@ -184,6 +184,124 @@ func existingUnversionedStoreOpensWithSchemaV1WithoutDataLoss() throws {
 
 @Test
 @MainActor
+func initialDesktopStoreBridgesToV3WithBackupAndNoDuplicates() throws {
+    try withTemporaryStore { storeURL in
+        try writeInitialDesktopFixture(to: storeURL, title: "initial desktop fixture")
+
+        let migrated = try EasyTaskContainerFactory.makeAppPersistent(
+            storeURL: storeURL,
+            mode: .local
+        )
+        try expectInitialDesktopFixture(
+            in: migrated,
+            title: "initial desktop fixture"
+        )
+
+        let backupRootURL = storeURL.deletingLastPathComponent().appendingPathComponent(
+            LegacyStoreMigrationService.backupRootDirectoryName,
+            isDirectory: true
+        )
+        let backupDirectories = try FileManager.default.contentsOfDirectory(
+            at: backupRootURL,
+            includingPropertiesForKeys: nil
+        )
+        #expect(backupDirectories.count == 1)
+        let backupDirectoryURL = try #require(backupDirectories.first)
+        #expect(FileManager.default.fileExists(
+            atPath: backupDirectoryURL.appendingPathComponent(storeURL.lastPathComponent).path
+        ))
+        #expect(FileManager.default.fileExists(
+            atPath: backupDirectoryURL.appendingPathComponent(
+                LegacyStoreMigrationService.payloadFileName
+            ).path
+        ))
+        let markerURL = storeURL.deletingLastPathComponent().appendingPathComponent(
+            LegacyStoreMigrationService.pendingMarkerFileName
+        )
+        #expect(!FileManager.default.fileExists(atPath: markerURL.path))
+
+        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+            storeURL: storeURL,
+            mode: .local
+        )
+        try expectInitialDesktopFixture(
+            in: reopened,
+            title: "initial desktop fixture"
+        )
+        #expect(try reopened.mainContext.fetchCount(FetchDescriptor<Task>()) == 1)
+        #expect(try FileManager.default.contentsOfDirectory(
+            at: backupRootURL,
+            includingPropertiesForKeys: nil
+        ).count == 1)
+    }
+}
+
+@Test
+@MainActor
+func pendingBridgeWithoutOriginalBackupDoesNotRemoveCurrentStore() throws {
+    try withTemporaryStore { storeURL in
+        try writeFixture(
+            to: EasyTaskContainerFactory.makePersistent(storeURL: storeURL),
+            title: "protected current fixture"
+        )
+        let markerURL = storeURL.deletingLastPathComponent().appendingPathComponent(
+            LegacyStoreMigrationService.pendingMarkerFileName
+        )
+        let markerData = Data(
+            #"{"backupDirectoryName":"missing-backup","storeFileName":"default.store"}"#.utf8
+        )
+        try markerData.write(to: markerURL, options: .atomic)
+
+        do {
+            _ = try EasyTaskContainerFactory.makeAppPersistent(
+                storeURL: storeURL,
+                mode: .local
+            )
+            Issue.record("원본 백업이 없는 pending migration이 거부되지 않았습니다.")
+        } catch {
+            #expect(FileManager.default.fileExists(atPath: storeURL.path))
+        }
+
+        try FileManager.default.removeItem(at: markerURL)
+        let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        try expectFixture(in: reopened, title: "protected current fixture")
+    }
+}
+
+@Test
+@MainActor
+func appFactoryOpensPreviousDefaultV3ConfigurationWithoutBackup() throws {
+    try withTemporaryStore { storeURL in
+        let schema = EasyTaskContainerFactory.schema
+        let previousConfiguration = ModelConfiguration(
+            schema: schema,
+            url: storeURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let previousContainer = try ModelContainer(
+            for: schema,
+            migrationPlan: EasyTaskMigrationPlan.self,
+            configurations: previousConfiguration
+        )
+        try writeFixture(to: previousContainer, title: "previous default V3 fixture")
+
+        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+            storeURL: storeURL,
+            mode: .local
+        )
+        try expectFixture(in: reopened, title: "previous default V3 fixture")
+
+        let backupRootURL = storeURL.deletingLastPathComponent().appendingPathComponent(
+            LegacyStoreMigrationService.backupRootDirectoryName,
+            isDirectory: true
+        )
+        #expect(!FileManager.default.fileExists(atPath: backupRootURL.path))
+    }
+}
+
+@Test
+@MainActor
 func migratedDuplicateLogicalIDsConvergeRegardlessOfInsertionOrder() throws {
     let forwardWinner = try migratedDuplicateTaskWinner(reversed: false)
     let reversedWinner = try migratedDuplicateTaskWinner(reversed: true)
@@ -257,6 +375,86 @@ private func writeUnversionedV1Fixture(to storeURL: URL, title: String) throws {
         configurations: configuration
     )
     try writeV1Fixture(to: container, title: title)
+}
+
+@MainActor
+private func writeInitialDesktopFixture(to storeURL: URL, title: String) throws {
+    let schema = Schema(EasyTaskLegacySchema.models)
+    let configuration = ModelConfiguration(
+        "EasyTaskInitialDesktop",
+        schema: schema,
+        url: storeURL,
+        allowsSave: true,
+        cloudKitDatabase: .none
+    )
+    let container = try ModelContainer(for: schema, configurations: configuration)
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-06"))
+    let event = EasyTaskLegacySchema.CalendarEvent(
+        title: "\(title) event",
+        startAt: day,
+        endAt: day
+    )
+    let template = EasyTaskLegacySchema.TaskTemplate(name: "\(title) template")
+    let item = EasyTaskLegacySchema.TaskTemplateItem(
+        templateId: template.id,
+        title: "\(title) template item",
+        order: 100
+    )
+    let task = EasyTaskLegacySchema.Task(
+        title: title,
+        plannedAt: day,
+        order: 100,
+        eventId: event.id,
+        estimatedMinutes: 50
+    )
+    let review = EasyTaskLegacySchema.DailyReview(
+        dayKey: DayKey.key(for: day),
+        title: "\(title) review title",
+        content: "\(title) review",
+        imageFileNames: ["legacy-review.jpg"]
+    )
+    let block = EasyTaskLegacySchema.DiaryBlock(
+        reviewId: review.id,
+        dayKey: review.dayKey,
+        type: .text,
+        text: review.content,
+        order: 100
+    )
+
+    context.insert(event)
+    context.insert(template)
+    context.insert(item)
+    context.insert(task)
+    context.insert(review)
+    context.insert(block)
+    try context.save()
+}
+
+@MainActor
+private func expectInitialDesktopFixture(
+    in container: ModelContainer,
+    title: String
+) throws {
+    let context = container.mainContext
+    #expect(try context.fetchCount(FetchDescriptor<Task>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<CalendarEvent>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<TaskTemplate>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<TaskTemplateItem>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<TemplatePlacement>()) == 0)
+    #expect(try context.fetchCount(FetchDescriptor<DailyReview>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<DiaryBlock>()) == 1)
+
+    let task = try #require(context.fetch(FetchDescriptor<Task>()).first)
+    let event = try #require(context.fetch(FetchDescriptor<CalendarEvent>()).first)
+    let review = try #require(context.fetch(FetchDescriptor<DailyReview>()).first)
+    #expect(task.title == title)
+    #expect(task.eventId == event.id)
+    #expect(task.templatePlacementId == nil)
+    #expect(task.estimatedMinutes == 50)
+    #expect(review.title == "\(title) review title")
+    #expect(review.content == "\(title) review")
+    #expect(review.imageFileNames == ["legacy-review.jpg"])
 }
 
 @MainActor
