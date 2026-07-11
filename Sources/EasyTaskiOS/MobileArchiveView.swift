@@ -1,5 +1,6 @@
 #if os(iOS)
 import EasyTaskCore
+import Foundation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -9,6 +10,7 @@ struct MobileArchiveView: View {
 
     @Query private var tasks: [TodoTask]
     @Query private var reviews: [DailyReview]
+    @Query private var attachments: [DiaryAttachment]
     @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
 
@@ -32,6 +34,7 @@ struct MobileArchiveView: View {
                     ForEach(records) { record in
                         MobileArchiveRecordCard(
                             record: record,
+                            attachments: activeAttachments(for: record.review),
                             onOpenBoardDate: onOpenBoardDate
                         )
                         .listRowSeparator(.hidden)
@@ -62,6 +65,11 @@ struct MobileArchiveView: View {
                 MobileArchiveFilterSheet(filter: $filter)
             }
         }
+    }
+
+    private func activeAttachments(for review: DailyReview?) -> [DiaryAttachment] {
+        guard let review else { return [] }
+        return DiaryAttachmentService.activeAttachments(for: review.id, in: attachments)
     }
 
     private var emptyState: some View {
@@ -153,6 +161,7 @@ private struct MobileArchiveFilterSheet: View {
 
 private struct MobileArchiveRecordCard: View {
     var record: ArchiveDayRecord
+    var attachments: [DiaryAttachment]
     var onOpenBoardDate: (Date) -> Void
 
     @State private var tasksExpanded = false
@@ -245,8 +254,11 @@ private struct MobileArchiveRecordCard: View {
                 MobileExpandableReviewText(text: content)
             }
 
-            if !review.imageFileNames.isEmpty {
-                MobileArchiveImageCarousel(fileNames: review.imageFileNames)
+            if !attachments.isEmpty || !review.imageFileNames.isEmpty {
+                MobileArchiveImageCarousel(
+                    attachmentData: attachments.map(\.data),
+                    legacyFileNames: attachments.isEmpty ? review.imageFileNames : []
+                )
             }
         }
     }
@@ -365,12 +377,16 @@ private struct MobileExpandableReviewText: View {
 }
 
 private struct MobileArchiveImageCarousel: View {
-    var fileNames: [String]
+    var attachmentData: [Data]
+    var legacyFileNames: [String]
     @State private var selectedIndex = 0
 
+    private var imageCount: Int {
+        attachmentData.isEmpty ? legacyFileNames.count : attachmentData.count
+    }
+
     private var selectedImage: UIImage? {
-        guard fileNames.indices.contains(selectedIndex) else { return nil }
-        return image(for: fileNames[selectedIndex])
+        image(at: selectedIndex)
     }
 
     private var selectedAspectRatio: CGFloat {
@@ -381,11 +397,11 @@ private struct MobileArchiveImageCarousel: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             TabView(selection: $selectedIndex) {
-                ForEach(Array(fileNames.enumerated()), id: \.offset) { index, fileName in
+                ForEach(Array(0..<imageCount), id: \.self) { index in
                     ZStack {
                         AppTheme.input
 
-                        if let image = image(for: fileName) {
+                        if let image = image(at: index) {
                             Image(uiImage: image)
                                 .resizable()
                                 .scaledToFit()
@@ -404,15 +420,15 @@ private struct MobileArchiveImageCarousel: View {
             .aspectRatio(selectedAspectRatio, contentMode: .fit)
             .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
 
-            if fileNames.count > 1 {
-                Text("\(selectedIndex + 1)/\(fileNames.count)")
+            if imageCount > 1 {
+                Text("\(selectedIndex + 1)/\(imageCount)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.58), in: Capsule())
                     .padding(9)
-                    .accessibilityLabel("이미지 \(selectedIndex + 1) / \(fileNames.count)")
+                    .accessibilityLabel("이미지 \(selectedIndex + 1) / \(imageCount)")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -420,18 +436,30 @@ private struct MobileArchiveImageCarousel: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
-        .onChange(of: fileNames) { _, newFileNames in
-            if !newFileNames.indices.contains(selectedIndex) {
+        .onChange(of: imageCount) { _, newImageCount in
+            if selectedIndex >= newImageCount {
                 selectedIndex = 0
             }
         }
     }
 
-    private func image(for fileName: String) -> UIImage? {
-        UIImage(contentsOfFile: DiaryImageFileStore.imageURL(
-            for: fileName,
-            appSupportFolder: MobileImageStorage.appSupportFolder
-        ).path)
+    private func image(at index: Int) -> UIImage? {
+        if attachmentData.indices.contains(index) {
+            return UIImage(data: attachmentData[index])
+        }
+        guard attachmentData.isEmpty, legacyFileNames.indices.contains(index) else {
+            return nil
+        }
+        guard let data = try? Data(
+            contentsOf: DiaryImageFileStore.imageURL(
+                for: legacyFileNames[index],
+                appSupportFolder: MobileImageStorage.appSupportFolder
+            ),
+            options: [.mappedIfSafe]
+        ) else {
+            return nil
+        }
+        return UIImage(data: data)
     }
 }
 
