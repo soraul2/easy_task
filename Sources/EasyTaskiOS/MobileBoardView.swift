@@ -2,6 +2,7 @@
 import EasyTaskCore
 import SwiftData
 import SwiftUI
+import UIKit
 
 private enum MobileBoardSheet: Identifiable {
     case task(TodoTask)
@@ -425,7 +426,10 @@ private struct MobileTaskRow: View {
     }
 
     private var hasDetails: Bool {
-        priority != nil || task.estimatedMinutes != nil || !visibleTags.isEmpty
+        priority != nil ||
+            task.estimatedMinutes != nil ||
+            task.reminderAt != nil ||
+            !visibleTags.isEmpty
     }
 
     var body: some View {
@@ -480,6 +484,15 @@ private struct MobileTaskRow: View {
                             MobileTaskDetailChip(
                                 title: EstimatedTimeFormatter.short(estimatedMinutes),
                                 systemImage: "clock"
+                            )
+                        }
+                        if let reminderAt = task.reminderAt {
+                            MobileTaskDetailChip(
+                                title: reminderAt.formatted(
+                                    date: .abbreviated,
+                                    time: .shortened
+                                ),
+                                systemImage: "bell.fill"
                             )
                         }
                         ForEach(visibleTags, id: \.self) { tag in
@@ -637,6 +650,9 @@ private struct MobileTaskDetailSheet: View {
     @State private var priority: TaskPriority?
     @State private var estimatedMinutesText: String
     @State private var tagsText: String
+    @State private var reminderEnabled: Bool
+    @State private var reminderDate: Date
+    @State private var notificationAuthorization: TaskNotificationAuthorizationState = .notDetermined
     @State private var saveError: String?
 
     init(task: TodoTask) {
@@ -648,6 +664,10 @@ private struct MobileTaskDetailSheet: View {
         _priority = State(initialValue: task.priority.flatMap(TaskPriority.init(rawValue:)))
         _estimatedMinutesText = State(initialValue: task.estimatedMinutes.map(String.init) ?? "")
         _tagsText = State(initialValue: task.tags.joined(separator: ", "))
+        _reminderEnabled = State(initialValue: task.reminderAt != nil)
+        _reminderDate = State(initialValue:
+            task.reminderAt ?? Self.defaultReminderDate(for: task.plannedAt)
+        )
     }
 
     var body: some View {
@@ -675,6 +695,46 @@ private struct MobileTaskDetailSheet: View {
                         .keyboardType(.numberPad)
                     TextField("태그(쉼표로 구분)", text: $tagsText)
                 }
+                Section("알림") {
+                    Toggle("작업 알림", isOn: $reminderEnabled)
+                        .disabled(status == .done)
+
+                    if status == .done {
+                        Label("완료한 작업에는 알림을 설정할 수 없습니다", systemImage: "checkmark.circle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else if reminderEnabled {
+                        HStack(spacing: 8) {
+                            reminderPresetButton("10분 후", minutes: 10)
+                            reminderPresetButton("30분 후", minutes: 30)
+                            reminderPresetButton("1시간 후", minutes: 60)
+                        }
+
+                        DatePicker(
+                            "알림 시각",
+                            selection: $reminderDate,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+
+                        switch notificationAuthorization {
+                        case .authorized:
+                            EmptyView()
+                        case .notDetermined:
+                            Button(action: requestNotificationPermission) {
+                                Label("이 기기에서 알림 허용", systemImage: "bell.badge")
+                            }
+                        case .denied:
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("알림 시각은 저장되지만 이 기기에서는 울리지 않습니다.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                Button(action: openNotificationSettings) {
+                                    Label("설정에서 알림 허용", systemImage: "gear")
+                                }
+                            }
+                        }
+                    }
+                }
                 if let saveError {
                     Section {
                         Label(saveError, systemImage: "exclamationmark.triangle.fill")
@@ -692,6 +752,19 @@ private struct MobileTaskDetailSheet: View {
                     Button("저장", action: save)
                         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+            }
+        }
+        .task {
+            notificationAuthorization = await TaskNotificationScheduler.shared
+                .authorizationState()
+        }
+        .onChange(of: reminderEnabled) { _, isEnabled in
+            guard isEnabled, notificationAuthorization == .notDetermined else { return }
+            requestNotificationPermission()
+        }
+        .onChange(of: status) { _, nextStatus in
+            if nextStatus == .done {
+                reminderEnabled = false
             }
         }
     }
@@ -712,10 +785,20 @@ private struct MobileTaskDetailSheet: View {
         }
         let estimatedMinutes = estimateInput.value
         let tags = parsedTags()
+        let reminderAt = reminderEnabled
+            ? TaskReminderRules.normalizedDate(reminderDate)
+            : nil
+        if status != .done,
+           reminderEnabled,
+           reminderAt.map({ $0 <= Date() }) != false {
+            saveError = "알림 시각은 현재보다 이후로 선택해 주세요"
+            return
+        }
 
         saveError = nil
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                let now = Date()
                 let nextOrder: Double?
                 if oldDayKey != newDayKey || oldStatus != status {
                     nextOrder = try BoundedQueryService.nextOrder(
@@ -728,24 +811,71 @@ private struct MobileTaskDetailSheet: View {
                 }
 
                 if oldStatus != status {
-                    TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
+                    TaskRules.applyStatus(
+                        status,
+                        to: task,
+                        now: now,
+                        completionDayKey: newDayKey
+                    )
                 }
 
                 if oldDayKey != newDayKey || nextOrder != nil {
-                    TaskRules.move(task, to: newPlannedAt, order: nextOrder)
+                    TaskRules.move(task, to: newPlannedAt, order: nextOrder, now: now)
                 }
 
+                _ = TaskRules.setReminder(reminderAt, on: task, now: now)
                 task.title = trimmedTitle
                 task.note = trimmedNote.isEmpty ? nil : trimmedNote
                 task.priority = priority?.rawValue
                 task.estimatedMinutes = estimatedMinutes
                 task.tags = tags
-                task.updatedAt = Date()
+                task.updatedAt = now
             }
             dismiss()
         } catch {
             saveError = "작업을 저장하지 못했습니다"
         }
+    }
+
+    private func reminderPresetButton(_ title: String, minutes: Int) -> some View {
+        Button(title) {
+            reminderDate = TaskReminderRules.normalizedDate(
+                Date().addingTimeInterval(Double(minutes * 60))
+            ) ?? Date().addingTimeInterval(Double(minutes * 60))
+        }
+        .buttonStyle(.bordered)
+        .font(.caption.weight(.semibold))
+        .frame(maxWidth: .infinity)
+    }
+
+    private func requestNotificationPermission() {
+        Swift.Task {
+            notificationAuthorization = await TaskNotificationScheduler.shared
+                .requestAuthorization()
+            await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+        }
+    }
+
+    private func openNotificationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private static func defaultReminderDate(for plannedDate: Date) -> Date {
+        let now = Date()
+        let plannedDayKey = DayKey.key(for: plannedDate)
+        if plannedDayKey > DayKey.today,
+           let morning = Calendar.current.date(
+               bySettingHour: 9,
+               minute: 0,
+               second: 0,
+               of: plannedDate
+           ) {
+            return morning
+        }
+        return TaskReminderRules.normalizedDate(
+            now.addingTimeInterval(60 * 60)
+        ) ?? now.addingTimeInterval(60 * 60)
     }
 
     private func parsedEstimatedMinutesInput() -> (value: Int?, errorMessage: String?) {
