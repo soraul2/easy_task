@@ -40,6 +40,33 @@ func taskReminderRulesSetReplaceClearAndComplete() throws {
 }
 
 @Test
+@MainActor
+func taskReminderSnapshotRejectsBlankTitlesAndMalformedStatuses() throws {
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let now = Date(timeIntervalSinceReferenceDate: 10_000)
+    let reminderAt = Date(timeIntervalSinceReferenceDate: 10_200)
+    let task = Task(
+        title: "  \n\t  ",
+        plannedAt: day,
+        order: 100,
+        reminderAt: reminderAt
+    )
+
+    #expect(TaskReminderRules.snapshot(for: task, now: now) == nil)
+
+    task.title = "  알림 작업  "
+    task.status = "unknown"
+    #expect(TaskReminderRules.snapshot(for: task, now: now) == nil)
+
+    task.status = TaskStatus.done.rawValue
+    #expect(TaskReminderRules.snapshot(for: task, now: now) == nil)
+
+    task.status = TaskStatus.doing.rawValue
+    let snapshot = try #require(TaskReminderRules.snapshot(for: task, now: now))
+    #expect(snapshot.title == "알림 작업")
+}
+
+@Test
 func taskReminderReconciliationSchedulesReplacesAndCancelsOnlyOwnedRequests() {
     let firstID = UUID()
     let secondID = UUID()

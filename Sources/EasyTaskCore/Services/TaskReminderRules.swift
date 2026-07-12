@@ -75,13 +75,16 @@ public enum TaskReminderRules {
         for task: Task,
         now: Date = Date()
     ) -> TaskReminderSnapshot? {
+        let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard task.supersededAt == nil,
-              task.status != TaskStatus.done.rawValue,
+              let status = TaskStatus(rawValue: task.status),
+              status == .todo || status == .doing,
+              !title.isEmpty,
               let reminderAt = normalizedDate(task.reminderAt),
               reminderAt > now else { return nil }
         return TaskReminderSnapshot(
             taskID: task.id,
-            title: task.title,
+            title: title,
             plannedDayKey: task.plannedDayKey,
             reminderAt: reminderAt
         )

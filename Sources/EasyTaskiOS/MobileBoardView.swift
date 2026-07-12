@@ -640,9 +640,14 @@ private struct MobileTaskStatusSlider: View {
 }
 
 private struct MobileTaskDetailSheet: View {
+    private enum SaveFailure: Error {
+        case reminderExpired
+    }
+
     var task: TodoTask
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var title: String
     @State private var note: String
     @State private var status: TaskStatus
@@ -654,6 +659,7 @@ private struct MobileTaskDetailSheet: View {
     @State private var reminderDate: Date
     @State private var notificationAuthorization: TaskNotificationAuthorizationState = .notDetermined
     @State private var saveError: String?
+    @State private var isSaving = false
 
     init(task: TodoTask) {
         self.task = task
@@ -720,9 +726,12 @@ private struct MobileTaskDetailSheet: View {
                         case .authorized:
                             EmptyView()
                         case .notDetermined:
-                            Button(action: requestNotificationPermission) {
-                                Label("이 기기에서 알림 허용", systemImage: "bell.badge")
-                            }
+                            Label(
+                                "저장 후 이 기기의 알림 권한을 요청합니다.",
+                                systemImage: "bell.badge"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                         case .denied:
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("알림 시각은 저장되지만 이 기기에서는 울리지 않습니다.")
@@ -750,7 +759,10 @@ private struct MobileTaskDetailSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("저장", action: save)
-                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(
+                            isSaving ||
+                            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        )
                 }
             }
         }
@@ -759,17 +771,22 @@ private struct MobileTaskDetailSheet: View {
                 .authorizationState()
         }
         .onChange(of: reminderEnabled) { _, isEnabled in
-            guard isEnabled, notificationAuthorization == .notDetermined else { return }
-            requestNotificationPermission()
+            guard isEnabled, reminderDate <= Date() else { return }
+            reminderDate = Self.defaultReminderDate(for: plannedDate)
         }
         .onChange(of: status) { _, nextStatus in
             if nextStatus == .done {
                 reminderEnabled = false
             }
         }
+        .onChange(of: scenePhase) { _, nextPhase in
+            guard nextPhase == .active else { return }
+            refreshNotificationAuthorization()
+        }
     }
 
     private func save() {
+        guard !isSaving else { return }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
 
@@ -796,9 +813,15 @@ private struct MobileTaskDetailSheet: View {
         }
 
         saveError = nil
+        isSaving = true
         do {
             try PersistenceCommandService.perform(in: modelContext) {
                 let now = Date()
+                if status != .done,
+                   reminderEnabled,
+                   reminderAt.map({ $0 > now }) != true {
+                    throw SaveFailure.reminderExpired
+                }
                 let nextOrder: Double?
                 if oldDayKey != newDayKey || oldStatus != status {
                     nextOrder = try BoundedQueryService.nextOrder(
@@ -831,8 +854,12 @@ private struct MobileTaskDetailSheet: View {
                 task.tags = tags
                 task.updatedAt = now
             }
-            dismiss()
+            finishSaving(reminderRequested: status != .done && reminderAt != nil)
+        } catch SaveFailure.reminderExpired {
+            isSaving = false
+            saveError = "알림 시각은 현재보다 이후로 선택해 주세요"
         } catch {
+            isSaving = false
             saveError = "작업을 저장하지 못했습니다"
         }
     }
@@ -848,11 +875,28 @@ private struct MobileTaskDetailSheet: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func requestNotificationPermission() {
-        Swift.Task {
-            notificationAuthorization = await TaskNotificationScheduler.shared
-                .requestAuthorization()
+    private func finishSaving(reminderRequested: Bool) {
+        Swift.Task { @MainActor in
+            if reminderRequested {
+                let currentAuthorization = await TaskNotificationScheduler.shared
+                    .authorizationState()
+                if currentAuthorization == .notDetermined {
+                    notificationAuthorization = await TaskNotificationScheduler.shared
+                        .requestAuthorization()
+                } else {
+                    notificationAuthorization = currentAuthorization
+                }
+            }
             await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+            isSaving = false
+            dismiss()
+        }
+    }
+
+    private func refreshNotificationAuthorization() {
+        Swift.Task { @MainActor in
+            notificationAuthorization = await TaskNotificationScheduler.shared
+                .authorizationState()
         }
     }
 

@@ -104,16 +104,29 @@ final class TaskNotificationScheduler {
             pending: pending
         )
 
-        if !plan.identifiersToCancel.isEmpty {
+        let replacementIDs = Set(plan.remindersToSchedule.map(\.identifier))
+        let staleIDs = plan.identifiersToCancel.filter {
+            !replacementIDs.contains($0)
+        }
+        if !staleIDs.isEmpty {
             center.removePendingNotificationRequests(
-                withIdentifiers: plan.identifiersToCancel
+                withIdentifiers: staleIDs
             )
         }
         if !ownedDeliveredIDs.isEmpty {
             center.removeDeliveredNotifications(withIdentifiers: ownedDeliveredIDs)
         }
         for snapshot in plan.remindersToSchedule {
-            try await center.add(request(for: snapshot))
+            do {
+                // Adding the same identifier replaces the old request only after
+                // the notification center accepts the new request.
+                try await center.add(request(for: snapshot))
+            } catch {
+                print(
+                    "EasyTask notification scheduling failed " +
+                        "for \(snapshot.identifier): \(error)"
+                )
+            }
         }
     }
 
@@ -127,11 +140,14 @@ final class TaskNotificationScheduler {
             TaskNotificationRoute.plannedDayKey: snapshot.plannedDayKey
         ]
 
-        var components = Calendar.current.dateComponents(
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        var components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute],
             from: snapshot.reminderAt
         )
-        components.timeZone = .current
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
         return UNNotificationRequest(
             identifier: snapshot.identifier,
             content: content,
@@ -200,18 +216,13 @@ final class EasyTaskAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
+        didReceive response: UNNotificationResponse
+    ) async {
         let route = TaskNotificationRoute(
             userInfo: response.notification.request.content.userInfo
         )
-        if let route {
-            Swift.Task { @MainActor in
-                TaskNotificationRouteStore.shared.enqueue(route)
-            }
-        }
-        completionHandler()
+        guard let route else { return }
+        await TaskNotificationRouteStore.shared.enqueue(route)
     }
 }
 #endif
