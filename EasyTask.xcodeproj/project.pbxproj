@@ -36,6 +36,12 @@
 		D30000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */; };
 		D30000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */; };
 		D30000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */; };
+		D30000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift */; };
+		D3000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift */; };
+		D3000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift */; };
+		D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */; };
+		D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */; };
+		D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +74,12 @@
 		D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/BoardView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/CalendarView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DiaryView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -132,6 +144,12 @@
 				D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */,
 				D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */,
 				D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */,
+				D20000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift */,
+				D2000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift */,
+				D2000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift */,
+				D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */,
+				D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */,
+				D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -319,6 +337,12 @@
 				D30000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift in Sources */,
 				D30000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift in Sources */,
 				D30000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift in Sources */,
+				D30000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift in Sources */,
+				D3000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift in Sources */,
+				D3000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift in Sources */,
+				D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */,
+				D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */,
+				D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
