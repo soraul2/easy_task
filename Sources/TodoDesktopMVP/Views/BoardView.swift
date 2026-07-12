@@ -629,6 +629,23 @@ struct TaskDetailSheet: View {
                 DatePicker("보드 날짜", selection: $plannedDate, displayedComponents: .date)
                     .labelsHidden()
 
+                if let reminderAt = task.reminderAt {
+                    DetailFieldLabel("알림")
+                    Label(
+                        reminderAt.formatted(date: .abbreviated, time: .shortened),
+                        systemImage: "bell"
+                    )
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(AppTheme.border, lineWidth: 1)
+                    }
+                }
+
                 DetailFieldLabel("상태")
                 Picker("상태", selection: $status) {
                     ForEach(TaskStatus.allCases) { status in
@@ -1469,6 +1486,16 @@ struct TaskCard: View {
                         Text("\(task.plannedDayKey)에서 이월")
                             .font(.caption)
                             .foregroundStyle(AppTheme.cardMutedText)
+                    }
+
+                    if let reminderAt = task.reminderAt {
+                        Label(
+                            reminderAt.formatted(date: .abbreviated, time: .shortened),
+                            systemImage: "bell"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.cardMutedText)
+                        .lineLimit(1)
                     }
                 }
                 Spacer()

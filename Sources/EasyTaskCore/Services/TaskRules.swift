@@ -10,7 +10,13 @@ public enum TaskRules {
     ) {
         guard task.supersededAt == nil else { return }
         let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
-        guard oldStatus != status else { return }
+        guard oldStatus != status else {
+            if status == .done, task.reminderAt != nil {
+                task.reminderAt = nil
+                task.updatedAt = now
+            }
+            return
+        }
 
         task.status = status.rawValue
         task.updatedAt = now
@@ -24,9 +30,26 @@ public enum TaskRules {
         case (_, .done):
             task.completedAt = now
             task.completedDayKey = completionDayKey ?? DayKey.key(for: now)
+            task.reminderAt = nil
         default:
             break
         }
+    }
+
+    @discardableResult
+    public static func setReminder(
+        _ reminderAt: Date?,
+        on task: Task,
+        now: Date = Date()
+    ) -> Bool {
+        guard task.supersededAt == nil else { return false }
+        let normalized = task.status == TaskStatus.done.rawValue
+            ? nil
+            : TaskReminderRules.normalizedDate(reminderAt)
+        guard task.reminderAt != normalized else { return false }
+        task.reminderAt = normalized
+        task.updatedAt = now
+        return true
     }
 
     public static func carryoverTasks(_ tasks: [Task], before dayKey: String = DayKey.today) -> [Task] {

@@ -22,7 +22,7 @@ Tests/
 `EasyTaskCore`는 플랫폼 UI에 의존하지 않는 영역이다.
 
 - SwiftData 모델: `Task`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`
-- 저장소 구성: `EasyTaskSchemaV1`, `EasyTaskSchemaV2`, `EasyTaskSchemaV3`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
+- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V3`, 현재 `EasyTaskSchemaV4`, `EasyTaskMigrationPlan`, `EasyTaskContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
 - 동기화 상태: `CloudKitSyncMonitor`, 이벤트별 진행·오류 추적
@@ -31,7 +31,7 @@ Tests/
 - 기록 조회: `ArchiveQueryRules`, `ArchiveFilter`, `ArchiveQuerySession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
-- 백업: JSON V1 호환 `BackupCodec`, 이미지 포함 V2 `BackupPackageCodec`
+- 백업: JSON V1 호환 `BackupCodec`, 이미지와 Task 알림을 포함하는 V3 `BackupPackageCodec`(V2 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일 JSON: `SpecialDays.kr.json`
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
@@ -58,8 +58,8 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 ## 데이터 흐름
 
-1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V3 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
-2. 저장소는 V1 → V2 → V3 순서로 이동하며 이미 배포된 V1/V2 정의는 수정하지 않는다.
+1. 두 앱은 `EasyTaskContainerFactory`에서 같은 V4 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
+2. 저장소는 V1 → V2 → V3 → V4 순서로 이동하며 이미 배포된 V1/V2/V3 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
@@ -67,7 +67,8 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 6. 캘린더 이벤트는 기간 이벤트로 보이며, 작업 세부 계획은 보드에서 조정한다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
-9. 백업 V2는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지다.
+9. 백업 V3는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2도 읽는다.
+10. `Task.reminderAt`이 알림 원본이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
 10. 보드와 캘린더는 선택 날짜 또는 42일 월 그리드 범위만 live query하고, 기록은 완전한 날짜 그룹 30개씩 조회한다.
 
 ## 저장과 동기화 런타임
@@ -104,7 +105,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - 누락되거나 손상된 기존 파일은 참조를 지우지 않고 다음 실행에서 재시도하며, 모두 옮긴 회고만 레거시 참조를 정리한다.
 - 기존 이미지가 10개를 넘으면 처음 10개까지만 옮기고 초과 참조는 보존한다. 배열과 block-only 참조를 함께 표시하며 미해결 레거시 항목은 삭제해 백업 차단을 해소할 수 있다.
 - 미해결 레거시 항목이 남은 동안 canonical 이미지 추가·삭제는 잠그고, 마지막 항목을 정리해 저장할 때 기존 메타데이터와 이미지 블록을 제거한다.
-- 백업 V2는 records와 각 첨부의 크기·SHA-256, MIME, 참조 무결성을 전부 확인한 뒤 비파괴 병합한다.
+- 백업 V3는 records와 각 첨부의 크기·SHA-256, MIME, 참조 무결성을 전부 확인한 뒤 비파괴 병합한다.
 - 회고가 대표 ID로 재연결된 첨부는 병합 전 공통 부분집합과 병합 후 전체 incoming 부분집합의 상대 순서가 일치해야 한다.
 - 다만 로컬 첨부가 백업 후보보다 최신이면 해당 후보는 과거 순서 검증에서 제외해 최신 로컬 정렬을 보존한다.
 - `.easytaskbackup`은 `public.package` 계열의 고정 UTI로 등록해 Finder와 파일 패널에서 하나의 패키지로 다룬다.
@@ -114,13 +115,13 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 
 - `EasyTaskContainerFactory.makeAppPersistent`는 앱 저장소를 열기 전에 초기 macOS 스키마인지 검사한다.
 - 해당하는 경우 SQLite 원본과 WAL/SHM, 검증된 JSON 스냅샷을 `EasyTaskLegacyBackups`에 먼저 보존한다.
-- 원본 백업이 끝난 뒤 새 V3 저장소를 만들고 기존 레코드를 비파괴 병합한다.
-- 병합이 끝나기 전에는 pending marker를 유지한다. 중단되면 다음 실행에서 불완전한 V3 저장소만 버리고 보존된 스냅샷으로 재시도한다.
+- 원본 백업이 끝난 뒤 현재 스키마 저장소를 만들고 기존 레코드를 비파괴 병합한다.
+- 병합이 끝나기 전에는 pending marker를 유지한다. 중단되면 다음 실행에서 불완전한 현재 저장소만 버리고 보존된 스냅샷으로 재시도한다.
 - 성공 후에도 원본 백업은 자동 삭제하지 않는다. 테스트용 `makePersistent`는 이 앱 시작 전용 브리지를 실행하지 않는다.
 
 ## 현재 MVP 범위
 
-- V3 버전 스키마를 유지하며 앱 타겟은 private CloudKit 저장소를 사용한다.
+- V4 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
 - 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS와 macOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
@@ -129,7 +130,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그를 편집한다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
-- 기본 내보내기는 이미지 원본을 포함한 백업 V2이며 JSON V1은 가져오기 호환 경로로만 유지한다.
+- 기본 내보내기는 이미지 원본과 Task 알림을 포함한 백업 V3이며 패키지 V2와 JSON V1은 가져오기 호환 경로로 유지한다.
 - Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
 - Calendar는 표시 월의 42일 범위 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.

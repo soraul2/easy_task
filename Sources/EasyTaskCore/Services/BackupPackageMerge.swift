@@ -41,7 +41,12 @@ public extension BackupPackageCodec {
             try mergeTemplates(payload.taskTemplates, context: context, report: &report)
             try mergeTemplateItems(payload.taskTemplateItems, context: context, report: &report)
             try mergePlacements(payload.templatePlacements ?? [], context: context, report: &report)
-            try mergeTasks(payload.tasks, context: context, report: &report)
+            try mergeTasks(
+                payload.tasks,
+                sourceFormatVersion: nil,
+                context: context,
+                report: &report
+            )
             try mergeReviews(
                 payload.dailyReviews ?? [],
                 context: context,
@@ -90,7 +95,12 @@ extension BackupPackageCodec {
             try mergeTemplates(payload.taskTemplates, context: context, report: &report)
             try mergeTemplateItems(payload.taskTemplateItems, context: context, report: &report)
             try mergePlacements(payload.templatePlacements ?? [], context: context, report: &report)
-            try mergeTasks(payload.tasks, context: context, report: &report)
+            try mergeTasks(
+                payload.tasks,
+                sourceFormatVersion: contents.records.formatVersion,
+                context: context,
+                report: &report
+            )
             try mergeReviews(payload.dailyReviews ?? [], context: context, report: &report)
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
             try mergeAttachments(contents, context: context, report: &report)
@@ -436,6 +446,7 @@ private extension BackupPackageCodec {
     @MainActor
     static func mergeTasks(
         _ incoming: [TaskDTO],
+        sourceFormatVersion: Int?,
         context: ModelContext,
         report: inout BackupPackageMergeReport
     ) throws {
@@ -453,7 +464,12 @@ private extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard try sameTask(dto, current, context: context) else {
+                    guard try sameTask(
+                        dto,
+                        current,
+                        sourceFormatVersion: sourceFormatVersion,
+                        context: context
+                    ) else {
                         throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -463,7 +479,7 @@ private extension BackupPackageCodec {
                     report.preservedLocalRecords += 1
                     continue
                 }
-                apply(dto, to: current)
+                apply(dto, to: current, sourceFormatVersion: sourceFormatVersion)
                 current.createdAt = min(current.createdAt, dto.createdAt)
                 current.supersededAt = nil
                 report.updatedRecords += 1
@@ -481,10 +497,11 @@ private extension BackupPackageCodec {
                     priority: dto.priority.flatMap(TaskPriority.init(rawValue:)),
                     tags: dto.tags,
                     estimatedMinutes: dto.estimatedMinutes,
+                    reminderAt: nil,
                     createdAt: dto.createdAt,
                     updatedAt: dto.updatedAt
                 )
-                apply(dto, to: task)
+                apply(dto, to: task, sourceFormatVersion: sourceFormatVersion)
                 context.insert(task)
                 existing[instanceID] = task
                 report.insertedRecords += 1
@@ -493,7 +510,11 @@ private extension BackupPackageCodec {
     }
 
     @MainActor
-    static func apply(_ dto: TaskDTO, to task: Task) {
+    static func apply(
+        _ dto: TaskDTO,
+        to task: Task,
+        sourceFormatVersion: Int?
+    ) {
         task.title = dto.title
         task.note = dto.note
         task.status = dto.status
@@ -505,6 +526,9 @@ private extension BackupPackageCodec {
         task.priority = dto.priority
         task.tags = dto.tags
         task.estimatedMinutes = dto.estimatedMinutes
+        if sourceHasTaskReminderSemantics(sourceFormatVersion) {
+            task.reminderAt = TaskReminderRules.normalizedDate(dto.reminderAt)
+        }
         task.updatedAt = dto.updatedAt
         task.completedAt = dto.completedAt
         task.completedDayKey = dto.completedDayKey
@@ -787,6 +811,7 @@ private extension BackupPackageCodec {
     static func sameTask(
         _ dto: TaskDTO,
         _ task: Task,
+        sourceFormatVersion: Int?,
         context: ModelContext
     ) throws -> Bool {
         let expectedEventID = task.supersededAt == nil
@@ -795,6 +820,8 @@ private extension BackupPackageCodec {
         let expectedPlacementID = task.supersededAt == nil
             ? try canonicalPlacementID(dto.templatePlacementId, context: context)
             : dto.templatePlacementId
+        let reminderMatches = !sourceHasTaskReminderSemantics(sourceFormatVersion) ||
+            task.reminderAt == TaskReminderRules.normalizedDate(dto.reminderAt)
         return task.title == dto.title &&
             task.note == dto.note &&
             task.status == dto.status &&
@@ -806,10 +833,15 @@ private extension BackupPackageCodec {
             task.priority == dto.priority &&
             task.tags == dto.tags &&
             task.estimatedMinutes == dto.estimatedMinutes &&
+            reminderMatches &&
             task.completedAt == dto.completedAt &&
             task.completedDayKey == dto.completedDayKey &&
             task.archivedAt == dto.archivedAt &&
             task.archivedDayKey == dto.archivedDayKey
+    }
+
+    static func sourceHasTaskReminderSemantics(_ formatVersion: Int?) -> Bool {
+        formatVersion.map { $0 >= 3 } == true
     }
 
     static func sameReview(

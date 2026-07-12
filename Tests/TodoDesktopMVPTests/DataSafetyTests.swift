@@ -14,12 +14,12 @@ func persistenceCommandCommitsSuccessfulMutation() throws {
     let context = container.mainContext
 
     let task = try PersistenceCommandService.perform(in: context) {
-        let task = EasyTaskSchemaV3.Task(title: "저장 경계 확인", plannedAt: Date(), order: 100)
+        let task = Task(title: "저장 경계 확인", plannedAt: Date(), order: 100)
         context.insert(task)
         return task
     }
 
-    let storedTasks = try context.fetch(FetchDescriptor<EasyTaskSchemaV3.Task>())
+    let storedTasks = try context.fetch(FetchDescriptor<Task>())
     #expect(storedTasks.map(\.id) == [task.id])
 }
 
@@ -28,17 +28,17 @@ func persistenceCommandCommitsSuccessfulMutation() throws {
 func persistenceCommandRollsBackFailedMutationWithoutLosingPriorSave() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
-    let existingTask = EasyTaskSchemaV3.Task(title: "기존 작업", plannedAt: Date(), order: 100)
+    let existingTask = Task(title: "기존 작업", plannedAt: Date(), order: 100)
     context.insert(existingTask)
 
     #expect(throws: PersistenceCommandTestError.injected) {
         try PersistenceCommandService.perform(in: context) {
-            context.insert(EasyTaskSchemaV3.Task(title: "롤백 작업", plannedAt: Date(), order: 200))
+            context.insert(Task(title: "롤백 작업", plannedAt: Date(), order: 200))
             throw PersistenceCommandTestError.injected
         }
     }
 
-    let storedTitles = try context.fetch(FetchDescriptor<EasyTaskSchemaV3.Task>()).map(\.title)
+    let storedTitles = try context.fetch(FetchDescriptor<Task>()).map(\.title)
     #expect(storedTitles == ["기존 작업"])
 }
 

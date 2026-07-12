@@ -7,6 +7,7 @@ import SwiftUI
 
 @main
 struct EasyTaskiOSApp: App {
+    @UIApplicationDelegateAdaptor(EasyTaskAppDelegate.self) private var appDelegate
     @State private var persistenceState: PersistenceState
 
     init() {
@@ -210,6 +211,8 @@ private struct MobileAppRootView: View {
         .task {
             start()
             await syncMonitor.refreshAccountStatus()
+            await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+            handlePendingNotificationRoute()
         }
         .onChange(of: selectedTab) {
             persistArchiveIfNeeded()
@@ -225,7 +228,11 @@ private struct MobileAppRootView: View {
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
             refreshCurrentDay()
-            Swift.Task { await syncMonitor.refreshAccountStatus() }
+            Swift.Task {
+                await syncMonitor.refreshAccountStatus()
+                await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+                handlePendingNotificationRoute()
+            }
         }
         .onChange(of: colorScheme) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
@@ -241,6 +248,17 @@ private struct MobileAppRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             refreshCurrentDay()
+            reconcileTaskNotifications()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: PersistenceCommandService.dataChangedNotification
+        )) { _ in
+            reconcileTaskNotifications()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: TaskNotificationRouteStore.didReceiveRoute
+        )) { _ in
+            handlePendingNotificationRoute()
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let errorDescription = syncMonitor.lastErrorDescription {
@@ -370,6 +388,23 @@ private struct MobileAppRootView: View {
             selectedBoardDate = reconstructedDate
         }
         persistArchiveIfNeeded()
+    }
+
+    private func reconcileTaskNotifications() {
+        Swift.Task {
+            await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+        }
+    }
+
+    private func handlePendingNotificationRoute() {
+        guard let route = TaskNotificationRouteStore.shared.consume() else { return }
+        let currentTask = try? modelContext.fetch(
+            BoundedQueryService.taskDescriptor(id: route.taskID)
+        ).first
+        let dayKey = currentTask?.plannedDayKey ?? route.fallbackDayKey
+        guard let dayKey, let date = DayKey.date(from: dayKey) else { return }
+        selectedBoardDate = date
+        selectedTab = .board
     }
 }
 

@@ -4,11 +4,16 @@ import SwiftData
 
 public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
-        [EasyTaskSchemaV1.self, EasyTaskSchemaV2.self, EasyTaskSchemaV3.self]
+        [
+            EasyTaskSchemaV1.self,
+            EasyTaskSchemaV2.self,
+            EasyTaskSchemaV3.self,
+            EasyTaskSchemaV4.self
+        ]
     }
 
     public static var stages: [MigrationStage] {
-        [migrateV1ToV2, migrateV2ToV3]
+        [migrateV1ToV2, migrateV2ToV3, migrateV3ToV4]
     }
 
     public static let migrateV1ToV2 = MigrationStage.custom(
@@ -58,6 +63,11 @@ public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
     public static let migrateV2ToV3 = MigrationStage.lightweight(
         fromVersion: EasyTaskSchemaV2.self,
         toVersion: EasyTaskSchemaV3.self
+    )
+
+    public static let migrateV3ToV4 = MigrationStage.lightweight(
+        fromVersion: EasyTaskSchemaV3.self,
+        toVersion: EasyTaskSchemaV4.self
     )
 }
 

@@ -24,7 +24,7 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
     try BackupPackageCodec.write(contents, to: packageURL)
     let decoded = try BackupPackageCodec.read(from: packageURL)
 
-    #expect(decoded.manifest.formatVersion == 2)
+    #expect(decoded.manifest.formatVersion == BackupPackageCodec.currentVersion)
     #expect(decoded.records.payload.dailyReviews?.first?.id == review.id)
     #expect(decoded.records.payload.dailyReviews?.first?.imageFileNames == [])
     #expect(decoded.records.attachments.count == 1)
@@ -32,6 +32,179 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
     #expect(FileManager.default.fileExists(
         atPath: packageURL.appendingPathComponent("manifest.json").path
     ))
+}
+
+@Test
+@MainActor
+func backupPackageReadsV2AndWritesV3() throws {
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    var legacyContents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    legacyContents.manifest.formatVersion = 2
+    legacyContents.records.formatVersion = 2
+    refreshRecordsMetadata(&legacyContents)
+
+    try BackupPackageCodec.validate(legacyContents)
+    let current = try BackupPackageCodec.makeContents(context: source.mainContext)
+    #expect(current.manifest.formatVersion == 3)
+    #expect(current.records.formatVersion == 3)
+}
+
+@Test
+@MainActor
+func backupPackageRoundTripsTaskReminderAndRejectsIdentityMismatch() throws {
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let reminderAt = Date(timeIntervalSinceReferenceDate: 120_000)
+    let task = Task(
+        title: "백업 알림",
+        plannedAt: day,
+        order: 100,
+        reminderAt: reminderAt
+    )
+    source.mainContext.insert(task)
+    try source.mainContext.save()
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    #expect(contents.records.payload.tasks.first?.reminderAt == reminderAt)
+
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    let restored = try #require(destination.mainContext.fetch(FetchDescriptor<Task>()).first)
+    #expect(restored.reminderAt == reminderAt)
+
+    var tampered = contents
+    tampered.records.payload.tasks[0].reminderAt = reminderAt.addingTimeInterval(60)
+    refreshRecordsMetadata(&tampered)
+    #expect(throws: BackupPackageError.identityCorruption(
+        recordType: "Task",
+        instanceID: task.instanceID
+    )) {
+        try BackupPackageCodec.restoreMerging(tampered, into: destination.mainContext)
+    }
+}
+
+@Test
+@MainActor
+func v2PackageMergePreservesExistingTaskReminderWhenFieldIsAbsent() throws {
+    let id = UUID()
+    let instanceID = UUID()
+    let plannedAt = try #require(DayKey.date(from: "2026-07-12"))
+    let reminderAt = Date(timeIntervalSince1970: 1_900_000_020)
+    let destination = try taskReminderMergeContainer(
+        id: id,
+        instanceID: instanceID,
+        title: "로컬 제목",
+        plannedAt: plannedAt,
+        reminderAt: reminderAt,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    let source = try taskReminderMergeContainer(
+        id: id,
+        instanceID: instanceID,
+        title: "V2에서 수정된 제목",
+        plannedAt: plannedAt,
+        reminderAt: nil,
+        updatedAt: Date(timeIntervalSince1970: 300)
+    )
+    var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    contents.manifest.formatVersion = 2
+    contents.records.formatVersion = 2
+    refreshRecordsMetadata(&contents)
+    let packageURL = temporaryPackageURL()
+    defer { try? FileManager.default.removeItem(at: packageURL) }
+
+    try BackupPackageCodec.write(contents, to: packageURL)
+    let recordsData = try Data(contentsOf: packageURL.appendingPathComponent("records.json"))
+    let recordsJSON = try #require(String(data: recordsData, encoding: .utf8))
+    #expect(!recordsJSON.contains("\"reminderAt\""))
+
+    let decoded = try BackupPackageCodec.read(from: packageURL)
+    let firstMerge = try BackupPackageCodec.restoreMerging(decoded, into: destination.mainContext)
+    let secondMerge = try BackupPackageCodec.restoreMerging(decoded, into: destination.mainContext)
+    let restored = try #require(
+        destination.mainContext.fetch(FetchDescriptor<Task>()).first {
+            $0.instanceID == instanceID
+        }
+    )
+    #expect(firstMerge.updatedRecords == 1)
+    #expect(secondMerge.preservedLocalRecords == 1)
+    #expect(restored.title == "V2에서 수정된 제목")
+    #expect(restored.reminderAt == reminderAt)
+}
+
+@Test
+@MainActor
+func v3PackageMergeTreatsNilTaskReminderAsExplicitClear() throws {
+    let id = UUID()
+    let instanceID = UUID()
+    let plannedAt = try #require(DayKey.date(from: "2026-07-12"))
+    let destination = try taskReminderMergeContainer(
+        id: id,
+        instanceID: instanceID,
+        title: "로컬 제목",
+        plannedAt: plannedAt,
+        reminderAt: Date(timeIntervalSince1970: 1_900_000_020),
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    let source = try taskReminderMergeContainer(
+        id: id,
+        instanceID: instanceID,
+        title: "V3에서 수정된 제목",
+        plannedAt: plannedAt,
+        reminderAt: nil,
+        updatedAt: Date(timeIntervalSince1970: 300)
+    )
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    let restored = try #require(
+        destination.mainContext.fetch(FetchDescriptor<Task>()).first {
+            $0.instanceID == instanceID
+        }
+    )
+    #expect(restored.title == "V3에서 수정된 제목")
+    #expect(restored.reminderAt == nil)
+}
+
+@Test
+@MainActor
+func legacyJSONMergePreservesExistingTaskReminder() throws {
+    let id = UUID()
+    let instanceID = UUID()
+    let plannedAt = try #require(DayKey.date(from: "2026-07-12"))
+    let reminderAt = Date(timeIntervalSince1970: 1_900_000_020)
+    let destination = try taskReminderMergeContainer(
+        id: id,
+        instanceID: instanceID,
+        title: "로컬 제목",
+        plannedAt: plannedAt,
+        reminderAt: reminderAt,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    let source = try taskReminderMergeContainer(
+        id: id,
+        instanceID: instanceID,
+        title: "레거시에서 수정된 제목",
+        plannedAt: plannedAt,
+        reminderAt: nil,
+        updatedAt: Date(timeIntervalSince1970: 300)
+    )
+    let payload = try BackupCodec.makePayload(context: source.mainContext)
+
+    _ = try BackupPackageCodec.restoreLegacyJSONMerging(
+        payload,
+        into: destination.mainContext
+    )
+    _ = try BackupPackageCodec.restoreLegacyJSONMerging(
+        payload,
+        into: destination.mainContext
+    )
+    let restored = try #require(
+        destination.mainContext.fetch(FetchDescriptor<Task>()).first {
+            $0.instanceID == instanceID
+        }
+    )
+    #expect(restored.title == "레거시에서 수정된 제목")
+    #expect(restored.reminderAt == reminderAt)
 }
 
 @Test
@@ -773,6 +946,30 @@ private func reviewContainer(
         dayKey: "2026-07-11",
         content: content,
         createdAt: Date(timeIntervalSince1970: 10),
+        updatedAt: updatedAt
+    ))
+    try container.mainContext.save()
+    return container
+}
+
+@MainActor
+private func taskReminderMergeContainer(
+    id: UUID,
+    instanceID: UUID,
+    title: String,
+    plannedAt: Date,
+    reminderAt: Date?,
+    updatedAt: Date
+) throws -> ModelContainer {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    container.mainContext.insert(Task(
+        id: id,
+        instanceID: instanceID,
+        title: title,
+        plannedAt: plannedAt,
+        order: 100,
+        reminderAt: reminderAt,
+        createdAt: Date(timeIntervalSince1970: 100),
         updatedAt: updatedAt
     ))
     try container.mainContext.save()

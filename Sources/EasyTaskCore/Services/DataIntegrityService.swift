@@ -529,6 +529,10 @@ private extension DataIntegrityService {
         if !task.order.isFinite {
             changes += assign(&task.order, 0)
         }
+        let reminderAt = status == .done
+            ? nil
+            : TaskReminderRules.normalizedDate(task.reminderAt)
+        changes += assign(&task.reminderAt, reminderAt)
 
         let dateDerivedPlannedAt = isFinite(task.plannedAt) ? task.plannedAt : task.createdAt
         let plannedDayKey = validDayKey(task.plannedDayKey)
@@ -746,3 +750,11 @@ extension EasyTaskSchemaV3.Task: IntegrityRecord {}
 extension EasyTaskSchemaV3.DailyReview: IntegrityRecord {}
 extension EasyTaskSchemaV3.DiaryBlock: IntegrityRecord {}
 extension EasyTaskSchemaV3.DiaryAttachment: IntegrityRecord {}
+extension EasyTaskSchemaV4.CalendarEvent: IntegrityRecord {}
+extension EasyTaskSchemaV4.TaskTemplate: IntegrityRecord {}
+extension EasyTaskSchemaV4.TaskTemplateItem: IntegrityRecord {}
+extension EasyTaskSchemaV4.TemplatePlacement: IntegrityRecord {}
+extension EasyTaskSchemaV4.Task: IntegrityRecord {}
+extension EasyTaskSchemaV4.DailyReview: IntegrityRecord {}
+extension EasyTaskSchemaV4.DiaryBlock: IntegrityRecord {}
+extension EasyTaskSchemaV4.DiaryAttachment: IntegrityRecord {}
