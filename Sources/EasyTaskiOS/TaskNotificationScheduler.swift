@@ -51,6 +51,10 @@ final class TaskNotificationScheduler {
     }
 
     func reconcile(context: ModelContext, now: Date = Date()) async {
+#if DEBUG
+        guard !EasyTaskLaunchEnvironment.isUITesting else { return }
+#endif
+
         if isReconciling {
             needsAnotherPass = true
             return

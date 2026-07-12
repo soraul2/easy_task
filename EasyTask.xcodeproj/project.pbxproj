@@ -42,11 +42,23 @@
 		D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */; };
 		D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */; };
 		D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */; };
+		F30000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F40000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000001;
+			remoteInfo = EasyTask;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000010 /* EasyTask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyTask.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C10000000000000000000010 /* EasyTask macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EasyTask macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EasyTaskLaunchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileShared.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
@@ -82,6 +94,7 @@
 		D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +114,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -108,6 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000005 /* Sources */,
+				F10000000000000000000004 /* Tests */,
 				E10000000000000000000001 /* Configuration */,
 				A10000000000000000000006 /* Resources */,
 				A10000000000000000000007 /* Products */,
@@ -154,6 +175,14 @@
 			name = Sources;
 			sourceTree = "<group>";
 		};
+		F10000000000000000000004 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */,
+			);
+			name = Tests;
+			sourceTree = "<group>";
+		};
 		E10000000000000000000001 /* Configuration */ = {
 			isa = PBXGroup;
 			children = (
@@ -175,6 +204,7 @@
 			children = (
 				A10000000000000000000010 /* EasyTask.app */,
 				C10000000000000000000010 /* EasyTask macOS.app */,
+				F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -222,6 +252,26 @@
 			productReference = C10000000000000000000010 /* EasyTask macOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F10000000000000000000001 /* EasyTaskLaunchUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTaskLaunchUITests" */;
+			buildPhases = (
+				F10000000000000000000002 /* Sources */,
+				F10000000000000000000009 /* Resources */,
+				F10000000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F50000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = EasyTaskLaunchUITests;
+			packageProductDependencies = (
+			);
+			productName = EasyTaskLaunchUITests;
+			productReference = F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -256,6 +306,10 @@
 								enabled = 1;
 							};
 						};
+					F10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = A10000000000000000000001;
+					};
 					};
 				};
 			};
@@ -274,10 +328,11 @@
 			productRefGroup = A10000000000000000000007 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (
-				A10000000000000000000001 /* EasyTask */,
-				C10000000000000000000001 /* EasyTask-macOS */,
-			);
+				targets = (
+					A10000000000000000000001 /* EasyTask */,
+					C10000000000000000000001 /* EasyTask-macOS */,
+					F10000000000000000000001 /* EasyTaskLaunchUITests */,
+				);
 		};
 /* End PBXProject section */
 
@@ -290,6 +345,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C10000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F10000000000000000000009 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -346,7 +408,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F30000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F50000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000001 /* EasyTask */;
+			targetProxy = F40000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1000000000000000000000A /* Debug */ = {
@@ -557,6 +635,57 @@
 			};
 			name = Release;
 		};
+		F1000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.launchuitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = EasyTask;
+			};
+			name = Debug;
+		};
+		F1000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.launchuitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = EasyTask;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -583,6 +712,15 @@
 			buildConfigurations = (
 				C1000000000000000000000C /* Debug */,
 				C1000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTaskLaunchUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1000000000000000000000C /* Debug */,
+				F1000000000000000000000D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

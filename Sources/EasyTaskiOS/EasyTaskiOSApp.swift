@@ -5,6 +5,16 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+enum EasyTaskLaunchEnvironment {
+    static var isUITesting: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+#else
+        false
+#endif
+    }
+}
+
 @main
 struct EasyTaskiOSApp: App {
     @UIApplicationDelegateAdaptor(EasyTaskAppDelegate.self) private var appDelegate
@@ -39,6 +49,16 @@ struct EasyTaskiOSApp: App {
     }
 
     private static func makePersistenceState() -> PersistenceState {
+#if DEBUG
+        if EasyTaskLaunchEnvironment.isUITesting {
+            do {
+                return .ready(try EasyTaskContainerFactory.makeInMemory())
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }
+#endif
+
         if let applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
