@@ -156,6 +156,32 @@ public enum DataIntegrityService {
         }
         return report
     }
+
+    @MainActor
+    @discardableResult
+    public static func reconcileCalendarEvents(
+        logicalID: UUID,
+        context: ModelContext,
+        saveChanges: Bool = true
+    ) throws -> Report {
+        let targetID = logicalID
+        let events = try context.fetch(FetchDescriptor<CalendarEvent>(
+            predicate: #Predicate<CalendarEvent> { event in
+                event.id == targetID
+            }
+        ))
+        var report = Report()
+        _ = mergeActive(
+            events,
+            groupedBy: { $0.id },
+            report: &report
+        )
+        normalizeActive(events, with: normalizeEvent, report: &report)
+        if report.hasChanges && saveChanges {
+            try context.save()
+        }
+        return report
+    }
 }
 
 private extension DataIntegrityService {
@@ -195,7 +221,7 @@ private extension DataIntegrityService {
                 _ = assign(&winner.createdAt, earliestCreatedAt)
             }
 
-            for loser in ordered where loser.instanceID != winner.instanceID {
+            for loser in ordered where loser !== winner {
                 mergingSupplemental(loser, winner)
                 loser.supersededAt = winner.updatedAt
                 report.mergedRecords += 1
@@ -321,14 +347,13 @@ private extension DataIntegrityService {
     ) {
         let activeReviews = reviews.filter(isActive)
         let activeReviewIDs = Set(activeReviews.map(\.id))
-        let activeReviewsByID = Dictionary(
-            uniqueKeysWithValues: activeReviews.map { ($0.id, $0) }
-        )
-        let canonicalByDayKey = Dictionary(
-            uniqueKeysWithValues: activeReviews.compactMap { review in
-                validDayKey(review.dayKey).map { ($0, review.id) }
-            }
-        )
+        let activeReviewsByID = activeReviews.reduce(into: [UUID: DailyReview]()) {
+            $0[$1.id] = $0[$1.id] ?? $1
+        }
+        let canonicalByDayKey = activeReviews.reduce(into: [String: UUID]()) {
+            guard let dayKey = validDayKey($1.dayKey) else { return }
+            $0[dayKey] = $0[dayKey] ?? $1.id
+        }
         var rewrites = directRewrites
 
         for review in reviews.sorted(by: { uuidPrecedes($0.instanceID, $1.instanceID) }) {

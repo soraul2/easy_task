@@ -12,29 +12,49 @@ public enum CloudKitProbeRole: String, Codable, Sendable {
     case cleanup
 }
 
+public enum CloudKitProbeKind: String, Codable, Sendable {
+    case event
+    case media
+    case conflict
+}
+
+public enum CloudKitConflictVariant: String, Codable, CaseIterable, Sendable {
+    case older
+    case newer
+}
+
 public enum CloudKitProbeExpectation: String, Codable, Sendable {
     case present
     case absent
 }
 
 public struct CloudKitProbeConfiguration: Equatable, Sendable {
+    public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
     public var token: UUID
     public var expectation: CloudKitProbeExpectation
+    public var conflictVariant: CloudKitConflictVariant?
     public var timeoutSeconds: Int
+    public var waitsForExport: Bool
     public var exitsWhenFinished: Bool
 
     public init(
+        kind: CloudKitProbeKind = .event,
         role: CloudKitProbeRole,
         token: UUID,
         expectation: CloudKitProbeExpectation = .present,
+        conflictVariant: CloudKitConflictVariant? = nil,
         timeoutSeconds: Int = 180,
+        waitsForExport: Bool = false,
         exitsWhenFinished: Bool = false
     ) {
+        self.kind = kind
         self.role = role
         self.token = token
         self.expectation = expectation
+        self.conflictVariant = conflictVariant
         self.timeoutSeconds = timeoutSeconds
+        self.waitsForExport = waitsForExport
         self.exitsWhenFinished = exitsWhenFinished
     }
 }
@@ -48,12 +68,65 @@ public struct CloudKitProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+public struct CloudKitMediaProbeSnapshot: Codable, Equatable, Sendable {
+    public var token: UUID
+    public var totalReviewCount: Int
+    public var activeReviewCount: Int
+    public var matchingReviewCount: Int
+    public var conflictingDayReviewCount: Int
+    public var totalAttachmentCount: Int
+    public var activeAttachmentCount: Int
+    public var matchingAttachmentCount: Int
+    public var sourceBundleIdentifier: String?
+    public var attachmentSHA256: String?
+    public var attachmentByteCount: Int?
+    public var attachmentOrder: Double?
+    public var dataMatchesExpected: Bool
+    public var expectation: CloudKitProbeExpectation
+    public var passed: Bool
+}
+
+public struct CloudKitConflictProbeSnapshot: Codable, Equatable, Sendable {
+    public var token: UUID
+    public var totalRecordCount: Int
+    public var totalMarkerCount: Int
+    public var activeMarkerCount: Int
+    public var observedVariants: [CloudKitConflictVariant]
+    public var winningVariant: CloudKitConflictVariant?
+    public var sourceBundleIdentifier: String?
+    public var expectation: CloudKitProbeExpectation
+    public var passed: Bool
+}
+
 public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
+    public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
     public var token: UUID
     public var passed: Bool
     public var snapshot: CloudKitProbeSnapshot?
+    public var mediaSnapshot: CloudKitMediaProbeSnapshot?
+    public var conflictSnapshot: CloudKitConflictProbeSnapshot?
     public var error: String?
+
+    public init(
+        kind: CloudKitProbeKind = .event,
+        role: CloudKitProbeRole,
+        token: UUID,
+        passed: Bool,
+        snapshot: CloudKitProbeSnapshot? = nil,
+        mediaSnapshot: CloudKitMediaProbeSnapshot? = nil,
+        conflictSnapshot: CloudKitConflictProbeSnapshot? = nil,
+        error: String? = nil
+    ) {
+        self.kind = kind
+        self.role = role
+        self.token = token
+        self.passed = passed
+        self.snapshot = snapshot
+        self.mediaSnapshot = mediaSnapshot
+        self.conflictSnapshot = conflictSnapshot
+        self.error = error
+    }
 }
 
 public enum CloudKitConvergenceProbe {
@@ -75,18 +148,56 @@ public enum CloudKitConvergenceProbe {
             return nil
         }
 
-        let expectation = value(after: "--cloudkit-probe-expect", in: arguments)
-            .flatMap(CloudKitProbeExpectation.init(rawValue:)) ?? .present
-        let timeout = value(after: "--cloudkit-probe-timeout", in: arguments)
-            .flatMap(Int.init) ?? 180
+        let kind: CloudKitProbeKind
+        if let rawKind = value(after: "--cloudkit-probe-kind", in: arguments) {
+            guard let parsedKind = CloudKitProbeKind(rawValue: rawKind) else { return nil }
+            kind = parsedKind
+        } else {
+            kind = .event
+        }
+
+        let expectation: CloudKitProbeExpectation
+        if let rawExpectation = value(after: "--cloudkit-probe-expect", in: arguments) {
+            guard let parsedExpectation = CloudKitProbeExpectation(
+                rawValue: rawExpectation
+            ) else { return nil }
+            expectation = parsedExpectation
+        } else {
+            expectation = .present
+        }
+
+        let conflictVariant: CloudKitConflictVariant?
+        if let rawVariant = value(after: "--cloudkit-probe-variant", in: arguments) {
+            guard let parsedVariant = CloudKitConflictVariant(
+                rawValue: rawVariant
+            ) else { return nil }
+            conflictVariant = parsedVariant
+        } else {
+            conflictVariant = nil
+        }
+
+        let timeout: Int
+        if let rawTimeout = value(after: "--cloudkit-probe-timeout", in: arguments) {
+            guard let parsedTimeout = Int(rawTimeout) else { return nil }
+            timeout = parsedTimeout
+        } else {
+            timeout = 180
+        }
 
         return CloudKitProbeConfiguration(
+            kind: kind,
             role: role,
             token: token,
             expectation: expectation,
+            conflictVariant: conflictVariant,
             timeoutSeconds: min(max(timeout, 1), 600),
+            waitsForExport: arguments.contains("--cloudkit-probe-wait-for-export"),
             exitsWhenFinished: arguments.contains("--cloudkit-probe-exit")
         )
+    }
+
+    public static func isProbeInvocation(arguments: [String]) -> Bool {
+        arguments.contains { $0.hasPrefix("--cloudkit-probe-") }
     }
 
     @MainActor
@@ -96,67 +207,49 @@ public enum CloudKitConvergenceProbe {
         context: ModelContext,
         sourceBundleIdentifier: String = Bundle.main.bundleIdentifier ?? "unknown"
     ) async -> CloudKitProbeRunResult? {
+        guard isProbeInvocation(arguments: arguments) else {
+            return nil
+        }
         guard let configuration = configuration(arguments: arguments) else {
+            log("INVALID_ARGUMENTS")
+            if arguments.contains("--cloudkit-probe-exit") {
+                terminateProcess(success: false)
+            }
             return nil
         }
 
-        log("START role=\(configuration.role.rawValue) token=\(configuration.token.uuidString)")
+        log(
+            "START kind=\(configuration.kind.rawValue) " +
+                "role=\(configuration.role.rawValue) token=\(configuration.token.uuidString)"
+        )
         let result: CloudKitProbeRunResult
         do {
-            switch configuration.role {
-            case .writer:
-                try writeMarker(
-                    token: configuration.token,
+            switch configuration.kind {
+            case .event:
+                result = try await runEventProbe(
+                    configuration: configuration,
                     sourceBundleIdentifier: sourceBundleIdentifier,
                     context: context
                 )
-                let snapshot = try snapshot(
-                    token: configuration.token,
-                    expectation: .present,
+            case .media:
+                result = try await runMediaProbe(
+                    configuration: configuration,
+                    sourceBundleIdentifier: sourceBundleIdentifier,
                     context: context
                 )
-                result = CloudKitProbeRunResult(
-                    role: .writer,
-                    token: configuration.token,
-                    passed: snapshot.passed,
-                    snapshot: snapshot,
-                    error: nil
-                )
-            case .reader:
-                let snapshot = try await waitForExpectation(
-                    configuration.expectation,
-                    token: configuration.token,
-                    timeoutSeconds: configuration.timeoutSeconds,
+            case .conflict:
+                result = try await runConflictProbe(
+                    configuration: configuration,
+                    sourceBundleIdentifier: sourceBundleIdentifier,
                     context: context
-                )
-                result = CloudKitProbeRunResult(
-                    role: .reader,
-                    token: configuration.token,
-                    passed: snapshot.passed,
-                    snapshot: snapshot,
-                    error: snapshot.passed ? nil : "CloudKit probe timed out"
-                )
-            case .cleanup:
-                try cleanupMarker(token: configuration.token, context: context)
-                let snapshot = try snapshot(
-                    token: configuration.token,
-                    expectation: .absent,
-                    context: context
-                )
-                result = CloudKitProbeRunResult(
-                    role: .cleanup,
-                    token: configuration.token,
-                    passed: snapshot.passed,
-                    snapshot: snapshot,
-                    error: nil
                 )
             }
         } catch {
             result = CloudKitProbeRunResult(
+                kind: configuration.kind,
                 role: configuration.role,
                 token: configuration.token,
                 passed: false,
-                snapshot: nil,
                 error: error.localizedDescription
             )
         }
@@ -170,6 +263,68 @@ public enum CloudKitConvergenceProbe {
 }
 
 extension CloudKitConvergenceProbe {
+    @MainActor
+    static func runEventProbe(
+        configuration: CloudKitProbeConfiguration,
+        sourceBundleIdentifier: String,
+        context: ModelContext
+    ) async throws -> CloudKitProbeRunResult {
+        switch configuration.role {
+        case .writer:
+            try await performMutationAwaitingExportIfRequested(
+                configuration: configuration
+            ) {
+                try writeMarker(
+                    token: configuration.token,
+                    sourceBundleIdentifier: sourceBundleIdentifier,
+                    context: context
+                )
+            }
+            let snapshot = try snapshot(
+                token: configuration.token,
+                expectation: .present,
+                context: context
+            )
+            return CloudKitProbeRunResult(
+                role: .writer,
+                token: configuration.token,
+                passed: snapshot.passed,
+                snapshot: snapshot
+            )
+        case .reader:
+            let snapshot = try await waitForExpectation(
+                configuration.expectation,
+                token: configuration.token,
+                timeoutSeconds: configuration.timeoutSeconds,
+                context: context
+            )
+            return CloudKitProbeRunResult(
+                role: .reader,
+                token: configuration.token,
+                passed: snapshot.passed,
+                snapshot: snapshot,
+                error: snapshot.passed ? nil : "CloudKit probe timed out"
+            )
+        case .cleanup:
+            try await performMutationAwaitingExportIfRequested(
+                configuration: configuration
+            ) {
+                try cleanupMarker(token: configuration.token, context: context)
+            }
+            let snapshot = try snapshot(
+                token: configuration.token,
+                expectation: .absent,
+                context: context
+            )
+            return CloudKitProbeRunResult(
+                role: .cleanup,
+                token: configuration.token,
+                passed: snapshot.passed,
+                snapshot: snapshot
+            )
+        }
+    }
+
     @MainActor
     static func writeMarker(
         token: UUID,
@@ -208,12 +363,20 @@ extension CloudKitConvergenceProbe {
         context: ModelContext
     ) throws {
         let records = try markerEvents(token: token, context: context)
+        let markers = records.filter { event in
+            event.title == markerTitle &&
+                event.note?.hasPrefix(token.uuidString) == true
+        }
+        guard markers.count == records.count else {
+            log("LOCAL_DELETE_SKIPPED token=\(token.uuidString) collision=true")
+            return
+        }
         try PersistenceCommandService.perform(in: context) {
-            for event in records where event.title == markerTitle {
+            for event in markers {
                 context.delete(event)
             }
         }
-        log("LOCAL_DELETED token=\(token.uuidString) count=\(records.count)")
+        log("LOCAL_DELETED token=\(token.uuidString) count=\(markers.count)")
     }
 
     @MainActor
@@ -277,7 +440,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
-private extension CloudKitConvergenceProbe {
+extension CloudKitConvergenceProbe {
     @MainActor
     static func markerEvents(
         token: UUID,
@@ -297,14 +460,14 @@ private extension CloudKitConvergenceProbe {
         return date
     }
 
-    static func value(after flag: String, in arguments: [String]) -> String? {
+    private static func value(after flag: String, in arguments: [String]) -> String? {
         guard let index = arguments.firstIndex(of: flag) else { return nil }
         let valueIndex = arguments.index(after: index)
         guard arguments.indices.contains(valueIndex) else { return nil }
         return arguments[valueIndex]
     }
 
-    static func emit(_ result: CloudKitProbeRunResult) {
+    private static func emit(_ result: CloudKitProbeRunResult) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let payload = (try? encoder.encode(result))
@@ -318,7 +481,145 @@ private extension CloudKitConvergenceProbe {
         fflush(stdout)
     }
 
-    static func terminateProcess(success: Bool) -> Never {
+    static func probeFileExistsError(_ description: String) -> CocoaError {
+        CocoaError(
+            .fileWriteFileExists,
+            userInfo: [NSLocalizedDescriptionKey: description]
+        )
+    }
+
+    @MainActor
+    static func performMutationAwaitingExportIfRequested(
+        configuration: CloudKitProbeConfiguration,
+        mutation: () throws -> Void
+    ) async throws {
+        guard configuration.waitsForExport else {
+            try mutation()
+            return
+        }
+
+        let earliestStartDate = Date()
+        let observer = ExportEventObserver(earliestStartDate: earliestStartDate)
+        do {
+            try mutation()
+        } catch {
+            observer.invalidate()
+            throw error
+        }
+
+        switch await waitForCompletedExport(
+            observer: observer,
+            timeoutSeconds: configuration.timeoutSeconds
+        ) {
+        case .completed(let summary):
+            guard summary.succeeded else {
+                throw CocoaError(
+                    .fileWriteUnknown,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "CloudKit export failed: " +
+                            (summary.errorDescription ?? "unknown error")
+                    ]
+                )
+            }
+            log("EXPORT_COMPLETED id=\(summary.identifier.uuidString) succeeded=true")
+        case .timedOut:
+            throw CocoaError(
+                .fileWriteUnknown,
+                userInfo: [NSLocalizedDescriptionKey: "CloudKit export timed out"]
+            )
+        }
+    }
+
+    @MainActor
+    private static func waitForCompletedExport(
+        observer: ExportEventObserver,
+        timeoutSeconds: Int
+    ) async -> ExportWaitOutcome {
+        defer { observer.invalidate() }
+        return await withTaskGroup(of: ExportWaitOutcome.self) { group in
+            group.addTask {
+                for await summary in observer.stream {
+                    guard !Swift.Task.isCancelled else { return .timedOut }
+                    if summary.isCompleted {
+                        return .completed(summary)
+                    }
+                }
+                return .timedOut
+            }
+            group.addTask {
+                try? await Swift.Task.sleep(for: .seconds(timeoutSeconds))
+                return .timedOut
+            }
+            let outcome = await group.next() ?? .timedOut
+            group.cancelAll()
+            return outcome
+        }
+    }
+
+    private final class ExportEventObserver: @unchecked Sendable {
+        let stream: AsyncStream<CloudKitSyncEventSummary>
+
+        private let earliestStartDate: Date
+        private let continuation: AsyncStream<CloudKitSyncEventSummary>.Continuation
+        private var observerToken: NSObjectProtocol?
+        private var startedEventIDs: Set<UUID> = []
+        private let lock = NSLock()
+
+        init(earliestStartDate: Date) {
+            self.earliestStartDate = earliestStartDate
+            let pair = AsyncStream<CloudKitSyncEventSummary>.makeStream()
+            stream = pair.stream
+            continuation = pair.continuation
+            observerToken = NotificationCenter.default.addObserver(
+                forName: CloudKitSyncService.eventChangedNotification,
+                object: nil,
+                queue: nil
+            ) { [weak self] notification in
+                self?.receive(notification)
+            }
+        }
+
+        func invalidate() {
+            lock.lock()
+            let token = observerToken
+            observerToken = nil
+            lock.unlock()
+            if let token {
+                NotificationCenter.default.removeObserver(token)
+            }
+            continuation.finish()
+        }
+
+        private func receive(_ notification: Notification) {
+            guard let summary = CloudKitSyncService.summary(from: notification),
+                  summary.kind == .export,
+                  let startedAt = summary.startedAt,
+                  startedAt >= earliestStartDate else { return }
+
+            log(
+                "EXPORT_EVENT id=\(summary.identifier.uuidString) " +
+                    "completed=\(summary.isCompleted) " +
+                    "succeeded=\(summary.succeeded) " +
+                    "error=\(summary.errorDescription ?? "none")"
+            )
+
+            lock.lock()
+            defer { lock.unlock() }
+            if summary.isCompleted {
+                guard startedEventIDs.remove(summary.identifier) != nil else { return }
+                continuation.yield(summary)
+            } else {
+                startedEventIDs.insert(summary.identifier)
+            }
+        }
+
+        deinit {
+            invalidate()
+        }
+    }
+
+    private static func terminateProcess(success: Bool) -> Never {
         fflush(stdout)
 #if canImport(Darwin)
         exit(success ? EXIT_SUCCESS : EXIT_FAILURE)
@@ -326,4 +627,9 @@ private extension CloudKitConvergenceProbe {
         fatalError("CloudKit probe requested process termination")
 #endif
     }
+}
+
+private enum ExportWaitOutcome: Sendable {
+    case completed(CloudKitSyncEventSummary)
+    case timedOut
 }

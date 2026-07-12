@@ -14,6 +14,8 @@ public enum CloudKitSyncEventKind: String, Sendable {
 public struct CloudKitSyncEventSummary: Equatable, Sendable {
     public let identifier: UUID
     public let kind: CloudKitSyncEventKind
+    public let startedAt: Date?
+    public let completedAt: Date?
     public let isCompleted: Bool
     public let succeeded: Bool
     public let errorDescription: String?
@@ -21,12 +23,16 @@ public struct CloudKitSyncEventSummary: Equatable, Sendable {
     public init(
         identifier: UUID = UUID(),
         kind: CloudKitSyncEventKind,
+        startedAt: Date? = nil,
+        completedAt: Date? = nil,
         isCompleted: Bool,
         succeeded: Bool,
         errorDescription: String? = nil
     ) {
         self.identifier = identifier
         self.kind = kind
+        self.startedAt = startedAt
+        self.completedAt = completedAt
         self.isCompleted = isCompleted
         self.succeeded = succeeded
         self.errorDescription = errorDescription
@@ -199,6 +205,8 @@ public enum CloudKitSyncService {
         return CloudKitSyncEventSummary(
             identifier: event.identifier,
             kind: kind(for: event.type),
+            startedAt: event.startDate,
+            completedAt: event.endDate,
             isCompleted: event.endDate != nil,
             succeeded: event.succeeded,
             errorDescription: event.error?.localizedDescription

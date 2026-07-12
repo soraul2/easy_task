@@ -17,8 +17,18 @@ struct EasyTaskiOSApp: App {
         WindowGroup {
             switch persistenceState {
             case .ready(let modelContainer):
-                MobileAppRootView()
-                    .modelContainer(modelContainer)
+                Group {
+#if DEBUG
+                    if Self.isCloudKitProbeRequested {
+                        Color.clear
+                    } else {
+                        MobileAppRootView()
+                    }
+#else
+                    MobileAppRootView()
+#endif
+                }
+                .modelContainer(modelContainer)
             case .failed(let details):
                 PersistenceRecoveryView(details: details) {
                     persistenceState = Self.makePersistenceState()
@@ -54,10 +64,14 @@ struct EasyTaskiOSApp: App {
     }
 
 #if DEBUG
-    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
-        guard CloudKitConvergenceProbe.configuration(
+    private static var isCloudKitProbeRequested: Bool {
+        CloudKitConvergenceProbe.isProbeInvocation(
             arguments: ProcessInfo.processInfo.arguments
-        ) != nil else { return }
+        )
+    }
+
+    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
+        guard isCloudKitProbeRequested else { return }
 
         Swift.Task { @MainActor in
             _ = await CloudKitConvergenceProbe.runIfRequested(
@@ -145,32 +159,42 @@ private struct MobileAppRootView: View {
     @State private var selectedBoardDayKey = DayKey.today
     @State private var isFollowingToday = true
     @State private var showingSyncStatus = false
+    @State private var showingThemePicker = false
     @State private var syncMonitor = CloudKitSyncMonitor()
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            MobileBoardView(selectedDate: $selectedBoardDate)
+            MobileBoardView(
+                selectedDate: $selectedBoardDate,
+                onShowTheme: { showingThemePicker = true }
+            )
                 .tabItem {
                     Image(systemName: MobileTab.board.symbol)
                         .accessibilityLabel(MobileTab.board.title)
                 }
                 .tag(MobileTab.board)
 
-            MobileCalendarView { date in
-                selectedBoardDate = date
-                selectedTab = .board
-            }
+            MobileCalendarView(
+                onOpenBoardDate: { date in
+                    selectedBoardDate = date
+                    selectedTab = .board
+                },
+                onShowTheme: { showingThemePicker = true }
+            )
             .tabItem {
                 Image(systemName: MobileTab.calendar.symbol)
                     .accessibilityLabel(MobileTab.calendar.title)
             }
             .tag(MobileTab.calendar)
 
-            MobileArchiveView { date in
-                selectedBoardDate = date
-                selectedTab = .board
-            }
+            MobileArchiveView(
+                onOpenBoardDate: { date in
+                    selectedBoardDate = date
+                    selectedTab = .board
+                },
+                onShowTheme: { showingThemePicker = true }
+            )
             .tabItem {
                 Image(systemName: MobileTab.archive.symbol)
                     .accessibilityLabel(MobileTab.archive.title)
@@ -179,6 +203,8 @@ private struct MobileAppRootView: View {
         }
         .tint(AppTheme.event)
         .background(AppTheme.background)
+        .toolbarBackground(AppTheme.floatingBar, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .environment(syncMonitor)
         .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
         .task {
@@ -240,6 +266,9 @@ private struct MobileAppRootView: View {
         }
         .sheet(isPresented: $showingSyncStatus) {
             MobileCloudKitSyncStatusSheet(monitor: syncMonitor)
+        }
+        .sheet(isPresented: $showingThemePicker) {
+            MobileThemePickerSheet(selectedThemeID: $selectedThemeID)
         }
     }
 
@@ -410,40 +439,29 @@ private struct MobileCloudKitSyncStatusSheet: View {
 struct MobileThemePickerSheet: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
+    @Binding var selectedThemeID: String
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 12)
+    ]
 
     var body: some View {
         NavigationStack {
-            List(AppThemePreset.all) { preset in
-                Button {
-                    AppTheme.activate(preset.id, colorScheme: colorScheme)
-                    selectedThemeID = preset.id
-                } label: {
-                    HStack(spacing: 12) {
-                        HStack(spacing: 0) {
-                            ForEach(Array(preset.sourceColors.prefix(4).enumerated()), id: \.offset) { _, color in
-                                color.frame(width: 28, height: 28)
-                            }
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                        Text(preset.name)
-                            .foregroundStyle(AppTheme.primaryText)
-
-                        Spacer()
-
-                        if selectedThemeID == preset.id {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(AppTheme.event)
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(AppThemePreset.all) { preset in
+                        MobileThemePresetCard(
+                            preset: preset,
+                            appearance: AppThemeAppearance(colorScheme: colorScheme),
+                            isSelected: selectedThemeID == preset.id
+                        ) {
+                            AppTheme.activate(preset.id, colorScheme: colorScheme)
+                            selectedThemeID = preset.id
                         }
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(preset.name) 테마")
-                .accessibilityValue(selectedThemeID == preset.id ? "선택됨" : "")
+                .padding(16)
             }
-            .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .navigationTitle("테마")
             .navigationBarTitleDisplayMode(.inline)
@@ -454,6 +472,75 @@ struct MobileThemePickerSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
+    }
+}
+
+private struct MobileThemePresetCard: View {
+    var preset: AppThemePreset
+    var appearance: AppThemeAppearance
+    var isSelected: Bool
+    var action: () -> Void
+
+    private var colors: AppThemeColorSet {
+        preset.colorSet(for: appearance)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 8) {
+                    Text(preset.name)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(colors.primaryText.color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? colors.event.color : colors.secondaryText.color)
+                }
+
+                HStack(spacing: 0) {
+                    ForEach(Array(preset.sourceColors.prefix(4).enumerated()), id: \.offset) { _, color in
+                        color.frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+
+                HStack(spacing: 6) {
+                    themeSample(color: colors.todo.color, symbol: "circle")
+                    themeSample(color: colors.doing.color, symbol: "arrow.right")
+                    themeSample(color: colors.done.color, symbol: "checkmark")
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+            .background(colors.panel.color, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        isSelected ? colors.event.color : colors.border.color,
+                        lineWidth: isSelected ? 2 : 1
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(preset.name) 테마")
+        .accessibilityValue(isSelected ? "선택됨" : "")
+    }
+
+    private func themeSample(color: Color, symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(colors.cardText.color)
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+            .background(color, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 #else

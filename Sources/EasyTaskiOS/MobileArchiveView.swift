@@ -7,6 +7,7 @@ import SwiftUI
 
 struct MobileArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
+    var onShowTheme: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var filter = ArchiveFilter()
@@ -97,7 +98,9 @@ struct MobileArchiveView: View {
             .searchable(text: $filter.searchText, prompt: "작업 제목, 메모, 회고 검색")
             .navigationTitle("기록")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    MobileThemeButton(action: onShowTheme)
+
                     Button { showingFilter = true } label: {
                         Image(systemName: hasActiveFilterOptions
                             ? "line.3.horizontal.decrease.circle.fill"
