@@ -10,6 +10,10 @@
 		A30000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */; };
 		A30000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */; };
 		A30000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */; };
+		A30000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift */; };
+		A30000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift */; };
+		A30000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */; };
+		A30000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */; };
 		A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */; };
 		A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */; };
 		A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */; };
@@ -32,6 +36,10 @@
 		A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileShared.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardComponents.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCarryoverSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
@@ -84,6 +92,10 @@
 				A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */,
 				A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */,
 				A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */,
+				A20000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift */,
+				A20000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift */,
+				A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */,
+				A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */,
 				A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */,
 				A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */,
 				A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */,
@@ -252,6 +264,10 @@
 				A30000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift in Sources */,
 				A30000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift in Sources */,
 				A30000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift in Sources */,
+				A30000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift in Sources */,
+				A30000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift in Sources */,
+				A30000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift in Sources */,
+				A30000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift in Sources */,
 				A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */,
 				A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */,
 				A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */,
