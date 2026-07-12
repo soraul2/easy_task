@@ -223,7 +223,8 @@ public enum BackupPackageError: LocalizedError, Equatable {
 
 public enum BackupPackageCodec {
     public static let formatIdentifier = "com.soraul2.easytask.backup"
-    public static let currentVersion = 2
+    public static let currentVersion = 3
+    public static let supportedVersions: ClosedRange<Int> = 2...3
     public static let manifestFileName = "manifest.json"
     public static let recordsFileName = "records.json"
     public static let attachmentsDirectoryName = "attachments"
@@ -255,7 +256,7 @@ public enum BackupPackageCodec {
             throw BackupPackageError.unresolvedLegacyAttachments(unresolvedLegacyCount)
         }
 
-        // Package V2 stores images as first-class attachment records, not legacy paths.
+        // Package V2+ stores images as first-class attachment records, not legacy paths.
         if var reviews = payload.dailyReviews {
             for index in reviews.indices {
                 reviews[index].imageFileNames = []
@@ -410,7 +411,7 @@ public enum BackupPackageCodec {
         guard manifest.formatIdentifier == formatIdentifier else {
             throw BackupPackageError.invalidFormatIdentifier(manifest.formatIdentifier)
         }
-        guard manifest.formatVersion == currentVersion else {
+        guard supportedVersions.contains(manifest.formatVersion) else {
             throw BackupPackageError.unsupportedVersion(manifest.formatVersion)
         }
         guard manifest.recordsFileName == recordsFileName,
@@ -521,11 +522,17 @@ public enum BackupPackageCodec {
         guard contents.manifest.formatIdentifier == formatIdentifier else {
             throw BackupPackageError.invalidFormatIdentifier(contents.manifest.formatIdentifier)
         }
-        guard contents.manifest.formatVersion == currentVersion else {
+        guard supportedVersions.contains(contents.manifest.formatVersion) else {
             throw BackupPackageError.unsupportedVersion(contents.manifest.formatVersion)
         }
-        guard contents.records.formatVersion == currentVersion else {
+        guard supportedVersions.contains(contents.records.formatVersion) else {
             throw BackupPackageError.unsupportedVersion(contents.records.formatVersion)
+        }
+        guard contents.records.formatVersion == contents.manifest.formatVersion else {
+            throw BackupPackageError.invalidRecordMetadata(
+                recordType: "Manifest",
+                id: zeroUUID
+            )
         }
         guard contents.manifest.recordsFileName == recordsFileName,
               contents.manifest.attachmentsDirectoryName == attachmentsDirectoryName else {

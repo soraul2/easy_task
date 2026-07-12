@@ -38,8 +38,26 @@ func schemaV2ContainsEveryFrozenPersistedModel() {
 }
 
 @Test
-func schemaV3ContainsEveryCurrentPersistedModel() {
+func schemaV3ContainsEveryFrozenPersistedModel() {
     let modelNames = Set(EasyTaskSchemaV3.models.map { String(reflecting: $0) })
+    let expectedNames = Set([
+        String(reflecting: EasyTaskSchemaV3.Task.self),
+        String(reflecting: EasyTaskSchemaV3.CalendarEvent.self),
+        String(reflecting: EasyTaskSchemaV3.TaskTemplate.self),
+        String(reflecting: EasyTaskSchemaV3.TaskTemplateItem.self),
+        String(reflecting: EasyTaskSchemaV3.TemplatePlacement.self),
+        String(reflecting: EasyTaskSchemaV3.DailyReview.self),
+        String(reflecting: EasyTaskSchemaV3.DiaryBlock.self),
+        String(reflecting: EasyTaskSchemaV3.DiaryAttachment.self)
+    ])
+
+    #expect(EasyTaskSchemaV3.versionIdentifier == Schema.Version(3, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV4ContainsEveryCurrentPersistedModel() {
+    let modelNames = Set(EasyTaskSchemaV4.models.map { String(reflecting: $0) })
     let expectedNames = Set([
         String(reflecting: Task.self),
         String(reflecting: CalendarEvent.self),
@@ -51,7 +69,7 @@ func schemaV3ContainsEveryCurrentPersistedModel() {
         String(reflecting: DiaryAttachment.self)
     ])
 
-    #expect(EasyTaskSchemaV3.versionIdentifier == Schema.Version(3, 0, 0))
+    #expect(EasyTaskSchemaV4.versionIdentifier == Schema.Version(4, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -172,6 +190,40 @@ func versionedV2StoreMigratesToV3WithoutDataLoss() throws {
 
 @Test
 @MainActor
+func versionedV3StoreMigratesToV4WithStableIdentityAndNoReminder() throws {
+    try withTemporaryStore { storeURL in
+        let schema = Schema(versionedSchema: EasyTaskSchemaV3.self)
+        let configuration = ModelConfiguration(
+            "EasyTaskV3",
+            schema: schema,
+            url: storeURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let container = try ModelContainer(for: schema, configurations: configuration)
+        let id = UUID()
+        let instanceID = UUID()
+        let day = try #require(DayKey.date(from: "2026-07-12"))
+        container.mainContext.insert(EasyTaskSchemaV3.Task(
+            id: id,
+            instanceID: instanceID,
+            title: "V3 알림 이관",
+            plannedAt: day,
+            order: 100
+        ))
+        try container.mainContext.save()
+
+        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let task = try #require(migrated.mainContext.fetch(FetchDescriptor<Task>()).first)
+        #expect(task.id == id)
+        #expect(task.instanceID == instanceID)
+        #expect(task.title == "V3 알림 이관")
+        #expect(task.reminderAt == nil)
+    }
+}
+
+@Test
+@MainActor
 func existingUnversionedStoreOpensWithSchemaV1WithoutDataLoss() throws {
     try withTemporaryStore { storeURL in
         try writeUnversionedV1Fixture(to: storeURL, title: "legacy fixture")
@@ -272,8 +324,9 @@ func pendingBridgeWithoutOriginalBackupDoesNotRemoveCurrentStore() throws {
 @MainActor
 func appFactoryOpensPreviousDefaultV3ConfigurationWithoutBackup() throws {
     try withTemporaryStore { storeURL in
-        let schema = EasyTaskContainerFactory.schema
+        let schema = Schema(versionedSchema: EasyTaskSchemaV3.self)
         let previousConfiguration = ModelConfiguration(
+            "EasyTaskV3",
             schema: schema,
             url: storeURL,
             allowsSave: true,
@@ -281,16 +334,23 @@ func appFactoryOpensPreviousDefaultV3ConfigurationWithoutBackup() throws {
         )
         let previousContainer = try ModelContainer(
             for: schema,
-            migrationPlan: EasyTaskMigrationPlan.self,
             configurations: previousConfiguration
         )
-        try writeFixture(to: previousContainer, title: "previous default V3 fixture")
+        let day = try #require(DayKey.date(from: "2026-07-12"))
+        previousContainer.mainContext.insert(EasyTaskSchemaV3.Task(
+            title: "previous default V3 fixture",
+            plannedAt: day,
+            order: 100
+        ))
+        try previousContainer.mainContext.save()
 
         let reopened = try EasyTaskContainerFactory.makeAppPersistent(
             storeURL: storeURL,
             mode: .local
         )
-        try expectFixture(in: reopened, title: "previous default V3 fixture")
+        let task = try #require(reopened.mainContext.fetch(FetchDescriptor<Task>()).first)
+        #expect(task.title == "previous default V3 fixture")
+        #expect(task.reminderAt == nil)
 
         let backupRootURL = storeURL.deletingLastPathComponent().appendingPathComponent(
             LegacyStoreMigrationService.backupRootDirectoryName,

@@ -26,6 +26,7 @@ public struct TaskDTO: Codable {
     public var priority: String?
     public var tags: [String]
     public var estimatedMinutes: Int?
+    public var reminderAt: Date? = nil
     public var createdAt: Date
     public var updatedAt: Date
     public var completedAt: Date?
@@ -421,6 +422,7 @@ private extension BackupCodec {
             }
             try validatePriority(task.priority, field: "\(field).priority")
             try validateEstimatedMinutes(task.estimatedMinutes, field: "\(field).estimatedMinutes")
+            try validateOptionalDate(task.reminderAt, field: "\(field).reminderAt")
             try validateFinite(task.order, field: "\(field).order")
             try validateDayKey(task.plannedDayKey, field: "\(field).plannedDayKey")
             if let completedDayKey = task.completedDayKey {
@@ -530,6 +532,13 @@ private extension BackupCodec {
             throw BackupServiceError.invalidValue(field: field, value: String(value))
         }
     }
+
+    static func validateOptionalDate(_ value: Date?, field: String) throws {
+        guard let value else { return }
+        guard value.timeIntervalSinceReferenceDate.isFinite else {
+            throw BackupServiceError.invalidValue(field: field, value: String(describing: value))
+        }
+    }
 }
 
 private extension TaskDTO {
@@ -546,6 +555,7 @@ private extension TaskDTO {
         priority = task.priority
         tags = task.tags
         estimatedMinutes = task.estimatedMinutes
+        reminderAt = task.reminderAt
         createdAt = task.createdAt
         updatedAt = task.updatedAt
         completedAt = task.completedAt
@@ -725,6 +735,7 @@ private extension Task {
             priority: dto.priority.flatMap(TaskPriority.init(rawValue:)),
             tags: dto.tags,
             estimatedMinutes: dto.estimatedMinutes,
+            reminderAt: TaskReminderRules.normalizedDate(dto.reminderAt),
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

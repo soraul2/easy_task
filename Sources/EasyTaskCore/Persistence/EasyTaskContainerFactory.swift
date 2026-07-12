@@ -15,7 +15,7 @@ public enum EasyTaskContainerFactory {
     public static let appStoreMode = EasyTaskStoreMode.cloudKit
 
     public static var schema: Schema {
-        Schema(versionedSchema: EasyTaskSchemaV3.self)
+        Schema(versionedSchema: EasyTaskSchemaV4.self)
     }
 
     @MainActor
@@ -47,7 +47,7 @@ public enum EasyTaskContainerFactory {
             return container
         } catch {
             // Keep the backup and pending marker. The next launch discards only the
-            // incomplete V3 store and retries from the immutable legacy payload.
+            // incomplete current store and retries from the immutable legacy payload.
             print("EasyTask legacy store migration pending retry: \(error)")
             throw error
         }

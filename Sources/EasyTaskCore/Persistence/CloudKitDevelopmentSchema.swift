@@ -32,7 +32,7 @@ public extension EasyTaskContainerFactory {
             storeDescription.shouldAddStoreAsynchronously = false
 
             guard let managedObjectModel = NSManagedObjectModel.makeManagedObjectModel(
-                for: EasyTaskSchemaV3.models
+                for: EasyTaskSchemaV4.models
             ) else {
                 throw CloudKitDevelopmentSchemaError.unavailableManagedObjectModel
             }

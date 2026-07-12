@@ -24,7 +24,7 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
     try BackupPackageCodec.write(contents, to: packageURL)
     let decoded = try BackupPackageCodec.read(from: packageURL)
 
-    #expect(decoded.manifest.formatVersion == 2)
+    #expect(decoded.manifest.formatVersion == BackupPackageCodec.currentVersion)
     #expect(decoded.records.payload.dailyReviews?.first?.id == review.id)
     #expect(decoded.records.payload.dailyReviews?.first?.imageFileNames == [])
     #expect(decoded.records.attachments.count == 1)
@@ -32,6 +32,54 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
     #expect(FileManager.default.fileExists(
         atPath: packageURL.appendingPathComponent("manifest.json").path
     ))
+}
+
+@Test
+@MainActor
+func backupPackageReadsV2AndWritesV3() throws {
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    var legacyContents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    legacyContents.manifest.formatVersion = 2
+    legacyContents.records.formatVersion = 2
+    refreshRecordsMetadata(&legacyContents)
+
+    try BackupPackageCodec.validate(legacyContents)
+    let current = try BackupPackageCodec.makeContents(context: source.mainContext)
+    #expect(current.manifest.formatVersion == 3)
+    #expect(current.records.formatVersion == 3)
+}
+
+@Test
+@MainActor
+func backupPackageRoundTripsTaskReminderAndRejectsIdentityMismatch() throws {
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let reminderAt = Date(timeIntervalSinceReferenceDate: 120_000)
+    let task = Task(
+        title: "백업 알림",
+        plannedAt: day,
+        order: 100,
+        reminderAt: reminderAt
+    )
+    source.mainContext.insert(task)
+    try source.mainContext.save()
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    #expect(contents.records.payload.tasks.first?.reminderAt == reminderAt)
+
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    let restored = try #require(destination.mainContext.fetch(FetchDescriptor<Task>()).first)
+    #expect(restored.reminderAt == reminderAt)
+
+    var tampered = contents
+    tampered.records.payload.tasks[0].reminderAt = reminderAt.addingTimeInterval(60)
+    refreshRecordsMetadata(&tampered)
+    #expect(throws: BackupPackageError.identityCorruption(
+        recordType: "Task",
+        instanceID: task.instanceID
+    )) {
+        try BackupPackageCodec.restoreMerging(tampered, into: destination.mainContext)
+    }
 }
 
 @Test

@@ -481,6 +481,7 @@ private extension BackupPackageCodec {
                     priority: dto.priority.flatMap(TaskPriority.init(rawValue:)),
                     tags: dto.tags,
                     estimatedMinutes: dto.estimatedMinutes,
+                    reminderAt: TaskReminderRules.normalizedDate(dto.reminderAt),
                     createdAt: dto.createdAt,
                     updatedAt: dto.updatedAt
                 )
@@ -505,6 +506,7 @@ private extension BackupPackageCodec {
         task.priority = dto.priority
         task.tags = dto.tags
         task.estimatedMinutes = dto.estimatedMinutes
+        task.reminderAt = TaskReminderRules.normalizedDate(dto.reminderAt)
         task.updatedAt = dto.updatedAt
         task.completedAt = dto.completedAt
         task.completedDayKey = dto.completedDayKey
@@ -806,6 +808,7 @@ private extension BackupPackageCodec {
             task.priority == dto.priority &&
             task.tags == dto.tags &&
             task.estimatedMinutes == dto.estimatedMinutes &&
+            task.reminderAt == TaskReminderRules.normalizedDate(dto.reminderAt) &&
             task.completedAt == dto.completedAt &&
             task.completedDayKey == dto.completedDayKey &&
             task.archivedAt == dto.archivedAt &&

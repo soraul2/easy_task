@@ -133,6 +133,21 @@ public enum BoundedQueryService {
         return descriptor
     }
 
+    public static func activeReminderTasksDescriptor() -> FetchDescriptor<Task> {
+        let doneStatus = TaskStatus.done.rawValue
+        return FetchDescriptor(
+            predicate: #Predicate<Task> { task in
+                task.supersededAt == nil &&
+                    task.status != doneStatus &&
+                    task.reminderAt != nil
+            },
+            sortBy: [
+                SortDescriptor(\Task.reminderAt),
+                SortDescriptor(\Task.id)
+            ]
+        )
+    }
+
     public static func dailyReviewsDescriptor(
         dayKey: String
     ) -> FetchDescriptor<DailyReview> {
