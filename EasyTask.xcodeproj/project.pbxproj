@@ -21,7 +21,10 @@
 		A30000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */; };
 		A30000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */; };
 		A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */; };
+		A30000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift */; };
+		A30000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift */; };
 		A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */; };
+		A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */; };
 		A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */; };
 		B10000000000000000000003 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* EasyTaskCore */; };
 		B10000000000000000000004 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* EasyTaskCore */; };
@@ -52,7 +55,10 @@
 		A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplateComponents.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveRecordCard.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerComponents.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
@@ -113,7 +119,10 @@
 				A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */,
 				A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */,
 				A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */,
+				A20000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift */,
+				A20000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift */,
 				A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */,
+				A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */,
 				A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */,
 				D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */,
 				D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */,
@@ -290,7 +299,10 @@
 				A30000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift in Sources */,
 				A30000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift in Sources */,
 				A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */,
+				A30000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift in Sources */,
+				A30000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift in Sources */,
 				A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */,
+				A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */,
 				A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
