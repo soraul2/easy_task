@@ -36,7 +36,7 @@ var reminderAt: Date?
 
 - SwiftData 버전 스키마와 마이그레이션
 - 데이터 무결성 및 충돌 비교
-- JSON V1/패키지 V2 백업 DTO와 병합
+- JSON V1/패키지 V3 백업 DTO와 병합(V2 읽기 호환)
 - iPhone 작업 상세 UI
 - iOS 로컬 알림 권한, 예약, 취소, 탭 처리
 - 앱 시작, 저장 성공, CloudKit import 이후 예약 목록 재조정
@@ -68,8 +68,9 @@ var reminderAt: Date?
 - `TaskDTO`에 optional `reminderAt`을 추가한다.
 - 내보내기, 가져오기, 병합 적용, 동일성 비교에 필드를 포함한다.
 - 기존 백업에 필드가 없어도 `nil`로 읽히게 유지한다.
-- additive optional 변경이므로 JSON V1과 패키지 V2 버전은 올리지 않는다.
-- 신규 백업을 이전 앱이 읽을 때 알 수 없는 필드를 무시하는지 회귀 테스트한다.
+- JSON V1은 additive optional 필드로 기존 버전을 유지한다.
+- 패키지는 canonical records 체크섬 호환성을 명확히 하기 위해 V3로 쓰고 V2도 계속 읽는다.
+- V3 패키지는 알림 필드를 모르는 이전 앱에서 지원하지 않는 버전으로 명확히 거부된다.
 
 ### CloudKit
 
