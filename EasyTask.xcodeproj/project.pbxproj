@@ -15,6 +15,11 @@
 		A30000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */; };
 		A30000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */; };
 		A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */; };
+		A30000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift */; };
+		A30000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift */; };
+		A30000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift */; };
+		A30000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */; };
+		A30000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */; };
 		A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */; };
 		A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */; };
 		A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */; };
@@ -41,6 +46,11 @@
 		A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCarryoverSheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileEventEditorSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarDaySheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplateComponents.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
@@ -97,6 +107,11 @@
 				A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */,
 				A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */,
 				A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */,
+				A20000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift */,
+				A20000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift */,
+				A20000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift */,
+				A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */,
+				A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */,
 				A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */,
 				A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */,
 				A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */,
@@ -269,6 +284,11 @@
 				A30000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift in Sources */,
 				A30000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift in Sources */,
 				A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */,
+				A30000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift in Sources */,
+				A30000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift in Sources */,
+				A30000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift in Sources */,
+				A30000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift in Sources */,
+				A30000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift in Sources */,
 				A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */,
 				A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */,
 				A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */,
