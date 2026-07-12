@@ -145,3 +145,5 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
 개발 컨테이너 발급과 검증 절차는 [`CLOUDKIT_SYNC.md`](CLOUDKIT_SYNC.md)를 따른다.
+Task 1회성 알림의 V4 스키마, iOS 예약 수명주기와 검증 순서는
+[`TASK_REMINDER_PLAN.md`](TASK_REMINDER_PLAN.md)를 따른다.

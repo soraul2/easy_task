@@ -16,8 +16,18 @@ struct TodoDesktopMVPApp: App {
             Group {
                 switch persistenceState {
                 case .ready(let modelContainer):
-                    AppRootView()
-                        .modelContainer(modelContainer)
+                    Group {
+#if DEBUG
+                        if Self.isCloudKitProbeRequested {
+                            Color.clear
+                        } else {
+                            AppRootView()
+                        }
+#else
+                        AppRootView()
+#endif
+                    }
+                    .modelContainer(modelContainer)
                 case .failed(let details):
                     ContentUnavailableView {
                         Label(
@@ -62,10 +72,14 @@ struct TodoDesktopMVPApp: App {
     }
 
 #if DEBUG
-    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
-        guard CloudKitConvergenceProbe.configuration(
+    private static var isCloudKitProbeRequested: Bool {
+        CloudKitConvergenceProbe.isProbeInvocation(
             arguments: ProcessInfo.processInfo.arguments
-        ) != nil else { return }
+        )
+    }
+
+    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
+        guard isCloudKitProbeRequested else { return }
 
         Swift.Task { @MainActor in
             _ = await CloudKitConvergenceProbe.runIfRequested(

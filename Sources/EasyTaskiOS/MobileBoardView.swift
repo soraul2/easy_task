@@ -8,7 +8,6 @@ private enum MobileBoardSheet: Identifiable {
     case carryover
     case templates
     case review
-    case theme
 
     var id: String {
         switch self {
@@ -16,13 +15,13 @@ private enum MobileBoardSheet: Identifiable {
         case .carryover: "carryover"
         case .templates: "templates"
         case .review: "review"
-        case .theme: "theme"
         }
     }
 }
 
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
+    var onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Query private var selectedDayTaskRows: [TodoTask]
     @Query private var carryoverTaskRows: [TodoTask]
@@ -39,8 +38,12 @@ struct MobileBoardView: View {
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var isTodayBoard: Bool { selectedDayKey == DayKey.today }
 
-    init(selectedDate: Binding<Date>) {
+    init(
+        selectedDate: Binding<Date>,
+        onShowTheme: @escaping () -> Void = {}
+    ) {
         _selectedDate = selectedDate
+        self.onShowTheme = onShowTheme
 
         let dayKey = DayKey.key(for: selectedDate.wrappedValue)
         _selectedDayTaskRows = Query(
@@ -118,6 +121,8 @@ struct MobileBoardView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     MobileCloudKitSyncStatusButton()
 
+                    MobileThemeButton(action: onShowTheme)
+
                     Menu {
                         Button { presentedSheet = .carryover } label: {
                             Label("이월함", systemImage: "tray")
@@ -127,9 +132,6 @@ struct MobileBoardView: View {
                         }
                         Button { presentedSheet = .review } label: {
                             Label("회고 작성", systemImage: "book.closed")
-                        }
-                        Button { presentedSheet = .theme } label: {
-                            Label("테마", systemImage: "paintpalette")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -157,8 +159,6 @@ struct MobileBoardView: View {
                     )
                 case .review:
                     MobileReviewComposerSheet(selectedDate: selectedDate)
-                case .theme:
-                    MobileThemePickerSheet()
                 }
             }
         }

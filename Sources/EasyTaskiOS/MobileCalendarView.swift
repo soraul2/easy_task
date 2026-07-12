@@ -56,6 +56,7 @@ private struct MobileCalendarMonthQueryHost<Content: View>: View {
 
 struct MobileCalendarView: View {
     var onOpenBoardDate: (Date) -> Void
+    var onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
@@ -95,6 +96,7 @@ struct MobileCalendarView: View {
                     visibleMonth: $visibleMonth,
                     selectedDate: $selectedDate,
                     showsActions: placementTemplate == nil,
+                    onShowTheme: onShowTheme,
                     onShowTemplates: { sheet = .templates },
                     onAddEvent: { sheet = .addEvent(selectedDate) }
                 )
@@ -448,6 +450,7 @@ private struct CalendarHeader: View {
     @Binding var visibleMonth: Date
     @Binding var selectedDate: Date
     var showsActions: Bool
+    var onShowTheme: () -> Void
     var onShowTemplates: () -> Void
     var onAddEvent: () -> Void
 
@@ -475,7 +478,9 @@ private struct CalendarHeader: View {
             Spacer(minLength: 0)
 
             if showsActions {
-                HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    MobileThemeButton(action: onShowTheme)
+
                     Button {
                         onShowTemplates()
                     } label: {

@@ -14,6 +14,20 @@ enum MobileLayout {
     static let bottomTabClearance: CGFloat = 96
 }
 
+struct MobileThemeButton: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "paintpalette")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("테마 선택")
+    }
+}
+
 struct MobileImageThumbnailRequest: Sendable {
     let data: Data
     let attachmentHash: String?

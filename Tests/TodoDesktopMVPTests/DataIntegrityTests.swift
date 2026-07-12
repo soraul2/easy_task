@@ -465,6 +465,133 @@ func duplicateLogicalIDsMergeForEveryPersistedModel() throws {
 
 @Test
 @MainActor
+func duplicateReviewsWithMatchingLogicalAndInstanceIDsDoNotCrashReconciliation() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let logicalID = testUUID(7_500)
+    let instanceID = testUUID(7_501)
+    let older = DailyReview(
+        id: logicalID,
+        instanceID: instanceID,
+        dayKey: "2026-07-10",
+        content: "Older physical record",
+        createdAt: testTimestamp(10),
+        updatedAt: testTimestamp(10)
+    )
+    let newer = DailyReview(
+        id: logicalID,
+        instanceID: instanceID,
+        dayKey: "2026-07-10",
+        content: "Newer physical record",
+        createdAt: testTimestamp(20),
+        updatedAt: testTimestamp(20)
+    )
+    let block = DiaryBlock(
+        reviewId: logicalID,
+        dayKey: "2026-07-10",
+        type: .text,
+        text: "Retained block",
+        order: 100
+    )
+    context.insert(older)
+    context.insert(newer)
+    context.insert(block)
+    try context.save()
+
+    let report = try DataIntegrityService.reconcile(context: context)
+
+    #expect(report.mergedRecords == 1)
+    #expect([older, newer].filter { $0.supersededAt == nil }.count == 1)
+    #expect(newer.supersededAt == nil)
+    #expect(older.supersededAt == newer.updatedAt)
+    #expect(block.reviewId == logicalID)
+}
+
+@Test
+@MainActor
+func scopedCalendarEventReconciliationUsesUpdatedAtAndLeavesOtherIDsUntouched() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-10"))
+    let targetID = testUUID(8_000)
+    let olderWithHigherInstanceID = CalendarEvent(
+        id: targetID,
+        instanceID: testUUID(899),
+        title: "Older",
+        startAt: day,
+        endAt: day,
+        createdAt: testTimestamp(10),
+        updatedAt: testTimestamp(10)
+    )
+    let newerWithLowerInstanceID = CalendarEvent(
+        id: targetID,
+        instanceID: testUUID(801),
+        title: "Newer",
+        startAt: day,
+        endAt: day,
+        createdAt: testTimestamp(20),
+        updatedAt: testTimestamp(20)
+    )
+    let unrelatedID = testUUID(9_000)
+    let unrelatedA = CalendarEvent(
+        id: unrelatedID,
+        instanceID: testUUID(901),
+        title: "Unrelated A",
+        startAt: day,
+        endAt: day
+    )
+    let unrelatedB = CalendarEvent(
+        id: unrelatedID,
+        instanceID: testUUID(902),
+        title: "Unrelated B",
+        startAt: day,
+        endAt: day
+    )
+    for event in [
+        olderWithHigherInstanceID,
+        newerWithLowerInstanceID,
+        unrelatedA,
+        unrelatedB
+    ] {
+        context.insert(event)
+    }
+    try context.save()
+
+    let report = try DataIntegrityService.reconcileCalendarEvents(
+        logicalID: targetID,
+        context: context
+    )
+
+    #expect(report.mergedRecords == 1)
+    #expect(newerWithLowerInstanceID.supersededAt == nil)
+    #expect(newerWithLowerInstanceID.createdAt == testTimestamp(10))
+    #expect(olderWithHigherInstanceID.supersededAt == testTimestamp(20))
+    #expect(unrelatedA.supersededAt == nil)
+    #expect(unrelatedB.supersededAt == nil)
+}
+
+@Test
+@MainActor
+func distinctLogicalTasksOnSameDayRemainActive() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-10"))
+    let first = Task(id: testUUID(10_001), title: "First", plannedAt: day, order: 100)
+    let second = Task(id: testUUID(10_002), title: "Second", plannedAt: day, order: 200)
+    context.insert(first)
+    context.insert(second)
+    try context.save()
+
+    _ = try DataIntegrityService.reconcile(context: context)
+
+    let active = try context.fetch(FetchDescriptor<Task>())
+        .filter { $0.supersededAt == nil }
+    #expect(active.count == 2)
+    #expect(Set(active.map(\.id)) == Set([first.id, second.id]))
+}
+
+@Test
+@MainActor
 func secondReconciliationIsIdempotent() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
