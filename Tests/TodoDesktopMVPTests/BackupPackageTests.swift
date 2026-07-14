@@ -36,7 +36,7 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
 
 @Test
 @MainActor
-func backupPackageReadsV2AndWritesV3() throws {
+func backupPackageReadsV2AndWritesV4() throws {
     let source = try EasyTaskContainerFactory.makeInMemory()
     var legacyContents = try BackupPackageCodec.makeContents(context: source.mainContext)
     legacyContents.manifest.formatVersion = 2
@@ -45,8 +45,8 @@ func backupPackageReadsV2AndWritesV3() throws {
 
     try BackupPackageCodec.validate(legacyContents)
     let current = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(current.manifest.formatVersion == 3)
-    #expect(current.records.formatVersion == 3)
+    #expect(current.manifest.formatVersion == 4)
+    #expect(current.records.formatVersion == 4)
 }
 
 @Test

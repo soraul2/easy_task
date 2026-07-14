@@ -47,6 +47,11 @@ public extension BackupPackageCodec {
                 context: context,
                 report: &report
             )
+            try mergeChecklistItems(
+                payload.taskChecklistItems ?? [],
+                context: context,
+                report: &report
+            )
             try mergeReviews(
                 payload.dailyReviews ?? [],
                 context: context,
@@ -101,6 +106,11 @@ extension BackupPackageCodec {
                 context: context,
                 report: &report
             )
+            try mergeChecklistItems(
+                payload.taskChecklistItems ?? [],
+                context: context,
+                report: &report
+            )
             try mergeReviews(payload.dailyReviews ?? [], context: context, report: &report)
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
             try mergeAttachments(contents, context: context, report: &report)
@@ -133,6 +143,15 @@ private extension BackupPackageCodec {
                 type: "Task",
                 id: payload.tasks[index].id
             )
+        }
+        if var checklistItems = payload.taskChecklistItems {
+            for index in checklistItems.indices where checklistItems[index].instanceID == nil {
+                checklistItems[index].instanceID = legacyInstanceID(
+                    type: "TaskChecklistItem",
+                    id: checklistItems[index].id
+                )
+            }
+            payload.taskChecklistItems = checklistItems
         }
         for index in payload.calendarEvents.indices
         where payload.calendarEvents[index].instanceID == nil {
@@ -359,6 +378,9 @@ private extension BackupPackageCodec {
                 current.priority = dto.priority
                 current.tags = dto.tags
                 current.estimatedMinutes = dto.estimatedMinutes
+                if let checklistTitles = dto.checklistTitles {
+                    current.checklistTitles = checklistTitles
+                }
                 current.order = dto.order
                 if let createdAt = dto.createdAt {
                     current.createdAt = min(current.createdAt, createdAt)
@@ -377,6 +399,7 @@ private extension BackupPackageCodec {
                     priority: dto.priority,
                     tags: dto.tags,
                     estimatedMinutes: dto.estimatedMinutes,
+                    checklistTitles: dto.checklistTitles ?? [],
                     order: dto.order,
                     createdAt: dto.createdAt ?? Date(),
                     updatedAt: dto.updatedAt ?? dto.createdAt ?? Date()
@@ -534,6 +557,73 @@ private extension BackupPackageCodec {
         task.completedDayKey = dto.completedDayKey
         task.archivedAt = dto.archivedAt
         task.archivedDayKey = dto.archivedDayKey
+    }
+
+    @MainActor
+    static func mergeChecklistItems(
+        _ incoming: [TaskChecklistItemDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<TaskChecklistItem>()),
+            recordType: "TaskChecklistItem",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            guard let instanceID = dto.instanceID else {
+                throw BackupPackageError.invalidRecordMetadata(
+                    recordType: "TaskChecklistItem",
+                    id: dto.id
+                )
+            }
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "TaskChecklistItem",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard try sameChecklistItem(dto, current, context: context) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "TaskChecklistItem",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.taskId = try canonicalTaskID(for: dto.taskId, context: context) ?? dto.taskId
+                current.title = dto.title
+                current.isCompleted = dto.isCompleted
+                current.order = dto.order
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.completedAt = dto.isCompleted ? (dto.completedAt ?? dto.updatedAt) : nil
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let item = TaskChecklistItem(
+                    id: dto.id,
+                    instanceID: instanceID,
+                    taskId: try canonicalTaskID(for: dto.taskId, context: context) ?? dto.taskId,
+                    title: dto.title,
+                    isCompleted: dto.isCompleted,
+                    order: dto.order,
+                    createdAt: dto.createdAt,
+                    updatedAt: dto.updatedAt,
+                    completedAt: dto.isCompleted ? (dto.completedAt ?? dto.updatedAt) : nil
+                )
+                context.insert(item)
+                existing[instanceID] = item
+                report.insertedRecords += 1
+            }
+        }
     }
 
     @MainActor
@@ -790,7 +880,24 @@ private extension BackupPackageCodec {
             item.priority == dto.priority &&
             item.tags == dto.tags &&
             item.estimatedMinutes == dto.estimatedMinutes &&
+            (dto.checklistTitles == nil || item.checklistTitles == dto.checklistTitles) &&
             item.order == dto.order
+    }
+
+    @MainActor
+    static func sameChecklistItem(
+        _ dto: TaskChecklistItemDTO,
+        _ item: TaskChecklistItem,
+        context: ModelContext
+    ) throws -> Bool {
+        let expectedTaskID = item.supersededAt == nil
+            ? try canonicalTaskID(for: dto.taskId, context: context)
+            : dto.taskId
+        return item.taskId == expectedTaskID &&
+            item.title == dto.title &&
+            item.isCompleted == dto.isCompleted &&
+            item.order == dto.order &&
+            item.completedAt == (dto.isCompleted ? (dto.completedAt ?? dto.updatedAt) : nil)
     }
 
     @MainActor
@@ -938,6 +1045,16 @@ private extension BackupPackageCodec {
         }
         return templates.first {
             $0.supersededAt == nil && normalizedNaturalKey($0.seedKey) == seedKey
+        }?.id
+    }
+
+    @MainActor
+    static func canonicalTaskID(
+        for sourceID: UUID,
+        context: ModelContext
+    ) throws -> UUID? {
+        try context.fetch(FetchDescriptor<Task>()).first {
+            $0.id == sourceID && $0.supersededAt == nil
         }?.id
     }
 

@@ -134,6 +134,7 @@ public enum TaskRules {
         _ task: Task,
         from context: ModelContext
     ) throws {
+        try TaskChecklistService.deleteItems(for: task.id, in: context)
         context.delete(task)
     }
 }

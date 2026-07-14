@@ -41,6 +41,7 @@ public enum DataIntegrityService {
         let templateItems = try context.fetch(FetchDescriptor<TaskTemplateItem>())
         let placements = try context.fetch(FetchDescriptor<TemplatePlacement>())
         let tasks = try context.fetch(FetchDescriptor<Task>())
+        let checklistItems = try context.fetch(FetchDescriptor<TaskChecklistItem>())
         let reviews = try context.fetch(FetchDescriptor<DailyReview>())
         let diaryBlocks = try context.fetch(FetchDescriptor<DiaryBlock>())
         let diaryAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
@@ -73,6 +74,11 @@ public enum DataIntegrityService {
             report: &report
         )
         _ = mergeActive(
+            checklistItems,
+            groupedBy: { $0.id },
+            report: &report
+        )
+        _ = mergeActive(
             reviews,
             groupedBy: { $0.id },
             report: &report,
@@ -94,6 +100,7 @@ public enum DataIntegrityService {
         normalizeActive(templateItems, with: normalizeTemplateItem, report: &report)
         normalizeActive(placements, with: normalizePlacement, report: &report)
         normalizeActive(tasks, with: normalizeTask, report: &report)
+        normalizeActive(checklistItems, with: normalizeChecklistItem, report: &report)
         normalizeActive(reviews, with: normalizeReview, report: &report)
         normalizeActive(diaryBlocks, with: normalizeDiaryBlock, report: &report)
         normalizeActive(diaryAttachments, with: normalizeDiaryAttachment, report: &report)
@@ -148,6 +155,11 @@ public enum DataIntegrityService {
             events: events,
             placements: placements,
             tasks: tasks,
+            report: &report
+        )
+        reconcileChecklistReferences(
+            tasks: tasks,
+            items: checklistItems,
             report: &report
         )
 
@@ -439,6 +451,41 @@ private extension DataIntegrityService {
             }
         }
     }
+
+    @MainActor
+    static func reconcileChecklistReferences(
+        tasks: [Task],
+        items: [TaskChecklistItem],
+        report: inout Report
+    ) {
+        let activeTaskIDs = Set(tasks.lazy.filter(isActive).map(\.id))
+
+        for item in items where isActive(item) {
+            guard activeTaskIDs.contains(item.taskId), !isBlank(item.title) else {
+                supersede(item, report: &report)
+                continue
+            }
+        }
+
+        let itemsByTask = Dictionary(
+            grouping: items.filter(isActive),
+            by: \.taskId
+        )
+        for taskItems in itemsByTask.values {
+            let ordered = taskItems.sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return uuidPrecedes($0.instanceID, $1.instanceID)
+            }
+            for (index, item) in ordered.enumerated() {
+                let normalizedOrder = Double(index + 1) * 100
+                if item.order != normalizedOrder {
+                    item.order = normalizedOrder
+                    report.normalizedFields += 1
+                }
+            }
+        }
+    }
 }
 
 private extension DataIntegrityService {
@@ -493,6 +540,10 @@ private extension DataIntegrityService {
         changes += assign(&item.seedKey, normalizedNaturalKey(item.seedKey))
         changes += assign(&item.priority, normalizedPriority(item.priority))
         changes += assign(&item.tags, normalizedTags(item.tags))
+        changes += assign(
+            &item.checklistTitles,
+            normalizedChecklistTitles(item.checklistTitles)
+        )
         if let estimate = item.estimatedMinutes, estimate < 0 {
             changes += assign(&item.estimatedMinutes, nil)
         }
@@ -570,6 +621,23 @@ private extension DataIntegrityService {
                 changes += assign(&task.archivedDayKey, DayKey.key(for: archivedAt))
             }
         }
+        return changes
+    }
+
+    @MainActor
+    static func normalizeChecklistItem(_ item: TaskChecklistItem) -> Int {
+        var changes = normalizeTimestamps(item)
+        changes += assign(
+            &item.title,
+            item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        if !item.order.isFinite {
+            changes += assign(&item.order, 0)
+        }
+        let completedAt = item.isCompleted
+            ? finiteDate(item.completedAt) ?? item.updatedAt
+            : nil
+        changes += assign(&item.completedAt, completedAt)
         return changes
     }
 
@@ -689,6 +757,10 @@ private extension DataIntegrityService {
         }
     }
 
+    static func normalizedChecklistTitles(_ titles: [String]) -> [String] {
+        titles.compactMap { normalizedOptionalText($0) }
+    }
+
     static func mergedLegacyFileNames(_ preferred: [String], _ other: [String]) -> [String] {
         var remainingCounts = Dictionary(grouping: preferred, by: { $0 }).mapValues(\.count)
         var result = preferred
@@ -758,3 +830,12 @@ extension EasyTaskSchemaV4.Task: IntegrityRecord {}
 extension EasyTaskSchemaV4.DailyReview: IntegrityRecord {}
 extension EasyTaskSchemaV4.DiaryBlock: IntegrityRecord {}
 extension EasyTaskSchemaV4.DiaryAttachment: IntegrityRecord {}
+extension EasyTaskSchemaV5.CalendarEvent: IntegrityRecord {}
+extension EasyTaskSchemaV5.TaskTemplate: IntegrityRecord {}
+extension EasyTaskSchemaV5.TaskTemplateItem: IntegrityRecord {}
+extension EasyTaskSchemaV5.TemplatePlacement: IntegrityRecord {}
+extension EasyTaskSchemaV5.Task: IntegrityRecord {}
+extension EasyTaskSchemaV5.TaskChecklistItem: IntegrityRecord {}
+extension EasyTaskSchemaV5.DailyReview: IntegrityRecord {}
+extension EasyTaskSchemaV5.DiaryBlock: IntegrityRecord {}
+extension EasyTaskSchemaV5.DiaryAttachment: IntegrityRecord {}

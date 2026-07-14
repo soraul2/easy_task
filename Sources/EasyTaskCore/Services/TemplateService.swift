@@ -8,6 +8,7 @@ public struct TemplateTaskDraft: Equatable, Identifiable {
     public var priority: String?
     public var tags: [String]
     public var estimatedMinutes: Int?
+    public var checklistTitles: [String]
     public var order: Double
 
     public init(
@@ -17,6 +18,7 @@ public struct TemplateTaskDraft: Equatable, Identifiable {
         priority: String? = nil,
         tags: [String] = [],
         estimatedMinutes: Int? = nil,
+        checklistTitles: [String] = [],
         order: Double
     ) {
         self.id = id
@@ -25,6 +27,7 @@ public struct TemplateTaskDraft: Equatable, Identifiable {
         self.priority = priority
         self.tags = tags
         self.estimatedMinutes = estimatedMinutes
+        self.checklistTitles = checklistTitles
         self.order = order
     }
 
@@ -36,6 +39,7 @@ public struct TemplateTaskDraft: Equatable, Identifiable {
             priority: item.priority,
             tags: item.tags,
             estimatedMinutes: item.estimatedMinutes,
+            checklistTitles: item.checklistTitles,
             order: item.order
         )
     }
@@ -88,10 +92,27 @@ public enum TemplateService {
                 priority: task.priority,
                 tags: task.tags,
                 estimatedMinutes: task.estimatedMinutes,
+                checklistTitles: [],
                 order: Double(index + 1) * 100
             )
         }
         return saveTemplate(named: name, from: drafts, in: context)
+    }
+
+    @MainActor
+    @discardableResult
+    public static func saveTemplateIncludingChecklists(
+        named name: String,
+        from tasks: [Task],
+        in context: ModelContext
+    ) throws -> TaskTemplate? {
+        let taskIDs = tasks.map(\.id)
+        let checklistItems = try TaskChecklistService.items(for: taskIDs, in: context)
+        return saveTemplate(
+            named: name,
+            from: drafts(from: tasks, checklistItems: checklistItems),
+            in: context
+        )
     }
 
     @discardableResult
@@ -117,6 +138,7 @@ public enum TemplateService {
                 priority: draft.priority.flatMap { TaskPriority(rawValue: $0)?.rawValue },
                 tags: draft.tags,
                 estimatedMinutes: draft.estimatedMinutes,
+                checklistTitles: normalizedChecklistTitles(draft.checklistTitles),
                 order: Double(index + 1) * 100
             )
             context.insert(item)
@@ -169,6 +191,34 @@ public enum TemplateService {
             .filter { $0.supersededAt == nil && $0.templateId == template.id }
             .sorted { $0.order < $1.order }
             .map(TemplateTaskDraft.init(item:))
+    }
+
+    public static func drafts(
+        from tasks: [Task],
+        checklistItems: [TaskChecklistItem]
+    ) -> [TemplateTaskDraft] {
+        let checklistByTask = Dictionary(grouping: checklistItems.filter {
+            $0.supersededAt == nil
+        }, by: \.taskId)
+
+        return tasks
+            .filter { $0.supersededAt == nil && $0.archivedAt == nil }
+            .sorted { $0.order < $1.order }
+            .enumerated()
+            .map { index, task in
+                TemplateTaskDraft(
+                    id: task.id,
+                    title: task.title,
+                    note: task.note ?? "",
+                    priority: task.priority,
+                    tags: task.tags,
+                    estimatedMinutes: task.estimatedMinutes,
+                    checklistTitles: TaskChecklistService.titles(
+                        in: checklistByTask[task.id] ?? []
+                    ),
+                    order: Double(index + 1) * 100
+                )
+            }
     }
 
     @discardableResult
@@ -271,6 +321,18 @@ public enum TemplateService {
                 )
                 context.insert(task)
 
+                for (checklistIndex, checklistTitle) in normalizedChecklistTitles(
+                    draft.checklistTitles
+                ).enumerated() {
+                    context.insert(TaskChecklistItem(
+                        taskId: task.id,
+                        title: checklistTitle,
+                        order: Double(checklistIndex + 1) * 100,
+                        createdAt: now,
+                        updatedAt: now
+                    ))
+                }
+
                 createdCount += 1
                 nextOrderByDayKey[dayKey] = order + 100
                 knownTitlesByDayKey[dayKey, default: []].insert(normalizedItemTitle)
@@ -343,13 +405,14 @@ public enum TemplateService {
     }
 
     @discardableResult
+    @MainActor
     public static func deletePlacement(
         _ placement: TemplatePlacement,
         tasks: [Task],
         in context: ModelContext,
         deleteTasks: Bool = true,
         now: Date = Date()
-    ) -> Int {
+    ) throws -> Int {
         let placedTasks = Self.tasks(for: placement, in: tasks)
         if deleteTasks {
             guard Self.canDeleteTasks(for: placement, in: tasks) else { return 0 }
@@ -357,7 +420,7 @@ public enum TemplateService {
 
         for task in placedTasks {
             if deleteTasks {
-                context.delete(task)
+                try TaskRules.delete(task, from: context)
             } else if task.templatePlacementId == placement.id {
                 task.templatePlacementId = nil
                 task.updatedAt = now
@@ -374,6 +437,10 @@ public enum TemplateService {
     private static func normalizedOptionalText(_ value: String) -> String? {
         let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedValue.isEmpty ? nil : trimmedValue
+    }
+
+    private static func normalizedChecklistTitles(_ titles: [String]) -> [String] {
+        titles.compactMap { normalizedOptionalText($0) }
     }
 
     private static func placementSort(_ lhs: TemplatePlacement, _ rhs: TemplatePlacement) -> Bool {
