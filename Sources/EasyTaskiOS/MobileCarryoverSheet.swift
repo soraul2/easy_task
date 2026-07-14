@@ -6,7 +6,6 @@ import SwiftUI
 
 struct MobileCarryoverSheet: View {
     var tasks: [TodoTask]
-    var targetDate: Date
     var onApplied: (String) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -34,19 +33,19 @@ struct MobileCarryoverSheet: View {
                                 .foregroundStyle(isErrorMessage ? Color.red : Color.secondary)
                         }
                         Button {
-                            moveAllToTargetDate()
+                            moveAllToToday()
                         } label: {
-                            Label("모두 이 날짜로 이월", systemImage: "calendar.badge.plus")
+                            Label("모두 오늘로 이월", systemImage: "calendar.badge.plus")
                         }
                         Button(role: .destructive) {
                             completeAll()
                         } label: {
-                            Label("모두 완료 처리", systemImage: "checkmark.circle")
+                            Label("원래 날짜에 모두 완료", systemImage: "checkmark.circle")
                         }
                     }
                     ForEach(remainingTasks) { task in
                         Button {
-                            moveToTargetDate(task)
+                            moveToToday(task)
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
@@ -77,38 +76,52 @@ struct MobileCarryoverSheet: View {
         let tasksToComplete = remainingTasks
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.completeAll(tasksToComplete, completionDayKey: DayKey.key(for: targetDate))
+                TaskRules.completeOnPlannedDays(tasksToComplete)
             }
-            onApplied("\(tasksToComplete.count)개 이월 작업을 완료 처리했어요")
+            onApplied("\(tasksToComplete.count)개 작업을 원래 날짜에 완료 처리했어요")
             dismiss()
         } catch {
             showError("이월 작업을 완료하지 못했습니다")
         }
     }
 
-    private func moveAllToTargetDate() {
+    private func moveAllToToday() {
         let tasksToMove = remainingTasks
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                let now = Date()
+                let todayKey = DayKey.key(for: now)
+                var nextOrder = try BoundedQueryService.nextOrder(
+                    in: modelContext,
+                    dayKey: todayKey,
+                    status: .todo
+                )
                 for task in tasksToMove {
-                    TaskRules.move(task, to: targetDate)
+                    TaskRules.bringToToday(task, order: nextOrder, now: now)
+                    nextOrder += 100
                 }
             }
-            onApplied("\(tasksToMove.count)개 작업을 \(DayKey.display(targetDate))로 이월했어요")
+            onApplied("\(tasksToMove.count)개 작업을 오늘로 이월했어요")
             dismiss()
         } catch {
             showError("작업을 이월하지 못했습니다")
         }
     }
 
-    private func moveToTargetDate(_ task: TodoTask) {
+    private func moveToToday(_ task: TodoTask) {
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.move(task, to: targetDate)
+                let now = Date()
+                let nextOrder = try BoundedQueryService.nextOrder(
+                    in: modelContext,
+                    dayKey: DayKey.key(for: now),
+                    status: .todo
+                )
+                TaskRules.bringToToday(task, order: nextOrder, now: now)
             }
             movedTaskIDs.insert(task.id)
             let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            let notice = title.isEmpty ? "작업을 \(DayKey.display(targetDate))로 이월했어요" : "\(title) · \(DayKey.display(targetDate))로 이월했어요"
+            let notice = title.isEmpty ? "작업을 오늘로 이월했어요" : "\(title) · 오늘로 이월했어요"
             isErrorMessage = false
             message = notice
             onApplied(notice)

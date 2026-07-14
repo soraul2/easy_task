@@ -489,16 +489,14 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "작업을 오늘로 가져오지 못했습니다."
         ) {
+            let now = Date()
+            let currentTodayKey = DayKey.key(for: now)
             let nextOrder = try BoundedQueryService.nextOrder(
                 in: modelContext,
-                dayKey: todayKey,
+                dayKey: currentTodayKey,
                 status: .todo
             )
-            task.plannedAt = DayKey.startOfDay(for: Date())
-            task.plannedDayKey = todayKey
-            task.status = TaskStatus.todo.rawValue
-            task.order = nextOrder
-            task.updatedAt = Date()
+            TaskRules.bringToToday(task, order: nextOrder, now: now)
         }
     }
 
@@ -506,17 +504,7 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "이월 작업을 완료 처리하지 못했습니다."
         ) {
-            let now = Date()
-            var nextDoneOrder = try BoundedQueryService.nextOrder(
-                in: modelContext,
-                status: .done
-            )
-
-            for task in carryoverTasks {
-                TaskRules.applyStatus(.done, to: task, now: now)
-                task.order = nextDoneOrder
-                nextDoneOrder += 100
-            }
+            TaskRules.completeOnPlannedDays(carryoverTasks)
         }
     }
 

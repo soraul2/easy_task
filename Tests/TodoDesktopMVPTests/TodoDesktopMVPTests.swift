@@ -166,6 +166,61 @@ func movingTaskToDateUpdatesDayKeyOrderAndTimestamp() throws {
 }
 
 @Test
+func bringingCarryoverTaskToTodayMovesAndResetsStatus() throws {
+    let originalDate = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 4)))
+    let now = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 14, hour: 10)))
+    let task = Task(title: "진행 중 이월 작업", status: .doing, plannedAt: originalDate, order: 100)
+
+    TaskRules.bringToToday(task, order: 500, now: now)
+
+    #expect(task.plannedAt == DayKey.startOfDay(for: now))
+    #expect(task.plannedDayKey == "2026-07-14")
+    #expect(task.status == TaskStatus.todo.rawValue)
+    #expect(task.order == 500)
+    #expect(task.updatedAt == now)
+}
+
+@Test
+func completingCarryoverTasksUsesEachOriginalPlannedDay() throws {
+    let july4 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 4)))
+    let july7 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 7)))
+    let now = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 14, hour: 21)))
+    let first = Task(title: "7월 4일 미완료", plannedAt: july4, order: 100)
+    let second = Task(title: "7월 7일 진행 중", status: .doing, plannedAt: july7, order: 200)
+
+    TaskRules.completeOnPlannedDays([first, second], now: now)
+
+    #expect(first.status == TaskStatus.done.rawValue)
+    #expect(first.plannedDayKey == "2026-07-04")
+    #expect(first.completedDayKey == "2026-07-04")
+    #expect(first.completedAt == now)
+    #expect(second.status == TaskStatus.done.rawValue)
+    #expect(second.plannedDayKey == "2026-07-07")
+    #expect(second.completedDayKey == "2026-07-07")
+    #expect(second.completedAt == now)
+
+    let todayBoard = BoardQueryRules.tasksForBoard(
+        [first, second],
+        selectedDayKey: "2026-07-14",
+        todayKey: "2026-07-14"
+    )
+    let july4Board = BoardQueryRules.tasksForBoard(
+        [first, second],
+        selectedDayKey: "2026-07-04",
+        todayKey: "2026-07-14"
+    )
+    let july7Board = BoardQueryRules.tasksForBoard(
+        [first, second],
+        selectedDayKey: "2026-07-07",
+        todayKey: "2026-07-14"
+    )
+
+    #expect(todayBoard.isEmpty)
+    #expect(july4Board.map(\.title) == ["7월 4일 미완료"])
+    #expect(july7Board.map(\.title) == ["7월 7일 진행 중"])
+}
+
+@Test
 func completingAllTasksUsesSharedStatusRule() throws {
     let plannedDate = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 6)))
     let now = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 7)))
