@@ -1,13 +1,14 @@
 import Foundation
 
-public typealias CalendarEvent = EasyTaskSchemaV4.CalendarEvent
-public typealias TaskTemplate = EasyTaskSchemaV4.TaskTemplate
-public typealias TaskTemplateItem = EasyTaskSchemaV4.TaskTemplateItem
-public typealias TemplatePlacement = EasyTaskSchemaV4.TemplatePlacement
-public typealias Task = EasyTaskSchemaV4.Task
-public typealias DailyReview = EasyTaskSchemaV4.DailyReview
-public typealias DiaryBlock = EasyTaskSchemaV4.DiaryBlock
-public typealias DiaryAttachment = EasyTaskSchemaV4.DiaryAttachment
+public typealias CalendarEvent = EasyTaskSchemaV5.CalendarEvent
+public typealias TaskTemplate = EasyTaskSchemaV5.TaskTemplate
+public typealias TaskTemplateItem = EasyTaskSchemaV5.TaskTemplateItem
+public typealias TemplatePlacement = EasyTaskSchemaV5.TemplatePlacement
+public typealias Task = EasyTaskSchemaV5.Task
+public typealias TaskChecklistItem = EasyTaskSchemaV5.TaskChecklistItem
+public typealias DailyReview = EasyTaskSchemaV5.DailyReview
+public typealias DiaryBlock = EasyTaskSchemaV5.DiaryBlock
+public typealias DiaryAttachment = EasyTaskSchemaV5.DiaryAttachment
 
 public enum TaskStatus: String, CaseIterable, Identifiable {
     case todo

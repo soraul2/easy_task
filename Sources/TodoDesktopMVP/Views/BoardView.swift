@@ -168,8 +168,8 @@ struct BoardView: View {
                         guard didApply else { return }
                         presentedSheet = nil
                     },
-                    onSaveCurrentBoard: { sourceTasks in
-                        guard !sourceTasks.isEmpty else { return }
+                    onSaveCurrentBoard: { drafts in
+                        guard !drafts.isEmpty else { return }
                         let trimmedName = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmedName.isEmpty else { return }
 
@@ -178,7 +178,7 @@ struct BoardView: View {
                         ) {
                             TemplateService.saveTemplate(
                                 named: trimmedName,
-                                from: sourceTasks,
+                                from: drafts,
                                 in: modelContext
                             )
                         }

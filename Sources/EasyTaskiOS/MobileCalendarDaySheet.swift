@@ -291,7 +291,7 @@ private struct MobileCalendarDaySheet: View {
                 ) else {
                     return nil
                 }
-                return TemplateService.deletePlacement(
+                return try TemplateService.deletePlacement(
                     placement,
                     tasks: linkedTasks,
                     in: modelContext,

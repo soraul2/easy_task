@@ -16,9 +16,9 @@ if [[ -z "$device_id" ]]; then
 fi
 
 case "$probe_kind" in
-  event|media|conflict) ;;
+  event|media|conflict|checklist) ;;
   *)
-    print -u2 "EASYTASK_PROBE_KIND must be event, media, or conflict."
+    print -u2 "EASYTASK_PROBE_KIND must be event, media, conflict, or checklist."
     exit 64
     ;;
 esac

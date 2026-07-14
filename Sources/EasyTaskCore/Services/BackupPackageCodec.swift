@@ -223,8 +223,8 @@ public enum BackupPackageError: LocalizedError, Equatable {
 
 public enum BackupPackageCodec {
     public static let formatIdentifier = "com.soraul2.easytask.backup"
-    public static let currentVersion = 3
-    public static let supportedVersions: ClosedRange<Int> = 2...3
+    public static let currentVersion = 4
+    public static let supportedVersions: ClosedRange<Int> = 2...4
     public static let manifestFileName = "manifest.json"
     public static let recordsFileName = "records.json"
     public static let attachmentsDirectoryName = "attachments"
@@ -707,6 +707,10 @@ private extension BackupPackageCodec {
         try validateInstanceIDs(
             payload.tasks.map { ($0.id, $0.instanceID) },
             recordType: "Task"
+        )
+        try validateInstanceIDs(
+            (payload.taskChecklistItems ?? []).map { ($0.id, $0.instanceID) },
+            recordType: "TaskChecklistItem"
         )
         try validateInstanceIDs(
             payload.calendarEvents.map { ($0.id, $0.instanceID) },

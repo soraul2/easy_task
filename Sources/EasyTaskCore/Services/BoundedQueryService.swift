@@ -356,6 +356,10 @@ public enum BoundedQueryService {
                 through: scanUpperKey,
                 in: context
             )
+            let checklistItems = try archiveChecklistItems(
+                taskIDs: tasks.map(\.id),
+                in: context
+            )
             let reviews = try archiveReviews(
                 from: scanLowerKey,
                 through: scanUpperKey,
@@ -384,6 +388,7 @@ public enum BoundedQueryService {
                 tasks: tasks,
                 reviews: reviews,
                 filter: filter,
+                checklistItems: checklistItems,
                 reviewIDsWithContent: reviewIDsWithContent,
                 referenceDate: referenceDate
             )
@@ -464,6 +469,14 @@ private extension BoundedQueryService {
                     review.dayKey <= endDayKey
             }
         ))
+    }
+
+    @MainActor
+    static func archiveChecklistItems(
+        taskIDs: [UUID],
+        in context: ModelContext
+    ) throws -> [TaskChecklistItem] {
+        try TaskChecklistService.items(for: taskIDs, in: context)
     }
 
     @MainActor

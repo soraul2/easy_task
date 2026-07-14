@@ -16,6 +16,7 @@ public enum CloudKitProbeKind: String, Codable, Sendable {
     case event
     case media
     case conflict
+    case checklist
 }
 
 public enum CloudKitConflictVariant: String, Codable, CaseIterable, Sendable {
@@ -98,6 +99,20 @@ public struct CloudKitConflictProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+public struct CloudKitChecklistProbeSnapshot: Codable, Equatable, Sendable {
+    public var token: UUID
+    public var totalTaskCount: Int
+    public var activeTaskCount: Int
+    public var matchingTaskCount: Int
+    public var totalItemCount: Int
+    public var activeItemCount: Int
+    public var matchingItemCount: Int
+    public var completedItemCount: Int
+    public var sourceBundleIdentifier: String?
+    public var expectation: CloudKitProbeExpectation
+    public var passed: Bool
+}
+
 public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
@@ -106,6 +121,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var snapshot: CloudKitProbeSnapshot?
     public var mediaSnapshot: CloudKitMediaProbeSnapshot?
     public var conflictSnapshot: CloudKitConflictProbeSnapshot?
+    public var checklistSnapshot: CloudKitChecklistProbeSnapshot?
     public var error: String?
 
     public init(
@@ -116,6 +132,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
         snapshot: CloudKitProbeSnapshot? = nil,
         mediaSnapshot: CloudKitMediaProbeSnapshot? = nil,
         conflictSnapshot: CloudKitConflictProbeSnapshot? = nil,
+        checklistSnapshot: CloudKitChecklistProbeSnapshot? = nil,
         error: String? = nil
     ) {
         self.kind = kind
@@ -125,6 +142,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
         self.snapshot = snapshot
         self.mediaSnapshot = mediaSnapshot
         self.conflictSnapshot = conflictSnapshot
+        self.checklistSnapshot = checklistSnapshot
         self.error = error
     }
 }
@@ -239,6 +257,12 @@ public enum CloudKitConvergenceProbe {
                 )
             case .conflict:
                 result = try await runConflictProbe(
+                    configuration: configuration,
+                    sourceBundleIdentifier: sourceBundleIdentifier,
+                    context: context
+                )
+            case .checklist:
+                result = try await runChecklistProbe(
                     configuration: configuration,
                     sourceBundleIdentifier: sourceBundleIdentifier,
                     context: context

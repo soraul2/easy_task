@@ -757,7 +757,11 @@ private struct ArchiveTaskCompactRow: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
                 .lineLimit(1)
+                .layoutPriority(1)
             Spacer()
+            TaskChecklistProgressLabel(taskID: task.id)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -788,6 +792,7 @@ private struct ArchiveTaskRow: View {
                     if let estimatedMinutes = task.estimatedMinutes {
                         Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
                     }
+                    TaskChecklistProgressLabel(taskID: task.id)
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppTheme.cardMutedText)

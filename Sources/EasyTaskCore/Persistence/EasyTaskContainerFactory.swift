@@ -15,7 +15,7 @@ public enum EasyTaskContainerFactory {
     public static let appStoreMode = EasyTaskStoreMode.cloudKit
 
     public static var schema: Schema {
-        Schema(versionedSchema: EasyTaskSchemaV4.self)
+        Schema(versionedSchema: EasyTaskSchemaV5.self)
     }
 
     @MainActor

@@ -5,6 +5,7 @@ public struct BackupPayload: Codable {
     public var backupVersion: Int
     public var exportedAt: Date
     public var tasks: [TaskDTO]
+    public var taskChecklistItems: [TaskChecklistItemDTO]? = nil
     public var calendarEvents: [CalendarEventDTO]
     public var taskTemplates: [TaskTemplateDTO]
     public var taskTemplateItems: [TaskTemplateItemDTO]
@@ -33,6 +34,18 @@ public struct TaskDTO: Codable {
     public var completedDayKey: String?
     public var archivedAt: Date?
     public var archivedDayKey: String?
+    public var instanceID: UUID? = nil
+}
+
+public struct TaskChecklistItemDTO: Codable {
+    public var id: UUID
+    public var taskId: UUID
+    public var title: String
+    public var isCompleted: Bool
+    public var order: Double
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var completedAt: Date?
     public var instanceID: UUID? = nil
 }
 
@@ -68,6 +81,7 @@ public struct TaskTemplateItemDTO: Codable {
     public var priority: String?
     public var tags: [String]
     public var estimatedMinutes: Int?
+    public var checklistTitles: [String]? = nil
     public var order: Double
     public var instanceID: UUID? = nil
     public var seedKey: String? = nil
@@ -172,6 +186,9 @@ public enum BackupCodec {
             backupVersion: currentVersion,
             exportedAt: Date(),
             tasks: tasks.map(TaskDTO.init),
+            taskChecklistItems: try context.fetch(FetchDescriptor<TaskChecklistItem>())
+                .filter { $0.supersededAt == nil }
+                .map(TaskChecklistItemDTO.init),
             calendarEvents: try context.fetch(FetchDescriptor<CalendarEvent>())
                 .filter { $0.supersededAt == nil }
                 .map(CalendarEventDTO.init),
@@ -221,6 +238,9 @@ public enum BackupCodec {
         try context.save()
 
         do {
+            for item in try context.fetch(FetchDescriptor<TaskChecklistItem>()) {
+                context.delete(item)
+            }
             for item in try context.fetch(FetchDescriptor<TaskTemplateItem>()) {
                 context.delete(item)
             }
@@ -261,6 +281,9 @@ public enum BackupCodec {
             for dto in payload.tasks {
                 context.insert(Task(dto: dto))
             }
+            for dto in payload.taskChecklistItems ?? [] {
+                context.insert(TaskChecklistItem(dto: dto))
+            }
             for dto in payload.dailyReviews ?? [] {
                 context.insert(DailyReview(dto: dto))
             }
@@ -289,6 +312,10 @@ private extension BackupCodec {
 
         var payload = source
         let taskIDs = try uniqueIDs(payload.tasks.map(\.id), recordType: "Task")
+        _ = try uniqueIDs(
+            (payload.taskChecklistItems ?? []).map(\.id),
+            recordType: "TaskChecklistItem"
+        )
         let eventIDs = try uniqueIDs(payload.calendarEvents.map(\.id), recordType: "CalendarEvent")
         let templateIDs = try uniqueIDs(payload.taskTemplates.map(\.id), recordType: "TaskTemplate")
         _ = try uniqueIDs(payload.taskTemplateItems.map(\.id), recordType: "TaskTemplateItem")
@@ -301,6 +328,10 @@ private extension BackupCodec {
         try validateEvents(payload.calendarEvents)
         try validateTemplates(payload.taskTemplateItems, templateIDs: templateIDs)
         try validateTasks(payload.tasks, eventIDs: eventIDs, placementIDs: placementIDs)
+        try validateChecklistItems(
+            payload.taskChecklistItems ?? [],
+            taskIDs: taskIDs
+        )
         try validatePlacements(
             placements,
             tasks: payload.tasks,
@@ -407,6 +438,36 @@ private extension BackupCodec {
             try validatePriority(item.priority, field: "\(field).priority")
             try validateEstimatedMinutes(item.estimatedMinutes, field: "\(field).estimatedMinutes")
             try validateFinite(item.order, field: "\(field).order")
+            for (titleIndex, title) in (item.checklistTitles ?? []).enumerated() {
+                try validateNonBlank(
+                    title,
+                    field: "\(field).checklistTitles[\(titleIndex)]"
+                )
+            }
+        }
+    }
+
+    static func validateChecklistItems(
+        _ items: [TaskChecklistItemDTO],
+        taskIDs: Set<UUID>
+    ) throws {
+        for (index, item) in items.enumerated() {
+            let field = "taskChecklistItems[\(index)]"
+            guard taskIDs.contains(item.taskId) else {
+                throw BackupServiceError.danglingReference(
+                    field: "\(field).taskId",
+                    id: item.taskId
+                )
+            }
+            try validateNonBlank(item.title, field: "\(field).title")
+            try validateFinite(item.order, field: "\(field).order")
+            try validateOptionalDate(item.completedAt, field: "\(field).completedAt")
+            guard item.isCompleted == (item.completedAt != nil) else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).completedAt",
+                    value: "completion state mismatch"
+                )
+            }
         }
     }
 
@@ -533,6 +594,12 @@ private extension BackupCodec {
         }
     }
 
+    static func validateNonBlank(_ value: String, field: String) throws {
+        guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw BackupServiceError.invalidValue(field: field, value: "blank")
+        }
+    }
+
     static func validateOptionalDate(_ value: Date?, field: String) throws {
         guard let value else { return }
         guard value.timeIntervalSinceReferenceDate.isFinite else {
@@ -563,6 +630,20 @@ private extension TaskDTO {
         archivedAt = task.archivedAt
         archivedDayKey = task.archivedDayKey
         instanceID = task.instanceID
+    }
+}
+
+private extension TaskChecklistItemDTO {
+    init(item: TaskChecklistItem) {
+        id = item.id
+        taskId = item.taskId
+        title = item.title
+        isCompleted = item.isCompleted
+        order = item.order
+        createdAt = item.createdAt
+        updatedAt = item.updatedAt
+        completedAt = item.completedAt
+        instanceID = item.instanceID
     }
 }
 
@@ -603,6 +684,7 @@ private extension TaskTemplateItemDTO {
         priority = item.priority
         tags = item.tags
         estimatedMinutes = item.estimatedMinutes
+        checklistTitles = item.checklistTitles
         order = item.order
         instanceID = item.instanceID
         seedKey = item.seedKey
@@ -698,6 +780,7 @@ private extension TaskTemplateItem {
             priority: dto.priority,
             tags: dto.tags,
             estimatedMinutes: dto.estimatedMinutes,
+            checklistTitles: dto.checklistTitles ?? [],
             order: dto.order,
             createdAt: dto.createdAt ?? Date(),
             updatedAt: dto.updatedAt ?? dto.createdAt ?? Date()
@@ -746,6 +829,22 @@ private extension Task {
         completedDayKey = dto.completedDayKey
         archivedAt = dto.archivedAt
         archivedDayKey = dto.archivedDayKey
+    }
+}
+
+private extension TaskChecklistItem {
+    convenience init(dto: TaskChecklistItemDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
+            taskId: dto.taskId,
+            title: dto.title,
+            isCompleted: dto.isCompleted,
+            order: dto.order,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt,
+            completedAt: dto.completedAt
+        )
     }
 }
 

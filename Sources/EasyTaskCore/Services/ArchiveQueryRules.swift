@@ -109,6 +109,7 @@ public enum ArchiveQueryRules {
         tasks: [Task],
         reviews: [DailyReview],
         filter: ArchiveFilter,
+        checklistItems: [TaskChecklistItem] = [],
         reviewIDsWithContent: Set<UUID> = [],
         referenceDate: Date = Date()
     ) -> [ArchiveDayRecord] {
@@ -132,6 +133,10 @@ public enum ArchiveQueryRules {
                     return $0.instanceID.uuidString < $1.instanceID.uuidString
                 }
             }
+        let checklistItemsByTaskID = Dictionary(
+            grouping: checklistItems.filter { $0.supersededAt == nil },
+            by: \.taskId
+        )
 
         let dayKeys: Set<String>
         if filter.normalizedSearchText.isEmpty {
@@ -140,7 +145,13 @@ public enum ArchiveQueryRules {
             dayKeys = taskKeys.union(reviewKeys)
         } else {
             let taskKeys = filter.scope.includesTasks
-                ? completedTasks.filter { matchesSearch($0, query: filter.normalizedSearchText) }.map(dayKey)
+                ? completedTasks.filter {
+                    matchesSearch(
+                        $0,
+                        checklistItems: checklistItemsByTaskID[$0.id] ?? [],
+                        query: filter.normalizedSearchText
+                    )
+                }.map(dayKey)
                 : []
             let reviewKeys = filter.scope.includesReviews
                 ? nonEmptyReviews.filter { matchesSearch($0, query: filter.normalizedSearchText) }.map(\.dayKey)
@@ -216,12 +227,17 @@ public enum ArchiveQueryRules {
         }
     }
 
-    private static func matchesSearch(_ task: Task, query: String) -> Bool {
+    private static func matchesSearch(
+        _ task: Task,
+        checklistItems: [TaskChecklistItem],
+        query: String
+    ) -> Bool {
         contains(task.title, query: query) ||
             contains(task.note, query: query) ||
             contains(task.completedDayKey, query: query) ||
             contains(task.archivedDayKey, query: query) ||
-            contains(task.plannedDayKey, query: query)
+            contains(task.plannedDayKey, query: query) ||
+            checklistItems.contains { contains($0.title, query: query) }
     }
 
     private static func matchesSearch(_ review: DailyReview, query: String) -> Bool {
