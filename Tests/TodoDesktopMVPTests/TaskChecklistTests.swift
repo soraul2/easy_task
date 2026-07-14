@@ -329,6 +329,59 @@ func v3PackageWithoutChecklistFieldsPreservesLocalChecklistData() throws {
     #expect(restoredChecklist.map(\.title) == ["로컬 체크리스트"])
 }
 
+@Test
+@MainActor
+func cloudKitChecklistProbeVerifiesParentChildrenAndCleanup() async throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let token = UUID()
+    let writer = try await CloudKitConvergenceProbe.runChecklistProbe(
+        configuration: CloudKitProbeConfiguration(role: .writer, token: token),
+        sourceBundleIdentifier: "probe.checklist.writer",
+        context: container.mainContext
+    )
+    #expect(writer.passed)
+    #expect(writer.checklistSnapshot?.matchingTaskCount == 1)
+    #expect(writer.checklistSnapshot?.matchingItemCount == 2)
+    #expect(writer.checklistSnapshot?.completedItemCount == 1)
+
+    let reader = try await CloudKitConvergenceProbe.runChecklistProbe(
+        configuration: CloudKitProbeConfiguration(
+            kind: .checklist,
+            role: .reader,
+            token: token,
+            timeoutSeconds: 1
+        ),
+        sourceBundleIdentifier: "probe.checklist.reader",
+        context: container.mainContext
+    )
+    #expect(reader.passed)
+
+    let cleanup = try await CloudKitConvergenceProbe.runChecklistProbe(
+        configuration: CloudKitProbeConfiguration(
+            kind: .checklist,
+            role: .cleanup,
+            token: token
+        ),
+        sourceBundleIdentifier: "probe.checklist.cleanup",
+        context: container.mainContext
+    )
+    #expect(cleanup.passed)
+    #expect(cleanup.checklistSnapshot?.totalTaskCount == 0)
+    #expect(cleanup.checklistSnapshot?.totalItemCount == 0)
+}
+
+@Test
+func cloudKitChecklistProbeKindParsesFromArguments() {
+    let token = UUID()
+    let configuration = CloudKitConvergenceProbe.configuration(arguments: [
+        "EasyTask",
+        "--cloudkit-probe-kind", "checklist",
+        "--cloudkit-probe-role", "reader",
+        "--cloudkit-probe-token", token.uuidString
+    ])
+    #expect(configuration?.kind == .checklist)
+}
+
 private func refreshChecklistRecordsMetadata(_ contents: inout BackupPackageContents) {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
