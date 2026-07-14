@@ -133,9 +133,11 @@ struct TaskCard: View {
                         .lineLimit(1)
                     }
 
-                    TaskChecklistProgressLabel(taskID: task.id)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.cardMutedText)
+                    TaskCardChecklistSection(
+                        taskID: task.id,
+                        taskTitle: task.title,
+                        isExpandable: status == .doing
+                    )
                 }
                 Spacer()
                 Button {
@@ -248,6 +250,125 @@ struct TaskCard: View {
             draftTitle = trimmedTitle
         } else {
             draftTitle = task.title
+        }
+    }
+}
+
+private struct TaskCardChecklistSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var checklistItems: [TaskChecklistItem]
+    @State private var isExpanded = false
+    @State private var saveErrorMessage: String?
+
+    let taskTitle: String
+    let isExpandable: Bool
+
+    init(taskID: UUID, taskTitle: String, isExpandable: Bool) {
+        self.taskTitle = taskTitle
+        self.isExpandable = isExpandable
+        _checklistItems = Query(TaskChecklistService.descriptor(taskID: taskID))
+    }
+
+    private var progress: ChecklistProgress {
+        TaskChecklistService.progress(in: checklistItems)
+    }
+
+    var body: some View {
+        if !progress.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                if isExpandable {
+                    Button {
+                        withAnimation(.snappy(duration: 0.18)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            progressLabel
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(isExpanded ? "체크리스트 접기" : "체크리스트 펼치기")
+                    .accessibilityLabel("\(taskTitle) 체크리스트")
+                    .accessibilityValue(
+                        "\(progress.completedCount)개 완료, 전체 \(progress.totalCount)개, " +
+                        (isExpanded ? "펼쳐짐" : "접힘")
+                    )
+                } else {
+                    progressLabel
+                }
+
+                if isExpandable, isExpanded {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(checklistItems) { item in
+                            Button {
+                                toggleCompletion(of: item)
+                            } label: {
+                                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                                    Image(systemName: item.isCompleted
+                                        ? "checkmark.circle.fill"
+                                        : "circle")
+                                        .foregroundStyle(item.isCompleted
+                                            ? AppTheme.event
+                                            : AppTheme.cardMutedText)
+                                    Text(item.title)
+                                        .strikethrough(item.isCompleted)
+                                        .foregroundStyle(item.isCompleted
+                                            ? AppTheme.cardMutedText
+                                            : AppTheme.cardText)
+                                        .lineLimit(2)
+                                    Spacer(minLength: 0)
+                                }
+                                .font(.caption)
+                                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help(item.isCompleted ? "미완료로 변경" : "완료로 변경")
+                            .accessibilityLabel("\(item.title) 체크리스트 항목")
+                            .accessibilityValue(item.isCompleted ? "완료" : "미완료")
+                        }
+                    }
+                    .padding(.leading, 2)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                if let saveErrorMessage {
+                    Label(saveErrorMessage, systemImage: "exclamationmark.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
+            }
+            .onChange(of: isExpandable) { _, canExpand in
+                if !canExpand {
+                    isExpanded = false
+                }
+            }
+        }
+    }
+
+    private var progressLabel: some View {
+        Label(
+            "\(progress.completedCount)/\(progress.totalCount)",
+            systemImage: progress.isComplete ? "checkmark.circle.fill" : "checklist"
+        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(AppTheme.cardMutedText)
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func toggleCompletion(of item: TaskChecklistItem) {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskChecklistService.setCompletion(!item.isCompleted, for: item)
+            }
+            saveErrorMessage = nil
+        } catch {
+            saveErrorMessage = "체크 상태를 저장하지 못했습니다."
         }
     }
 }

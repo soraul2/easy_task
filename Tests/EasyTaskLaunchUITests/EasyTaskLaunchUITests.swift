@@ -69,10 +69,10 @@ final class EasyTaskLaunchUITests: XCTestCase {
         app.buttons["체크리스트 항목 추가"].tap()
 
         let reorderButton = app.buttons["체크리스트 순서 편집"]
-        XCTAssertTrue(reorderButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToHittable(reorderButton, in: app))
         reorderButton.tap()
         let finishReorderButton = app.buttons["체크리스트 순서 편집 완료"]
-        XCTAssertTrue(finishReorderButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToHittable(finishReorderButton, in: app))
         finishReorderButton.tap()
 
         app.buttons["\(firstItemTitle) 완료 상태"].tap()
@@ -94,6 +94,35 @@ final class EasyTaskLaunchUITests: XCTestCase {
 
         XCTAssertTrue(scrollToHittable(progressChip, in: app))
         XCTAssertEqual(progressChip.value as? String, "1개 완료, 전체 2개")
+
+        let doingStatusButton = app.buttons["\(taskTitle) 진행 중 상태"]
+        XCTAssertTrue(scrollToHittable(doingStatusButton, in: app))
+        doingStatusButton.tap()
+
+        let statusPicker = app.segmentedControls.firstMatch
+        XCTAssertTrue(statusPicker.buttons["진행 중"].waitForExistence(timeout: 5))
+        statusPicker.buttons["진행 중"].tap()
+
+        let checklistDisclosure = app.descendants(matching: .any)
+            .matching(identifier: "checklist-progress")
+            .firstMatch
+        XCTAssertTrue(scrollToHittable(checklistDisclosure, in: app))
+        XCTAssertTrue((checklistDisclosure.value as? String)?.contains("접힘") == true)
+        checklistDisclosure.tap()
+
+        let secondItemToggle = app.buttons["\(secondItemTitle) 체크리스트 항목"]
+        XCTAssertTrue(secondItemToggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(secondItemToggle.value as? String, "미완료")
+        secondItemToggle.tap()
+        XCTAssertEqual(secondItemToggle.value as? String, "완료")
+        XCTAssertTrue((checklistDisclosure.value as? String)?.contains("2개 완료") == true)
+
+        let currentDoingStatusButton = app.buttons["\(taskTitle) 진행 중 상태"]
+        XCTAssertTrue(currentDoingStatusButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(currentDoingStatusButton.isSelected)
+
+        checklistDisclosure.tap()
+        XCTAssertFalse(secondItemToggle.waitForExistence(timeout: 1))
     }
 
     @MainActor

@@ -53,6 +53,48 @@ func checklistDraftSaveNormalizesAndCancelLeavesPersistenceUntouched() throws {
 
 @Test
 @MainActor
+func checklistCardToggleUpdatesOnlyChecklistCompletion() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-14"))
+    let task = Task(title: "장보기", status: .doing, plannedAt: day, order: 100)
+    let initialUpdatedAt = Date(timeIntervalSince1970: 10)
+    let completedAt = Date(timeIntervalSince1970: 20)
+    let item = TaskChecklistItem(
+        taskId: task.id,
+        title: "우유",
+        order: 100,
+        updatedAt: initialUpdatedAt
+    )
+    context.insert(task)
+    context.insert(item)
+    try context.save()
+
+    let didComplete = try PersistenceCommandService.perform(in: context) {
+        TaskChecklistService.setCompletion(true, for: item, now: completedAt)
+    }
+
+    #expect(didComplete)
+    #expect(item.isCompleted)
+    #expect(item.completedAt == completedAt)
+    #expect(item.updatedAt == completedAt)
+    #expect(task.status == TaskStatus.doing.rawValue)
+    #expect(task.completedAt == nil)
+
+    let reopenedAt = Date(timeIntervalSince1970: 30)
+    let didReopen = try PersistenceCommandService.perform(in: context) {
+        TaskChecklistService.setCompletion(false, for: item, now: reopenedAt)
+    }
+
+    #expect(didReopen)
+    #expect(!item.isCompleted)
+    #expect(item.completedAt == nil)
+    #expect(item.updatedAt == reopenedAt)
+    #expect(task.status == TaskStatus.doing.rawValue)
+}
+
+@Test
+@MainActor
 func checklistSurvivesTaskMovesAndStatusChangesButDeletesWithTask() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
