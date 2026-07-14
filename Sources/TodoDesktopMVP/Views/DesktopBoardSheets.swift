@@ -16,7 +16,7 @@ struct CarryoverSheet: View {
                     Text("이월함")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(AppTheme.primaryText)
-                    Text("과거 날짜의 미완료 작업을 오늘 할 일로 가져오거나 완료 처리합니다.")
+                    Text("과거 날짜의 미완료 작업을 오늘로 가져오거나 원래 날짜에서 완료 처리합니다.")
                         .font(.callout)
                         .foregroundStyle(AppTheme.secondaryText)
                 }
@@ -27,11 +27,11 @@ struct CarryoverSheet: View {
                     Button {
                         onCompleteAll()
                     } label: {
-                        Label("모두 완료 처리", systemImage: "checkmark.circle")
+                        Label("원래 날짜에 모두 완료", systemImage: "checkmark.circle")
                             .font(.system(size: 13, weight: .semibold))
                     }
                     .buttonStyle(.bordered)
-                    .help("이월함의 모든 작업을 완료 상태로 변경")
+                    .help("이월함의 모든 작업을 각 작업의 원래 날짜에서 완료 상태로 변경")
                 }
 
                 Button {
@@ -533,4 +533,3 @@ struct CarryoverTaskRow: View {
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
     }
 }
-

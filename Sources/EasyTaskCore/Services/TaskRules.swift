@@ -79,9 +79,30 @@ public enum TaskRules {
         task.updatedAt = now
     }
 
+    public static func bringToToday(
+        _ task: Task,
+        order: Double? = nil,
+        now: Date = Date()
+    ) {
+        guard task.supersededAt == nil else { return }
+        applyStatus(.todo, to: task, now: now)
+        move(task, to: now, order: order, now: now)
+    }
+
     public static func completeAll(_ tasks: [Task], now: Date = Date(), completionDayKey: String? = nil) {
         for task in tasks where task.supersededAt == nil {
             applyStatus(.done, to: task, now: now, completionDayKey: completionDayKey)
+        }
+    }
+
+    public static func completeOnPlannedDays(_ tasks: [Task], now: Date = Date()) {
+        for task in tasks where task.supersededAt == nil {
+            applyStatus(
+                .done,
+                to: task,
+                now: now,
+                completionDayKey: task.plannedDayKey
+            )
         }
     }
 

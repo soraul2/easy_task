@@ -147,7 +147,6 @@ struct MobileBoardView: View {
                 case .carryover:
                     MobileCarryoverSheet(
                         tasks: carryoverTasks,
-                        targetDate: selectedDate,
                         onApplied: showBoardNotice
                     )
                 case .templates:
