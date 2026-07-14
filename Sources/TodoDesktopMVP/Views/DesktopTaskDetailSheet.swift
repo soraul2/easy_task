@@ -33,10 +33,7 @@ struct TaskDetailSheet: View {
 
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            isChecklistLoaded &&
-            checklistDrafts.allSatisfy {
-                !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+            isChecklistLoaded
     }
 
     var body: some View {
@@ -457,14 +454,23 @@ struct TaskDetailSheet: View {
     }
 
     private func normalizedChecklistDrafts() -> [ChecklistItemDraft] {
-        checklistDrafts.enumerated().map { index, draft in
-            ChecklistItemDraft(
-                id: draft.id,
-                title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                isCompleted: draft.isCompleted,
-                order: Double(index + 1) * 100
-            )
-        }
+        checklistDrafts
+            .compactMap { draft -> ChecklistItemDraft? in
+                let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !title.isEmpty else { return nil }
+                return ChecklistItemDraft(
+                    id: draft.id,
+                    title: title,
+                    isCompleted: draft.isCompleted,
+                    order: draft.order
+                )
+            }
+            .enumerated()
+            .map { index, draft in
+                var draft = draft
+                draft.order = Double(index + 1) * 100
+                return draft
+            }
     }
 }
 

@@ -378,18 +378,16 @@ struct TemplateLibrarySheet: View {
     }
 
     private func isValidTemplateDraft(_ draft: TemplateTaskDraft) -> Bool {
-        !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            draft.checklistTitles.allSatisfy {
-                !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+        !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func normalizedIncludedBoardDrafts() -> [TemplateTaskDraft] {
         includedBoardDrafts.enumerated().map { index, draft in
             var normalizedDraft = draft
             normalizedDraft.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            normalizedDraft.checklistTitles = draft.checklistTitles.map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedDraft.checklistTitles = draft.checklistTitles.compactMap { title in
+                let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                return title.isEmpty ? nil : title
             }
             normalizedDraft.order = Double(index + 1) * 100
             return normalizedDraft
