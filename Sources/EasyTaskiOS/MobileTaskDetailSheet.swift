@@ -23,9 +23,16 @@ struct MobileTaskDetailSheet: View {
     @State private var tagsText: String
     @State private var reminderEnabled: Bool
     @State private var reminderDate: Date
+    @State private var checklistDrafts: [ChecklistItemDraft] = []
+    @State private var newChecklistTitle = ""
+    @State private var checklistEditMode: EditMode = .inactive
+    @State private var isChecklistLoading = false
+    @State private var isChecklistLoaded = false
+    @State private var checklistLoadError: String?
     @State private var notificationAuthorization: TaskNotificationAuthorizationState = .notDetermined
     @State private var saveError: String?
     @State private var isSaving = false
+    @FocusState private var isNewChecklistTitleFocused: Bool
 
     init(task: TodoTask) {
         self.task = task
@@ -66,6 +73,98 @@ struct MobileTaskDetailSheet: View {
                     TextField("예상 시간(분)", text: $estimatedMinutesText)
                         .keyboardType(.numberPad)
                     TextField("태그(쉼표로 구분)", text: $tagsText)
+                }
+                Section {
+                    if isChecklistLoading {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("체크리스트 불러오는 중")
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(minHeight: 44)
+                    } else if let checklistLoadError {
+                        HStack(spacing: 10) {
+                            Label(checklistLoadError, systemImage: "exclamationmark.triangle")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button(action: loadChecklistDrafts) {
+                                Image(systemName: "arrow.clockwise")
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("체크리스트 다시 불러오기")
+                        }
+                    } else {
+                        ForEach($checklistDrafts) { $draft in
+                            HStack(spacing: 8) {
+                                Button {
+                                    draft.isCompleted.toggle()
+                                } label: {
+                                    Image(systemName: draft.isCompleted
+                                        ? "checkmark.circle.fill"
+                                        : "circle")
+                                        .font(.title3)
+                                        .foregroundStyle(draft.isCompleted
+                                            ? AppTheme.done
+                                            : AppTheme.secondaryText)
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("\(checklistAccessibilityTitle(draft.title)) 완료 상태")
+                                .accessibilityValue(draft.isCompleted ? "완료" : "미완료")
+
+                                TextField("체크리스트 항목", text: $draft.title)
+                                    .strikethrough(draft.isCompleted)
+                                    .foregroundStyle(draft.isCompleted ? .secondary : .primary)
+                                    .submitLabel(.done)
+                                    .frame(minHeight: 44)
+                                    .accessibilityLabel("체크리스트 항목 제목")
+                                    .accessibilityValue(draft.title)
+                            }
+                        }
+                        .onDelete(perform: deleteChecklistDrafts)
+                        .onMove(perform: moveChecklistDrafts)
+
+                        HStack(spacing: 8) {
+                            TextField("새 체크리스트 항목", text: $newChecklistTitle)
+                                .focused($isNewChecklistTitleFocused)
+                                .submitLabel(.done)
+                                .onSubmit(addChecklistDraft)
+                                .frame(minHeight: 44)
+
+                            Button(action: addChecklistDraft) {
+                                Image(systemName: "plus")
+                                    .font(.headline)
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(
+                                newChecklistTitle
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                    .isEmpty || checklistEditMode.isEditing
+                            )
+                            .accessibilityLabel("체크리스트 항목 추가")
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("체크리스트")
+                        Spacer()
+                        if isChecklistLoaded &&
+                            (checklistDrafts.count > 1 || checklistEditMode.isEditing) {
+                            EditButton()
+                                .frame(minWidth: 44, minHeight: 44)
+                                .accessibilityLabel(checklistEditMode.isEditing
+                                    ? "체크리스트 순서 편집 완료"
+                                    : "체크리스트 순서 편집")
+                        }
+                    }
+                    .textCase(nil)
                 }
                 Section("알림") {
                     Toggle("작업 알림", isOn: $reminderEnabled)
@@ -118,6 +217,8 @@ struct MobileTaskDetailSheet: View {
                     }
                 }
             }
+            .environment(\.editMode, $checklistEditMode)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("작업 상세")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -127,12 +228,15 @@ struct MobileTaskDetailSheet: View {
                     Button("저장", action: save)
                         .disabled(
                             isSaving ||
+                            !isChecklistLoaded ||
+                            isChecklistLoading ||
                             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         )
                 }
             }
         }
         .task {
+            loadChecklistDrafts()
             notificationAuthorization = await TaskNotificationScheduler.shared
                 .authorizationState()
         }
@@ -152,7 +256,7 @@ struct MobileTaskDetailSheet: View {
     }
 
     private func save() {
-        guard !isSaving else { return }
+        guard !isSaving, isChecklistLoaded, !isChecklistLoading else { return }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
 
@@ -171,6 +275,7 @@ struct MobileTaskDetailSheet: View {
         let reminderAt = reminderEnabled
             ? TaskReminderRules.normalizedDate(reminderDate)
             : nil
+        let checklistDrafts = checklistDrafts
         if status != .done,
            reminderEnabled,
            reminderAt.map({ $0 <= Date() }) != false {
@@ -219,6 +324,18 @@ struct MobileTaskDetailSheet: View {
                 task.estimatedMinutes = estimatedMinutes
                 task.tags = tags
                 task.updatedAt = now
+
+                let existingChecklistItems = try TaskChecklistService.items(
+                    for: task.id,
+                    in: modelContext
+                )
+                TaskChecklistService.replaceItems(
+                    for: task.id,
+                    drafts: checklistDrafts,
+                    existingItems: existingChecklistItems,
+                    in: modelContext,
+                    now: now
+                )
             }
             finishSaving(reminderRequested: status != .done && reminderAt != nil)
         } catch SaveFailure.reminderExpired {
@@ -239,6 +356,60 @@ struct MobileTaskDetailSheet: View {
         .buttonStyle(.bordered)
         .font(.caption.weight(.semibold))
         .frame(maxWidth: .infinity)
+    }
+
+    private func loadChecklistDrafts() {
+        guard !isChecklistLoading else { return }
+        isChecklistLoading = true
+        isChecklistLoaded = false
+        checklistLoadError = nil
+
+        do {
+            let items = try TaskChecklistService.items(for: task.id, in: modelContext)
+            checklistDrafts = TaskChecklistService.drafts(from: items)
+            isChecklistLoaded = true
+        } catch {
+            checklistLoadError = "체크리스트를 불러오지 못했습니다"
+        }
+
+        isChecklistLoading = false
+    }
+
+    private func addChecklistDraft() {
+        let trimmedTitle = newChecklistTitle
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isChecklistLoaded,
+              !checklistEditMode.isEditing,
+              !trimmedTitle.isEmpty else { return }
+
+        let nextOrder = (checklistDrafts.map(\.order).max() ?? 0) + 100
+        checklistDrafts.append(ChecklistItemDraft(
+            title: trimmedTitle,
+            order: nextOrder
+        ))
+        newChecklistTitle = ""
+        isNewChecklistTitleFocused = true
+    }
+
+    private func deleteChecklistDrafts(at offsets: IndexSet) {
+        checklistDrafts.remove(atOffsets: offsets)
+        normalizeChecklistDraftOrder()
+    }
+
+    private func moveChecklistDrafts(from source: IndexSet, to destination: Int) {
+        checklistDrafts.move(fromOffsets: source, toOffset: destination)
+        normalizeChecklistDraftOrder()
+    }
+
+    private func normalizeChecklistDraftOrder() {
+        for index in checklistDrafts.indices {
+            checklistDrafts[index].order = Double(index + 1) * 100
+        }
+    }
+
+    private func checklistAccessibilityTitle(_ title: String) -> String {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedTitle.isEmpty ? "제목 없는 체크리스트 항목" : trimmedTitle
     }
 
     private func finishSaving(reminderRequested: Bool) {

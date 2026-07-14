@@ -1,6 +1,7 @@
 #if os(iOS)
 import EasyTaskCore
 import Foundation
+import SwiftData
 import SwiftUI
 
 struct MobileArchiveRecordCard: View {
@@ -364,6 +365,16 @@ private struct MobileArchiveImageItem: Identifiable {
 
 private struct MobileArchiveTaskCompactRow: View {
     var task: TodoTask
+    @Query private var checklistItems: [TaskChecklistItem]
+
+    init(task: TodoTask) {
+        self.task = task
+        _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
+    }
+
+    private var checklistProgress: ChecklistProgress {
+        TaskChecklistService.progress(in: checklistItems)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -373,7 +384,8 @@ private struct MobileArchiveTaskCompactRow: View {
             Text(task.title)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
-            Spacer()
+            Spacer(minLength: 4)
+            MobileChecklistProgressChip(progress: checklistProgress)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -383,6 +395,16 @@ private struct MobileArchiveTaskCompactRow: View {
 
 private struct MobileArchiveTaskRow: View {
     var task: TodoTask
+    @Query private var checklistItems: [TaskChecklistItem]
+
+    init(task: TodoTask) {
+        self.task = task
+        _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
+    }
+
+    private var checklistProgress: ChecklistProgress {
+        TaskChecklistService.progress(in: checklistItems)
+    }
 
     private var displayDate: String {
         let key = ArchiveQueryRules.dayKey(for: task)
@@ -408,6 +430,8 @@ private struct MobileArchiveTaskRow: View {
                 if let estimatedMinutes = task.estimatedMinutes {
                     Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
                 }
+                Spacer(minLength: 4)
+                MobileChecklistProgressChip(progress: checklistProgress)
             }
             .font(.caption2.weight(.semibold))
             .foregroundStyle(AppTheme.cardMutedText)
