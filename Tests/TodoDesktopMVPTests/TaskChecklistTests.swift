@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SwiftData
 import Testing
@@ -232,4 +233,109 @@ func backupV4RoundTripPreservesChecklistAndIsIdempotent() throws {
     #expect(restored.first?.instanceID == checklist.instanceID)
     #expect(restored.first?.isCompleted == true)
     #expect(restoredTemplateItem.checklistTitles == ["검증", "배포"])
+}
+
+@Test
+@MainActor
+func v3PackageWithoutChecklistFieldsPreservesLocalChecklistData() throws {
+    let taskID = UUID()
+    let taskInstanceID = UUID()
+    let templateID = UUID()
+    let templateInstanceID = UUID()
+    let templateItemID = UUID()
+    let templateItemInstanceID = UUID()
+    let day = try #require(DayKey.date(from: "2026-07-14"))
+
+    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let localTask = Task(
+        id: taskID,
+        instanceID: taskInstanceID,
+        title: "로컬 작업",
+        plannedAt: day,
+        order: 100,
+        updatedAt: Date(timeIntervalSince1970: 100)
+    )
+    let localTemplate = TaskTemplate(
+        id: templateID,
+        instanceID: templateInstanceID,
+        name: "기존 템플릿",
+        updatedAt: Date(timeIntervalSince1970: 100)
+    )
+    let localTemplateItem = TaskTemplateItem(
+        id: templateItemID,
+        instanceID: templateItemInstanceID,
+        templateId: templateID,
+        title: "기존 항목",
+        checklistTitles: ["로컬 제목"],
+        order: 100,
+        createdAt: Date(timeIntervalSince1970: 50),
+        updatedAt: Date(timeIntervalSince1970: 100)
+    )
+    destination.mainContext.insert(localTask)
+    destination.mainContext.insert(TaskChecklistItem(
+        taskId: taskID,
+        title: "로컬 체크리스트",
+        order: 100
+    ))
+    destination.mainContext.insert(localTemplate)
+    destination.mainContext.insert(localTemplateItem)
+    try destination.mainContext.save()
+
+    let source = try EasyTaskContainerFactory.makeInMemory()
+    source.mainContext.insert(Task(
+        id: taskID,
+        instanceID: taskInstanceID,
+        title: "V3에서 수정한 작업",
+        plannedAt: day,
+        order: 100,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    ))
+    source.mainContext.insert(TaskTemplate(
+        id: templateID,
+        instanceID: templateInstanceID,
+        name: "기존 템플릿",
+        updatedAt: Date(timeIntervalSince1970: 100)
+    ))
+    source.mainContext.insert(TaskTemplateItem(
+        id: templateItemID,
+        instanceID: templateItemInstanceID,
+        templateId: templateID,
+        title: "V3에서 수정한 항목",
+        checklistTitles: [],
+        order: 100,
+        createdAt: Date(timeIntervalSince1970: 50),
+        updatedAt: Date(timeIntervalSince1970: 200)
+    ))
+    try source.mainContext.save()
+
+    var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    contents.manifest.formatVersion = 3
+    contents.records.formatVersion = 3
+    contents.records.payload.taskChecklistItems = nil
+    contents.records.payload.taskTemplateItems[0].checklistTitles = nil
+    refreshChecklistRecordsMetadata(&contents)
+
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    let restoredTask = try #require(
+        destination.mainContext.fetch(FetchDescriptor<Task>()).first
+    )
+    let restoredTemplateItem = try #require(
+        destination.mainContext.fetch(FetchDescriptor<TaskTemplateItem>()).first
+    )
+    let restoredChecklist = try TaskChecklistService.items(for: taskID, in: destination.mainContext)
+    #expect(restoredTask.title == "V3에서 수정한 작업")
+    #expect(restoredTemplateItem.title == "V3에서 수정한 항목")
+    #expect(restoredTemplateItem.checklistTitles == ["로컬 제목"])
+    #expect(restoredChecklist.map(\.title) == ["로컬 체크리스트"])
+}
+
+private func refreshChecklistRecordsMetadata(_ contents: inout BackupPackageContents) {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try! encoder.encode(contents.records)
+    contents.manifest.recordsByteCount = data.count
+    contents.manifest.recordsSHA256 = SHA256.hash(data: data)
+        .map { String(format: "%02x", $0) }
+        .joined()
 }
