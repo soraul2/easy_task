@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import EasyTaskCore
 
@@ -131,6 +132,10 @@ struct TaskCard: View {
                         .foregroundStyle(AppTheme.cardMutedText)
                         .lineLimit(1)
                     }
+
+                    TaskChecklistProgressLabel(taskID: task.id)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.cardMutedText)
                 }
                 Spacer()
                 Button {
@@ -243,6 +248,28 @@ struct TaskCard: View {
             draftTitle = trimmedTitle
         } else {
             draftTitle = task.title
+        }
+    }
+}
+
+struct TaskChecklistProgressLabel: View {
+    @Query private var checklistItems: [TaskChecklistItem]
+
+    init(taskID: UUID) {
+        _checklistItems = Query(TaskChecklistService.descriptor(taskID: taskID))
+    }
+
+    var body: some View {
+        let progress = TaskChecklistService.progress(in: checklistItems)
+
+        if !progress.isEmpty {
+            Label(
+                "\(progress.completedCount)/\(progress.totalCount)",
+                systemImage: "checklist"
+            )
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .help("체크리스트 \(progress.completedCount)/\(progress.totalCount) 완료")
         }
     }
 }
