@@ -56,7 +56,7 @@ func relationshipDeletionCommandsRemainConsistentAfterReopen() throws {
                 toTemplatePlacementID: storedPlacement.id,
                 in: mutating.mainContext
             )
-            _ = TemplateService.deletePlacement(
+            _ = try TemplateService.deletePlacement(
                 storedPlacement,
                 tasks: linkedPlacementTasks,
                 in: mutating.mainContext,

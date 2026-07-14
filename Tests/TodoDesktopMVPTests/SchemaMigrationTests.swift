@@ -56,10 +56,29 @@ func schemaV3ContainsEveryFrozenPersistedModel() {
 }
 
 @Test
-func schemaV4ContainsEveryCurrentPersistedModel() {
+func schemaV4ContainsEveryFrozenPersistedModel() {
     let modelNames = Set(EasyTaskSchemaV4.models.map { String(reflecting: $0) })
     let expectedNames = Set([
+        String(reflecting: EasyTaskSchemaV4.Task.self),
+        String(reflecting: EasyTaskSchemaV4.CalendarEvent.self),
+        String(reflecting: EasyTaskSchemaV4.TaskTemplate.self),
+        String(reflecting: EasyTaskSchemaV4.TaskTemplateItem.self),
+        String(reflecting: EasyTaskSchemaV4.TemplatePlacement.self),
+        String(reflecting: EasyTaskSchemaV4.DailyReview.self),
+        String(reflecting: EasyTaskSchemaV4.DiaryBlock.self),
+        String(reflecting: EasyTaskSchemaV4.DiaryAttachment.self)
+    ])
+
+    #expect(EasyTaskSchemaV4.versionIdentifier == Schema.Version(4, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV5ContainsEveryCurrentPersistedModel() {
+    let modelNames = Set(EasyTaskSchemaV5.models.map { String(reflecting: $0) })
+    let expectedNames = Set([
         String(reflecting: Task.self),
+        String(reflecting: TaskChecklistItem.self),
         String(reflecting: CalendarEvent.self),
         String(reflecting: TaskTemplate.self),
         String(reflecting: TaskTemplateItem.self),
@@ -69,7 +88,7 @@ func schemaV4ContainsEveryCurrentPersistedModel() {
         String(reflecting: DiaryAttachment.self)
     ])
 
-    #expect(EasyTaskSchemaV4.versionIdentifier == Schema.Version(4, 0, 0))
+    #expect(EasyTaskSchemaV5.versionIdentifier == Schema.Version(5, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -219,6 +238,53 @@ func versionedV3StoreMigratesToV4WithStableIdentityAndNoReminder() throws {
         #expect(task.instanceID == instanceID)
         #expect(task.title == "V3 알림 이관")
         #expect(task.reminderAt == nil)
+    }
+}
+
+@Test
+@MainActor
+func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
+    try withTemporaryStore { storeURL in
+        let schema = Schema(versionedSchema: EasyTaskSchemaV4.self)
+        let configuration = ModelConfiguration(
+            "EasyTaskV4",
+            schema: schema,
+            url: storeURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let container = try ModelContainer(for: schema, configurations: configuration)
+        let taskID = UUID()
+        let templateID = UUID()
+        let day = try #require(DayKey.date(from: "2026-07-14"))
+        container.mainContext.insert(EasyTaskSchemaV4.Task(
+            id: taskID,
+            title: "V4 체크리스트 이관",
+            plannedAt: day,
+            order: 100
+        ))
+        container.mainContext.insert(EasyTaskSchemaV4.TaskTemplate(
+            id: templateID,
+            name: "V4 템플릿"
+        ))
+        container.mainContext.insert(EasyTaskSchemaV4.TaskTemplateItem(
+            templateId: templateID,
+            title: "기존 템플릿 작업",
+            order: 100
+        ))
+        try container.mainContext.save()
+
+        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let task = try #require(migrated.mainContext.fetch(FetchDescriptor<Task>()).first)
+        let templateItem = try #require(
+            migrated.mainContext.fetch(FetchDescriptor<TaskTemplateItem>()).first
+        )
+        #expect(task.id == taskID)
+        #expect(task.title == "V4 체크리스트 이관")
+        #expect(templateItem.checklistTitles.isEmpty)
+        #expect(try migrated.mainContext.fetchCount(
+            FetchDescriptor<TaskChecklistItem>()
+        ) == 0)
     }
 }
 

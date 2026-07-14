@@ -624,7 +624,7 @@ func deleteTemplatePlacementRemovesOnlyGeneratedTasksAndPlacement() throws {
     context.insert(secondTask)
     context.insert(manualTask)
 
-    let deletedTaskCount = TemplateService.deletePlacement(
+    let deletedTaskCount = try TemplateService.deletePlacement(
         placement,
         tasks: [manualTask, secondTask, firstTask],
         in: context
@@ -684,7 +684,7 @@ func deleteTemplatePlacementBlocksTaskDeletionAfterProgressStarts() throws {
         for: placement,
         in: [todoTask, doingTask, doneTask]
     )
-    let blockedDeleteCount = TemplateService.deletePlacement(
+    let blockedDeleteCount = try TemplateService.deletePlacement(
         placement,
         tasks: [todoTask, doingTask, doneTask],
         in: context,
@@ -701,7 +701,7 @@ func deleteTemplatePlacementBlocksTaskDeletionAfterProgressStarts() throws {
     #expect(tasks.count == 3)
     #expect(placements.count == 1)
 
-    let detachedCount = TemplateService.deletePlacement(
+    let detachedCount = try TemplateService.deletePlacement(
         placement,
         tasks: [todoTask, doingTask, doneTask],
         in: context,
