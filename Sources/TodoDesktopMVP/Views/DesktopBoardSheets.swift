@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import EasyTaskCore
 
@@ -79,26 +80,30 @@ struct TemplateLibrarySheet: View {
     @Binding var failureMessage: String?
     var currentBoardTasks: [Task]
     var onApply: (TaskTemplate) -> Void
-    var onSaveCurrentBoard: ([Task]) -> Void
+    var onSaveCurrentBoard: ([TemplateTaskDraft]) -> Void
     var onToggleFavorite: (TaskTemplate) -> Void
     var onDelete: (TaskTemplate) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var searchText = ""
     @State private var selectedScope: TemplateListScope = .favorites
+    @State private var templateDrafts: [TemplateTaskDraft] = []
     @State private var excludedTaskIDs: Set<UUID> = []
+    @State private var didLoadCurrentBoardDrafts = false
     @State private var pendingDeleteTemplate: TaskTemplate?
 
     private var canSaveCurrentBoard: Bool {
         !templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !includedBoardTasks.isEmpty
+            !includedBoardDrafts.isEmpty &&
+            includedBoardDrafts.allSatisfy(isValidTemplateDraft)
     }
 
-    private var includedBoardTasks: [Task] {
-        currentBoardTasks.filter { !excludedTaskIDs.contains($0.id) }
+    private var includedBoardDrafts: [TemplateTaskDraft] {
+        templateDrafts.filter { !excludedTaskIDs.contains($0.id) }
     }
 
     private var excludedBoardTaskCount: Int {
-        currentBoardTasks.count - includedBoardTasks.count
+        templateDrafts.count - includedBoardDrafts.count
     }
 
     private var visibleTemplates: [TaskTemplate] {
@@ -154,14 +159,18 @@ struct TemplateLibrarySheet: View {
             }
         }
         .padding(22)
-        .frame(minWidth: 760, idealWidth: 820, minHeight: 430, idealHeight: 540)
+        .frame(minWidth: 900, idealWidth: 980, minHeight: 500, idealHeight: 620)
         .background(AppTheme.panel)
         .onAppear {
             selectedScope = TemplateListRules.preferredScope(for: templates)
-            excludedTaskIDs = []
+            if !didLoadCurrentBoardDrafts {
+                loadCurrentBoardDrafts()
+            }
         }
         .onChange(of: currentBoardTasks.map(\.id)) { _, ids in
-            excludedTaskIDs.formIntersection(Set(ids))
+            let currentIDs = Set(ids)
+            templateDrafts.removeAll { !currentIDs.contains($0.id) }
+            excludedTaskIDs.formIntersection(currentIDs)
         }
         .alert("템플릿을 삭제할까요?", isPresented: Binding(
             get: { pendingDeleteTemplate != nil },
@@ -251,7 +260,7 @@ struct TemplateLibrarySheet: View {
                 }
                 .onSubmit {
                     if canSaveCurrentBoard {
-                        onSaveCurrentBoard(includedBoardTasks)
+                        onSaveCurrentBoard(normalizedIncludedBoardDrafts())
                     }
                 }
 
@@ -275,7 +284,7 @@ struct TemplateLibrarySheet: View {
             currentBoardTaskList
 
             Button {
-                onSaveCurrentBoard(includedBoardTasks)
+                onSaveCurrentBoard(normalizedIncludedBoardDrafts())
             } label: {
                 Label("템플릿으로 저장", systemImage: "plus.square.on.square")
                     .frame(maxWidth: .infinity)
@@ -286,7 +295,7 @@ struct TemplateLibrarySheet: View {
             Spacer()
         }
         .padding(14)
-        .frame(width: 290, alignment: .topLeading)
+        .frame(width: 380, alignment: .topLeading)
         .frame(minHeight: 260, alignment: .topLeading)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
@@ -297,14 +306,14 @@ struct TemplateLibrarySheet: View {
 
     private var currentBoardTaskSummary: String {
         if excludedBoardTaskCount > 0 {
-            return "저장 대상 \(includedBoardTasks.count)개 · 제외 \(excludedBoardTaskCount)개"
+            return "저장 대상 \(includedBoardDrafts.count)개 · 제외 \(excludedBoardTaskCount)개"
         }
-        return "현재 날짜의 작업 \(includedBoardTasks.count)개"
+        return "현재 날짜의 작업 \(includedBoardDrafts.count)개"
     }
 
     @ViewBuilder
     private var currentBoardTaskList: some View {
-        if includedBoardTasks.isEmpty {
+        if includedBoardDrafts.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 18, weight: .semibold))
@@ -322,33 +331,77 @@ struct TemplateLibrarySheet: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(includedBoardTasks) { task in
-                        TemplateSourceTaskRow(
-                            task: task,
-                            onExclude: {
-                                excludedTaskIDs.insert(task.id)
-                            }
-                        )
+                    ForEach($templateDrafts) { $draft in
+                        if !excludedTaskIDs.contains(draft.id) {
+                            TemplateSourceTaskRow(
+                                draft: $draft,
+                                status: statusForBoardTask(draft.id),
+                                onExclude: {
+                                    excludedTaskIDs.insert(draft.id)
+                                }
+                            )
+                        }
                     }
                 }
                 .padding(.vertical, 2)
             }
-            .frame(maxHeight: 180)
+            .frame(maxHeight: 280)
         }
     }
 
     private func itemsForTemplate(_ template: TaskTemplate) -> [TaskTemplateItem] {
         TemplateListRules.itemsForTemplate(template, in: items)
     }
+
+    private func statusForBoardTask(_ id: UUID) -> TaskStatus {
+        let rawStatus = currentBoardTasks.first(where: { $0.id == id })?.status
+        return rawStatus.flatMap(TaskStatus.init(rawValue:)) ?? .todo
+    }
+
+    private func loadCurrentBoardDrafts() {
+        do {
+            let checklistItems = try TaskChecklistService.items(
+                for: currentBoardTasks.map(\.id),
+                in: modelContext
+            )
+            templateDrafts = TemplateService.drafts(
+                from: currentBoardTasks,
+                checklistItems: checklistItems
+            )
+            excludedTaskIDs = []
+            didLoadCurrentBoardDrafts = true
+        } catch {
+            templateDrafts = []
+            didLoadCurrentBoardDrafts = false
+            failureMessage = "현재 보드의 체크리스트를 불러오지 못했습니다."
+        }
+    }
+
+    private func isValidTemplateDraft(_ draft: TemplateTaskDraft) -> Bool {
+        !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            draft.checklistTitles.allSatisfy {
+                !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+    }
+
+    private func normalizedIncludedBoardDrafts() -> [TemplateTaskDraft] {
+        includedBoardDrafts.enumerated().map { index, draft in
+            var normalizedDraft = draft
+            normalizedDraft.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            normalizedDraft.checklistTitles = draft.checklistTitles.map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            normalizedDraft.order = Double(index + 1) * 100
+            return normalizedDraft
+        }
+    }
 }
 
 struct TemplateSourceTaskRow: View {
-    var task: Task
+    @Binding var draft: TemplateTaskDraft
+    var status: TaskStatus
     var onExclude: () -> Void
-
-    private var status: TaskStatus {
-        TaskStatus(rawValue: task.status) ?? .todo
-    }
+    @State private var isChecklistExpanded = false
 
     private var statusColor: Color {
         switch status {
@@ -359,33 +412,68 @@ struct TemplateSourceTaskRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 7, height: 7)
 
-            Text(task.title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .lineLimit(1)
+                TextField("작업 제목", text: $draft.title)
+                    .textFieldStyle(.plain)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
 
-            Spacer()
+                Text(status.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
 
-            Text(status.title)
-                .font(.caption2.weight(.semibold))
+                Button {
+                    onExclude()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.secondaryText)
-
-            Button {
-                onExclude()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .frame(width: 22, height: 22)
-                    .contentShape(Rectangle())
+                .help("템플릿 저장 대상에서 제외")
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(AppTheme.secondaryText)
-            .help("템플릿 저장 대상에서 제외")
+
+            DisclosureGroup(isExpanded: $isChecklistExpanded) {
+                VStack(spacing: 6) {
+                    ForEach(draft.checklistTitles.indices, id: \.self) { index in
+                        HStack(spacing: 8) {
+                            TextField(
+                                "체크리스트 항목",
+                                text: $draft.checklistTitles[index]
+                            )
+                            .textFieldStyle(.plain)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.primaryText)
+
+                            Button(role: .destructive) {
+                                draft.checklistTitles.remove(at: index)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .frame(width: 20, height: 20)
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .help("템플릿 체크리스트 항목 삭제")
+                        }
+                        .padding(.leading, 4)
+                    }
+                }
+                .padding(.top, 6)
+            } label: {
+                Label(
+                    "체크리스트 \(draft.checklistTitles.count)",
+                    systemImage: "checklist"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

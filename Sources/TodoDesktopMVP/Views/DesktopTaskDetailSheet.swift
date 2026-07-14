@@ -13,7 +13,12 @@ struct TaskDetailSheet: View {
     @State private var selectedPriority: TaskPriority?
     @State private var tagsText: String
     @State private var estimatedMinutesText: String
+    @State private var checklistDrafts: [ChecklistItemDraft] = []
+    @State private var newChecklistTitle = ""
+    @State private var isChecklistLoaded = false
+    @State private var checklistLoadFailureMessage: String?
     @State private var persistenceFailureMessage: String?
+    @FocusState private var isNewChecklistItemFocused: Bool
 
     init(task: Task) {
         self.task = task
@@ -27,171 +32,289 @@ struct TaskDetailSheet: View {
     }
 
     private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            isChecklistLoaded &&
+            checklistDrafts.allSatisfy {
+                !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("작업 상세 편집")
-                        .font(.title2.weight(.bold))
+        VStack(spacing: 0) {
+            header
+                .padding(22)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    DetailFieldLabel("제목")
+                    TextField("작업 제목", text: $title)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                    Text("\(task.plannedDayKey)에 배치된 작업")
-                        .font(.callout)
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
+                        .padding(10)
+                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        }
 
-                Spacer()
+                    DetailFieldLabel("보드 날짜")
+                    DatePicker("보드 날짜", selection: $plannedDate, displayedComponents: .date)
+                        .labelsHidden()
 
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .frame(width: 28, height: 28)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(AppTheme.secondaryText)
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                DetailFieldLabel("제목")
-                TextField("작업 제목", text: $title)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(10)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.border, lineWidth: 1)
+                    if let reminderAt = task.reminderAt {
+                        DetailFieldLabel("알림")
+                        Label(
+                            reminderAt.formatted(date: .abbreviated, time: .shortened),
+                            systemImage: "bell"
+                        )
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        }
                     }
 
-                DetailFieldLabel("보드 날짜")
-                DatePicker("보드 날짜", selection: $plannedDate, displayedComponents: .date)
-                    .labelsHidden()
-
-                if let reminderAt = task.reminderAt {
-                    DetailFieldLabel("알림")
-                    Label(
-                        reminderAt.formatted(date: .abbreviated, time: .shortened),
-                        systemImage: "bell"
-                    )
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.border, lineWidth: 1)
+                    DetailFieldLabel("상태")
+                    Picker("상태", selection: $status) {
+                        ForEach(TaskStatus.allCases) { status in
+                            Text(status.title).tag(status)
+                        }
                     }
-                }
+                    .pickerStyle(.segmented)
 
-                DetailFieldLabel("상태")
-                Picker("상태", selection: $status) {
-                    ForEach(TaskStatus.allCases) { status in
-                        Text(status.title).tag(status)
+                    DetailFieldLabel("메모")
+                    TextEditor(text: $note)
+                        .font(.system(size: 14))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 110)
+                        .padding(8)
+                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        }
+
+                    checklistEditor
+
+                    DetailFieldLabel("우선순위")
+                    Picker("우선순위", selection: $selectedPriority) {
+                        Text("없음").tag(nil as TaskPriority?)
+                        ForEach(TaskPriority.allCases) { priority in
+                            Text(priority.title).tag(priority as TaskPriority?)
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
+                    .pickerStyle(.segmented)
 
-                DetailFieldLabel("메모")
-                TextEditor(text: $note)
-                    .font(.system(size: 14))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: 110)
-                    .padding(8)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    }
+                    DetailFieldLabel("예상 시간")
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            ForEach([15, 30, 60, 120], id: \.self) { minutes in
+                                Button(EstimatedTimeFormatter.short(minutes)) {
+                                    estimatedMinutesText = String(minutes)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
 
-                DetailFieldLabel("우선순위")
-                Picker("우선순위", selection: $selectedPriority) {
-                    Text("없음").tag(nil as TaskPriority?)
-                    ForEach(TaskPriority.allCases) { priority in
-                        Text(priority.title).tag(priority as TaskPriority?)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                DetailFieldLabel("예상 시간")
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
-                        ForEach([15, 30, 60, 120], id: \.self) { minutes in
-                            Button(EstimatedTimeFormatter.short(minutes)) {
-                                estimatedMinutesText = String(minutes)
+                            Button("없음") {
+                                estimatedMinutesText = ""
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
 
-                        Button("없음") {
-                            estimatedMinutesText = ""
+                        HStack(spacing: 8) {
+                            TextField("직접 입력", text: $estimatedMinutesText)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 14))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Text("분")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .padding(10)
+                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        }
                     }
 
-                    HStack(spacing: 8) {
-                        TextField("직접 입력", text: $estimatedMinutesText)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 14))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text("분")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
-                    .padding(10)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    }
+                    DetailFieldLabel("태그")
+                    TextField("쉼표로 구분해서 입력", text: $tagsText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .padding(10)
+                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(AppTheme.border, lineWidth: 1)
+                        }
                 }
-
-                DetailFieldLabel("태그")
-                TextField("쉼표로 구분해서 입력", text: $tagsText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 14))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(10)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    }
+                .padding(22)
             }
 
-            HStack {
+            Divider()
+
+            footer
+                .padding(22)
+        }
+        .frame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720)
+        .background(AppTheme.panel)
+        .task(id: task.id) {
+            loadChecklist()
+        }
+        .persistenceFailureAlert(message: $persistenceFailureMessage)
+    }
+
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("작업 상세 편집")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                Text("\(task.plannedDayKey)에 배치된 작업")
+                    .font(.callout)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            Spacer()
+
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(AppTheme.secondaryText)
+            .help("편집 취소")
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+
+            Button("취소") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                save()
+            } label: {
+                Label("저장", systemImage: "checkmark")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canSave)
+            .keyboardShortcut(.defaultAction)
+        }
+    }
+
+    @ViewBuilder
+    private var checklistEditor: some View {
+        HStack(spacing: 8) {
+            DetailFieldLabel("체크리스트")
+
+            if isChecklistLoaded, !checklistDrafts.isEmpty {
+                let completedCount = checklistDrafts.filter(\.isCompleted).count
+                Text("\(completedCount)/\(checklistDrafts.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            Spacer()
+        }
+
+        if isChecklistLoaded {
+            VStack(spacing: 8) {
+                ForEach($checklistDrafts) { $draft in
+                    ChecklistDraftEditorRow(
+                        draft: $draft,
+                        onDelete: {
+                            deleteChecklistItem(draft.id)
+                        },
+                        onDrop: { sourceID, placeAfter in
+                            moveChecklistItem(
+                                sourceID,
+                                relativeTo: draft.id,
+                                placeAfter: placeAfter
+                            )
+                        }
+                    )
+                }
+
+                HStack(spacing: 8) {
+                    TextField("체크리스트 항목", text: $newChecklistTitle)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .focused($isNewChecklistItemFocused)
+                        .onSubmit(addChecklistItem)
+
+                    Button {
+                        addChecklistItem()
+                    } label: {
+                        Image(systemName: "plus")
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .disabled(newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help("체크리스트 항목 추가")
+                }
+                .padding(10)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+            }
+        } else if let checklistLoadFailureMessage {
+            HStack(spacing: 10) {
+                Label(checklistLoadFailureMessage, systemImage: "exclamationmark.circle")
+                    .font(.callout)
+                    .foregroundStyle(AppTheme.secondaryText)
+
                 Spacer()
 
-                Button("취소") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-
                 Button {
-                    save()
+                    loadChecklist()
                 } label: {
-                    Label("저장", systemImage: "checkmark")
+                    Image(systemName: "arrow.clockwise")
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canSave)
+                .buttonStyle(.borderless)
+                .help("체크리스트 다시 불러오기")
             }
+            .padding(10)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
+        } else {
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, minHeight: 42)
         }
-        .padding(22)
-        .frame(width: 520)
-        .background(AppTheme.panel)
-        .persistenceFailureAlert(message: $persistenceFailureMessage)
     }
 
     private func save() {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
+        guard canSave else { return }
+        if !newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            addChecklistItem()
+        }
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let tags = parsedTags()
@@ -201,10 +324,12 @@ struct TaskDetailSheet: View {
             return
         }
         let estimatedMinutes = estimateInput.value
+        let checklistDrafts = normalizedChecklistDrafts()
         let oldDayKey = task.plannedDayKey
         let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         let newPlannedAt = DayKey.startOfDay(for: plannedDate)
         let newDayKey = DayKey.key(for: newPlannedAt)
+        let now = Date()
 
         do {
             try PersistenceCommandService.perform(in: modelContext) {
@@ -232,7 +357,18 @@ struct TaskDetailSheet: View {
                 task.priority = selectedPriority?.rawValue
                 task.tags = tags
                 task.estimatedMinutes = estimatedMinutes
-                task.updatedAt = Date()
+                task.updatedAt = now
+
+                TaskChecklistService.replaceItems(
+                    for: task.id,
+                    drafts: checklistDrafts,
+                    existingItems: try TaskChecklistService.items(
+                        for: task.id,
+                        in: modelContext
+                    ),
+                    in: modelContext,
+                    now: now
+                )
             }
             dismiss()
         } catch {
@@ -260,6 +396,141 @@ struct TaskDetailSheet: View {
                 return tag
             }
     }
+
+    private func loadChecklist() {
+        checklistLoadFailureMessage = nil
+        do {
+            let items = try TaskChecklistService.items(for: task.id, in: modelContext)
+            checklistDrafts = TaskChecklistService.drafts(from: items)
+            renumberChecklistDrafts()
+            isChecklistLoaded = true
+        } catch {
+            checklistDrafts = []
+            isChecklistLoaded = false
+            checklistLoadFailureMessage = "체크리스트를 불러오지 못했습니다."
+        }
+    }
+
+    private func addChecklistItem() {
+        let itemTitle = newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !itemTitle.isEmpty else { return }
+
+        checklistDrafts.append(ChecklistItemDraft(
+            title: itemTitle,
+            order: Double(checklistDrafts.count + 1) * 100
+        ))
+        newChecklistTitle = ""
+        isNewChecklistItemFocused = true
+    }
+
+    private func deleteChecklistItem(_ id: UUID) {
+        checklistDrafts.removeAll { $0.id == id }
+        renumberChecklistDrafts()
+    }
+
+    private func moveChecklistItem(
+        _ sourceID: UUID,
+        relativeTo targetID: UUID,
+        placeAfter: Bool
+    ) -> Bool {
+        guard sourceID != targetID,
+              let sourceIndex = checklistDrafts.firstIndex(where: { $0.id == sourceID }) else {
+            return false
+        }
+
+        let movedDraft = checklistDrafts.remove(at: sourceIndex)
+        guard let targetIndex = checklistDrafts.firstIndex(where: { $0.id == targetID }) else {
+            checklistDrafts.insert(movedDraft, at: sourceIndex)
+            return false
+        }
+
+        let insertionIndex = min(targetIndex + (placeAfter ? 1 : 0), checklistDrafts.count)
+        checklistDrafts.insert(movedDraft, at: insertionIndex)
+        renumberChecklistDrafts()
+        return true
+    }
+
+    private func renumberChecklistDrafts() {
+        for index in checklistDrafts.indices {
+            checklistDrafts[index].order = Double(index + 1) * 100
+        }
+    }
+
+    private func normalizedChecklistDrafts() -> [ChecklistItemDraft] {
+        checklistDrafts.enumerated().map { index, draft in
+            ChecklistItemDraft(
+                id: draft.id,
+                title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                isCompleted: draft.isCompleted,
+                order: Double(index + 1) * 100
+            )
+        }
+    }
+}
+
+private struct ChecklistDraftEditorRow: View {
+    @Binding var draft: ChecklistItemDraft
+    var onDelete: () -> Void
+    var onDrop: (UUID, Bool) -> Bool
+    @State private var isDropTargeted = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                draft.isCompleted.toggle()
+            } label: {
+                Image(systemName: draft.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(draft.isCompleted ? AppTheme.done : AppTheme.secondaryText)
+            .help(draft.isCompleted ? "완료 해제" : "완료 표시")
+
+            TextField("체크리스트 항목", text: $draft.title)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.primaryText)
+                .strikethrough(draft.isCompleted)
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(AppTheme.secondaryText)
+            .help("체크리스트 항목 삭제")
+
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+                .draggable(draft.id.uuidString)
+                .help("드래그해서 순서 변경")
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 42)
+        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(
+                    isDropTargeted ? AppTheme.event : AppTheme.border,
+                    lineWidth: isDropTargeted ? 2 : 1
+                )
+        }
+        .dropDestination(for: String.self) { items, location in
+            guard let idString = items.first,
+                  let sourceID = UUID(uuidString: idString) else {
+                return false
+            }
+            return onDrop(sourceID, location.y > 21)
+        } isTargeted: { isTargeted in
+            isDropTargeted = isTargeted
+        }
+    }
 }
 
 struct DetailFieldLabel: View {
@@ -275,4 +546,3 @@ struct DetailFieldLabel: View {
             .foregroundStyle(AppTheme.secondaryText)
     }
 }
-
