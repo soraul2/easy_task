@@ -270,18 +270,19 @@ struct MobileTemplateLibrarySheet: View {
     }
 
     private func loadCurrentBoardDrafts() {
-        templateDrafts = currentBoardTasks.enumerated().map { index, task in
-            TemplateTaskDraft(
-                id: task.id,
-                title: task.title,
-                note: task.note ?? "",
-                priority: task.priority,
-                tags: task.tags,
-                estimatedMinutes: task.estimatedMinutes,
-                order: Double(index + 1) * 100
+        do {
+            let checklistItems = try TaskChecklistService.items(
+                for: currentBoardTasks.map(\.id),
+                in: modelContext
             )
+            templateDrafts = TemplateService.drafts(
+                from: currentBoardTasks,
+                checklistItems: checklistItems
+            )
+            message = nil
+        } catch {
+            message = "현재 보드의 체크리스트를 불러오지 못했습니다"
         }
-        message = nil
     }
 
     private func removeTemplateDraft(_ id: UUID) {

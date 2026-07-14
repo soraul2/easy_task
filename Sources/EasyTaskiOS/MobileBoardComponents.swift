@@ -1,6 +1,7 @@
 #if os(iOS)
 import EasyTaskCore
 import Foundation
+import SwiftData
 import SwiftUI
 
 struct BoardHeader: View {
@@ -155,6 +156,20 @@ private struct MobileTaskRow: View {
     var onEdit: () -> Void
     var onDelete: () -> Void
     var onStatusChange: (TaskStatus) -> Void
+    @Query private var checklistItems: [TaskChecklistItem]
+
+    init(
+        task: TodoTask,
+        onEdit: @escaping () -> Void,
+        onDelete: @escaping () -> Void,
+        onStatusChange: @escaping (TaskStatus) -> Void
+    ) {
+        self.task = task
+        self.onEdit = onEdit
+        self.onDelete = onDelete
+        self.onStatusChange = onStatusChange
+        _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
+    }
 
     private var status: TaskStatus {
         TaskStatus(rawValue: task.status) ?? .todo
@@ -198,11 +213,16 @@ private struct MobileTaskRow: View {
             .filter { !$0.isEmpty }
     }
 
+    private var checklistProgress: ChecklistProgress {
+        TaskChecklistService.progress(in: checklistItems)
+    }
+
     private var hasDetails: Bool {
         priority != nil ||
             task.estimatedMinutes != nil ||
             task.reminderAt != nil ||
-            !visibleTags.isEmpty
+            !visibleTags.isEmpty ||
+            !checklistProgress.isEmpty
     }
 
     var body: some View {
@@ -226,20 +246,20 @@ private struct MobileTaskRow: View {
                     Button(action: onEdit) {
                         Image(systemName: "pencil")
                             .font(.subheadline.weight(.semibold))
-                            .frame(width: 32, height: 32)
+                            .frame(width: 44, height: 44)
                             .background(AppTheme.panel.opacity(0.78), in: Circle())
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("작업 편집")
+                    .accessibilityLabel("\(task.title) 작업 편집")
 
                     Button(role: .destructive, action: onDelete) {
                         Image(systemName: "trash")
                             .font(.subheadline.weight(.semibold))
-                            .frame(width: 32, height: 32)
+                            .frame(width: 44, height: 44)
                             .background(AppTheme.panel.opacity(0.78), in: Circle())
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("작업 삭제")
+                    .accessibilityLabel("\(task.title) 작업 삭제")
                 }
                 .foregroundStyle(.secondary)
             }
@@ -268,6 +288,7 @@ private struct MobileTaskRow: View {
                                 systemImage: "bell.fill"
                             )
                         }
+                        MobileChecklistProgressChip(progress: checklistProgress)
                         ForEach(visibleTags, id: \.self) { tag in
                             MobileTaskDetailChip(title: "#\(tag)", systemImage: "tag")
                         }
