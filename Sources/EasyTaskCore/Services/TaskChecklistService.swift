@@ -109,6 +109,23 @@ public enum TaskChecklistService {
 
     @MainActor
     @discardableResult
+    public static func setCompletion(
+        _ isCompleted: Bool,
+        for item: TaskChecklistItem,
+        now: Date = Date()
+    ) -> Bool {
+        guard item.supersededAt == nil, item.isCompleted != isCompleted else {
+            return false
+        }
+
+        item.isCompleted = isCompleted
+        item.completedAt = isCompleted ? now : nil
+        item.updatedAt = now
+        return true
+    }
+
+    @MainActor
+    @discardableResult
     public static func replaceItems(
         for taskID: UUID,
         drafts: [ChecklistItemDraft],

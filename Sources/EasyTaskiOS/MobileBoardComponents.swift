@@ -120,6 +120,7 @@ struct BoardTaskList: View {
     var onEdit: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
+    @State private var expandedTaskID: UUID?
 
     var body: some View {
         List {
@@ -134,6 +135,10 @@ struct BoardTaskList: View {
                 ForEach(tasks) { task in
                     MobileTaskRow(
                         task: task,
+                        isChecklistExpanded: expandedTaskID == task.id,
+                        onChecklistExpansionChange: { shouldExpand in
+                            expandedTaskID = shouldExpand ? task.id : nil
+                        },
                         onEdit: { onEdit(task) },
                         onDelete: { onDelete(task) },
                         onStatusChange: { onStatusChange(task, $0) }
@@ -148,23 +153,41 @@ struct BoardTaskList: View {
             Color.clear
                 .frame(height: MobileLayout.bottomTabClearance)
         }
+        .onChange(of: selectedStatus) { _, status in
+            if status != .doing {
+                expandedTaskID = nil
+            }
+        }
+        .onChange(of: tasks.map(\.id)) { _, taskIDs in
+            if let expandedTaskID, !taskIDs.contains(expandedTaskID) {
+                self.expandedTaskID = nil
+            }
+        }
     }
 }
 
 private struct MobileTaskRow: View {
+    @Environment(\.modelContext) private var modelContext
     var task: TodoTask
+    var isChecklistExpanded: Bool
+    var onChecklistExpansionChange: (Bool) -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
     var onStatusChange: (TaskStatus) -> Void
     @Query private var checklistItems: [TaskChecklistItem]
+    @State private var checklistSaveError: String?
 
     init(
         task: TodoTask,
+        isChecklistExpanded: Bool,
+        onChecklistExpansionChange: @escaping (Bool) -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onStatusChange: @escaping (TaskStatus) -> Void
     ) {
         self.task = task
+        self.isChecklistExpanded = isChecklistExpanded
+        self.onChecklistExpansionChange = onChecklistExpansionChange
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.onStatusChange = onStatusChange
@@ -217,12 +240,12 @@ private struct MobileTaskRow: View {
         TaskChecklistService.progress(in: checklistItems)
     }
 
-    private var hasDetails: Bool {
+    private var hasDetailChips: Bool {
         priority != nil ||
             task.estimatedMinutes != nil ||
             task.reminderAt != nil ||
             !visibleTags.isEmpty ||
-            !checklistProgress.isEmpty
+            (status != .doing && !checklistProgress.isEmpty)
     }
 
     var body: some View {
@@ -264,7 +287,7 @@ private struct MobileTaskRow: View {
                 .foregroundStyle(.secondary)
             }
 
-            if hasDetails {
+            if hasDetailChips {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         if let priority {
@@ -288,7 +311,9 @@ private struct MobileTaskRow: View {
                                 systemImage: "bell.fill"
                             )
                         }
-                        MobileChecklistProgressChip(progress: checklistProgress)
+                        if status != .doing {
+                            MobileChecklistProgressChip(progress: checklistProgress)
+                        }
                         ForEach(visibleTags, id: \.self) { tag in
                             MobileTaskDetailChip(title: "#\(tag)", systemImage: "tag")
                         }
@@ -297,7 +322,15 @@ private struct MobileTaskRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            MobileTaskStatusSlider(status: status, accentColor: accentColor) { nextStatus in
+            if status == .doing, !checklistProgress.isEmpty {
+                checklistSection
+            }
+
+            MobileTaskStatusSlider(
+                taskTitle: task.title,
+                status: status,
+                accentColor: accentColor
+            ) { nextStatus in
                 onStatusChange(nextStatus)
             }
         }
@@ -311,6 +344,108 @@ private struct MobileTaskRow: View {
         }
         .shadow(color: accentColor.opacity(shadowOpacity), radius: status == .doing ? 18 : 12, x: 0, y: 8)
         .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
+    }
+
+    private var checklistSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.snappy(duration: 0.18)) {
+                    onChecklistExpansionChange(!isChecklistExpanded)
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Label(
+                        "\(checklistProgress.completedCount)/\(checklistProgress.totalCount)",
+                        systemImage: checklistProgress.isComplete
+                            ? "checkmark.circle.fill"
+                            : "checklist"
+                    )
+                    .font(.caption.weight(.semibold))
+
+                    Spacer()
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .rotationEffect(.degrees(isChecklistExpanded ? 180 : 0))
+                }
+                .foregroundStyle(AppTheme.cardMutedText)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(AppTheme.panel.opacity(0.52), in: RoundedRectangle(cornerRadius: 12))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("checklist-progress")
+            .accessibilityLabel("\(task.title) 체크리스트")
+            .accessibilityValue(
+                "\(checklistProgress.completedCount)개 완료, " +
+                "전체 \(checklistProgress.totalCount)개, " +
+                (isChecklistExpanded ? "펼쳐짐" : "접힘")
+            )
+            .accessibilityHint(isChecklistExpanded ? "두 번 탭하여 접기" : "두 번 탭하여 펼치기")
+
+            if isChecklistExpanded {
+                VStack(spacing: 0) {
+                    ForEach(checklistItems) { item in
+                        Button {
+                            toggleChecklistItem(item)
+                        } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Image(systemName: item.isCompleted
+                                    ? "checkmark.circle.fill"
+                                    : "circle")
+                                    .foregroundStyle(item.isCompleted
+                                        ? AppTheme.event
+                                        : AppTheme.cardMutedText)
+                                Text(item.title)
+                                    .font(.subheadline)
+                                    .strikethrough(item.isCompleted)
+                                    .foregroundStyle(item.isCompleted
+                                        ? AppTheme.cardMutedText
+                                        : AppTheme.cardText)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(item.title) 체크리스트 항목")
+                        .accessibilityValue(item.isCompleted ? "완료" : "미완료")
+                        .accessibilityHint(item.isCompleted
+                            ? "두 번 탭하여 미완료로 변경"
+                            : "두 번 탭하여 완료로 변경")
+
+                        if item.id != checklistItems.last?.id {
+                            Divider()
+                                .overlay(AppTheme.border.opacity(0.35))
+                        }
+                    }
+                }
+                .background(AppTheme.input.opacity(0.44), in: RoundedRectangle(cornerRadius: 12))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            if let checklistSaveError {
+                Label(checklistSaveError, systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+        }
+    }
+
+    private func toggleChecklistItem(_ item: TaskChecklistItem) {
+        do {
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskChecklistService.setCompletion(!item.isCompleted, for: item)
+            }
+            checklistSaveError = nil
+        } catch {
+            checklistSaveError = "체크 상태를 저장하지 못했습니다"
+        }
     }
 }
 
@@ -348,6 +483,7 @@ struct MobileStatusNotice: View {
 }
 
 private struct MobileTaskStatusSlider: View {
+    var taskTitle: String
     var status: TaskStatus
     var accentColor: Color
     var onChange: (TaskStatus) -> Void
@@ -382,37 +518,34 @@ private struct MobileTaskStatusSlider: View {
 
                 HStack(spacing: 0) {
                     ForEach(statuses) { nextStatus in
-                        Text(nextStatus.title)
-                            .font(.caption.weight(.bold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                            .foregroundStyle(nextStatus == status ? AppTheme.eventText : AppTheme.cardText)
+                        Button {
+                            updateStatus(nextStatus)
+                        } label: {
+                            Text(nextStatus.title)
+                                .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                                .foregroundStyle(nextStatus == status
+                                    ? AppTheme.eventText
+                                    : AppTheme.cardText)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(taskTitle) \(nextStatus.title) 상태")
+                        .accessibilityAddTraits(nextStatus == status ? .isSelected : [])
                     }
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
-            .gesture(
-                DragGesture(minimumDistance: 0)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
                     .onEnded { value in
                         updateStatus(status(at: value.location.x, width: width))
                     }
             )
         }
         .frame(height: 40)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("작업 상태")
-        .accessibilityValue(status.title)
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment:
-                updateStatus(status(offsetBy: 1))
-            case .decrement:
-                updateStatus(status(offsetBy: -1))
-            @unknown default:
-                break
-            }
-        }
     }
 
     private func updateStatus(_ nextStatus: TaskStatus) {
@@ -427,10 +560,6 @@ private struct MobileTaskStatusSlider: View {
         return statuses[index]
     }
 
-    private func status(offsetBy offset: Int) -> TaskStatus {
-        let index = min(max(selectedIndex + offset, 0), statuses.count - 1)
-        return statuses[index]
-    }
 }
 
 #endif
