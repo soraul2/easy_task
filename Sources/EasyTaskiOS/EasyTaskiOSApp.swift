@@ -175,6 +175,7 @@ private struct MobileAppRootView: View {
 
     @State private var selectedTab: MobileTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
+    @State private var calendarNavigationDate: Date?
     @State private var themeRevision = 0
     @State private var activeDayKey = DayKey.today
     @State private var selectedBoardDayKey = DayKey.today
@@ -197,6 +198,7 @@ private struct MobileAppRootView: View {
                 .tag(MobileTab.board)
 
             MobileCalendarView(
+                navigationDate: $calendarNavigationDate,
                 onOpenBoardDate: { date in
                     selectedBoardDate = date
                     selectedTab = .board
@@ -224,6 +226,9 @@ private struct MobileAppRootView: View {
         }
         .tint(AppTheme.event)
         .background(AppTheme.background)
+        .background {
+            CalendarWidgetSnapshotPublisher()
+        }
         .toolbarBackground(AppTheme.floatingBar, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .environment(syncMonitor)
@@ -280,6 +285,7 @@ private struct MobileAppRootView: View {
         )) { _ in
             handlePendingNotificationRoute()
         }
+        .onOpenURL(perform: handleDeepLink)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let errorDescription = syncMonitor.lastErrorDescription {
                 Button {
@@ -425,6 +431,15 @@ private struct MobileAppRootView: View {
         guard let dayKey, let date = DayKey.date(from: dayKey) else { return }
         selectedBoardDate = date
         selectedTab = .board
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard let dayKey = EasyTaskDeepLink.calendarDayKey(from: url),
+              let date = DayKey.date(from: dayKey) else {
+            return
+        }
+        calendarNavigationDate = date
+        selectedTab = .calendar
     }
 }
 

@@ -13,6 +13,7 @@ Sources/
   EasyTaskCore/             # 공통 모델, 서비스, 테마, 리소스
   TodoDesktopMVP/           # macOS 앱 구현
   EasyTaskiOS/              # iPhone 앱 구현
+  EasyTaskWidget/           # iPhone 홈 화면 캘린더 위젯
 Tests/
   TodoDesktopMVPTests/      # 공통 로직 테스트
 ```
@@ -31,6 +32,7 @@ Tests/
 - 기록 조회: `ArchiveQueryRules`, `ArchiveFilter`, `ArchiveQuerySession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
+- 캘린더 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `EasyTaskDeepLink`
 - 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트를 포함하는 V4 `BackupPackageCodec`(V2/V3 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일 JSON: `SpecialDays.kr.json`
@@ -51,7 +53,15 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - `MobileCalendarView`: 월간 캘린더와 이벤트/템플릿 sheet
 - `MobileArchiveView`: 회고와 완료 작업 피드
 - `MobileReviewComposerSheet`: 이미지 첨부 가능한 회고 작성
+- `CalendarWidgetSnapshotPublisher`: 캘린더 변경을 App Group 스냅샷으로 발행
 - Xcode `EasyTask` 타겟과 `EasyTask-iOS` 공유 scheme을 사용한다.
+
+iPhone 홈 화면 위젯은 `EasyTaskWidget`에 둔다.
+
+- 소형은 오늘 이벤트, 중형은 월간 42일 그리드와 이벤트 표시점을 제공한다.
+- 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
+- 날짜 탭은 `easytask://calendar?date=yyyy-MM-dd`로 앱의 해당 날짜 캘린더를 연다.
+- Xcode `EasyTaskWidgetExtension` 타겟에서 `EasyTaskCore` 패키지 제품에 의존하고 `EasyTask.app`에 내장된다.
 
 두 앱 타겟은 공통 코어 소스를 직접 컴파일하지 않고 로컬 Swift Package의
 `EasyTaskCore` 제품을 링크한다.
@@ -73,6 +83,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 9. 백업 V4는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2/V3도 읽는다.
 10. `Task.reminderAt`이 알림 원본이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
 11. 보드와 캘린더는 선택 날짜 또는 42일 월 그리드 범위만 live query하고, 기록은 완전한 날짜 그룹 30개씩 조회한다.
+12. iPhone 앱은 이벤트 변경·앱 활성화 때 App Group 위젯 스냅샷을 갱신하고, 내용이 달라졌을 때만 WidgetKit 타임라인을 다시 요청한다.
 
 ## 저장과 동기화 런타임
 
@@ -142,6 +153,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - Calendar는 표시 월의 42일 범위 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
+- iOS 홈 화면 캘린더 위젯은 소형·중형을 지원하며 스냅샷에는 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트만 포함한다.
 
 ## 다음 단계
 

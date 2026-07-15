@@ -27,6 +27,10 @@
 		A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */; };
 		A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */; };
 		A30000000000000000000030 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Resources/Assets.xcassets */; };
+		91000000000000000000000C /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */; };
+		91000000000000000000000E /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = 91000000000000000000000D /* EasyTaskCore */; };
+		91000000000000000000000F /* EasyTaskWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 910000000000000000000008 /* EasyTaskWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		910000000000000000000014 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000013 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift */; };
 		B10000000000000000000003 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* EasyTaskCore */; };
 		B10000000000000000000004 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* EasyTaskCore */; };
 		D30000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */; };
@@ -54,12 +58,34 @@
 			remoteGlobalIDString = A10000000000000000000001;
 			remoteInfo = EasyTask;
 		};
+		910000000000000000000011 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 910000000000000000000001;
+			remoteInfo = EasyTaskWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		910000000000000000000010 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				91000000000000000000000F /* EasyTaskWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000010 /* EasyTask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyTask.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C10000000000000000000010 /* EasyTask macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EasyTask macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EasyTaskLaunchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		910000000000000000000008 /* EasyTaskWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EasyTaskWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileShared.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
@@ -79,6 +105,8 @@
 		A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerComponents.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
+		910000000000000000000013 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift; sourceTree = SOURCE_ROOT; };
+		910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000030 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
@@ -96,6 +124,8 @@
 		D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		91000000000000000000000A /* Configuration/EasyTaskWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Configuration/EasyTaskWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
+		91000000000000000000000B /* Configuration/EasyTaskWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Configuration/EasyTaskWidget.entitlements; sourceTree = SOURCE_ROOT; };
 		F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -120,6 +150,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		910000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				91000000000000000000000E /* EasyTaskCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,6 +197,8 @@
 				A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */,
 				A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */,
 				A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */,
+				910000000000000000000013 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift */,
+				910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */,
 				D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */,
 				D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */,
 				D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */,
@@ -190,6 +230,8 @@
 			children = (
 				E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */,
 				E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */,
+				91000000000000000000000A /* Configuration/EasyTaskWidget-Info.plist */,
+				91000000000000000000000B /* Configuration/EasyTaskWidget.entitlements */,
 			);
 			name = Configuration;
 			sourceTree = "<group>";
@@ -208,6 +250,7 @@
 				A10000000000000000000010 /* EasyTask.app */,
 				C10000000000000000000010 /* EasyTask macOS.app */,
 				F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */,
+				910000000000000000000008 /* EasyTaskWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -222,10 +265,12 @@
 				A10000000000000000000002 /* Sources */,
 				A10000000000000000000009 /* Resources */,
 				A10000000000000000000003 /* Frameworks */,
+				910000000000000000000010 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				910000000000000000000012 /* PBXTargetDependency */,
 			);
 			name = EasyTask;
 			packageProductDependencies = (
@@ -275,6 +320,26 @@
 			productReference = F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		910000000000000000000001 /* EasyTaskWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 910000000000000000000005 /* Build configuration list for PBXNativeTarget "EasyTaskWidgetExtension" */;
+			buildPhases = (
+				910000000000000000000002 /* Sources */,
+				910000000000000000000004 /* Resources */,
+				910000000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EasyTaskWidgetExtension;
+			packageProductDependencies = (
+				91000000000000000000000D /* EasyTaskCore */,
+			);
+			productName = EasyTaskWidgetExtension;
+			productReference = 910000000000000000000008 /* EasyTaskWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -288,6 +353,9 @@
 					A10000000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
 						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
 							com.apple.BackgroundModes = {
 								enabled = 1;
 							};
@@ -309,10 +377,18 @@
 								enabled = 1;
 							};
 						};
+					};
 					F10000000000000000000001 = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = A10000000000000000000001;
 					};
+					910000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -331,11 +407,12 @@
 			productRefGroup = A10000000000000000000007 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-				targets = (
-					A10000000000000000000001 /* EasyTask */,
-					C10000000000000000000001 /* EasyTask-macOS */,
-					F10000000000000000000001 /* EasyTaskLaunchUITests */,
-				);
+			targets = (
+				A10000000000000000000001 /* EasyTask */,
+				C10000000000000000000001 /* EasyTask-macOS */,
+				F10000000000000000000001 /* EasyTaskLaunchUITests */,
+				910000000000000000000001 /* EasyTaskWidgetExtension */,
+			);
 		};
 /* End PBXProject section */
 
@@ -356,6 +433,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F10000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		910000000000000000000004 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -388,6 +472,7 @@
 				A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */,
 				A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */,
 				A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */,
+				910000000000000000000014 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -420,6 +505,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		910000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				91000000000000000000000C /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -427,6 +520,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000001 /* EasyTask */;
 			targetProxy = F40000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		910000000000000000000012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 910000000000000000000001 /* EasyTaskWidgetExtension */;
+			targetProxy = 910000000000000000000011 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -692,6 +790,63 @@
 			};
 			name = Release;
 		};
+		910000000000000000000006 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Configuration/EasyTaskWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/EasyTaskWidget-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		910000000000000000000007 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Configuration/EasyTaskWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/EasyTaskWidget-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -731,6 +886,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		910000000000000000000005 /* Build configuration list for PBXNativeTarget "EasyTaskWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				910000000000000000000006 /* Debug */,
+				910000000000000000000007 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -747,6 +911,11 @@
 			productName = EasyTaskCore;
 		};
 		B10000000000000000000002 /* EasyTaskCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
+			productName = EasyTaskCore;
+		};
+		91000000000000000000000D /* EasyTaskCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
 			productName = EasyTaskCore;
