@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import SwiftData
 
@@ -63,6 +64,15 @@ public enum EasyTaskContainerFactory {
             isStoredInMemoryOnly: false
         )
 
+        if let storeURL,
+           FileManager.default.fileExists(atPath: storeURL.path),
+           isStoreCompatibleWithCurrentSchema(at: storeURL) {
+            // A store can have the exact current Core Data model hashes while its
+            // staged-migration checksum was produced by another SwiftData runtime.
+            // It needs no migration, and opening it directly avoids error 134504.
+            return try makeContainerWithoutMigrationPlan(configuration: configuration)
+        }
+
         return try makeContainer(configuration: configuration)
     }
 
@@ -121,6 +131,33 @@ public enum EasyTaskContainerFactory {
         try ModelContainer(
             for: schema,
             migrationPlan: EasyTaskMigrationPlan.self,
+            configurations: configuration
+        )
+    }
+
+    static func isStoreCompatibleWithCurrentSchema(at storeURL: URL) -> Bool {
+        guard let model = NSManagedObjectModel.makeManagedObjectModel(
+            for: EasyTaskSchemaV5.models
+        ),
+        let metadata = try? NSPersistentStoreCoordinator.metadataForPersistentStore(
+            ofType: NSSQLiteStoreType,
+            at: storeURL,
+            options: [NSReadOnlyPersistentStoreOption: true]
+        ) else {
+            return false
+        }
+
+        return model.isConfiguration(
+            withName: nil,
+            compatibleWithStoreMetadata: metadata
+        )
+    }
+
+    private static func makeContainerWithoutMigrationPlan(
+        configuration: ModelConfiguration
+    ) throws -> ModelContainer {
+        try ModelContainer(
+            for: schema,
             configurations: configuration
         )
     }

@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import SwiftData
 import Testing
@@ -285,6 +286,45 @@ func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
         #expect(try migrated.mainContext.fetchCount(
             FetchDescriptor<TaskChecklistItem>()
         ) == 0)
+    }
+}
+
+@Test
+@MainActor
+func compatibleV5StoreWithUnknownMigrationChecksumOpensWithoutDataLoss() throws {
+    try withTemporaryStore { storeURL in
+        let title = "compatible V5 fixture"
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: EasyTaskSchemaV5.self)
+            let configuration = ModelConfiguration(
+                "EasyTaskV5WithoutPlan",
+                schema: schema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            try writeFixture(to: container, title: title)
+        }
+
+        var metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(
+            ofType: NSSQLiteStoreType,
+            at: storeURL,
+            options: [NSReadOnlyPersistentStoreOption: true]
+        )
+        metadata["NSStoreModelVersionChecksumKey"] = "unknown-runtime-checksum"
+        try NSPersistentStoreCoordinator.setMetadata(
+            metadata,
+            forPersistentStoreOfType: NSSQLiteStoreType,
+            at: storeURL
+        )
+
+        #expect(EasyTaskContainerFactory.isStoreCompatibleWithCurrentSchema(at: storeURL))
+        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+            storeURL: storeURL,
+            mode: .local
+        )
+        try expectFixture(in: reopened, title: title)
     }
 }
 
