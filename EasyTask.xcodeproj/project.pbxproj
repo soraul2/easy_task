@@ -27,6 +27,7 @@
 		A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */; };
 		A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */; };
 		A30000000000000000000030 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Resources/Assets.xcassets */; };
+		C30000000000000000000030 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Resources/Assets.xcassets */; };
 		91000000000000000000000C /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */; };
 		91000000000000000000000E /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = 91000000000000000000000D /* EasyTaskCore */; };
 		91000000000000000000000F /* EasyTaskWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 910000000000000000000008 /* EasyTaskWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -429,6 +430,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C30000000000000000000030 /* Resources/Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -699,6 +701,7 @@
 		C1000000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -721,6 +724,7 @@
 		C1000000000000000000000D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
