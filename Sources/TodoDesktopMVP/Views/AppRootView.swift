@@ -8,6 +8,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     case board
     case calendar
     case archive
+    case memo
 
     var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .board: "칸반보드"
         case .calendar: "캘린더"
         case .archive: "기록"
+        case .memo: "메모"
         }
     }
 
@@ -24,6 +26,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .board: "rectangle.3.group"
         case .calendar: "calendar"
         case .archive: "book.pages"
+        case .memo: "note.text"
         }
     }
 }
@@ -215,6 +218,8 @@ struct AppRootView: View {
                 selectedBoardDate = date
                 selectedTab = .board
             }
+        case .memo:
+            MemoView()
         }
     }
 }
@@ -493,6 +498,7 @@ struct FloatingTabBar: View {
         case .board: "1"
         case .calendar: "2"
         case .archive: "3"
+        case .memo: "4"
         }
     }
 }

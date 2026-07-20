@@ -48,6 +48,7 @@
 		D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */; };
 		D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */; };
 		D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */; };
+		D3000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift */; };
 		F30000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -123,6 +124,7 @@
 		D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/MemoView.swift; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
 		91000000000000000000000A /* Configuration/EasyTaskWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Configuration/EasyTaskWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
@@ -214,6 +216,7 @@
 				D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */,
 				D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */,
 				D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */,
+				D2000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -496,6 +499,7 @@
 				D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */,
 				D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */,
 				D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */,
+				D3000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
