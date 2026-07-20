@@ -5,7 +5,7 @@
 - CloudKit 컨테이너: `iCloud.com.soraul2.easytask`
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
-- 스키마: `EasyTaskSchemaV5`
+- 스키마: `EasyTaskSchemaV6`
 - 운영 스키마 승격: 금지
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
@@ -30,8 +30,8 @@
 ```
 
 초기화 코드는 명시적인 인자가 있는 Debug 빌드에서만 실행된다. 완료 후 CloudKit
-Console의 Development 환경에서 모든 V5 record type, `Task.reminderAt`,
-`TaskChecklistItem`과 `TaskTemplateItem.checklistTitles`가 생성됐는지 확인한다.
+Console의 Development 환경에서 모든 V6 record type, `Task.reminderAt`,
+`TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`가 생성됐는지 확인한다.
 
 ## 검증 순서
 
