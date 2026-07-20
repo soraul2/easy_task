@@ -75,7 +75,7 @@ func schemaV4ContainsEveryFrozenPersistedModel() {
 }
 
 @Test
-func schemaV5ContainsEveryCurrentPersistedModel() {
+func schemaV5ContainsEveryFrozenPersistedModel() {
     let modelNames = Set(EasyTaskSchemaV5.models.map { String(reflecting: $0) })
     let expectedNames = Set([
         String(reflecting: Task.self),
@@ -90,6 +90,26 @@ func schemaV5ContainsEveryCurrentPersistedModel() {
     ])
 
     #expect(EasyTaskSchemaV5.versionIdentifier == Schema.Version(5, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV6ContainsEveryCurrentPersistedModel() {
+    let modelNames = Set(EasyTaskSchemaV6.models.map { String(reflecting: $0) })
+    let expectedNames = Set([
+        String(reflecting: Task.self),
+        String(reflecting: TaskChecklistItem.self),
+        String(reflecting: CalendarEvent.self),
+        String(reflecting: TaskTemplate.self),
+        String(reflecting: TaskTemplateItem.self),
+        String(reflecting: TemplatePlacement.self),
+        String(reflecting: DailyReview.self),
+        String(reflecting: DiaryBlock.self),
+        String(reflecting: DiaryAttachment.self),
+        String(reflecting: Memo.self)
+    ])
+
+    #expect(EasyTaskSchemaV6.versionIdentifier == Schema.Version(6, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -291,7 +311,7 @@ func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
 
 @Test
 @MainActor
-func compatibleV5StoreWithUnknownMigrationChecksumOpensWithoutDataLoss() throws {
+func compatibleV5StoreWithUnknownMigrationChecksumMigratesToV6WithoutDataLoss() throws {
     try withTemporaryStore { storeURL in
         let title = "compatible V5 fixture"
         try autoreleasepool {
@@ -319,12 +339,13 @@ func compatibleV5StoreWithUnknownMigrationChecksumOpensWithoutDataLoss() throws 
             at: storeURL
         )
 
-        #expect(EasyTaskContainerFactory.isStoreCompatibleWithCurrentSchema(at: storeURL))
+        #expect(!EasyTaskContainerFactory.isStoreCompatibleWithCurrentSchema(at: storeURL))
         let reopened = try EasyTaskContainerFactory.makeAppPersistent(
             storeURL: storeURL,
             mode: .local
         )
         try expectFixture(in: reopened, title: title)
+        #expect(try reopened.mainContext.fetchCount(FetchDescriptor<Memo>()) == 0)
     }
 }
 
