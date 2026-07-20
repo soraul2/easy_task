@@ -141,6 +141,13 @@ iPhone 홈 화면 위젯은 `EasyTaskWidget`에 둔다.
 - 병합이 끝나기 전에는 pending marker를 유지한다. 중단되면 다음 실행에서 불완전한 현재 저장소만 버리고 보존된 스냅샷으로 재시도한다.
 - 성공 후에도 원본 백업은 자동 삭제하지 않는다. 테스트용 `makePersistent`는 이 앱 시작 전용 브리지를 실행하지 않는다.
 
+## macOS 배포 경계
+
+- macOS Debug 빌드는 기존 개발 데이터와 병행 실행을 위해 `com.soraul2.easytask.macos`와 비샌드박스 설정을 유지한다.
+- Mac App Store/TestFlight용 Release 빌드는 iPhone과 같은 `com.soraul2.easytask`를 사용하며 App Sandbox, CloudKit, 사용자 선택 파일 읽기·쓰기를 활성화한다.
+- 첫 샌드박스 실행 때 `container-migration.plist`가 기존 `Application Support`의 SwiftData 저장소, 브리지 백업과 회고 이미지 폴더를 동일한 상대 경로로 컨테이너에 옮긴다.
+- Release 앱 이름은 `PlanBase`이고 최소 지원 버전은 macOS 26.0이다. 배포 프로파일과 export 설정은 `PlanBase macOS App Store`를 기준으로 한다.
+
 ## 현재 MVP 범위
 
 - V6 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
