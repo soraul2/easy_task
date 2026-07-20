@@ -16,7 +16,7 @@ public enum EasyTaskContainerFactory {
     public static let appStoreMode = EasyTaskStoreMode.cloudKit
 
     public static var schema: Schema {
-        Schema(versionedSchema: EasyTaskSchemaV5.self)
+        Schema(versionedSchema: EasyTaskSchemaV6.self)
     }
 
     @MainActor
@@ -137,7 +137,7 @@ public enum EasyTaskContainerFactory {
 
     static func isStoreCompatibleWithCurrentSchema(at storeURL: URL) -> Bool {
         guard let model = NSManagedObjectModel.makeManagedObjectModel(
-            for: EasyTaskSchemaV5.models
+            for: EasyTaskSchemaV6.models
         ),
         let metadata = try? NSPersistentStoreCoordinator.metadataForPersistentStore(
             ofType: NSSQLiteStoreType,
