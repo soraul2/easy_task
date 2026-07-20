@@ -150,7 +150,7 @@ private struct MonthCalendarWidget: View {
 
                 Spacer(minLength: 0)
 
-                Text("EasyTask")
+                Text("PlanBase")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -290,7 +290,7 @@ struct EasyTaskCalendarWidget: Widget {
         ) { entry in
             EasyTaskCalendarWidgetView(entry: entry)
         }
-        .configurationDisplayName("EasyTask 캘린더")
+        .configurationDisplayName("PlanBase 캘린더")
         .description("오늘의 이벤트 또는 월간 일정을 홈 화면에서 확인합니다.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }

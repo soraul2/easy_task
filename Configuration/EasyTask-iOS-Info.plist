@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>EasyTask</string>
+	<string>PlanBase</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -35,6 +35,8 @@
 	</array>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>회고에 첨부할 사진을 선택하기 위해 사진 보관함을 사용합니다.</string>
 	<key>UIApplicationSceneManifest</key>
