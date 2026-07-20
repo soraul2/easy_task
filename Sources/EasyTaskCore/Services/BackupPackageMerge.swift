@@ -64,6 +64,7 @@ public extension BackupPackageCodec {
                 report: &report,
                 preserveLegacyImages: true
             )
+            try mergeMemos(payload.memos ?? [], context: context, report: &report)
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
             try validateFinalAttachmentCounts(context: context)
             try context.save()
@@ -113,6 +114,7 @@ extension BackupPackageCodec {
             )
             try mergeReviews(payload.dailyReviews ?? [], context: context, report: &report)
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
+            try mergeMemos(payload.memos ?? [], context: context, report: &report)
             try mergeAttachments(contents, context: context, report: &report)
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
             try validateImportedAttachmentRelativeOrder(contents, context: context)
@@ -189,6 +191,15 @@ private extension BackupPackageCodec {
                 )
             }
             payload.templatePlacements = placements
+        }
+        if var memos = payload.memos {
+            for index in memos.indices where memos[index].instanceID == nil {
+                memos[index].instanceID = legacyInstanceID(
+                    type: "Memo",
+                    id: memos[index].id
+                )
+            }
+            payload.memos = memos
         }
         if var reviews = payload.dailyReviews {
             for index in reviews.indices where reviews[index].instanceID == nil {
@@ -760,6 +771,64 @@ private extension BackupPackageCodec {
     }
 
     @MainActor
+    static func mergeMemos(
+        _ incoming: [MemoDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<Memo>()),
+            recordType: "Memo",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            guard let instanceID = dto.instanceID else {
+                throw BackupPackageError.invalidRecordMetadata(recordType: "Memo", id: dto.id)
+            }
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "Memo",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard sameMemo(dto, current) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "Memo",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.content = dto.content
+                current.isPinned = dto.isPinned
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let memo = Memo(
+                    id: dto.id,
+                    instanceID: instanceID,
+                    content: dto.content,
+                    isPinned: dto.isPinned,
+                    createdAt: dto.createdAt,
+                    updatedAt: dto.updatedAt
+                )
+                context.insert(memo)
+                existing[instanceID] = memo
+                report.insertedRecords += 1
+            }
+        }
+    }
+
+    @MainActor
     static func mergeAttachments(
         _ contents: BackupPackageContents,
         context: ModelContext,
@@ -837,6 +906,10 @@ private extension BackupPackageCodec {
             event.endDayKey == dto.endDayKey &&
             event.note == dto.note &&
             event.color == dto.color
+    }
+
+    static func sameMemo(_ dto: MemoDTO, _ memo: Memo) -> Bool {
+        memo.content == dto.content && memo.isPinned == dto.isPinned
     }
 
     static func uniqueByInstanceID<Record>(
