@@ -38,6 +38,25 @@ final class EasyTaskLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testReviewComposerIsDirectlyAccessibleFromBoard() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let reviewButton = app.buttons["review-compose-button"]
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 15))
+        XCTAssertTrue(reviewButton.isHittable)
+        reviewButton.tap()
+
+        XCTAssertTrue(app.navigationBars["회고 작성"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["하루 회고"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["이미지 추가"].waitForExistence(timeout: 5))
+
+        app.buttons["취소"].tap()
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testChecklistDraftSaveCancelAndProgressChip() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
