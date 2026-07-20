@@ -148,6 +148,7 @@ private enum MobileTab: String, CaseIterable, Identifiable {
     case board
     case calendar
     case archive
+    case memo
 
     var id: String { rawValue }
 
@@ -156,6 +157,7 @@ private enum MobileTab: String, CaseIterable, Identifiable {
         case .board: "칸반"
         case .calendar: "캘린더"
         case .archive: "기록"
+        case .memo: "메모"
         }
     }
 
@@ -164,6 +166,7 @@ private enum MobileTab: String, CaseIterable, Identifiable {
         case .board: "rectangle.3.group"
         case .calendar: "calendar"
         case .archive: "book.pages"
+        case .memo: "note.text"
         }
     }
 }
@@ -175,6 +178,7 @@ private struct MobileAppRootView: View {
 
     @State private var selectedTab: MobileTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
+    @State private var calendarNavigationDate: Date?
     @State private var themeRevision = 0
     @State private var activeDayKey = DayKey.today
     @State private var selectedBoardDayKey = DayKey.today
@@ -197,6 +201,7 @@ private struct MobileAppRootView: View {
                 .tag(MobileTab.board)
 
             MobileCalendarView(
+                navigationDate: $calendarNavigationDate,
                 onOpenBoardDate: { date in
                     selectedBoardDate = date
                     selectedTab = .board
@@ -221,9 +226,19 @@ private struct MobileAppRootView: View {
                     .accessibilityLabel(MobileTab.archive.title)
             }
             .tag(MobileTab.archive)
+
+            MobileMemoView(onShowTheme: { showingThemePicker = true })
+                .tabItem {
+                    Image(systemName: MobileTab.memo.symbol)
+                        .accessibilityLabel(MobileTab.memo.title)
+                }
+                .tag(MobileTab.memo)
         }
         .tint(AppTheme.event)
         .background(AppTheme.background)
+        .background {
+            CalendarWidgetSnapshotPublisher()
+        }
         .toolbarBackground(AppTheme.floatingBar, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .environment(syncMonitor)
@@ -280,6 +295,7 @@ private struct MobileAppRootView: View {
         )) { _ in
             handlePendingNotificationRoute()
         }
+        .onOpenURL(perform: handleDeepLink)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let errorDescription = syncMonitor.lastErrorDescription {
                 Button {
@@ -425,6 +441,15 @@ private struct MobileAppRootView: View {
         guard let dayKey, let date = DayKey.date(from: dayKey) else { return }
         selectedBoardDate = date
         selectedTab = .board
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard let dayKey = EasyTaskDeepLink.calendarDayKey(from: url),
+              let date = DayKey.date(from: dayKey) else {
+            return
+        }
+        calendarNavigationDate = date
+        selectedTab = .calendar
     }
 }
 

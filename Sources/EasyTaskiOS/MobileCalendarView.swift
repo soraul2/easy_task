@@ -55,6 +55,7 @@ private struct MobileCalendarMonthQueryHost<Content: View>: View {
 }
 
 struct MobileCalendarView: View {
+    @Binding var navigationDate: Date?
     var onOpenBoardDate: (Date) -> Void
     var onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
@@ -84,6 +85,12 @@ struct MobileCalendarView: View {
             calendarContent(events: events, templatePlacements: templatePlacements)
         }
         .id(queryRange)
+        .onAppear {
+            consumeNavigationDateIfNeeded()
+        }
+        .onChange(of: navigationDate) {
+            consumeNavigationDateIfNeeded()
+        }
     }
 
     private func calendarContent(
@@ -443,6 +450,18 @@ struct MobileCalendarView: View {
             guard calendarNoticeToken == token else { return }
             calendarNotice = nil
         }
+    }
+
+    private func consumeNavigationDateIfNeeded() {
+        guard let navigationDate else { return }
+        let date = DayKey.startOfDay(for: navigationDate)
+        if placementTemplate != nil {
+            cancelTemplatePlacement()
+        }
+        visibleMonth = DayKey.startOfMonth(for: date)
+        selectedDate = date
+        sheet = .day(date)
+        self.navigationDate = nil
     }
 }
 #endif

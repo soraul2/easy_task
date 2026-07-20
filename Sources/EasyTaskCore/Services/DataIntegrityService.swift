@@ -45,6 +45,7 @@ public enum DataIntegrityService {
         let reviews = try context.fetch(FetchDescriptor<DailyReview>())
         let diaryBlocks = try context.fetch(FetchDescriptor<DiaryBlock>())
         let diaryAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        let memos = try context.fetch(FetchDescriptor<Memo>())
 
         var report = Report()
 
@@ -94,6 +95,11 @@ public enum DataIntegrityService {
             groupedBy: { $0.id },
             report: &report
         )
+        _ = mergeActive(
+            memos,
+            groupedBy: { $0.id },
+            report: &report
+        )
 
         normalizeActive(events, with: normalizeEvent, report: &report)
         normalizeActive(templates, with: normalizeTemplate, report: &report)
@@ -104,6 +110,7 @@ public enum DataIntegrityService {
         normalizeActive(reviews, with: normalizeReview, report: &report)
         normalizeActive(diaryBlocks, with: normalizeDiaryBlock, report: &report)
         normalizeActive(diaryAttachments, with: normalizeDiaryAttachment, report: &report)
+        normalizeActive(memos, with: normalizeMemo, report: &report)
 
         let templateRewrites = mergeActive(
             templates,
@@ -691,6 +698,11 @@ private extension DataIntegrityService {
     }
 
     @MainActor
+    static func normalizeMemo(_ memo: Memo) -> Int {
+        normalizeTimestamps(memo)
+    }
+
+    @MainActor
     static func normalizeTimestamps<Record: IntegrityRecord>(_ record: Record) -> Int {
         var createdAt = finiteDate(record.createdAt)
         var updatedAt = finiteDate(record.updatedAt)
@@ -839,3 +851,4 @@ extension EasyTaskSchemaV5.TaskChecklistItem: IntegrityRecord {}
 extension EasyTaskSchemaV5.DailyReview: IntegrityRecord {}
 extension EasyTaskSchemaV5.DiaryBlock: IntegrityRecord {}
 extension EasyTaskSchemaV5.DiaryAttachment: IntegrityRecord {}
+extension EasyTaskSchemaV6.Memo: IntegrityRecord {}

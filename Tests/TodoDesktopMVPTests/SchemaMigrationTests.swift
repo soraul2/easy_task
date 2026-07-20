@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import SwiftData
 import Testing
@@ -74,7 +75,7 @@ func schemaV4ContainsEveryFrozenPersistedModel() {
 }
 
 @Test
-func schemaV5ContainsEveryCurrentPersistedModel() {
+func schemaV5ContainsEveryFrozenPersistedModel() {
     let modelNames = Set(EasyTaskSchemaV5.models.map { String(reflecting: $0) })
     let expectedNames = Set([
         String(reflecting: Task.self),
@@ -89,6 +90,26 @@ func schemaV5ContainsEveryCurrentPersistedModel() {
     ])
 
     #expect(EasyTaskSchemaV5.versionIdentifier == Schema.Version(5, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV6ContainsEveryCurrentPersistedModel() {
+    let modelNames = Set(EasyTaskSchemaV6.models.map { String(reflecting: $0) })
+    let expectedNames = Set([
+        String(reflecting: Task.self),
+        String(reflecting: TaskChecklistItem.self),
+        String(reflecting: CalendarEvent.self),
+        String(reflecting: TaskTemplate.self),
+        String(reflecting: TaskTemplateItem.self),
+        String(reflecting: TemplatePlacement.self),
+        String(reflecting: DailyReview.self),
+        String(reflecting: DiaryBlock.self),
+        String(reflecting: DiaryAttachment.self),
+        String(reflecting: Memo.self)
+    ])
+
+    #expect(EasyTaskSchemaV6.versionIdentifier == Schema.Version(6, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -285,6 +306,46 @@ func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
         #expect(try migrated.mainContext.fetchCount(
             FetchDescriptor<TaskChecklistItem>()
         ) == 0)
+    }
+}
+
+@Test
+@MainActor
+func compatibleV5StoreWithUnknownMigrationChecksumMigratesToV6WithoutDataLoss() throws {
+    try withTemporaryStore { storeURL in
+        let title = "compatible V5 fixture"
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: EasyTaskSchemaV5.self)
+            let configuration = ModelConfiguration(
+                "EasyTaskV5WithoutPlan",
+                schema: schema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            try writeFixture(to: container, title: title)
+        }
+
+        var metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(
+            ofType: NSSQLiteStoreType,
+            at: storeURL,
+            options: [NSReadOnlyPersistentStoreOption: true]
+        )
+        metadata["NSStoreModelVersionChecksumKey"] = "unknown-runtime-checksum"
+        try NSPersistentStoreCoordinator.setMetadata(
+            metadata,
+            forPersistentStoreOfType: NSSQLiteStoreType,
+            at: storeURL
+        )
+
+        #expect(!EasyTaskContainerFactory.isStoreCompatibleWithCurrentSchema(at: storeURL))
+        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+            storeURL: storeURL,
+            mode: .local
+        )
+        try expectFixture(in: reopened, title: title)
+        #expect(try reopened.mainContext.fetchCount(FetchDescriptor<Memo>()) == 0)
     }
 }
 

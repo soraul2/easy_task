@@ -12,6 +12,7 @@ public struct BackupPayload: Codable {
     public var templatePlacements: [TemplatePlacementDTO]?
     public var dailyReviews: [DailyReviewDTO]?
     public var diaryBlocks: [DiaryBlockDTO]?
+    public var memos: [MemoDTO]? = nil
 }
 
 public struct TaskDTO: Codable {
@@ -126,6 +127,15 @@ public struct DiaryBlockDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+public struct MemoDTO: Codable {
+    public var id: UUID
+    public var content: String
+    public var isPinned: Bool
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var instanceID: UUID? = nil
+}
+
 public enum BackupServiceError: LocalizedError, Equatable {
     case unsupportedVersion(Int)
     case duplicateIdentifier(recordType: String, id: UUID)
@@ -204,7 +214,10 @@ public enum BackupCodec {
                 .map(DailyReviewDTO.init),
             diaryBlocks: try context.fetch(FetchDescriptor<DiaryBlock>())
                 .filter { $0.supersededAt == nil }
-                .map(DiaryBlockDTO.init)
+                .map(DiaryBlockDTO.init),
+            memos: try context.fetch(FetchDescriptor<Memo>())
+                .filter { $0.supersededAt == nil }
+                .map(MemoDTO.init)
         )
         return try validatedPayload(payload)
     }
@@ -265,6 +278,9 @@ public enum BackupCodec {
             for review in try context.fetch(FetchDescriptor<DailyReview>()) {
                 context.delete(review)
             }
+            for memo in try context.fetch(FetchDescriptor<Memo>()) {
+                context.delete(memo)
+            }
 
             for dto in payload.calendarEvents {
                 context.insert(CalendarEvent(dto: dto))
@@ -289,6 +305,9 @@ public enum BackupCodec {
             }
             for dto in payload.diaryBlocks ?? [] {
                 context.insert(DiaryBlock(dto: dto))
+            }
+            for dto in payload.memos ?? [] {
+                context.insert(Memo(dto: dto))
             }
 
             try beforeFinalSave()
@@ -324,6 +343,7 @@ private extension BackupCodec {
         let reviews = payload.dailyReviews ?? []
         let reviewIDs = try uniqueIDs(reviews.map(\.id), recordType: "DailyReview")
         _ = try uniqueIDs((payload.diaryBlocks ?? []).map(\.id), recordType: "DiaryBlock")
+        _ = try uniqueIDs((payload.memos ?? []).map(\.id), recordType: "Memo")
 
         try validateEvents(payload.calendarEvents)
         try validateTemplates(payload.taskTemplateItems, templateIDs: templateIDs)
@@ -395,6 +415,18 @@ private extension BackupCodec {
                 }
             }
             payload.diaryBlocks = diaryBlocks
+        }
+
+        for (index, memo) in (payload.memos ?? []).enumerated() {
+            let field = "memos[\(index)]"
+            try validateDate(memo.createdAt, field: "\(field).createdAt")
+            try validateDate(memo.updatedAt, field: "\(field).updatedAt")
+            guard memo.createdAt <= memo.updatedAt else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).updatedAt",
+                    value: "before createdAt"
+                )
+            }
         }
 
         return payload
@@ -606,6 +638,12 @@ private extension BackupCodec {
             throw BackupServiceError.invalidValue(field: field, value: String(describing: value))
         }
     }
+
+    static func validateDate(_ value: Date, field: String) throws {
+        guard value.timeIntervalSinceReferenceDate.isFinite else {
+            throw BackupServiceError.invalidValue(field: field, value: String(describing: value))
+        }
+    }
 }
 
 private extension TaskDTO {
@@ -733,6 +771,17 @@ private extension DiaryBlockDTO {
         createdAt = block.createdAt
         updatedAt = block.updatedAt
         instanceID = block.instanceID
+    }
+}
+
+private extension MemoDTO {
+    init(memo: Memo) {
+        id = memo.id
+        content = memo.content
+        isPinned = memo.isPinned
+        createdAt = memo.createdAt
+        updatedAt = memo.updatedAt
+        instanceID = memo.instanceID
     }
 }
 
@@ -876,6 +925,19 @@ private extension DiaryBlock {
             text: dto.text,
             imageFileName: dto.imageFileName,
             order: dto.order,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+private extension Memo {
+    convenience init(dto: MemoDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
+            content: dto.content,
+            isPinned: dto.isPinned,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )
