@@ -148,6 +148,7 @@ private enum MobileTab: String, CaseIterable, Identifiable {
     case board
     case calendar
     case archive
+    case memo
 
     var id: String { rawValue }
 
@@ -156,6 +157,7 @@ private enum MobileTab: String, CaseIterable, Identifiable {
         case .board: "칸반"
         case .calendar: "캘린더"
         case .archive: "기록"
+        case .memo: "메모"
         }
     }
 
@@ -164,6 +166,7 @@ private enum MobileTab: String, CaseIterable, Identifiable {
         case .board: "rectangle.3.group"
         case .calendar: "calendar"
         case .archive: "book.pages"
+        case .memo: "note.text"
         }
     }
 }
@@ -223,6 +226,13 @@ private struct MobileAppRootView: View {
                     .accessibilityLabel(MobileTab.archive.title)
             }
             .tag(MobileTab.archive)
+
+            MobileMemoView(onShowTheme: { showingThemePicker = true })
+                .tabItem {
+                    Image(systemName: MobileTab.memo.symbol)
+                        .accessibilityLabel(MobileTab.memo.title)
+                }
+                .tag(MobileTab.memo)
         }
         .tint(AppTheme.event)
         .background(AppTheme.background)
