@@ -124,15 +124,18 @@ struct MobileBoardView: View {
 
                     MobileThemeButton(action: onShowTheme)
 
+                    Button { presentedSheet = .review } label: {
+                        Image(systemName: "book.closed")
+                    }
+                    .accessibilityLabel("회고 작성")
+                    .accessibilityIdentifier("review-compose-button")
+
                     Menu {
                         Button { presentedSheet = .carryover } label: {
                             Label("이월함", systemImage: "tray")
                         }
                         Button { presentedSheet = .templates } label: {
                             Label("템플릿 적용", systemImage: "square.on.square")
-                        }
-                        Button { presentedSheet = .review } label: {
-                            Label("회고 작성", systemImage: "book.closed")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
