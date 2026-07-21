@@ -187,6 +187,24 @@ func cloudKitStartupNeverCreatesDemoRecords() {
     #expect(SeedPolicy.appStartup(cloudKitEnabled: false) == .appStartup)
 }
 
+@Test
+func macOSContainerMigrationIncludesCurrentStoreDirectory() throws {
+    let repositoryURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let manifestURL = repositoryURL
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("container-migration.plist")
+    let data = try Data(contentsOf: manifestURL)
+    let propertyList = try #require(
+        PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+    )
+    let paths = try #require(propertyList["Move"] as? [String])
+
+    #expect(paths.contains("${ApplicationSupport}/PlanBase"))
+}
+
 @Test(arguments: [
     CloudKitSyncEventSummary(kind: .import, isCompleted: true, succeeded: true),
     CloudKitSyncEventSummary(kind: .import, isCompleted: false, succeeded: true),

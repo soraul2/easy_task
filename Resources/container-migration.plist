@@ -4,6 +4,7 @@
 <dict>
 	<key>Move</key>
 	<array>
+		<string>${ApplicationSupport}/PlanBase</string>
 		<string>${ApplicationSupport}/.EasyTaskLegacyMigration.pending.json</string>
 		<string>${ApplicationSupport}/EasyTaskLegacyBackups</string>
 		<string>${ApplicationSupport}/TodoDesktopMVP</string>
