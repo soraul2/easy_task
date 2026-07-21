@@ -122,8 +122,9 @@ public final class CloudKitSyncMonitor {
             accountStatusErrorDescription = nil
             refreshSyncErrorDescription()
         } catch {
-            accountAvailability = .unavailable(error.localizedDescription)
-            accountStatusErrorDescription = "iCloud 계정 상태 확인 실패: \(error.localizedDescription)"
+            let description = CloudKitErrorDescription.userFacingDescription(for: error)
+            accountAvailability = .unavailable(description)
+            accountStatusErrorDescription = description
             refreshSyncErrorDescription()
         }
     }
@@ -209,7 +210,7 @@ public enum CloudKitSyncService {
             completedAt: event.endDate,
             isCompleted: event.endDate != nil,
             succeeded: event.succeeded,
-            errorDescription: event.error?.localizedDescription
+            errorDescription: event.error.map(CloudKitErrorDescription.userFacingDescription)
         )
     }
 
