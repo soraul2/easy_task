@@ -16,12 +16,7 @@ let package = Package(
         )
     ],
     targets: [
-        .target(
-            name: "EasyTaskCore",
-            resources: [
-                .process("Resources")
-            ]
-        ),
+        .target(name: "EasyTaskCore"),
         .testTarget(
             name: "TodoDesktopMVPTests",
             dependencies: ["EasyTaskCore"]
