@@ -135,6 +135,75 @@ func cloudKitErrorDescriptionPreservesUnknownErrors() {
 }
 
 @Test
+func cloudKitSystemDeferralUsesLocalFirstAdvisory() {
+    let error = NSError(
+        domain: NSCocoaErrorDomain,
+        code: 134_419,
+        userInfo: [
+            NSLocalizedFailureReasonErrorKey:
+                "The request was aborted because it was deferred by the system."
+        ]
+    )
+
+    #expect(CloudKitErrorDescription.isSystemDeferred(error))
+    #expect(
+        CloudKitErrorDescription.userFacingDescription(for: error)
+            == CloudKitErrorDescription.systemDeferred
+    )
+    #expect(
+        CloudKitErrorDescription.diagnosticDescription(for: error)
+            .contains("NSCocoaErrorDomain(134419)")
+    )
+    #expect(
+        CloudKitErrorDescription.diagnosticDescription(for: error)
+            .contains("deferred by the system")
+    )
+}
+
+@Test
+func cloudKitSystemDeferralIsFoundInsideUnderlyingError() {
+    let deferredError = NSError(domain: NSCocoaErrorDomain, code: 134_419)
+    let wrapper = NSError(
+        domain: CKErrorDomain,
+        code: CKError.Code.partialFailure.rawValue,
+        userInfo: [NSUnderlyingErrorKey: deferredError]
+    )
+
+    #expect(CloudKitErrorDescription.isSystemDeferred(wrapper))
+    #expect(
+        CloudKitErrorDescription.userFacingDescription(for: wrapper)
+            == CloudKitErrorDescription.systemDeferred
+    )
+}
+
+@Test
+@MainActor
+func cloudKitSystemDeferralDoesNotBecomeBlockingError() {
+    let monitor = CloudKitSyncMonitor()
+
+    monitor.record(CloudKitSyncEventSummary(
+        kind: .export,
+        isCompleted: true,
+        succeeded: false,
+        errorDescription: CloudKitErrorDescription.systemDeferred,
+        isSystemDeferred: true
+    ))
+
+    #expect(monitor.lastErrorDescription == nil)
+    #expect(monitor.syncAdvisoryDescription == CloudKitErrorDescription.systemDeferred)
+    #expect(monitor.title == "iCloud 동기화 대기 중")
+
+    monitor.record(CloudKitSyncEventSummary(
+        kind: .export,
+        isCompleted: true,
+        succeeded: true
+    ))
+
+    #expect(monitor.syncAdvisoryDescription == nil)
+    #expect(monitor.lastErrorDescription == nil)
+}
+
+@Test
 @MainActor
 func syncFailureStatusDoesNotDiscardLocalRecords() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()

@@ -285,6 +285,15 @@ private struct CloudKitSyncStatusSheet: View {
                 LabeledContent("마지막 성공", value: "확인 전")
             }
 
+            if let advisoryDescription = monitor.syncAdvisoryDescription {
+                Text(advisoryDescription)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+            }
+
             if let errorDescription = monitor.lastErrorDescription {
                 Text(errorDescription)
                     .font(.callout)
