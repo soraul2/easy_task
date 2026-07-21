@@ -187,6 +187,8 @@ private struct MobileAppRootView: View {
     @State private var showingThemePicker = false
     @State private var syncMonitor = CloudKitSyncMonitor()
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
+    @AppStorage(MobileCloudKitSyncUI.showsWarningBannerKey)
+    private var showsSyncWarningBanner = true
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -297,25 +299,38 @@ private struct MobileAppRootView: View {
         }
         .onOpenURL(perform: handleDeepLink)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let errorDescription = syncMonitor.lastErrorDescription {
-                Button {
-                    showingSyncStatus = true
-                } label: {
-                    Label(errorDescription, systemImage: "exclamationmark.icloud")
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if showsSyncWarningBanner,
+               let errorDescription = syncMonitor.lastErrorDescription {
+                HStack(spacing: 4) {
+                    Button {
+                        showingSyncStatus = true
+                    } label: {
+                        Label(errorDescription, systemImage: "exclamationmark.icloud")
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .padding(.leading, 14)
+                            .padding(.vertical, 9)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("iCloud 상태 상세 보기")
+
+                    Button {
+                        showsSyncWarningBanner = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("iCloud 경고 배너 숨기기")
                 }
-                .buttonStyle(.plain)
                 .foregroundStyle(AppTheme.primaryText)
                 .background(AppTheme.input)
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(AppTheme.border).frame(height: 1)
                 }
-                .accessibilityHint("iCloud 상태 상세 보기")
             }
         }
         .sheet(isPresented: $showingSyncStatus) {
@@ -470,9 +485,15 @@ struct MobileCloudKitSyncStatusButton: View {
     }
 }
 
+private enum MobileCloudKitSyncUI {
+    static let showsWarningBannerKey = "easytask.icloud.shows-warning-banner"
+}
+
 private struct MobileCloudKitSyncStatusSheet: View {
     let monitor: CloudKitSyncMonitor
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(MobileCloudKitSyncUI.showsWarningBannerKey)
+    private var showsWarningBanner = true
 
     var body: some View {
         NavigationStack {
@@ -501,6 +522,15 @@ private struct MobileCloudKitSyncStatusSheet: View {
                         Text(errorDescription)
                             .foregroundStyle(.red)
                     }
+                }
+
+                Section("화면 표시") {
+                    Toggle(isOn: $showsWarningBanner) {
+                        Label("상단 경고 배너", systemImage: "rectangle.topthird.inset.filled")
+                    }
+                    Text("배너를 숨겨도 이 기기 저장과 iCloud 자동 재시도는 계속됩니다.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {
