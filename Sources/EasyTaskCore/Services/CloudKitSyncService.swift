@@ -2,6 +2,7 @@ import CloudKit
 import CoreData
 import Foundation
 import Observation
+import OSLog
 import SwiftData
 
 public enum CloudKitSyncEventKind: String, Sendable {
@@ -19,6 +20,7 @@ public struct CloudKitSyncEventSummary: Equatable, Sendable {
     public let isCompleted: Bool
     public let succeeded: Bool
     public let errorDescription: String?
+    public let isSystemDeferred: Bool
 
     public init(
         identifier: UUID = UUID(),
@@ -27,7 +29,8 @@ public struct CloudKitSyncEventSummary: Equatable, Sendable {
         completedAt: Date? = nil,
         isCompleted: Bool,
         succeeded: Bool,
-        errorDescription: String? = nil
+        errorDescription: String? = nil,
+        isSystemDeferred: Bool = false
     ) {
         self.identifier = identifier
         self.kind = kind
@@ -36,6 +39,7 @@ public struct CloudKitSyncEventSummary: Equatable, Sendable {
         self.isCompleted = isCompleted
         self.succeeded = succeeded
         self.errorDescription = errorDescription
+        self.isSystemDeferred = isSystemDeferred
     }
 }
 
@@ -84,6 +88,7 @@ public final class CloudKitSyncMonitor {
     public private(set) var lastSuccessfulSyncAt: Date?
     public private(set) var lastEventKind: CloudKitSyncEventKind?
     public private(set) var syncErrorDescription: String?
+    public private(set) var syncAdvisoryDescription: String?
     public private(set) var dataIssueDescription: String?
 
     private let containerIdentifier: String
@@ -101,6 +106,7 @@ public final class CloudKitSyncMonitor {
     public var title: String {
         if isSyncing { return "iCloud 동기화 중" }
         if lastErrorDescription != nil { return "iCloud 동기화 확인 필요" }
+        if syncAdvisoryDescription != nil { return "iCloud 동기화 대기 중" }
         return accountAvailability.title
     }
 
@@ -111,6 +117,7 @@ public final class CloudKitSyncMonitor {
     public var systemImage: String {
         if isSyncing { return "arrow.triangle.2.circlepath.icloud" }
         if lastErrorDescription != nil { return "exclamationmark.icloud" }
+        if syncAdvisoryDescription != nil { return "clock.arrow.circlepath" }
         return accountAvailability.systemImage
     }
 
@@ -143,13 +150,20 @@ public final class CloudKitSyncMonitor {
         activeEventIDs.remove(summary.identifier)
         if summary.succeeded {
             lastSuccessfulSyncAt = date
+            syncAdvisoryDescription = nil
             eventErrorsByID.removeValue(forKey: summary.identifier)
             eventErrorOrder.removeAll { $0 == summary.identifier }
             if summary.kind == .import,
                dataIssueDescription?.hasPrefix("동기화 후") == true {
                 dataIssueDescription = nil
             }
+        } else if summary.isSystemDeferred {
+            syncAdvisoryDescription =
+                summary.errorDescription ?? CloudKitErrorDescription.systemDeferred
+            eventErrorsByID.removeValue(forKey: summary.identifier)
+            eventErrorOrder.removeAll { $0 == summary.identifier }
         } else {
+            syncAdvisoryDescription = nil
             eventErrorsByID[summary.identifier] =
                 summary.errorDescription ?? "알 수 없는 동기화 오류"
             eventErrorOrder.removeAll { $0 == summary.identifier }
@@ -175,6 +189,7 @@ public final class CloudKitSyncMonitor {
         accountStatusErrorDescription = nil
         eventErrorsByID = [:]
         eventErrorOrder = []
+        syncAdvisoryDescription = nil
         refreshSyncErrorDescription()
         dataIssueDescription = nil
     }
@@ -192,6 +207,11 @@ public final class CloudKitSyncMonitor {
 }
 
 public enum CloudKitSyncService {
+    private static let logger = Logger(
+        subsystem: "com.soraul2.easytask",
+        category: "CloudKitSync"
+    )
+
     public static var eventChangedNotification: Notification.Name {
         NSPersistentCloudKitContainer.eventChangedNotification
     }
@@ -203,6 +223,16 @@ public enum CloudKitSyncService {
             return nil
         }
 
+        let eventError = event.error
+        if let eventError, event.endDate != nil, !event.succeeded {
+            let eventKind = kind(for: event.type).rawValue
+            let eventIdentifier = event.identifier.uuidString
+            let diagnostic = CloudKitErrorDescription.diagnosticDescription(for: eventError)
+            logger.error(
+                "CloudKit \(eventKind, privacy: .public) event \(eventIdentifier, privacy: .public) failed: \(diagnostic, privacy: .public)"
+            )
+        }
+
         return CloudKitSyncEventSummary(
             identifier: event.identifier,
             kind: kind(for: event.type),
@@ -210,7 +240,8 @@ public enum CloudKitSyncService {
             completedAt: event.endDate,
             isCompleted: event.endDate != nil,
             succeeded: event.succeeded,
-            errorDescription: event.error.map(CloudKitErrorDescription.userFacingDescription)
+            errorDescription: eventError.map(CloudKitErrorDescription.userFacingDescription),
+            isSystemDeferred: eventError.map(CloudKitErrorDescription.isSystemDeferred) ?? false
         )
     }
 

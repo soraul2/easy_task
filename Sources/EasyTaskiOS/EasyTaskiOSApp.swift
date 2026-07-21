@@ -489,6 +489,13 @@ private struct MobileCloudKitSyncStatusSheet: View {
                     }
                 }
 
+                if let advisoryDescription = monitor.syncAdvisoryDescription {
+                    Section("안내") {
+                        Text(advisoryDescription)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if let errorDescription = monitor.lastErrorDescription {
                     Section("확인 필요") {
                         Text(errorDescription)
