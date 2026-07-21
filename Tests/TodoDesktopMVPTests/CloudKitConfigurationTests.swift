@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import SwiftData
 import Testing
@@ -97,6 +98,62 @@ func cloudKitSyncSuccessDoesNotHideUnrelatedDataIssue() {
     ))
 
     #expect(monitor.lastErrorDescription == "이전 회고 이미지 정리가 필요합니다")
+}
+
+@Test
+func cloudKitPartialFailureSurfacesQuotaExceededCause() {
+    let quotaError = NSError(
+        domain: CKErrorDomain,
+        code: CKError.Code.quotaExceeded.rawValue
+    )
+    let partialError = NSError(
+        domain: CKErrorDomain,
+        code: CKError.Code.partialFailure.rawValue,
+        userInfo: [
+            CKPartialErrorsByItemIDKey: [AnyHashable("record"): quotaError]
+        ]
+    )
+
+    #expect(
+        CloudKitErrorDescription.userFacingDescription(for: partialError)
+            == CloudKitErrorDescription.quotaExceeded
+    )
+}
+
+@Test
+func cloudKitErrorDescriptionPreservesUnknownErrors() {
+    let error = NSError(
+        domain: "EasyTaskTests",
+        code: 42,
+        userInfo: [NSLocalizedDescriptionKey: "알 수 없는 원본 오류"]
+    )
+
+    #expect(
+        CloudKitErrorDescription.userFacingDescription(for: error)
+            == "알 수 없는 원본 오류"
+    )
+}
+
+@Test
+@MainActor
+func syncFailureStatusDoesNotDiscardLocalRecords() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let task = Task(title: "로컬에 남아야 하는 작업", plannedAt: Date(), order: 100)
+    context.insert(task)
+    try context.save()
+
+    let monitor = CloudKitSyncMonitor()
+    monitor.record(CloudKitSyncEventSummary(
+        kind: .export,
+        isCompleted: true,
+        succeeded: false,
+        errorDescription: CloudKitErrorDescription.quotaExceeded
+    ))
+
+    let tasks = try context.fetch(FetchDescriptor<Task>())
+    #expect(tasks.contains { $0.id == task.id })
+    #expect(monitor.lastErrorDescription == CloudKitErrorDescription.quotaExceeded)
 }
 
 @Test

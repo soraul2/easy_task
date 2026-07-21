@@ -129,6 +129,69 @@ func versionedContainerReopensFileBackedStore() throws {
 
 @Test
 @MainActor
+func appStoreLocationCopiesOnlyRecognizedEasyTaskStore() throws {
+    let applicationSupportURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("EasyTaskStoreLocation-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(
+        at: applicationSupportURL,
+        withIntermediateDirectories: true
+    )
+    defer { try? FileManager.default.removeItem(at: applicationSupportURL) }
+
+    let legacyStoreURL = applicationSupportURL.appendingPathComponent("default.store")
+    let title = "recognized legacy location"
+    try autoreleasepool {
+        let schema = Schema(versionedSchema: EasyTaskSchemaV6.self)
+        let configuration = ModelConfiguration(
+            "EasyTaskLegacyLocation",
+            schema: schema,
+            url: legacyStoreURL,
+            allowsSave: true,
+            cloudKitDatabase: .none
+        )
+        let container = try ModelContainer(for: schema, configurations: configuration)
+        try writeFixture(to: container, title: title)
+    }
+
+    let destinationURL = try EasyTaskContainerFactory.prepareDefaultStoreLocation(
+        applicationSupportURL: applicationSupportURL
+    )
+
+    #expect(destinationURL.lastPathComponent == "default.store")
+    #expect(destinationURL.deletingLastPathComponent().lastPathComponent == "PlanBase")
+    #expect(FileManager.default.fileExists(atPath: legacyStoreURL.path))
+    #expect(FileManager.default.fileExists(atPath: destinationURL.path))
+    let reopened = try EasyTaskContainerFactory.makePersistent(
+        storeURL: destinationURL,
+        mode: .local
+    )
+    try expectFixture(in: reopened, title: title)
+}
+
+@Test
+func appStoreLocationLeavesUnrecognizedGlobalStoreUntouched() throws {
+    let applicationSupportURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("EasyTaskForeignStore-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(
+        at: applicationSupportURL,
+        withIntermediateDirectories: true
+    )
+    defer { try? FileManager.default.removeItem(at: applicationSupportURL) }
+
+    let unrelatedStoreURL = applicationSupportURL.appendingPathComponent("default.store")
+    let unrelatedData = Data("not an EasyTask store".utf8)
+    try unrelatedData.write(to: unrelatedStoreURL)
+
+    let destinationURL = try EasyTaskContainerFactory.prepareDefaultStoreLocation(
+        applicationSupportURL: applicationSupportURL
+    )
+
+    #expect(try Data(contentsOf: unrelatedStoreURL) == unrelatedData)
+    #expect(!FileManager.default.fileExists(atPath: destinationURL.path))
+}
+
+@Test
+@MainActor
 func v3AttachmentPersistsInFileBackedStore() throws {
     try withTemporaryStore { storeURL in
         let id = UUID(uuidString: "30000000-0000-0000-0000-000000000001")!

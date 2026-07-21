@@ -14,6 +14,7 @@ public enum EasyTaskStoreMode: Sendable, Equatable {
 public enum EasyTaskContainerFactory {
     public static let cloudKitContainerIdentifier = "iCloud.com.soraul2.easytask"
     public static let appStoreMode = EasyTaskStoreMode.cloudKit
+    static let applicationSupportDirectoryName = "PlanBase"
 
     public static var schema: Schema {
         Schema(versionedSchema: EasyTaskSchemaV6.self)
@@ -92,11 +93,58 @@ public enum EasyTaskContainerFactory {
         ).first else {
             throw CocoaError(.fileNoSuchFile)
         }
+        return try prepareDefaultStoreLocation(applicationSupportURL: applicationSupportURL)
+    }
+
+    static func prepareDefaultStoreLocation(applicationSupportURL: URL) throws -> URL {
+        let storeDirectoryURL = applicationSupportURL.appendingPathComponent(
+            applicationSupportDirectoryName,
+            isDirectory: true
+        )
         try FileManager.default.createDirectory(
-            at: applicationSupportURL,
+            at: storeDirectoryURL,
             withIntermediateDirectories: true
         )
-        return applicationSupportURL.appendingPathComponent("default.store")
+
+        let storeURL = storeDirectoryURL.appendingPathComponent("default.store")
+        let previousStoreURL = applicationSupportURL.appendingPathComponent("default.store")
+        _ = try copyRecognizedStoreIfNeeded(from: previousStoreURL, to: storeURL)
+        return storeURL
+    }
+
+    @discardableResult
+    static func copyRecognizedStoreIfNeeded(
+        from sourceStoreURL: URL,
+        to destinationStoreURL: URL
+    ) throws -> Bool {
+        guard !FileManager.default.fileExists(atPath: destinationStoreURL.path),
+              FileManager.default.fileExists(atPath: sourceStoreURL.path),
+              isRecognizedEasyTaskStore(at: sourceStoreURL) else {
+            return false
+        }
+
+        let sourceURLs = storeFamilyURLs(for: sourceStoreURL)
+        let destinationURLs = storeFamilyURLs(for: destinationStoreURL)
+        var copiedURLs: [URL] = []
+
+        do {
+            for destinationURL in destinationURLs
+            where FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+            for (sourceURL, destinationURL) in zip(sourceURLs, destinationURLs)
+            where FileManager.default.fileExists(atPath: sourceURL.path) {
+                try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                copiedURLs.append(destinationURL)
+            }
+        } catch {
+            for copiedURL in copiedURLs {
+                try? FileManager.default.removeItem(at: copiedURL)
+            }
+            throw error
+        }
+
+        return true
     }
 
     static func makeConfiguration(
@@ -151,6 +199,46 @@ public enum EasyTaskContainerFactory {
             withName: nil,
             compatibleWithStoreMetadata: metadata
         )
+    }
+
+    static func isRecognizedEasyTaskStore(at storeURL: URL) -> Bool {
+        guard let metadata = try? NSPersistentStoreCoordinator.metadataForPersistentStore(
+            ofType: NSSQLiteStoreType,
+            at: storeURL,
+            options: [NSReadOnlyPersistentStoreOption: true]
+        ) else {
+            return false
+        }
+
+        let modelCollections: [[any PersistentModel.Type]] = [
+            EasyTaskLegacySchema.models,
+            EasyTaskSchemaV1.models,
+            EasyTaskSchemaV2.models,
+            EasyTaskSchemaV3.models,
+            EasyTaskSchemaV4.models,
+            EasyTaskSchemaV5.models,
+            EasyTaskSchemaV6.models
+        ]
+        return modelCollections.contains { models in
+            guard let model = NSManagedObjectModel.makeManagedObjectModel(for: models) else {
+                return false
+            }
+            return model.isConfiguration(
+                withName: nil,
+                compatibleWithStoreMetadata: metadata
+            )
+        }
+    }
+
+    private static func storeFamilyURLs(for storeURL: URL) -> [URL] {
+        let parentURL = storeURL.deletingLastPathComponent()
+        let storeName = storeURL.lastPathComponent
+        return [
+            storeURL,
+            URL(fileURLWithPath: storeURL.path + "-shm"),
+            URL(fileURLWithPath: storeURL.path + "-wal"),
+            parentURL.appendingPathComponent(".\(storeName)_SUPPORT", isDirectory: true)
+        ]
     }
 
     private static func makeContainerWithoutMigrationPlan(

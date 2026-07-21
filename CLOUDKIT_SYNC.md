@@ -11,6 +11,19 @@
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
 
+### 로컬 우선 저장
+
+CloudKit 모드는 별도의 네트워크 전용 저장소가 아니라 로컬 SwiftData 저장소에 먼저
+저장한 뒤 변경 사항을 CloudKit으로 내보낸다. 네트워크 단절, iCloud 로그아웃 또는
+사용자 iCloud 용량 부족으로 export가 실패해도 현재 기기의 데이터는 유지된다. 이때
+다른 기기에는 전파되지 않으며, 원인이 해결된 뒤 앱을 다시 열어 동기화를 재시도한다.
+동기화 성공 전 앱을 삭제하면 아직 업로드되지 않은 로컬 데이터가 사라질 수 있다.
+
+로컬 데이터베이스는 `Application Support/PlanBase/default.store`에 격리한다. 이전
+전역 `Application Support/default.store`는 실제 EasyTask 스키마로 확인된 경우에만
+원본을 유지한 채 새 위치로 복사한다. 다른 SwiftData 앱의 전역 저장소는 열거나 이동하지
+않는다.
+
 ## 최초 연결
 
 1. Xcode Settings > Accounts에서 Apple Developer 계정을 로그인하거나 다시 인증한다.
