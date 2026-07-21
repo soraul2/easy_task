@@ -154,7 +154,7 @@ iPhone 홈 화면 위젯은 `EasyTaskWidget`에 둔다.
 - 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS와 macOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
-- 개발 스키마만 사용하며 운영 스키마 승격은 실기기 수렴 검증 전까지 금지한다.
+- CloudKit Production에는 V6 스키마가 배포되어 있으며 TestFlight 앱은 운영 private database를 사용한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그와 선택형 체크리스트를 편집한다.
@@ -172,7 +172,7 @@ iPhone 홈 화면 위젯은 `EasyTaskWidget`에 둔다.
 2026-07-12 기준으로 동일 개발 컨테이너의 macOS ↔ iPhone 양방향 create/delete 전파는
 고유 진단 레코드로 통과했다. 다음 우선순위는 같은 레코드의 오프라인 동시 편집,
 이미지 추가·삭제·재설치, iCloud 로그아웃·재로그인, 자동 복구 백업과 UI smoke test다.
-이 조건과 Debug/Release 서명 검증을 모두 통과한 뒤 CloudKit 운영 스키마 승격을 판단한다.
+이 조건과 Debug/Release 서명 검증은 이후 스키마 변경과 배포의 회귀 게이트로 유지한다.
 
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
