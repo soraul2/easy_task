@@ -107,6 +107,10 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
         sourcePaletteHexes.map { ThemeColorToken(hex: $0).color }
     }
 
+    public var targetsWCAGTextContrast: Bool {
+        id != "roseLilac"
+    }
+
     public func colorSet(for appearance: AppThemeAppearance) -> AppThemeColorSet {
         switch appearance {
         case .dark:
@@ -196,6 +200,28 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
                 done: "#D7E9DF",
                 event: "#6A1E55",
                 eventPalette: ["#3B1C32", "#6A1E55", "#A64D79", "#842A3B", "#436850", "#1A2A4F"]
+            )
+        case "roseLilac":
+            return light(
+                backgroundTop: "#FBEFEF",
+                backgroundBottom: "#EFE8F4",
+                panel: "#FFF9FA",
+                input: "#FFEFF1",
+                floatingBar: "#FFF5F7",
+                border: "#DEC9DE",
+                selectedTab: "#C5B3D3",
+                columnTodo: "#FBEFEF",
+                columnDoing: "#FFE2E2",
+                columnDone: "#E4D8EC",
+                todo: "#FFF8F8",
+                doing: "#F5CBCB",
+                done: "#D5C6E1",
+                event: "#B8809D",
+                eventPalette: ["#B8809D", "#C78F91", "#A889B9", "#B99379", "#789A91", "#7E86A9"],
+                primaryText: "#4D404C",
+                secondaryText: "#8C7484",
+                cardText: "#4D404C",
+                cardMutedText: "#8B7180"
             )
         case "forestCream":
             return light(
@@ -287,7 +313,12 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
         doing: String,
         done: String,
         event: String,
-        eventPalette: [String]
+        eventPalette: [String],
+        primaryText: String = "#1F1A1C",
+        secondaryText: String = "#5F5558",
+        cardText: String = "#1F1A1C",
+        cardMutedText: String = "#61575A",
+        eventText: String = "#FFFFFF"
     ) -> AppThemeColorSet {
         AppThemeColorSet(
             backgroundTop: ThemeColorToken(hex: backgroundTop),
@@ -296,11 +327,11 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
             input: ThemeColorToken(hex: input),
             floatingBar: ThemeColorToken(hex: floatingBar),
             border: ThemeColorToken(hex: border),
-            primaryText: ThemeColorToken(hex: "#1F1A1C"),
-            secondaryText: ThemeColorToken(hex: "#5F5558"),
-            cardText: ThemeColorToken(hex: "#1F1A1C"),
-            cardMutedText: ThemeColorToken(hex: "#61575A"),
-            eventText: ThemeColorToken(hex: "#FFFFFF"),
+            primaryText: ThemeColorToken(hex: primaryText),
+            secondaryText: ThemeColorToken(hex: secondaryText),
+            cardText: ThemeColorToken(hex: cardText),
+            cardMutedText: ThemeColorToken(hex: cardMutedText),
+            eventText: ThemeColorToken(hex: eventText),
             selectedTab: ThemeColorToken(hex: selectedTab),
             columnTodo: ThemeColorToken(hex: columnTodo),
             columnDoing: ThemeColorToken(hex: columnDoing),
@@ -439,6 +470,37 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
                 ThemeColorToken(hex: "#842A3B"),
                 ThemeColorToken(hex: "#436850"),
                 ThemeColorToken(hex: "#1A2A4F")
+            ]
+        ),
+        AppThemePreset(
+            id: "roseLilac",
+            name: "Rose Lilac",
+            sourcePaletteHexes: ["#FBEFEF", "#FFE2E2", "#F5CBCB", "#C5B3D3"],
+            backgroundTop: ThemeColorToken(hex: "#181417"),
+            backgroundBottom: ThemeColorToken(hex: "#211A20"),
+            panel: ThemeColorToken(hex: "#2B2229"),
+            input: ThemeColorToken(hex: "#332830"),
+            floatingBar: ThemeColorToken(hex: "#30262E"),
+            border: ThemeColorToken(hex: "#655363"),
+            primaryText: ThemeColorToken(hex: "#FFF4F7"),
+            secondaryText: ThemeColorToken(hex: "#D9C7D3"),
+            cardText: ThemeColorToken(hex: "#FFF8FA"),
+            cardMutedText: ThemeColorToken(hex: "#DCC8D5"),
+            selectedTab: ThemeColorToken(hex: "#675872"),
+            columnTodo: ThemeColorToken(hex: "#30282F"),
+            columnDoing: ThemeColorToken(hex: "#3F2D35"),
+            columnDone: ThemeColorToken(hex: "#3A3143"),
+            todo: ThemeColorToken(hex: "#282126"),
+            doing: ThemeColorToken(hex: "#543840"),
+            done: ThemeColorToken(hex: "#4B3F57"),
+            event: ThemeColorToken(hex: "#9B6688"),
+            eventPalette: [
+                ThemeColorToken(hex: "#9B6688"),
+                ThemeColorToken(hex: "#A9686D"),
+                ThemeColorToken(hex: "#806891"),
+                ThemeColorToken(hex: "#8B674F"),
+                ThemeColorToken(hex: "#52766D"),
+                ThemeColorToken(hex: "#5E6688")
             ]
         ),
         AppThemePreset(

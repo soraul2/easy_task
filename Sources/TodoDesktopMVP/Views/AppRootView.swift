@@ -364,7 +364,7 @@ struct ThemePickerSheet: View {
                     Text("테마")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(AppTheme.primaryText)
-                    Text("Apple System과 Color Hunt 기반 테마를 현재 화면 모드에 맞게 보정했습니다.")
+                    Text("화면 모드에 맞춘 기본 테마와 색감 중심의 소프트 대비 테마를 제공합니다.")
                         .font(.callout)
                         .foregroundStyle(AppTheme.secondaryText)
                 }
@@ -453,7 +453,7 @@ struct ThemePresetCard: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(colors.panel.color, in: Capsule())
-                    Text("WCAG 4.5:1")
+                    Text(preset.targetsWCAGTextContrast ? "WCAG 4.5:1" : "소프트 대비")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                     Spacer()
