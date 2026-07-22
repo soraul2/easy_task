@@ -190,6 +190,10 @@ private struct MobileAppRootView: View {
     @AppStorage(MobileCloudKitSyncUI.showsWarningBannerKey)
     private var showsSyncWarningBanner = true
 
+    private var cloudKitEnabled: Bool {
+        EasyTaskContainerFactory.runtimeAppStoreMode.usesCloudKit
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             MobileBoardView(
@@ -247,7 +251,9 @@ private struct MobileAppRootView: View {
         .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
         .task {
             start()
-            await syncMonitor.refreshAccountStatus()
+            if cloudKitEnabled {
+                await syncMonitor.refreshAccountStatus()
+            }
             await TaskNotificationScheduler.shared.reconcile(context: modelContext)
             handlePendingNotificationRoute()
         }
@@ -266,7 +272,9 @@ private struct MobileAppRootView: View {
             guard scenePhase == .active else { return }
             refreshCurrentDay()
             Swift.Task {
-                await syncMonitor.refreshAccountStatus()
+                if cloudKitEnabled {
+                    await syncMonitor.refreshAccountStatus()
+                }
                 await TaskNotificationScheduler.shared.reconcile(context: modelContext)
                 handlePendingNotificationRoute()
             }
@@ -299,7 +307,8 @@ private struct MobileAppRootView: View {
         }
         .onOpenURL(perform: handleDeepLink)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if showsSyncWarningBanner,
+            if cloudKitEnabled,
+               showsSyncWarningBanner,
                let errorDescription = syncMonitor.lastErrorDescription {
                 HStack(spacing: 4) {
                     Button {
@@ -380,7 +389,7 @@ private struct MobileAppRootView: View {
 
     private func seedDemoDataIfNeeded() throws {
         let policy = SeedPolicy.appStartup(
-            cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit &&
+            cloudKitEnabled: cloudKitEnabled &&
                 !EasyTaskLaunchEnvironment.isUITesting
         )
         guard case .demo = policy else { return }
@@ -474,14 +483,16 @@ struct MobileCloudKitSyncStatusButton: View {
     @State private var isPresented = false
 
     var body: some View {
-        Button {
-            isPresented = true
-        } label: {
-            Image(systemName: monitor.systemImage)
-        }
-        .accessibilityLabel(monitor.title)
-        .sheet(isPresented: $isPresented) {
-            MobileCloudKitSyncStatusSheet(monitor: monitor)
+        if EasyTaskContainerFactory.runtimeAppStoreMode.usesCloudKit {
+            Button {
+                isPresented = true
+            } label: {
+                Image(systemName: monitor.systemImage)
+            }
+            .accessibilityLabel(monitor.title)
+            .sheet(isPresented: $isPresented) {
+                MobileCloudKitSyncStatusSheet(monitor: monitor)
+            }
         }
     }
 }

@@ -1,6 +1,9 @@
 import CoreData
 import Foundation
 import SwiftData
+#if os(macOS)
+import Security
+#endif
 
 public enum EasyTaskStoreMode: Sendable, Equatable {
     case local
@@ -13,8 +16,27 @@ public enum EasyTaskStoreMode: Sendable, Equatable {
 
 public enum EasyTaskContainerFactory {
     public static let cloudKitContainerIdentifier = "iCloud.com.soraul2.easytask"
+    public static let applicationGroupIdentifier = "group.com.soraul2.easytask"
     public static let appStoreMode = EasyTaskStoreMode.cloudKit
     static let applicationSupportDirectoryName = "PlanBase"
+
+    /// Uses CloudKit only when the current executable was signed with the
+    /// capabilities required by the platform. This prevents Core Data's
+    /// asynchronous CloudKit setup from terminating a malformed build.
+    public static var runtimeAppStoreMode: EasyTaskStoreMode {
+#if os(iOS)
+        let hasRequiredEntitlements = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: applicationGroupIdentifier
+        ) != nil
+        return resolvedAppStoreMode(hasRequiredRuntimeEntitlements: hasRequiredEntitlements)
+#elseif os(macOS)
+        return resolvedAppStoreMode(
+            hasRequiredRuntimeEntitlements: currentProcessHasCloudKitEntitlements()
+        )
+#else
+        return appStoreMode
+#endif
+    }
 
     public static var schema: Schema {
         Schema(versionedSchema: EasyTaskSchemaV6.self)
@@ -23,14 +45,18 @@ public enum EasyTaskContainerFactory {
     @MainActor
     public static func makeAppPersistent(
         storeURL: URL? = nil,
-        mode: EasyTaskStoreMode = appStoreMode
+        mode: EasyTaskStoreMode? = nil
     ) throws -> ModelContainer {
+        let resolvedMode = mode ?? runtimeAppStoreMode
+        if mode == nil, resolvedMode == .local, appStoreMode == .cloudKit {
+            print("EasyTask CloudKit entitlements unavailable; opening the local store.")
+        }
         let resolvedStoreURL = try storeURL ?? defaultStoreURL()
         let migration = try LegacyStoreMigrationService.prepareIfNeeded(
             storeURL: resolvedStoreURL
         )
 
-        let container = try makePersistent(storeURL: resolvedStoreURL, mode: mode)
+        let container = try makePersistent(storeURL: resolvedStoreURL, mode: resolvedMode)
         guard let migration else { return container }
 
         do {
@@ -172,6 +198,35 @@ public enum EasyTaskContainerFactory {
             cloudKitDatabase: cloudKitDatabase
         )
     }
+
+    static func resolvedAppStoreMode(
+        hasRequiredRuntimeEntitlements: Bool
+    ) -> EasyTaskStoreMode {
+        guard appStoreMode.usesCloudKit, hasRequiredRuntimeEntitlements else {
+            return .local
+        }
+        return .cloudKit
+    }
+
+#if os(macOS)
+    private static func currentProcessHasCloudKitEntitlements() -> Bool {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let containers = SecTaskCopyValueForEntitlement(
+                task,
+                "com.apple.developer.icloud-container-identifiers" as CFString,
+                nil
+              ) as? [String],
+              containers.contains(cloudKitContainerIdentifier),
+              let services = SecTaskCopyValueForEntitlement(
+                task,
+                "com.apple.developer.icloud-services" as CFString,
+                nil
+              ) as? [String] else {
+            return false
+        }
+        return services.contains("CloudKit") || services.contains("*")
+    }
+#endif
 
     public static func makeContainer(
         configuration: ModelConfiguration
