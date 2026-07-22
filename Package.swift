@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "TodoDesktopMVP",
+    name: "PlanBase",
     platforms: [
         .iOS(.v18),
         .macOS(.v26)
@@ -16,10 +16,14 @@ let package = Package(
         )
     ],
     targets: [
-        .target(name: "EasyTaskCore"),
+        .target(
+            name: "EasyTaskCore",
+            path: "shared/Core"
+        ),
         .testTarget(
             name: "TodoDesktopMVPTests",
-            dependencies: ["EasyTaskCore"]
+            dependencies: ["EasyTaskCore"],
+            path: "shared/Tests"
         ),
     ],
     swiftLanguageModes: [.v6]

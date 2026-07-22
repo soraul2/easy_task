@@ -7,51 +7,51 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A30000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */; };
-		A30000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */; };
-		A30000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */; };
-		A30000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift */; };
-		A30000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift */; };
-		A30000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */; };
-		A30000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */; };
-		A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */; };
-		A30000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift */; };
-		A30000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift */; };
-		A30000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift */; };
-		A30000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */; };
-		A30000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */; };
-		A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */; };
-		A30000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift */; };
-		A30000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift */; };
-		A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */; };
-		A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */; };
-		A30000000000000000000031 /* Sources/EasyTaskiOS/MobileMemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* Sources/EasyTaskiOS/MobileMemoView.swift */; };
-		A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */; };
-		A30000000000000000000030 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Resources/Assets.xcassets */; };
-		C30000000000000000000030 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* Resources/Assets.xcassets */; };
-		C30000000000000000000031 /* Resources/container-migration.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* Resources/container-migration.plist */; };
-		91000000000000000000000C /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */; };
+		A30000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift */; };
+		A30000000000000000000012 /* mobile/App/MobileShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* mobile/App/MobileShared.swift */; };
+		A30000000000000000000013 /* mobile/App/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* mobile/App/MobileBoardView.swift */; };
+		A30000000000000000000018 /* mobile/App/MobileBoardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* mobile/App/MobileBoardComponents.swift */; };
+		A30000000000000000000019 /* mobile/App/MobileTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* mobile/App/MobileTaskDetailSheet.swift */; };
+		A30000000000000000000020 /* mobile/App/MobileCarryoverSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* mobile/App/MobileCarryoverSheet.swift */; };
+		A30000000000000000000021 /* mobile/App/MobileTemplateLibrarySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* mobile/App/MobileTemplateLibrarySheet.swift */; };
+		A30000000000000000000014 /* mobile/App/MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* mobile/App/MobileCalendarView.swift */; };
+		A30000000000000000000022 /* mobile/App/MobileCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* mobile/App/MobileCalendarGrid.swift */; };
+		A30000000000000000000023 /* mobile/App/MobileEventEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* mobile/App/MobileEventEditorSheet.swift */; };
+		A30000000000000000000024 /* mobile/App/MobileCalendarDaySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* mobile/App/MobileCalendarDaySheet.swift */; };
+		A30000000000000000000025 /* mobile/App/MobileTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* mobile/App/MobileTemplatePlacementSheet.swift */; };
+		A30000000000000000000026 /* mobile/App/MobileTemplateComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* mobile/App/MobileTemplateComponents.swift */; };
+		A30000000000000000000015 /* mobile/App/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* mobile/App/MobileArchiveView.swift */; };
+		A30000000000000000000027 /* mobile/App/MobileArchiveFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000027 /* mobile/App/MobileArchiveFilterSheet.swift */; };
+		A30000000000000000000028 /* mobile/App/MobileArchiveRecordCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000028 /* mobile/App/MobileArchiveRecordCard.swift */; };
+		A30000000000000000000016 /* mobile/App/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* mobile/App/MobileReviewComposerSheet.swift */; };
+		A30000000000000000000029 /* mobile/App/MobileReviewComposerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029 /* mobile/App/MobileReviewComposerComponents.swift */; };
+		A30000000000000000000031 /* mobile/App/MobileMemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* mobile/App/MobileMemoView.swift */; };
+		A30000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift */; };
+		A30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* shared/Resources/Assets.xcassets */; };
+		C30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* shared/Resources/Assets.xcassets */; };
+		C30000000000000000000031 /* shared/Resources/container-migration.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* shared/Resources/container-migration.plist */; };
+		91000000000000000000000C /* mobile/Widget/EasyTaskCalendarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000009 /* mobile/Widget/EasyTaskCalendarWidget.swift */; };
 		91000000000000000000000E /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = 91000000000000000000000D /* EasyTaskCore */; };
 		91000000000000000000000F /* EasyTaskWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 910000000000000000000008 /* EasyTaskWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		910000000000000000000014 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000013 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift */; };
+		910000000000000000000014 /* mobile/App/CalendarWidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000013 /* mobile/App/CalendarWidgetSnapshotPublisher.swift */; };
 		B10000000000000000000003 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* EasyTaskCore */; };
 		B10000000000000000000004 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* EasyTaskCore */; };
-		D30000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */; };
-		D30000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */; };
-		D30000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */; };
-		D30000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift */; };
-		D30000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift */; };
-		D30000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */; };
-		D30000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */; };
-		D30000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */; };
-		D30000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift */; };
-		D3000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift */; };
-		D3000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift */; };
-		D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */; };
-		D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */; };
-		D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */; };
-		D3000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift */; };
-		F30000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */; };
+		D30000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift */; };
+		D30000000000000000000002 /* desktop/App/Services/BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* desktop/App/Services/BackupService.swift */; };
+		D30000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift */; };
+		D30000000000000000000004 /* desktop/App/Views/AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000004 /* desktop/App/Views/AppRootView.swift */; };
+		D30000000000000000000005 /* desktop/App/Views/ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000005 /* desktop/App/Views/ArchiveView.swift */; };
+		D30000000000000000000006 /* desktop/App/Views/BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* desktop/App/Views/BoardView.swift */; };
+		D30000000000000000000007 /* desktop/App/Views/CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000007 /* desktop/App/Views/CalendarView.swift */; };
+		D30000000000000000000008 /* desktop/App/Views/DiaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000008 /* desktop/App/Views/DiaryView.swift */; };
+		D30000000000000000000009 /* desktop/App/Views/DesktopTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000009 /* desktop/App/Views/DesktopTaskDetailSheet.swift */; };
+		D3000000000000000000000A /* desktop/App/Views/DesktopBoardSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000A /* desktop/App/Views/DesktopBoardSheets.swift */; };
+		D3000000000000000000000B /* desktop/App/Views/DesktopKanbanComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000B /* desktop/App/Views/DesktopKanbanComponents.swift */; };
+		D3000000000000000000000C /* desktop/App/Views/DesktopCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* desktop/App/Views/DesktopCalendarGrid.swift */; };
+		D3000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift */; };
+		D3000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift */; };
+		D3000000000000000000000F /* desktop/App/Views/MemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000F /* desktop/App/Views/MemoView.swift */; };
+		F30000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,51 +90,55 @@
 		C10000000000000000000010 /* EasyTask macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EasyTask macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EasyTaskLaunchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		910000000000000000000008 /* EasyTaskWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EasyTaskWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileShared.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileBoardComponents.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCarryoverSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileEventEditorSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileCalendarDaySheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileTemplateComponents.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileArchiveRecordCard.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileReviewComposerComponents.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000031 /* Sources/EasyTaskiOS/MobileMemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/MobileMemoView.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
-		910000000000000000000013 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift; sourceTree = SOURCE_ROOT; };
-		910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000030 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
-		A20000000000000000000032 /* Resources/container-migration.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Resources/container-migration.plist"; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Services/DiaryImageStore.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/AppRootView.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/ArchiveView.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/BoardView.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/CalendarView.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DiaryView.swift; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
-		D2000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift; sourceTree = SOURCE_ROOT; };
-		D2000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift; sourceTree = SOURCE_ROOT; };
-		D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
-		D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift; sourceTree = SOURCE_ROOT; };
-		D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
-		D2000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TodoDesktopMVP/Views/MemoView.swift; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000003 /* Configuration/EasyTask-macOS-AppStore.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Configuration/EasyTask-macOS-AppStore.entitlements"; sourceTree = SOURCE_ROOT; };
-		91000000000000000000000A /* Configuration/EasyTaskWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Configuration/EasyTaskWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
-		91000000000000000000000B /* Configuration/EasyTaskWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Configuration/EasyTaskWidget.entitlements; sourceTree = SOURCE_ROOT; };
-		F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000012 /* mobile/App/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileShared.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000013 /* mobile/App/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000018 /* mobile/App/MobileBoardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileBoardComponents.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000019 /* mobile/App/MobileTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000020 /* mobile/App/MobileCarryoverSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileCarryoverSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000021 /* mobile/App/MobileTemplateLibrarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileTemplateLibrarySheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000014 /* mobile/App/MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000022 /* mobile/App/MobileCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000023 /* mobile/App/MobileEventEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileEventEditorSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000024 /* mobile/App/MobileCalendarDaySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileCalendarDaySheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000025 /* mobile/App/MobileTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000026 /* mobile/App/MobileTemplateComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileTemplateComponents.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000015 /* mobile/App/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000027 /* mobile/App/MobileArchiveFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileArchiveFilterSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000028 /* mobile/App/MobileArchiveRecordCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileArchiveRecordCard.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000016 /* mobile/App/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000029 /* mobile/App/MobileReviewComposerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileReviewComposerComponents.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000031 /* mobile/App/MobileMemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileMemoView.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
+		910000000000000000000013 /* mobile/App/CalendarWidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/CalendarWidgetSnapshotPublisher.swift; sourceTree = SOURCE_ROOT; };
+		910000000000000000000009 /* mobile/Widget/EasyTaskCalendarWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/EasyTaskCalendarWidget.swift; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000030 /* shared/Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = shared/Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
+		A20000000000000000000032 /* shared/Resources/container-migration.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "shared/Resources/container-migration.plist"; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/TodoDesktopMVPApp.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000002 /* desktop/App/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Services/DiaryImageStore.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000004 /* desktop/App/Views/AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/AppRootView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000005 /* desktop/App/Views/ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/ArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000006 /* desktop/App/Views/BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/BoardView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000007 /* desktop/App/Views/CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/CalendarView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000008 /* desktop/App/Views/DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DiaryView.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000009 /* desktop/App/Views/DesktopTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000A /* desktop/App/Views/DesktopBoardSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopBoardSheets.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000B /* desktop/App/Views/DesktopKanbanComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopKanbanComponents.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000C /* desktop/App/Views/DesktopCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopEventEditorSheets.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
+		D2000000000000000000000F /* desktop/App/Views/MemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/MemoView.swift; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000001 /* mobile/Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "mobile/Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000002 /* desktop/Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000003 /* desktop/Configuration/EasyTask-macOS-AppStore.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/EasyTask-macOS-AppStore.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000004 /* mobile/Configuration/EasyTask-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/EasyTask-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000005 /* mobile/Configuration/EasyTask-iOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/EasyTask-iOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000006 /* desktop/Configuration/EasyTask-macOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/EasyTask-macOS-Info.plist"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000007 /* desktop/Configuration/EasyTask-macOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/EasyTask-macOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
+		91000000000000000000000A /* mobile/Configuration/EasyTaskWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/EasyTaskWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
+		91000000000000000000000B /* mobile/Configuration/EasyTaskWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = mobile/Configuration/EasyTaskWidget.entitlements; sourceTree = SOURCE_ROOT; };
+		F20000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/EasyTaskLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -175,85 +179,81 @@
 		A10000000000000000000004 = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000005 /* Sources */,
-				F10000000000000000000004 /* Tests */,
-				E10000000000000000000001 /* Configuration */,
-				A10000000000000000000006 /* Resources */,
+				A10000000000000000000005 /* Mobile */,
+				F10000000000000000000004 /* Desktop */,
+				E10000000000000000000001 /* Shared */,
 				A10000000000000000000007 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A10000000000000000000005 /* Sources */ = {
+		A10000000000000000000005 /* Mobile */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift */,
-				A20000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift */,
-				A20000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift */,
-				A20000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift */,
-				A20000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift */,
-				A20000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift */,
-				A20000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift */,
-				A20000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift */,
-				A20000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift */,
-				A20000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift */,
-				A20000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift */,
-				A20000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift */,
-				A20000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift */,
-				A20000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift */,
-				A20000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift */,
-				A20000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift */,
-				A20000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift */,
-				A20000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift */,
-				A20000000000000000000031 /* Sources/EasyTaskiOS/MobileMemoView.swift */,
-				A20000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift */,
-				910000000000000000000013 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift */,
-				910000000000000000000009 /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift */,
-				D20000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift */,
-				D20000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift */,
-				D20000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift */,
-				D20000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift */,
-				D20000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift */,
-				D20000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift */,
-				D20000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift */,
-				D20000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift */,
-				D20000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift */,
-				D2000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift */,
-				D2000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift */,
-				D2000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift */,
-				D2000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift */,
-				D2000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift */,
-				D2000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift */,
+				A20000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift */,
+				A20000000000000000000012 /* mobile/App/MobileShared.swift */,
+				A20000000000000000000013 /* mobile/App/MobileBoardView.swift */,
+				A20000000000000000000018 /* mobile/App/MobileBoardComponents.swift */,
+				A20000000000000000000019 /* mobile/App/MobileTaskDetailSheet.swift */,
+				A20000000000000000000020 /* mobile/App/MobileCarryoverSheet.swift */,
+				A20000000000000000000021 /* mobile/App/MobileTemplateLibrarySheet.swift */,
+				A20000000000000000000014 /* mobile/App/MobileCalendarView.swift */,
+				A20000000000000000000022 /* mobile/App/MobileCalendarGrid.swift */,
+				A20000000000000000000023 /* mobile/App/MobileEventEditorSheet.swift */,
+				A20000000000000000000024 /* mobile/App/MobileCalendarDaySheet.swift */,
+				A20000000000000000000025 /* mobile/App/MobileTemplatePlacementSheet.swift */,
+				A20000000000000000000026 /* mobile/App/MobileTemplateComponents.swift */,
+				A20000000000000000000015 /* mobile/App/MobileArchiveView.swift */,
+				A20000000000000000000027 /* mobile/App/MobileArchiveFilterSheet.swift */,
+				A20000000000000000000028 /* mobile/App/MobileArchiveRecordCard.swift */,
+				A20000000000000000000016 /* mobile/App/MobileReviewComposerSheet.swift */,
+				A20000000000000000000029 /* mobile/App/MobileReviewComposerComponents.swift */,
+				A20000000000000000000031 /* mobile/App/MobileMemoView.swift */,
+				A20000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift */,
+				910000000000000000000013 /* mobile/App/CalendarWidgetSnapshotPublisher.swift */,
+				910000000000000000000009 /* mobile/Widget/EasyTaskCalendarWidget.swift */,
+				E20000000000000000000001 /* mobile/Configuration/EasyTask-iOS.entitlements */,
+				E20000000000000000000004 /* mobile/Configuration/EasyTask-iOS-Info.plist */,
+				E20000000000000000000005 /* mobile/Configuration/EasyTask-iOS-ExportOptions.plist */,
+				91000000000000000000000A /* mobile/Configuration/EasyTaskWidget-Info.plist */,
+				91000000000000000000000B /* mobile/Configuration/EasyTaskWidget.entitlements */,
+				F20000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift */,
 			);
-			name = Sources;
+			name = Mobile;
 			sourceTree = "<group>";
 		};
-		F10000000000000000000004 /* Tests */ = {
+		F10000000000000000000004 /* Desktop */ = {
 			isa = PBXGroup;
 			children = (
-				F20000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift */,
+				D20000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift */,
+				D20000000000000000000002 /* desktop/App/Services/BackupService.swift */,
+				D20000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift */,
+				D20000000000000000000004 /* desktop/App/Views/AppRootView.swift */,
+				D20000000000000000000005 /* desktop/App/Views/ArchiveView.swift */,
+				D20000000000000000000006 /* desktop/App/Views/BoardView.swift */,
+				D20000000000000000000007 /* desktop/App/Views/CalendarView.swift */,
+				D20000000000000000000008 /* desktop/App/Views/DiaryView.swift */,
+				D20000000000000000000009 /* desktop/App/Views/DesktopTaskDetailSheet.swift */,
+				D2000000000000000000000A /* desktop/App/Views/DesktopBoardSheets.swift */,
+				D2000000000000000000000B /* desktop/App/Views/DesktopKanbanComponents.swift */,
+				D2000000000000000000000C /* desktop/App/Views/DesktopCalendarGrid.swift */,
+				D2000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift */,
+				D2000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift */,
+				D2000000000000000000000F /* desktop/App/Views/MemoView.swift */,
+				E20000000000000000000002 /* desktop/Configuration/EasyTask-macOS.entitlements */,
+				E20000000000000000000003 /* desktop/Configuration/EasyTask-macOS-AppStore.entitlements */,
+				E20000000000000000000006 /* desktop/Configuration/EasyTask-macOS-Info.plist */,
+				E20000000000000000000007 /* desktop/Configuration/EasyTask-macOS-ExportOptions.plist */,
 			);
-			name = Tests;
+			name = Desktop;
 			sourceTree = "<group>";
 		};
-		E10000000000000000000001 /* Configuration */ = {
+		E10000000000000000000001 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				E20000000000000000000001 /* Configuration/EasyTask-iOS.entitlements */,
-				E20000000000000000000002 /* Configuration/EasyTask-macOS.entitlements */,
-				E20000000000000000000003 /* Configuration/EasyTask-macOS-AppStore.entitlements */,
-				91000000000000000000000A /* Configuration/EasyTaskWidget-Info.plist */,
-				91000000000000000000000B /* Configuration/EasyTaskWidget.entitlements */,
+				A20000000000000000000030 /* shared/Resources/Assets.xcassets */,
+				A20000000000000000000032 /* shared/Resources/container-migration.plist */,
 			);
-			name = Configuration;
-			sourceTree = "<group>";
-		};
-		A10000000000000000000006 /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				A20000000000000000000030 /* Resources/Assets.xcassets */,
-				A20000000000000000000032 /* Resources/container-migration.plist */,
-			);
-			name = Resources;
+			name = Shared;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000007 /* Products */ = {
@@ -433,7 +433,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A30000000000000000000030 /* Resources/Assets.xcassets in Resources */,
+				A30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -441,8 +441,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C30000000000000000000030 /* Resources/Assets.xcassets in Resources */,
-				C30000000000000000000031 /* Resources/container-migration.plist in Resources */,
+				C30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */,
+				C30000000000000000000031 /* shared/Resources/container-migration.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -467,27 +467,27 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A30000000000000000000010 /* Sources/EasyTaskiOS/EasyTaskiOSApp.swift in Sources */,
-				A30000000000000000000012 /* Sources/EasyTaskiOS/MobileShared.swift in Sources */,
-				A30000000000000000000013 /* Sources/EasyTaskiOS/MobileBoardView.swift in Sources */,
-				A30000000000000000000018 /* Sources/EasyTaskiOS/MobileBoardComponents.swift in Sources */,
-				A30000000000000000000019 /* Sources/EasyTaskiOS/MobileTaskDetailSheet.swift in Sources */,
-				A30000000000000000000020 /* Sources/EasyTaskiOS/MobileCarryoverSheet.swift in Sources */,
-				A30000000000000000000021 /* Sources/EasyTaskiOS/MobileTemplateLibrarySheet.swift in Sources */,
-				A30000000000000000000014 /* Sources/EasyTaskiOS/MobileCalendarView.swift in Sources */,
-				A30000000000000000000022 /* Sources/EasyTaskiOS/MobileCalendarGrid.swift in Sources */,
-				A30000000000000000000023 /* Sources/EasyTaskiOS/MobileEventEditorSheet.swift in Sources */,
-				A30000000000000000000024 /* Sources/EasyTaskiOS/MobileCalendarDaySheet.swift in Sources */,
-				A30000000000000000000025 /* Sources/EasyTaskiOS/MobileTemplatePlacementSheet.swift in Sources */,
-				A30000000000000000000026 /* Sources/EasyTaskiOS/MobileTemplateComponents.swift in Sources */,
-				A30000000000000000000015 /* Sources/EasyTaskiOS/MobileArchiveView.swift in Sources */,
-				A30000000000000000000027 /* Sources/EasyTaskiOS/MobileArchiveFilterSheet.swift in Sources */,
-				A30000000000000000000028 /* Sources/EasyTaskiOS/MobileArchiveRecordCard.swift in Sources */,
-				A30000000000000000000016 /* Sources/EasyTaskiOS/MobileReviewComposerSheet.swift in Sources */,
-				A30000000000000000000029 /* Sources/EasyTaskiOS/MobileReviewComposerComponents.swift in Sources */,
-				A30000000000000000000031 /* Sources/EasyTaskiOS/MobileMemoView.swift in Sources */,
-				A30000000000000000000017 /* Sources/EasyTaskiOS/TaskNotificationScheduler.swift in Sources */,
-				910000000000000000000014 /* Sources/EasyTaskiOS/CalendarWidgetSnapshotPublisher.swift in Sources */,
+				A30000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift in Sources */,
+				A30000000000000000000012 /* mobile/App/MobileShared.swift in Sources */,
+				A30000000000000000000013 /* mobile/App/MobileBoardView.swift in Sources */,
+				A30000000000000000000018 /* mobile/App/MobileBoardComponents.swift in Sources */,
+				A30000000000000000000019 /* mobile/App/MobileTaskDetailSheet.swift in Sources */,
+				A30000000000000000000020 /* mobile/App/MobileCarryoverSheet.swift in Sources */,
+				A30000000000000000000021 /* mobile/App/MobileTemplateLibrarySheet.swift in Sources */,
+				A30000000000000000000014 /* mobile/App/MobileCalendarView.swift in Sources */,
+				A30000000000000000000022 /* mobile/App/MobileCalendarGrid.swift in Sources */,
+				A30000000000000000000023 /* mobile/App/MobileEventEditorSheet.swift in Sources */,
+				A30000000000000000000024 /* mobile/App/MobileCalendarDaySheet.swift in Sources */,
+				A30000000000000000000025 /* mobile/App/MobileTemplatePlacementSheet.swift in Sources */,
+				A30000000000000000000026 /* mobile/App/MobileTemplateComponents.swift in Sources */,
+				A30000000000000000000015 /* mobile/App/MobileArchiveView.swift in Sources */,
+				A30000000000000000000027 /* mobile/App/MobileArchiveFilterSheet.swift in Sources */,
+				A30000000000000000000028 /* mobile/App/MobileArchiveRecordCard.swift in Sources */,
+				A30000000000000000000016 /* mobile/App/MobileReviewComposerSheet.swift in Sources */,
+				A30000000000000000000029 /* mobile/App/MobileReviewComposerComponents.swift in Sources */,
+				A30000000000000000000031 /* mobile/App/MobileMemoView.swift in Sources */,
+				A30000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift in Sources */,
+				910000000000000000000014 /* mobile/App/CalendarWidgetSnapshotPublisher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,21 +495,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D30000000000000000000001 /* Sources/TodoDesktopMVP/TodoDesktopMVPApp.swift in Sources */,
-				D30000000000000000000002 /* Sources/TodoDesktopMVP/Services/BackupService.swift in Sources */,
-				D30000000000000000000003 /* Sources/TodoDesktopMVP/Services/DiaryImageStore.swift in Sources */,
-				D30000000000000000000004 /* Sources/TodoDesktopMVP/Views/AppRootView.swift in Sources */,
-				D30000000000000000000005 /* Sources/TodoDesktopMVP/Views/ArchiveView.swift in Sources */,
-				D30000000000000000000006 /* Sources/TodoDesktopMVP/Views/BoardView.swift in Sources */,
-				D30000000000000000000007 /* Sources/TodoDesktopMVP/Views/CalendarView.swift in Sources */,
-				D30000000000000000000008 /* Sources/TodoDesktopMVP/Views/DiaryView.swift in Sources */,
-				D30000000000000000000009 /* Sources/TodoDesktopMVP/Views/DesktopTaskDetailSheet.swift in Sources */,
-				D3000000000000000000000A /* Sources/TodoDesktopMVP/Views/DesktopBoardSheets.swift in Sources */,
-				D3000000000000000000000B /* Sources/TodoDesktopMVP/Views/DesktopKanbanComponents.swift in Sources */,
-				D3000000000000000000000C /* Sources/TodoDesktopMVP/Views/DesktopCalendarGrid.swift in Sources */,
-				D3000000000000000000000D /* Sources/TodoDesktopMVP/Views/DesktopEventEditorSheets.swift in Sources */,
-				D3000000000000000000000E /* Sources/TodoDesktopMVP/Views/DesktopTemplatePlacementSheet.swift in Sources */,
-				D3000000000000000000000F /* Sources/TodoDesktopMVP/Views/MemoView.swift in Sources */,
+				D30000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift in Sources */,
+				D30000000000000000000002 /* desktop/App/Services/BackupService.swift in Sources */,
+				D30000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift in Sources */,
+				D30000000000000000000004 /* desktop/App/Views/AppRootView.swift in Sources */,
+				D30000000000000000000005 /* desktop/App/Views/ArchiveView.swift in Sources */,
+				D30000000000000000000006 /* desktop/App/Views/BoardView.swift in Sources */,
+				D30000000000000000000007 /* desktop/App/Views/CalendarView.swift in Sources */,
+				D30000000000000000000008 /* desktop/App/Views/DiaryView.swift in Sources */,
+				D30000000000000000000009 /* desktop/App/Views/DesktopTaskDetailSheet.swift in Sources */,
+				D3000000000000000000000A /* desktop/App/Views/DesktopBoardSheets.swift in Sources */,
+				D3000000000000000000000B /* desktop/App/Views/DesktopKanbanComponents.swift in Sources */,
+				D3000000000000000000000C /* desktop/App/Views/DesktopCalendarGrid.swift in Sources */,
+				D3000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift in Sources */,
+				D3000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift in Sources */,
+				D3000000000000000000000F /* desktop/App/Views/MemoView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -517,7 +517,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F30000000000000000000001 /* Tests/EasyTaskLaunchUITests/EasyTaskLaunchUITests.swift in Sources */,
+				F30000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -525,7 +525,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				91000000000000000000000C /* Sources/EasyTaskWidget/EasyTaskCalendarWidget.swift in Sources */,
+				91000000000000000000000C /* mobile/Widget/EasyTaskCalendarWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -668,14 +668,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/EasyTask-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configuration/EasyTask-iOS-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/EasyTask-iOS-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
@@ -693,7 +693,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/EasyTask-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 9;
@@ -701,7 +701,7 @@
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configuration/EasyTask-iOS-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/EasyTask-iOS-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
@@ -718,14 +718,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/EasyTask-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configuration/EasyTask-macOS-Info.plist";
+				INFOPLIST_FILE = "desktop/Configuration/EasyTask-macOS-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.macos;
@@ -741,7 +741,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "Configuration/EasyTask-macOS-AppStore.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/EasyTask-macOS-AppStore.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 9;
@@ -749,7 +749,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configuration/EasyTask-macOS-Info.plist";
+				INFOPLIST_FILE = "desktop/Configuration/EasyTask-macOS-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
@@ -816,13 +816,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = Configuration/EasyTaskWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/EasyTaskWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configuration/EasyTaskWidget-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/EasyTaskWidget-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -845,14 +845,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = Configuration/EasyTaskWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/EasyTaskWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Configuration/EasyTaskWidget-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/EasyTaskWidget-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

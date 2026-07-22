@@ -277,7 +277,7 @@ func macOSContainerMigrationIncludesCurrentStoreDirectory() throws {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
     let manifestURL = repositoryURL
-        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("shared/Resources", isDirectory: true)
         .appendingPathComponent("container-migration.plist")
     let data = try Data(contentsOf: manifestURL)
     let propertyList = try #require(

@@ -28,9 +28,8 @@ func archiveSessionAppliesOnlyTheLatestDebouncedSearch() async throws {
 
     session.apply(firstFilter, debounceSearch: true)
     session.apply(finalFilter, debounceSearch: true)
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: .seconds(5))
-    while session.records.isEmpty && clock.now < deadline {
+    for _ in 0..<100 {
+        if !session.records.isEmpty { break }
         try await Swift.Task.sleep(for: .milliseconds(50))
     }
 
