@@ -11,11 +11,21 @@ struct MobileReviewAttachmentDraft: Identifiable, Sendable {
     var attachmentHash: String?
 }
 
+private struct MobileReviewComposerSnapshot: Equatable {
+    var title: String
+    var content: String
+    var attachmentIDs: [UUID]
+    var legacyImageFileNames: [String]
+}
+
 struct MobileReviewComposerSheet: View {
     var selectedDate: Date
+    var onSaved: (String) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [DailyReview]
+    @Query private var selectedDayTaskRows: [TodoTask]
+    @Query private var carryoverTaskRows: [TodoTask]
     @State private var title = ""
     @State private var content = ""
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -26,15 +36,28 @@ struct MobileReviewComposerSheet: View {
     @State private var messageIsError = false
     @State private var isImportingImages = false
     @State private var isSaving = false
+    @State private var initialSnapshot: MobileReviewComposerSnapshot?
+    @State private var showsDiscardConfirmation = false
+    @FocusState private var focusedField: MobileReviewComposerField?
 
-    init(selectedDate: Date) {
+    init(
+        selectedDate: Date,
+        onSaved: @escaping (String) -> Void = { _ in }
+    ) {
         self.selectedDate = selectedDate
-        _reviews = Query(BoundedQueryService.dailyReviewsDescriptor(
-            dayKey: DayKey.key(for: selectedDate)
-        ))
+        self.onSaved = onSaved
+        let dayKey = DayKey.key(for: selectedDate)
+        _reviews = Query(BoundedQueryService.dailyReviewsDescriptor(dayKey: dayKey))
+        _selectedDayTaskRows = Query(
+            BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
+        )
+        _carryoverTaskRows = Query(
+            BoundedQueryService.carryoverTasksDescriptor(before: dayKey)
+        )
     }
 
     private var dayKey: String { DayKey.key(for: selectedDate) }
+
     private var selectedReview: DailyReview? {
         reviews
             .filter { $0.supersededAt == nil && $0.dayKey == dayKey }
@@ -59,12 +82,49 @@ struct MobileReviewComposerSheet: View {
         return max(DiaryAttachmentService.maximumAttachmentCount - attachmentDrafts.count, 0)
     }
 
+    private var taskSummary: DailyReviewTaskSummary {
+        var rows = selectedDayTaskRows
+        if dayKey == DayKey.today {
+            rows.append(contentsOf: carryoverTaskRows)
+        }
+        return DailyReviewTaskSummaryRules.summary(
+            from: rows,
+            selectedDayKey: dayKey,
+            includeCarryoverOnToday: true
+        )
+    }
+
+    private var currentSnapshot: MobileReviewComposerSnapshot {
+        MobileReviewComposerSnapshot(
+            title: title,
+            content: content,
+            attachmentIDs: attachmentDrafts.map(\.id),
+            legacyImageFileNames: legacyImageFileNames
+        )
+    }
+
+    private var hasUnsavedChanges: Bool {
+        guard let initialSnapshot else { return false }
+        return currentSnapshot != initialSnapshot
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    ReviewComposerHeader(title: $title, selectedDate: selectedDate)
-                    ReviewComposerEditor(content: $content)
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    ReviewComposerHeader(
+                        title: $title,
+                        selectedDate: selectedDate,
+                        focusedField: $focusedField
+                    )
+                    ReviewComposerTaskSummary(
+                        summary: taskSummary,
+                        selectedDate: selectedDate
+                    )
+                    ReviewComposerEditor(
+                        content: $content,
+                        focusedField: $focusedField
+                    )
                     ReviewComposerImages(
                         attachmentDrafts: attachmentDrafts,
                         legacyImageFileNames: legacyImageFileNames,
@@ -73,35 +133,35 @@ struct MobileReviewComposerSheet: View {
                         onDeleteCanonical: removeCanonicalImage,
                         onDeleteLegacy: removeLegacyImages
                     )
-                    PhotosPicker(
-                        selection: $selectedItems,
-                        maxSelectionCount: max(remainingAttachmentCount, 1),
-                        matching: .images
-                    ) {
-                        Label("이미지 추가", systemImage: "photo")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(remainingAttachmentCount == 0 || isImportingImages || isSaving)
-                    if let message {
-                        Label(
-                            message,
-                            systemImage: messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
-                        )
-                            .foregroundStyle(messageIsError ? .red : AppTheme.done)
-                            .font(.caption.weight(.bold))
-                    }
+                    imagePicker
+                    statusMessage
                 }
                 .padding(16)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .background(AppTheme.background.ignoresSafeArea())
             .navigationTitle("회고 작성")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("취소") { dismiss() }
+                    Button("취소", action: requestDismiss)
                         .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("저장", action: save)
-                    .disabled(!canSave)
+                    if isSaving {
+                        ProgressView()
+                            .accessibilityLabel("회고 저장 중")
+                    } else {
+                        Button("저장", action: save)
+                            .disabled(!canSave)
+                            .accessibilityIdentifier("review-save-button")
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("키보드 닫기") {
+                        focusedField = nil
+                    }
                 }
             }
             .onAppear(perform: load)
@@ -109,7 +169,61 @@ struct MobileReviewComposerSheet: View {
                 importImages()
             }
         }
-        .interactiveDismissDisabled(isSaving)
+        .background {
+            MobileReviewDismissGuard(
+                isBlocked: isSaving || hasUnsavedChanges,
+                onAttempt: handleInteractiveDismissAttempt
+            )
+        }
+        .alert(
+            "변경사항을 버릴까요?",
+            isPresented: $showsDiscardConfirmation
+        ) {
+            Button("변경사항 버리기", role: .destructive, action: discardAndDismiss)
+            Button("계속 작성", role: .cancel) {}
+        } message: {
+            Text("저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.")
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var imagePicker: some View {
+        let importingImages = isImportingImages
+        return PhotosPicker(
+            selection: $selectedItems,
+            maxSelectionCount: max(remainingAttachmentCount, 1),
+            matching: .images
+        ) {
+            HStack(spacing: 8) {
+                if importingImages {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "photo")
+                }
+                Text(importingImages ? "이미지 추가 중" : "이미지 추가")
+            }
+            .frame(minHeight: 30)
+        }
+        .buttonStyle(.bordered)
+        .disabled(remainingAttachmentCount == 0 || isImportingImages || isSaving)
+        .accessibilityIdentifier("review-add-image-button")
+    }
+
+    @ViewBuilder
+    private var statusMessage: some View {
+        if let message {
+            Label(
+                message,
+                systemImage: messageIsError
+                    ? "exclamationmark.triangle.fill"
+                    : "checkmark.circle.fill"
+            )
+            .foregroundStyle(messageIsError ? .red : AppTheme.done)
+            .font(.caption.weight(.bold))
+            .accessibilityIdentifier("review-status-message")
+        }
     }
 
     private func load() {
@@ -157,6 +271,7 @@ struct MobileReviewComposerSheet: View {
         messageIsError = false
         isImportingImages = false
         isSaving = false
+        initialSnapshot = currentSnapshot
     }
 
     private func save() {
@@ -185,11 +300,16 @@ struct MobileReviewComposerSheet: View {
                 return
             }
 
-            message = "회고가 저장됐어요"
+            let successMessage = "회고가 저장됐어요"
+            message = successMessage
             messageIsError = false
-            Swift.Task { @MainActor in
-                try? await Swift.Task<Never, Never>.sleep(nanoseconds: 800_000_000)
-                dismiss()
+            isSaving = false
+            initialSnapshot = currentSnapshot
+            focusedField = nil
+            let savedCallback = onSaved
+            dismiss()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                savedCallback(successMessage)
             }
         } catch {
             isSaving = false
@@ -299,6 +419,26 @@ struct MobileReviewComposerSheet: View {
             ? "이전 이미지를 모두 정리했어요. 저장하면 백업할 수 있습니다."
             : "이전 이미지를 삭제했어요. 저장하면 반영됩니다."
         messageIsError = false
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        if hasUnsavedChanges {
+            showsDiscardConfirmation = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func handleInteractiveDismissAttempt() {
+        guard !isSaving, hasUnsavedChanges else { return }
+        showsDiscardConfirmation = true
+    }
+
+    private func discardAndDismiss() {
+        initialSnapshot = currentSnapshot
+        focusedField = nil
+        dismiss()
     }
 }
 

@@ -161,7 +161,10 @@ struct MobileBoardView: View {
                         onApplied: showBoardNotice
                     )
                 case .review:
-                    MobileReviewComposerSheet(selectedDate: selectedDate)
+                    MobileReviewComposerSheet(
+                        selectedDate: selectedDate,
+                        onSaved: showBoardNotice
+                    )
                 }
             }
         }
