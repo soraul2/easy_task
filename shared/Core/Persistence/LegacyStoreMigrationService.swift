@@ -8,7 +8,7 @@ enum LegacyStoreMigrationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailableManagedObjectModel:
-            "기존 EasyTask 저장소의 Core Data 모델을 만들 수 없습니다."
+            "기존 PlanBase 저장소의 Core Data 모델을 만들 수 없습니다."
         }
     }
 }
@@ -31,8 +31,10 @@ enum LegacyStoreMigrationService {
         let rejectedImageFileNames: [String]
     }
 
-    static let backupRootDirectoryName = "EasyTaskLegacyBackups"
-    static let pendingMarkerFileName = ".EasyTaskLegacyMigration.pending.json"
+    static let backupRootDirectoryName =
+        PlanBaseCompatibility.legacyBackupRootDirectoryName
+    static let pendingMarkerFileName =
+        PlanBaseCompatibility.legacyPendingMarkerFileName
     static let payloadFileName = "legacy-payload.json"
     static let rejectedImageNamesFileName = "rejected-image-file-names.json"
 
@@ -123,7 +125,7 @@ private extension LegacyStoreMigrationService {
         try autoreleasepool {
             let schema = Schema(EasyTaskLegacySchema.models)
             let configuration = ModelConfiguration(
-                "EasyTaskLegacy",
+                PlanBaseCompatibility.legacyStoreName,
                 schema: schema,
                 url: storeURL,
                 allowsSave: false,

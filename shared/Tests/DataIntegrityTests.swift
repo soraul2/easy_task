@@ -6,7 +6,7 @@ import Testing
 @Test
 @MainActor
 func duplicateReviewUsesInstanceIDToBreakEqualTimestampTie() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let createdAt = testTimestamp(10)
     let updatedAt = testTimestamp(30)
@@ -60,7 +60,7 @@ func duplicateReviewUsesInstanceIDToBreakEqualTimestampTie() throws {
 @Test
 @MainActor
 func seededTemplateMergeRewiresItemsAndPlacements() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let canonicalTemplateID = testUUID(100)
     let winnerTemplateID = testUUID(200)
@@ -142,7 +142,7 @@ func seededTemplateMergeRewiresItemsAndPlacements() throws {
 @Test
 @MainActor
 func invalidScalarsAndReferencesAreRepairedWithoutDeletingChildren() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let july10 = try #require(DayKey.date(from: "2026-07-10"))
     let july11 = try #require(DayKey.date(from: "2026-07-11"))
@@ -277,7 +277,7 @@ func invalidScalarsAndReferencesAreRepairedWithoutDeletingChildren() throws {
 @Test
 @MainActor
 func duplicateLogicalIDsMergeForEveryPersistedModel() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-10"))
     let oldTimestamp = testTimestamp(10)
@@ -466,7 +466,7 @@ func duplicateLogicalIDsMergeForEveryPersistedModel() throws {
 @Test
 @MainActor
 func duplicateReviewsWithMatchingLogicalAndInstanceIDsDoNotCrashReconciliation() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let logicalID = testUUID(7_500)
     let instanceID = testUUID(7_501)
@@ -510,7 +510,7 @@ func duplicateReviewsWithMatchingLogicalAndInstanceIDsDoNotCrashReconciliation()
 @Test
 @MainActor
 func scopedCalendarEventReconciliationUsesUpdatedAtAndLeavesOtherIDsUntouched() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-10"))
     let targetID = testUUID(8_000)
@@ -573,7 +573,7 @@ func scopedCalendarEventReconciliationUsesUpdatedAtAndLeavesOtherIDsUntouched() 
 @Test
 @MainActor
 func distinctLogicalTasksOnSameDayRemainActive() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-10"))
     let first = Task(id: testUUID(10_001), title: "First", plannedAt: day, order: 100)
@@ -593,7 +593,7 @@ func distinctLogicalTasksOnSameDayRemainActive() throws {
 @Test
 @MainActor
 func secondReconciliationIsIdempotent() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let first = DailyReview(
         instanceID: testUUID(801),
@@ -621,7 +621,7 @@ func secondReconciliationIsIdempotent() throws {
 @Test
 @MainActor
 func zeroMinuteEstimatesRemainValid() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-10"))
     let template = TaskTemplate(name: "Zero estimate")

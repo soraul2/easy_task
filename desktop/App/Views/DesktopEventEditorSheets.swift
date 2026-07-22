@@ -1,5 +1,5 @@
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 struct AddEventSheet: View {
     @Binding var title: String

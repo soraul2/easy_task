@@ -5,7 +5,7 @@ import Testing
 @Test
 @MainActor
 func archiveSessionAppliesOnlyTheLatestDebouncedSearch() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let date = try #require(DayKey.date(from: DayKey.today))
     let previousDate = DayKey.addingDays(-1, to: date)
@@ -40,7 +40,7 @@ func archiveSessionAppliesOnlyTheLatestDebouncedSearch() async throws {
 @Test
 @MainActor
 func archiveSessionRefreshPreservesLoadedPageDepth() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let referenceDate = try #require(DayKey.date(from: DayKey.today))
 

@@ -1,4 +1,4 @@
-# EasyTask UI Refactoring Plan
+# PlanBase UI Refactoring Plan
 
 ## 목표
 
@@ -8,7 +8,7 @@
 
 ## 원칙
 
-1. `EasyTaskCore`의 모델과 서비스 API는 이번 작업에서 변경하지 않는다.
+1. `PlanBaseCore`의 모델과 서비스 API는 이번 작업에서 변경하지 않는다.
 2. SwiftData `@Query` 범위와 저장 명령 경계는 유지한다.
 3. 화면 문구, 색상, 레이아웃, 접근성 식별자와 사용자 흐름을 변경하지 않는다.
 4. 새 UI 타입은 기본적으로 target 내부 접근 수준을 사용하고 외부 공개 API를 만들지 않는다.

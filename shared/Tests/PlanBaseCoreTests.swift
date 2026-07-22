@@ -451,7 +451,7 @@ func templateDraftPlacementUsesEditedTasksWithoutChangingTemplate() throws {
 @Test
 @MainActor
 func templateCanBeSavedFromEditedDraftsWithoutMutatingBoardTasks() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let boardTask = Task(title: "원래 작업", plannedAt: Date(), order: 100)
     context.insert(boardTask)

@@ -172,11 +172,11 @@ public enum BackupPackageError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .invalidFormatIdentifier(let identifier):
-            return "EasyTask 백업 식별자가 올바르지 않습니다. identifier=\(identifier)"
+            return "PlanBase 백업 식별자가 올바르지 않습니다. identifier=\(identifier)"
         case .unsupportedVersion(let version):
-            return "지원하지 않는 EasyTask 백업 버전입니다. version=\(version)"
+            return "지원하지 않는 PlanBase 백업 버전입니다. version=\(version)"
         case .notDirectory:
-            return "EasyTask 백업 패키지가 디렉터리 형식이 아닙니다."
+            return "PlanBase 백업 패키지가 디렉터리 형식이 아닙니다."
         case .missingFile(let fileName):
             return "백업 패키지에 필요한 파일이 없습니다. file=\(fileName)"
         case .unexpectedFile(let fileName):
@@ -222,7 +222,7 @@ public enum BackupPackageError: LocalizedError, Equatable {
 }
 
 public enum BackupPackageCodec {
-    public static let formatIdentifier = "com.soraul2.easytask.backup"
+    public static let formatIdentifier = PlanBaseCompatibility.backupFormatIdentifier
     public static let currentVersion = 5
     public static let supportedVersions: ClosedRange<Int> = 2...5
     public static let manifestFileName = "manifest.json"

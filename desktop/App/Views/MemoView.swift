@@ -1,4 +1,4 @@
-import EasyTaskCore
+import PlanBaseCore
 import SwiftData
 import SwiftUI
 

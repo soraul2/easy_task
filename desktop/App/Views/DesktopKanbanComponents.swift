@@ -1,6 +1,6 @@
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 struct KanbanColumn: View {
     var title: String

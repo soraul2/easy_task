@@ -44,7 +44,7 @@ func attachmentInspectionRejectsUnknownAndOversizedData() {
 @Test
 @MainActor
 func savingReviewAndAttachmentsCommitsOneConsistentGraph() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let png = try #require(encodedTestImage(type: .png, marker: 0x01))
 
@@ -69,7 +69,7 @@ func savingReviewAndAttachmentsCommitsOneConsistentGraph() throws {
 @Test
 @MainActor
 func invalidReplacementLeavesExistingAttachmentUntouched() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let png = try #require(encodedTestImage(type: .png, marker: 0x01))
     let review = try #require(try DiaryAttachmentService.saveReview(
@@ -98,7 +98,7 @@ func invalidReplacementLeavesExistingAttachmentUntouched() throws {
 @Test
 @MainActor
 func textOnlyReviewSavePreservesAttachmentIdentity() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let png = try #require(encodedTestImage(type: .png, marker: 0x07))
     let firstDate = Date(timeIntervalSince1970: 100)
@@ -139,7 +139,7 @@ func textOnlyReviewSavePreservesAttachmentIdentity() throws {
 func deletingAttachmentRemainsDeletedAfterFileStoreReopen() throws {
     try withTemporaryAttachmentStore { storeURL in
         let png = try #require(encodedTestImage(type: .png, marker: 0x31))
-        let firstContainer = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let firstContainer = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let review = try #require(try DiaryAttachmentService.saveReview(
             review: nil,
             dayKey: "2026-07-12",
@@ -151,7 +151,7 @@ func deletingAttachmentRemainsDeletedAfterFileStoreReopen() throws {
             FetchDescriptor<DiaryAttachment>()
         ).count == 1)
 
-        let secondContainer = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let secondContainer = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let reopenedReview = try #require(secondContainer.mainContext.fetch(
             BoundedQueryService.dailyReviewDescriptor(id: review.id)
         ).first)
@@ -163,7 +163,7 @@ func deletingAttachmentRemainsDeletedAfterFileStoreReopen() throws {
             in: secondContainer.mainContext
         )
 
-        let finalContainer = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let finalContainer = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         #expect(try finalContainer.mainContext.fetch(
             FetchDescriptor<DiaryAttachment>()
         ).isEmpty)
@@ -176,9 +176,9 @@ func deletingAttachmentRemainsDeletedAfterFileStoreReopen() throws {
 @Test
 @MainActor
 func legacyFileMigrationIsIdempotent() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
-    let folder = "EasyTaskTests-\(UUID().uuidString)"
+    let folder = "PlanBaseTests-\(UUID().uuidString)"
     let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
     defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
 
@@ -214,9 +214,9 @@ func legacyFileMigrationIsIdempotent() throws {
 @Test
 @MainActor
 func legacyMigrationRecoversBlockOnlyImages() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
-    let folder = "EasyTaskTests-\(UUID().uuidString)"
+    let folder = "PlanBaseTests-\(UUID().uuidString)"
     let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
     defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
 
@@ -264,9 +264,9 @@ func legacyMigrationRecoversBlockOnlyImages() throws {
 @Test
 @MainActor
 func legacyMigrationRetainsReferencesUntilMissingFilesCanRetry() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
-    let folder = "EasyTaskTests-\(UUID().uuidString)"
+    let folder = "PlanBaseTests-\(UUID().uuidString)"
     let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
     defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
 
@@ -321,9 +321,9 @@ func legacyMigrationRetainsReferencesUntilMissingFilesCanRetry() throws {
 @Test
 @MainActor
 func legacyMigrationDefersImagesBeyondAttachmentLimitWithoutLosingReferences() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
-    let folder = "EasyTaskTests-\(UUID().uuidString)"
+    let folder = "PlanBaseTests-\(UUID().uuidString)"
     let directory = DiaryImageFileStore.directoryURL(appSupportFolder: folder)
     defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
 
@@ -380,7 +380,7 @@ func legacyMigrationDefersImagesBeyondAttachmentLimitWithoutLosingReferences() t
 @Test
 @MainActor
 func integrityReconciliationRewiresAttachmentsWithoutLosingImages() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let older = DailyReview(
         dayKey: "2026-07-11",
@@ -529,7 +529,7 @@ private func withTemporaryAttachmentStore(
 ) throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(
-            "EasyTaskAttachmentLifecycle-\(UUID().uuidString)",
+            "PlanBaseAttachmentLifecycle-\(UUID().uuidString)",
             isDirectory: true
         )
     try FileManager.default.createDirectory(

@@ -6,7 +6,7 @@ import Testing
 @Test
 @MainActor
 func boundedBoardFetchReturnsOneDayFromTenThousandTasks() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let firstDate = try #require(DayKey.date(from: "2026-01-01"))
     let targetDayKey = "2026-02-10"
@@ -37,7 +37,7 @@ func boundedBoardFetchReturnsOneDayFromTenThousandTasks() throws {
 @Test
 @MainActor
 func boundedBoardAndCarryoverDescriptorsPreserveVisibilityRules() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let today = try #require(DayKey.date(from: "2026-07-12"))
     let yesterday = try #require(DayKey.date(from: "2026-07-11"))
@@ -67,7 +67,7 @@ func boundedBoardAndCarryoverDescriptorsPreserveVisibilityRules() throws {
 @Test
 @MainActor
 func boundedCalendarDescriptorsFetchOnlyOverlappingRange() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let june = try #require(DayKey.date(from: "2026-06-20"))
     let julyStart = try #require(DayKey.date(from: "2026-07-02"))
@@ -107,7 +107,7 @@ func boundedCalendarDescriptorsFetchOnlyOverlappingRange() throws {
 @Test
 @MainActor
 func boundedNextOrderAndEventLinksAvoidWholeTaskArray() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let date = try #require(DayKey.date(from: "2026-07-12"))
     let eventID = UUID()
@@ -136,7 +136,7 @@ func boundedNextOrderAndEventLinksAvoidWholeTaskArray() throws {
 @Test
 @MainActor
 func archivePagesKeepCompleteDaysAndDoNotDuplicateAcrossCursors() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let referenceDate = try #require(DayKey.date(from: "2026-07-12"))
 
@@ -196,7 +196,7 @@ func archivePagesKeepCompleteDaysAndDoNotDuplicateAcrossCursors() throws {
 @Test
 @MainActor
 func archiveSearchScansBoundedWindowsUntilSparseMatch() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let referenceDate = try #require(DayKey.date(from: "2026-07-12"))
 
@@ -230,7 +230,7 @@ func archiveSearchScansBoundedWindowsUntilSparseMatch() throws {
 @Test
 @MainActor
 func archivePageSearchIncludesChecklistMatches() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let referenceDate = try #require(DayKey.date(from: "2026-07-12"))
     let task = Task(
@@ -268,7 +268,7 @@ func archivePageSearchIncludesChecklistMatches() throws {
 @Test
 @MainActor
 func boundedReviewMediaAndArchiveCandidateDescriptorsUseExactOwners() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let today = try #require(DayKey.date(from: "2026-07-12"))
     let yesterday = try #require(DayKey.date(from: "2026-07-11"))

@@ -1,6 +1,6 @@
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 struct CarryoverSheet: View {
     var tasks: [Task]

@@ -15,10 +15,24 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C10000000000000000000001"
-               BuildableName = "EasyTask macOS.app"
-               BlueprintName = "EasyTask-macOS"
-               ReferencedContainer = "container:EasyTask.xcodeproj">
+               BlueprintIdentifier = "A10000000000000000000001"
+               BuildableName = "PlanBase.app"
+               BlueprintName = "PlanBase-iOS"
+               ReferencedContainer = "container:PlanBase.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F10000000000000000000001"
+               BuildableName = "PlanBaseLaunchUITests.xctest"
+               BlueprintName = "PlanBaseLaunchUITests"
+               ReferencedContainer = "container:PlanBase.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -29,6 +43,27 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "A10000000000000000000001"
+            BuildableName = "PlanBase.app"
+            BlueprintName = "PlanBase-iOS"
+            ReferencedContainer = "container:PlanBase.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
+      <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F10000000000000000000001"
+               BuildableName = "PlanBaseLaunchUITests.xctest"
+               BlueprintName = "PlanBaseLaunchUITests"
+               ReferencedContainer = "container:PlanBase.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -44,10 +79,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C10000000000000000000001"
-            BuildableName = "EasyTask macOS.app"
-            BlueprintName = "EasyTask-macOS"
-            ReferencedContainer = "container:EasyTask.xcodeproj">
+            BlueprintIdentifier = "A10000000000000000000001"
+            BuildableName = "PlanBase.app"
+            BlueprintName = "PlanBase-iOS"
+            ReferencedContainer = "container:PlanBase.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -61,10 +96,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C10000000000000000000001"
-            BuildableName = "EasyTask macOS.app"
-            BlueprintName = "EasyTask-macOS"
-            ReferencedContainer = "container:EasyTask.xcodeproj">
+            BlueprintIdentifier = "A10000000000000000000001"
+            BuildableName = "PlanBase.app"
+            BlueprintName = "PlanBase-iOS"
+            ReferencedContainer = "container:PlanBase.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

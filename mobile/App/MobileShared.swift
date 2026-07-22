@@ -1,13 +1,13 @@
 #if os(iOS)
-import EasyTaskCore
+import PlanBaseCore
 import Foundation
 import ImageIO
 import SwiftUI
 
-typealias TodoTask = EasyTaskCore.Task
+typealias TodoTask = Task
 
 enum MobileImageStorage {
-    static let appSupportFolder = "EasyTask"
+    static let appSupportFolder = PlanBaseCompatibility.legacyMobileImageFolderName
 }
 
 enum MobileLayout {

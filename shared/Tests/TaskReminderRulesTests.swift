@@ -16,8 +16,13 @@ func taskReminderDateIsNormalizedToWholeMinute() throws {
 func taskReminderIdentifierRoundTripsLogicalTaskID() {
     let taskID = UUID()
     let identifier = TaskReminderRules.identifier(for: taskID)
+    let legacyIdentifier = TaskReminderRules.legacyIdentifierPrefix
+        + taskID.uuidString.lowercased()
 
+    #expect(identifier.hasPrefix("planbase.task-reminder."))
     #expect(TaskReminderRules.taskID(from: identifier) == taskID)
+    #expect(TaskReminderRules.taskID(from: legacyIdentifier) == taskID)
+    #expect(TaskReminderRules.isManagedIdentifier(legacyIdentifier))
     #expect(TaskReminderRules.taskID(from: "unrelated.\(taskID)") == nil)
 }
 
@@ -111,7 +116,7 @@ func taskReminderReconciliationSchedulesReplacesAndCancelsOnlyOwnedRequests() {
 @Test
 @MainActor
 func taskReminderDescriptorFetchesOnlyActiveOpenReminders() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-12"))
     let reminder = Date(timeIntervalSinceReferenceDate: 12_000)
@@ -146,7 +151,7 @@ func taskReminderDescriptorFetchesOnlyActiveOpenReminders() throws {
 @Test
 @MainActor
 func integrityNormalizesReminderAndClearsCompletedReminder() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-12"))
     let open = Task(

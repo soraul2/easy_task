@@ -4,11 +4,11 @@ PlanBase는 iPhone과 macOS에서 칸반, 캘린더, 기록, 메모를 관리하
 
 ## 시작하기
 
-Xcode에서 `EasyTask.xcodeproj`를 열고 목적에 맞는 scheme을 선택한다.
+Xcode에서 `PlanBase.xcodeproj`를 열고 목적에 맞는 scheme을 선택한다.
 
-- `EasyTask-iOS`: iPhone 앱과 캘린더 위젯
-- `EasyTask-macOS`: macOS 데스크톱 앱
-- `EasyTaskCore`: 공통 모델과 서비스
+- `PlanBase-iOS`: iPhone 앱과 캘린더 위젯
+- `PlanBase-macOS`: macOS 데스크톱 앱
+- `PlanBaseCore`: 공통 모델과 서비스의 공개 패키지 제품
 
 ## 구조
 

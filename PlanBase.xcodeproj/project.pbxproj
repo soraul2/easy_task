@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A30000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift */; };
+		A30000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */; };
 		A30000000000000000000012 /* mobile/App/MobileShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* mobile/App/MobileShared.swift */; };
 		A30000000000000000000013 /* mobile/App/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* mobile/App/MobileBoardView.swift */; };
 		A30000000000000000000018 /* mobile/App/MobileBoardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* mobile/App/MobileBoardComponents.swift */; };
@@ -30,13 +30,13 @@
 		A30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* shared/Resources/Assets.xcassets */; };
 		C30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* shared/Resources/Assets.xcassets */; };
 		C30000000000000000000031 /* shared/Resources/container-migration.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* shared/Resources/container-migration.plist */; };
-		91000000000000000000000C /* mobile/Widget/EasyTaskCalendarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000009 /* mobile/Widget/EasyTaskCalendarWidget.swift */; };
-		91000000000000000000000E /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = 91000000000000000000000D /* EasyTaskCore */; };
-		91000000000000000000000F /* EasyTaskWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 910000000000000000000008 /* EasyTaskWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		91000000000000000000000C /* mobile/Widget/PlanBaseCalendarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000009 /* mobile/Widget/PlanBaseCalendarWidget.swift */; };
+		91000000000000000000000E /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 91000000000000000000000D /* PlanBaseCore */; };
+		91000000000000000000000F /* PlanBaseWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 910000000000000000000008 /* PlanBaseWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		910000000000000000000014 /* mobile/App/CalendarWidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000013 /* mobile/App/CalendarWidgetSnapshotPublisher.swift */; };
-		B10000000000000000000003 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* EasyTaskCore */; };
-		B10000000000000000000004 /* EasyTaskCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* EasyTaskCore */; };
-		D30000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift */; };
+		B10000000000000000000003 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* PlanBaseCore */; };
+		B10000000000000000000004 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* PlanBaseCore */; };
+		D30000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift */; };
 		D30000000000000000000002 /* desktop/App/Services/BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* desktop/App/Services/BackupService.swift */; };
 		D30000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift */; };
 		D30000000000000000000004 /* desktop/App/Views/AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000004 /* desktop/App/Views/AppRootView.swift */; };
@@ -51,7 +51,7 @@
 		D3000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift */; };
 		D3000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift */; };
 		D3000000000000000000000F /* desktop/App/Views/MemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000F /* desktop/App/Views/MemoView.swift */; };
-		F30000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift */; };
+		F30000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,14 +60,14 @@
 			containerPortal = A10000000000000000000000 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A10000000000000000000001;
-			remoteInfo = EasyTask;
+			remoteInfo = PlanBase-iOS;
 		};
 		910000000000000000000011 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A10000000000000000000000 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 910000000000000000000001;
-			remoteInfo = EasyTaskWidgetExtension;
+			remoteInfo = PlanBaseWidgetExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -78,7 +78,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				91000000000000000000000F /* EasyTaskWidgetExtension.appex in Embed Foundation Extensions */,
+				91000000000000000000000F /* PlanBaseWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -86,11 +86,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000010 /* EasyTask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyTask.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C10000000000000000000010 /* EasyTask macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EasyTask macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EasyTaskLaunchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		910000000000000000000008 /* EasyTaskWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EasyTaskWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A20000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/EasyTaskiOSApp.swift; sourceTree = SOURCE_ROOT; };
+		A10000000000000000000010 /* PlanBase.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlanBase.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000000000000000000010 /* PlanBase.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PlanBase.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10000000000000000000010 /* PlanBaseLaunchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlanBaseLaunchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		910000000000000000000008 /* PlanBaseWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PlanBaseWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/PlanBaseMobileApp.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000012 /* mobile/App/MobileShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileShared.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000013 /* mobile/App/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000018 /* mobile/App/MobileBoardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileBoardComponents.swift; sourceTree = SOURCE_ROOT; };
@@ -111,10 +111,10 @@
 		A20000000000000000000031 /* mobile/App/MobileMemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileMemoView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
 		910000000000000000000013 /* mobile/App/CalendarWidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/CalendarWidgetSnapshotPublisher.swift; sourceTree = SOURCE_ROOT; };
-		910000000000000000000009 /* mobile/Widget/EasyTaskCalendarWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/EasyTaskCalendarWidget.swift; sourceTree = SOURCE_ROOT; };
+		910000000000000000000009 /* mobile/Widget/PlanBaseCalendarWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlanBaseCalendarWidget.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000030 /* shared/Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = shared/Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000032 /* shared/Resources/container-migration.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "shared/Resources/container-migration.plist"; sourceTree = SOURCE_ROOT; };
-		D20000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/TodoDesktopMVPApp.swift; sourceTree = SOURCE_ROOT; };
+		D20000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/PlanBaseDesktopApp.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000002 /* desktop/App/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Services/DiaryImageStore.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000004 /* desktop/App/Views/AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/AppRootView.swift; sourceTree = SOURCE_ROOT; };
@@ -129,16 +129,16 @@
 		D2000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopEventEditorSheets.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000F /* desktop/App/Views/MemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Views/MemoView.swift; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000001 /* mobile/Configuration/EasyTask-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "mobile/Configuration/EasyTask-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000002 /* desktop/Configuration/EasyTask-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/EasyTask-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000003 /* desktop/Configuration/EasyTask-macOS-AppStore.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/EasyTask-macOS-AppStore.entitlements"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000004 /* mobile/Configuration/EasyTask-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/EasyTask-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000005 /* mobile/Configuration/EasyTask-iOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/EasyTask-iOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000006 /* desktop/Configuration/EasyTask-macOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/EasyTask-macOS-Info.plist"; sourceTree = SOURCE_ROOT; };
-		E20000000000000000000007 /* desktop/Configuration/EasyTask-macOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/EasyTask-macOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
-		91000000000000000000000A /* mobile/Configuration/EasyTaskWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/EasyTaskWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
-		91000000000000000000000B /* mobile/Configuration/EasyTaskWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = mobile/Configuration/EasyTaskWidget.entitlements; sourceTree = SOURCE_ROOT; };
-		F20000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/EasyTaskLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000001 /* mobile/Configuration/PlanBase-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "mobile/Configuration/PlanBase-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000002 /* desktop/Configuration/PlanBase-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/PlanBase-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000003 /* desktop/Configuration/PlanBase-macOS-AppStore.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/PlanBase-macOS-AppStore.entitlements"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000004 /* mobile/Configuration/PlanBase-iOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/PlanBase-iOS-Info.plist"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000005 /* mobile/Configuration/PlanBase-iOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/PlanBase-iOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000006 /* desktop/Configuration/PlanBase-macOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/PlanBase-macOS-Info.plist"; sourceTree = SOURCE_ROOT; };
+		E20000000000000000000007 /* desktop/Configuration/PlanBase-macOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/PlanBase-macOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
+		91000000000000000000000A /* mobile/Configuration/PlanBaseWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "mobile/Configuration/PlanBaseWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
+		91000000000000000000000B /* mobile/Configuration/PlanBaseWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = mobile/Configuration/PlanBaseWidget.entitlements; sourceTree = SOURCE_ROOT; };
+		F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/PlanBaseLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -146,7 +146,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B10000000000000000000003 /* EasyTaskCore in Frameworks */,
+				B10000000000000000000003 /* PlanBaseCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -154,7 +154,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B10000000000000000000004 /* EasyTaskCore in Frameworks */,
+				B10000000000000000000004 /* PlanBaseCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,7 +169,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				91000000000000000000000E /* EasyTaskCore in Frameworks */,
+				91000000000000000000000E /* PlanBaseCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,7 +189,7 @@
 		A10000000000000000000005 /* Mobile */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift */,
+				A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */,
 				A20000000000000000000012 /* mobile/App/MobileShared.swift */,
 				A20000000000000000000013 /* mobile/App/MobileBoardView.swift */,
 				A20000000000000000000018 /* mobile/App/MobileBoardComponents.swift */,
@@ -210,13 +210,13 @@
 				A20000000000000000000031 /* mobile/App/MobileMemoView.swift */,
 				A20000000000000000000017 /* mobile/App/TaskNotificationScheduler.swift */,
 				910000000000000000000013 /* mobile/App/CalendarWidgetSnapshotPublisher.swift */,
-				910000000000000000000009 /* mobile/Widget/EasyTaskCalendarWidget.swift */,
-				E20000000000000000000001 /* mobile/Configuration/EasyTask-iOS.entitlements */,
-				E20000000000000000000004 /* mobile/Configuration/EasyTask-iOS-Info.plist */,
-				E20000000000000000000005 /* mobile/Configuration/EasyTask-iOS-ExportOptions.plist */,
-				91000000000000000000000A /* mobile/Configuration/EasyTaskWidget-Info.plist */,
-				91000000000000000000000B /* mobile/Configuration/EasyTaskWidget.entitlements */,
-				F20000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift */,
+				910000000000000000000009 /* mobile/Widget/PlanBaseCalendarWidget.swift */,
+				E20000000000000000000001 /* mobile/Configuration/PlanBase-iOS.entitlements */,
+				E20000000000000000000004 /* mobile/Configuration/PlanBase-iOS-Info.plist */,
+				E20000000000000000000005 /* mobile/Configuration/PlanBase-iOS-ExportOptions.plist */,
+				91000000000000000000000A /* mobile/Configuration/PlanBaseWidget-Info.plist */,
+				91000000000000000000000B /* mobile/Configuration/PlanBaseWidget.entitlements */,
+				F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */,
 			);
 			name = Mobile;
 			sourceTree = "<group>";
@@ -224,7 +224,7 @@
 		F10000000000000000000004 /* Desktop */ = {
 			isa = PBXGroup;
 			children = (
-				D20000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift */,
+				D20000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift */,
 				D20000000000000000000002 /* desktop/App/Services/BackupService.swift */,
 				D20000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift */,
 				D20000000000000000000004 /* desktop/App/Views/AppRootView.swift */,
@@ -239,10 +239,10 @@
 				D2000000000000000000000D /* desktop/App/Views/DesktopEventEditorSheets.swift */,
 				D2000000000000000000000E /* desktop/App/Views/DesktopTemplatePlacementSheet.swift */,
 				D2000000000000000000000F /* desktop/App/Views/MemoView.swift */,
-				E20000000000000000000002 /* desktop/Configuration/EasyTask-macOS.entitlements */,
-				E20000000000000000000003 /* desktop/Configuration/EasyTask-macOS-AppStore.entitlements */,
-				E20000000000000000000006 /* desktop/Configuration/EasyTask-macOS-Info.plist */,
-				E20000000000000000000007 /* desktop/Configuration/EasyTask-macOS-ExportOptions.plist */,
+				E20000000000000000000002 /* desktop/Configuration/PlanBase-macOS.entitlements */,
+				E20000000000000000000003 /* desktop/Configuration/PlanBase-macOS-AppStore.entitlements */,
+				E20000000000000000000006 /* desktop/Configuration/PlanBase-macOS-Info.plist */,
+				E20000000000000000000007 /* desktop/Configuration/PlanBase-macOS-ExportOptions.plist */,
 			);
 			name = Desktop;
 			sourceTree = "<group>";
@@ -259,10 +259,10 @@
 		A10000000000000000000007 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000010 /* EasyTask.app */,
-				C10000000000000000000010 /* EasyTask macOS.app */,
-				F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */,
-				910000000000000000000008 /* EasyTaskWidgetExtension.appex */,
+				A10000000000000000000010 /* PlanBase.app */,
+				C10000000000000000000010 /* PlanBase.app */,
+				F10000000000000000000010 /* PlanBaseLaunchUITests.xctest */,
+				910000000000000000000008 /* PlanBaseWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -270,9 +270,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A10000000000000000000001 /* EasyTask */ = {
+		A10000000000000000000001 /* PlanBase-iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask" */;
+			buildConfigurationList = A1000000000000000000000F /* Build configuration list for PBXNativeTarget "PlanBase-iOS" */;
 			buildPhases = (
 				A10000000000000000000002 /* Sources */,
 				A10000000000000000000009 /* Resources */,
@@ -284,17 +284,17 @@
 			dependencies = (
 				910000000000000000000012 /* PBXTargetDependency */,
 			);
-			name = EasyTask;
+			name = "PlanBase-iOS";
 			packageProductDependencies = (
-				B10000000000000000000001 /* EasyTaskCore */,
+				B10000000000000000000001 /* PlanBaseCore */,
 			);
-			productName = EasyTask;
-			productReference = A10000000000000000000010 /* EasyTask.app */;
+			productName = PlanBase;
+			productReference = A10000000000000000000010 /* PlanBase.app */;
 			productType = "com.apple.product-type.application";
 		};
-		C10000000000000000000001 /* EasyTask-macOS */ = {
+		C10000000000000000000001 /* PlanBase-macOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask-macOS" */;
+			buildConfigurationList = C1000000000000000000000F /* Build configuration list for PBXNativeTarget "PlanBase-macOS" */;
 			buildPhases = (
 				C10000000000000000000002 /* Sources */,
 				C10000000000000000000009 /* Resources */,
@@ -304,17 +304,17 @@
 			);
 			dependencies = (
 			);
-			name = "EasyTask-macOS";
+			name = "PlanBase-macOS";
 			packageProductDependencies = (
-				B10000000000000000000002 /* EasyTaskCore */,
+				B10000000000000000000002 /* PlanBaseCore */,
 			);
-			productName = "EasyTask macOS";
-			productReference = C10000000000000000000010 /* EasyTask macOS.app */;
+			productName = "PlanBase";
+			productReference = C10000000000000000000010 /* PlanBase.app */;
 			productType = "com.apple.product-type.application";
 		};
-		F10000000000000000000001 /* EasyTaskLaunchUITests */ = {
+		F10000000000000000000001 /* PlanBaseLaunchUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = F1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTaskLaunchUITests" */;
+			buildConfigurationList = F1000000000000000000000F /* Build configuration list for PBXNativeTarget "PlanBaseLaunchUITests" */;
 			buildPhases = (
 				F10000000000000000000002 /* Sources */,
 				F10000000000000000000009 /* Resources */,
@@ -325,16 +325,16 @@
 			dependencies = (
 				F50000000000000000000001 /* PBXTargetDependency */,
 			);
-			name = EasyTaskLaunchUITests;
+			name = PlanBaseLaunchUITests;
 			packageProductDependencies = (
 			);
-			productName = EasyTaskLaunchUITests;
-			productReference = F10000000000000000000010 /* EasyTaskLaunchUITests.xctest */;
+			productName = PlanBaseLaunchUITests;
+			productReference = F10000000000000000000010 /* PlanBaseLaunchUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		910000000000000000000001 /* EasyTaskWidgetExtension */ = {
+		910000000000000000000001 /* PlanBaseWidgetExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 910000000000000000000005 /* Build configuration list for PBXNativeTarget "EasyTaskWidgetExtension" */;
+			buildConfigurationList = 910000000000000000000005 /* Build configuration list for PBXNativeTarget "PlanBaseWidgetExtension" */;
 			buildPhases = (
 				910000000000000000000002 /* Sources */,
 				910000000000000000000004 /* Resources */,
@@ -344,12 +344,12 @@
 			);
 			dependencies = (
 			);
-			name = EasyTaskWidgetExtension;
+			name = PlanBaseWidgetExtension;
 			packageProductDependencies = (
-				91000000000000000000000D /* EasyTaskCore */,
+				91000000000000000000000D /* PlanBaseCore */,
 			);
-			productName = EasyTaskWidgetExtension;
-			productReference = 910000000000000000000008 /* EasyTaskWidgetExtension.appex */;
+			productName = PlanBaseWidgetExtension;
+			productReference = 910000000000000000000008 /* PlanBaseWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -404,7 +404,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A1000000000000000000000E /* Build configuration list for PBXProject "EasyTask" */;
+			buildConfigurationList = A1000000000000000000000E /* Build configuration list for PBXProject "PlanBase" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -420,10 +420,10 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A10000000000000000000001 /* EasyTask */,
-				C10000000000000000000001 /* EasyTask-macOS */,
-				F10000000000000000000001 /* EasyTaskLaunchUITests */,
-				910000000000000000000001 /* EasyTaskWidgetExtension */,
+				A10000000000000000000001 /* PlanBase-iOS */,
+				C10000000000000000000001 /* PlanBase-macOS */,
+				F10000000000000000000001 /* PlanBaseLaunchUITests */,
+				910000000000000000000001 /* PlanBaseWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -467,7 +467,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A30000000000000000000010 /* mobile/App/EasyTaskiOSApp.swift in Sources */,
+				A30000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift in Sources */,
 				A30000000000000000000012 /* mobile/App/MobileShared.swift in Sources */,
 				A30000000000000000000013 /* mobile/App/MobileBoardView.swift in Sources */,
 				A30000000000000000000018 /* mobile/App/MobileBoardComponents.swift in Sources */,
@@ -495,7 +495,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D30000000000000000000001 /* desktop/App/TodoDesktopMVPApp.swift in Sources */,
+				D30000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift in Sources */,
 				D30000000000000000000002 /* desktop/App/Services/BackupService.swift in Sources */,
 				D30000000000000000000003 /* desktop/App/Services/DiaryImageStore.swift in Sources */,
 				D30000000000000000000004 /* desktop/App/Views/AppRootView.swift in Sources */,
@@ -517,7 +517,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F30000000000000000000001 /* mobile/Tests/EasyTaskLaunchUITests.swift in Sources */,
+				F30000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -525,7 +525,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				91000000000000000000000C /* mobile/Widget/EasyTaskCalendarWidget.swift in Sources */,
+				91000000000000000000000C /* mobile/Widget/PlanBaseCalendarWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -534,12 +534,12 @@
 /* Begin PBXTargetDependency section */
 		F50000000000000000000001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A10000000000000000000001 /* EasyTask */;
+			target = A10000000000000000000001 /* PlanBase-iOS */;
 			targetProxy = F40000000000000000000001 /* PBXContainerItemProxy */;
 		};
 		910000000000000000000012 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 910000000000000000000001 /* EasyTaskWidgetExtension */;
+			target = 910000000000000000000001 /* PlanBaseWidgetExtension */;
 			targetProxy = 910000000000000000000011 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -668,18 +668,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/EasyTask-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "mobile/Configuration/EasyTask-iOS-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/PlanBase-iOS-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = PlanBase;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -693,7 +693,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/EasyTask-iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 9;
@@ -701,11 +701,11 @@
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "mobile/Configuration/EasyTask-iOS-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/PlanBase-iOS-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = PlanBase;
 				PROVISIONING_PROFILE_SPECIFIER = "PlanBase iOS App Store";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -718,18 +718,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/EasyTask-macOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "desktop/Configuration/EasyTask-macOS-Info.plist";
+				INFOPLIST_FILE = "desktop/Configuration/PlanBase-macOS-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.macos;
-				PRODUCT_NAME = "EasyTask macOS";
+				PRODUCT_NAME = "PlanBase";
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -741,7 +741,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/EasyTask-macOS-AppStore.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS-AppStore.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 9;
@@ -749,7 +749,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "desktop/Configuration/EasyTask-macOS-Info.plist";
+				INFOPLIST_FILE = "desktop/Configuration/PlanBase-macOS-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask;
@@ -775,7 +775,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.launchuitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.planbase.launchuitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -783,7 +783,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_TARGET_NAME = EasyTask;
+				TEST_TARGET_NAME = "PlanBase-iOS";
 			};
 			name = Debug;
 		};
@@ -801,14 +801,14 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.launchuitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.planbase.launchuitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_TARGET_NAME = EasyTask;
+				TEST_TARGET_NAME = "PlanBase-iOS";
 			};
 			name = Release;
 		};
@@ -816,13 +816,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/EasyTaskWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/PlanBaseWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "mobile/Configuration/EasyTaskWidget-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -845,14 +845,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/EasyTaskWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/PlanBaseWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "mobile/Configuration/EasyTaskWidget-Info.plist";
+				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -874,7 +874,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000000000000000000000E /* Build configuration list for PBXProject "EasyTask" */ = {
+		A1000000000000000000000E /* Build configuration list for PBXProject "PlanBase" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000000000000000000000A /* Debug */,
@@ -883,7 +883,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask" */ = {
+		A1000000000000000000000F /* Build configuration list for PBXNativeTarget "PlanBase-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000000000000000000000C /* Debug */,
@@ -892,7 +892,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTask-macOS" */ = {
+		C1000000000000000000000F /* Build configuration list for PBXNativeTarget "PlanBase-macOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C1000000000000000000000C /* Debug */,
@@ -901,7 +901,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F1000000000000000000000F /* Build configuration list for PBXNativeTarget "EasyTaskLaunchUITests" */ = {
+		F1000000000000000000000F /* Build configuration list for PBXNativeTarget "PlanBaseLaunchUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F1000000000000000000000C /* Debug */,
@@ -910,7 +910,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		910000000000000000000005 /* Build configuration list for PBXNativeTarget "EasyTaskWidgetExtension" */ = {
+		910000000000000000000005 /* Build configuration list for PBXNativeTarget "PlanBaseWidgetExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				910000000000000000000006 /* Debug */,
@@ -929,20 +929,20 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		B10000000000000000000001 /* EasyTaskCore */ = {
+		B10000000000000000000001 /* PlanBaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
-			productName = EasyTaskCore;
+			productName = PlanBaseCore;
 		};
-		B10000000000000000000002 /* EasyTaskCore */ = {
+		B10000000000000000000002 /* PlanBaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
-			productName = EasyTaskCore;
+			productName = PlanBaseCore;
 		};
-		91000000000000000000000D /* EasyTaskCore */ = {
+		91000000000000000000000D /* PlanBaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
-			productName = EasyTaskCore;
+			productName = PlanBaseCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

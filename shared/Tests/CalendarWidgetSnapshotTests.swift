@@ -107,9 +107,14 @@ func calendarWidgetSnapshotDecodesLegacyThemeLessPayload() throws {
 
 @Test
 func calendarWidgetDeepLinkValidatesAndRoundTripsDayKeys() throws {
-    let url = try #require(EasyTaskDeepLink.calendarURL(dayKey: "2026-07-16"))
-    #expect(url.absoluteString == "easytask://calendar?date=2026-07-16")
-    #expect(EasyTaskDeepLink.calendarDayKey(from: url) == "2026-07-16")
-    #expect(EasyTaskDeepLink.calendarURL(dayKey: "2026-02-31") == nil)
-    #expect(EasyTaskDeepLink.calendarDayKey(from: URL(string: "https://example.com")!) == nil)
+    let url = try #require(PlanBaseDeepLink.calendarURL(dayKey: "2026-07-16"))
+    #expect(url.absoluteString == "planbase://calendar?date=2026-07-16")
+    #expect(PlanBaseDeepLink.calendarDayKey(from: url) == "2026-07-16")
+    #expect(
+        PlanBaseDeepLink.calendarDayKey(
+            from: URL(string: "easytask://calendar?date=2026-07-16")!
+        ) == "2026-07-16"
+    )
+    #expect(PlanBaseDeepLink.calendarURL(dayKey: "2026-02-31") == nil)
+    #expect(PlanBaseDeepLink.calendarDayKey(from: URL(string: "https://example.com")!) == nil)
 }

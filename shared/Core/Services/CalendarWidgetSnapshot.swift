@@ -1,10 +1,14 @@
 import Foundation
 
 public enum CalendarWidgetConstants {
-    public static let appGroupIdentifier = "group.com.soraul2.easytask"
+    public static let appGroupIdentifier = PlanBaseCompatibility.applicationGroupIdentifier
     public static let snapshotFileName = "calendar-widget-v1.json"
-    public static let kind = "com.soraul2.easytask.calendar-widget"
-    public static let deepLinkScheme = "easytask"
+    public static let kind = PlanBaseCompatibility.calendarWidgetKind
+    public static let deepLinkScheme = "planbase"
+    public static let supportedDeepLinkSchemes = [
+        deepLinkScheme,
+        PlanBaseCompatibility.legacyDeepLinkScheme
+    ]
 }
 
 public struct CalendarWidgetEventSnapshot: Codable, Equatable, Identifiable, Sendable {
@@ -185,7 +189,7 @@ public enum CalendarWidgetSnapshotStore {
     }
 }
 
-public enum EasyTaskDeepLink {
+public enum PlanBaseDeepLink {
     public static func calendarURL(dayKey: String) -> URL? {
         guard DayKey.date(from: dayKey) != nil else { return nil }
         var components = URLComponents()
@@ -196,7 +200,8 @@ public enum EasyTaskDeepLink {
     }
 
     public static func calendarDayKey(from url: URL) -> String? {
-        guard url.scheme?.lowercased() == CalendarWidgetConstants.deepLinkScheme,
+        guard let scheme = url.scheme?.lowercased(),
+              CalendarWidgetConstants.supportedDeepLinkSchemes.contains(scheme),
               url.host?.lowercased() == "calendar",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let dayKey = components.queryItems?.first(where: { $0.name == "date" })?.value,

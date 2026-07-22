@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 struct ArchiveView: View {
     var onOpenBoardDate: (Date) -> Void
