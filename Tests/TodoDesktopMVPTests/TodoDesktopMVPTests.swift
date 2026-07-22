@@ -960,6 +960,16 @@ func archiveQueryRulesApplyPeriodScopeAndDayLevelSearch() throws {
 
     #expect(taskRecords.map(\.dayKey) == ["2026-07-08"])
     #expect(taskRecords.first?.review?.id == review.id)
+    #expect(taskRecords.first?.matchedTaskIDs == [recentTask.id])
+    #expect(taskRecords.first?.reviewMatchesSearch == false)
+    #expect(taskRecords.first?.hasSearchQuery == true)
+
+    let taskPresentation = try ArchiveDayPresentation(record: #require(taskRecords.first))
+    #expect(taskPresentation.title == "하루 회고")
+    #expect(taskPresentation.displayDate == DayKey.display(recentDay))
+    #expect(taskPresentation.summaryText == "작업 1 · 회고")
+    #expect(taskPresentation.shouldExpandTaskListForSearch)
+    #expect(taskPresentation.taskMatchesSearch(recentTask.id))
 
     let reviewSearch = ArchiveFilter(
         searchText: "회고",
@@ -974,6 +984,9 @@ func archiveQueryRulesApplyPeriodScopeAndDayLevelSearch() throws {
     )
 
     #expect(reviewRecords.first?.tasks.map(\.id) == [recentTask.id])
+    #expect(reviewRecords.first?.matchedTaskIDs.isEmpty == true)
+    #expect(reviewRecords.first?.reviewMatchesSearch == true)
+    #expect(reviewRecords.first.map(ArchiveDayPresentation.init(record:))?.shouldExpandTaskListForSearch == false)
 
     let mismatchedScope = ArchiveFilter(
         searchText: "회고",
@@ -986,6 +999,25 @@ func archiveQueryRulesApplyPeriodScopeAndDayLevelSearch() throws {
         filter: mismatchedScope,
         referenceDate: today
     ).isEmpty)
+}
+
+@Test
+func archivePresentationUsesStableFallbackTitles() {
+    let taskOnly = ArchiveDayPresentation(record: ArchiveDayRecord(
+        dayKey: "2026-07-06",
+        tasks: [],
+        review: nil
+    ))
+    let untitledReview = ArchiveDayPresentation(record: ArchiveDayRecord(
+        dayKey: "2026-07-07",
+        tasks: [],
+        review: DailyReview(dayKey: "2026-07-07", title: "  ", content: "기록")
+    ))
+
+    #expect(taskOnly.title == "작업 기록")
+    #expect(taskOnly.summaryText.isEmpty)
+    #expect(untitledReview.title == "하루 회고")
+    #expect(untitledReview.summaryText == "회고")
 }
 
 @Test
@@ -1152,6 +1184,30 @@ func roseLilacThemeUsesRequestedSoftPalette() {
     #expect(preset.id == "roseLilac")
     #expect(preset.sourcePaletteHexes == ["#FBEFEF", "#FFE2E2", "#F5CBCB", "#C5B3D3"])
     #expect(!preset.targetsWCAGTextContrast)
+}
+
+@Test
+func archiveSemanticColorsRemainReadableAcrossEveryTheme() {
+    for preset in AppThemePreset.all {
+        for appearance in AppThemeAppearance.allCases {
+            let colors = preset.colorSet(for: appearance)
+            let essentialSurfaces = [
+                colors.backgroundTop,
+                colors.backgroundBottom,
+                colors.panel,
+                colors.input,
+                colors.floatingBar,
+                colors.selectedTab
+            ]
+
+            for surface in essentialSurfaces {
+                #expect(colors.primaryText.contrastRatio(to: surface) >= 4.5)
+                #expect(colors.secondaryText.contrastRatio(to: surface) >= 4.5)
+            }
+            #expect(colors.resolvedDoneForeground.contrastRatio(to: colors.done) >= 4.5)
+            #expect(colors.resolvedEventForeground.contrastRatio(to: colors.event) >= 4.5)
+        }
+    }
 }
 
 @Test
