@@ -73,7 +73,7 @@ setup/import/export는 이벤트 식별자별로 추적하므로 동시에 진�
 EASYTASK_DEVICE_ID=<devicectl-device-id> \
 EASYTASK_XCODE_DEVICE_ID=<iphone-udid> \
 EASYTASK_PROBE_KIND=event \
-./Scripts/run-cloudkit-convergence.sh
+./scripts/run-cloudkit-convergence.sh
 ```
 
 `EASYTASK_PROBE_KIND`는 다음 범위를 선택한다.
