@@ -1,21 +1,27 @@
-# EasyTask Architecture
+# PlanBase Architecture
 
 ## 개요
 
-EasyTask는 macOS 데스크톱 MVP와 iPhone MVP를 하나의 저장소에서 관리한다. 두 앱은 같은 SwiftData 모델과 순수 서비스 로직을 공유하고, 화면 구현만 플랫폼별로 분리한다.
+PlanBase는 macOS 데스크톱 앱과 iPhone 앱을 하나의 저장소에서 관리한다. 두 앱은 같은 SwiftData 모델과 순수 서비스 로직을 공유하고, 화면 구현만 플랫폼별로 분리한다.
 
 ## 구조
 
 ```text
 EasyTask.xcodeproj          # iPhone/macOS 앱 번들 타겟과 공유 scheme
 Package.swift               # SwiftPM 기반 공통 코어/테스트 구성
-Sources/
-  EasyTaskCore/             # 공통 모델, 서비스, 테마, 리소스
-  TodoDesktopMVP/           # macOS 앱 구현
-  EasyTaskiOS/              # iPhone 앱 구현
-  EasyTaskWidget/           # iPhone 홈 화면 캘린더 위젯
-Tests/
-  TodoDesktopMVPTests/      # 공통 로직 테스트
+mobile/
+  App/                      # iPhone 앱 구현
+  Widget/                   # iPhone 홈 화면 캘린더 위젯
+  Configuration/            # iOS/Widget Info.plist, entitlements, export 설정
+  Tests/                    # iPhone UI 테스트
+desktop/
+  App/                      # macOS 앱 구현
+  Configuration/            # macOS Info.plist, entitlements, export 설정
+shared/
+  Core/                     # 공통 모델, 서비스, 테마
+  Resources/                # 양 플랫폼 공용 에셋과 마이그레이션 리소스
+  Tests/                    # 공통 로직 단위 테스트
+backups/                    # Git에서 제외되는 로컬 저장소 안전 백업
 ```
 
 ## 공통 코어
@@ -41,14 +47,14 @@ Tests/
 
 ## 플랫폼 경계
 
-macOS 앱은 `TodoDesktopMVP`에 둔다.
+macOS 앱은 `desktop/App`에 둔다.
 
 - 데스크톱 칸반 보드, 캘린더, 기록, 목록·편집기 분할형 메모 UI
 - AppKit 기반 파일 패널 wrapper
 - 데스크톱 전용 드래그/호버 UX
 - Xcode `EasyTask-macOS` 타겟에서 `EasyTaskCore` 패키지 제품에 의존한다.
 
-iPhone 앱은 `EasyTaskiOS`에 둔다.
+iPhone 앱은 `mobile/App`에 둔다.
 
 - `MobileBoardView`: segmented 상태 전환 기반 칸반
 - `MobileCalendarView`: 월간 캘린더와 이벤트/템플릿 sheet
@@ -58,7 +64,7 @@ iPhone 앱은 `EasyTaskiOS`에 둔다.
 - `CalendarWidgetSnapshotPublisher`: 캘린더 변경을 App Group 스냅샷으로 발행
 - Xcode `EasyTask` 타겟과 `EasyTask-iOS` 공유 scheme을 사용한다.
 
-iPhone 홈 화면 위젯은 `EasyTaskWidget`에 둔다.
+iPhone 홈 화면 위젯은 `mobile/Widget`에 둔다.
 
 - 소형은 오늘 이벤트, 중형은 월간 42일 그리드와 이벤트 표시점, 대형은 날짜별 이벤트 제목을 제공한다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
