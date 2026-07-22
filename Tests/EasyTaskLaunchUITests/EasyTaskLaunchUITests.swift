@@ -50,9 +50,42 @@ final class EasyTaskLaunchUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["회고 작성"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["하루 회고"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["review-task-summary"]
+                .waitForExistence(timeout: 5)
+        )
         XCTAssertTrue(app.buttons["이미지 추가"].waitForExistence(timeout: 5))
 
         app.buttons["취소"].tap()
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testReviewComposerConfirmsDiscardAndReportsSave() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let reviewButton = app.buttons["review-compose-button"]
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 15))
+        reviewButton.tap()
+
+        let titleField = app.textFields["review-title-field"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 10))
+        titleField.tap()
+        titleField.typeText("UI 회고")
+
+        app.buttons["취소"].tap()
+        XCTAssertTrue(app.staticTexts["변경사항을 버릴까요?"].waitForExistence(timeout: 5))
+        app.buttons["계속 작성"].tap()
+
+        let saveButton = app.buttons["review-save-button"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        saveButton.tap()
+
+        let savedNotice = app.descendants(matching: .any)["board-status-notice"]
+        XCTAssertTrue(savedNotice.waitForExistence(timeout: 5))
+        XCTAssertTrue(savedNotice.label.contains("회고가 저장됐어요"))
         XCTAssertTrue(reviewButton.waitForExistence(timeout: 5))
     }
 
@@ -85,7 +118,14 @@ final class EasyTaskLaunchUITests: XCTestCase {
         XCTAssertTrue(app.buttons["\(firstItemTitle) 완료 상태"].waitForExistence(timeout: 5))
         newChecklistField.tap()
         newChecklistField.typeText(secondItemTitle)
-        app.buttons["체크리스트 항목 추가"].tap()
+        let addChecklistButton = app.buttons["체크리스트 항목 추가"]
+        addChecklistButton.tap()
+        let secondItemButton = app.buttons["\(secondItemTitle) 완료 상태"]
+        if !secondItemButton.waitForExistence(timeout: 2) {
+            addChecklistButton.tap()
+        }
+        XCTAssertTrue(secondItemButton.waitForExistence(timeout: 5))
+        app.swipeDown()
 
         let reorderButton = app.buttons["체크리스트 순서 편집"]
         XCTAssertTrue(scrollToHittable(reorderButton, in: app))

@@ -478,6 +478,9 @@ struct MobileStatusNotice: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppTheme.event.opacity(0.95), in: RoundedRectangle(cornerRadius: 12))
             .shadow(color: .black.opacity(0.16), radius: 12, y: 6)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(message)
+            .accessibilityIdentifier("board-status-notice")
             .accessibilityAddTraits(.isStaticText)
     }
 }

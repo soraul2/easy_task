@@ -1,17 +1,33 @@
 import AppKit
+import EasyTaskCore
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+
+private struct DiaryComposerSnapshot: Equatable {
+    var title: String
+    var content: String
+    var attachmentCacheKeys: [String]
+    var legacyImageFileNames: [String]
+}
+
+private enum DesktopReviewField: Hashable {
+    case title
+    case content
+}
 
 struct DiaryView: View {
-    private let postMaxWidth: CGFloat = 620
+    private let composerMaxWidth: CGFloat = 600
     private let showsHeader: Bool
-    private let threadColumnWidth: CGFloat = 40
+    private let onDirtyChange: (Bool) -> Void
+    private let onSaved: (String) -> Void
+    private let onSavingChange: (Bool) -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var reviews: [DailyReview] = []
     @State private var diaryBlocks: [DiaryBlock] = []
     @State private var attachments: [DiaryAttachment] = []
+    @State private var selectedDayTasks: [EasyTaskCore.Task] = []
+    @State private var carryoverTasks: [EasyTaskCore.Task] = []
 
     @State private var selectedDate: Date
     @State private var reviewTitle = ""
@@ -21,10 +37,26 @@ struct DiaryView: View {
     @State private var legacyImageFileNames: [String] = []
     @State private var selectedImageIndex = 0
     @State private var message: String?
+    @State private var messageIsError = false
     @State private var isImportingImages = false
+    @State private var isSaving = false
+    @State private var initialSnapshot: DiaryComposerSnapshot?
+    @State private var isTaskSummaryExpanded = true
+    @State private var pendingDate: Date?
+    @State private var showsDateChangeConfirmation = false
+    @FocusState private var focusedField: DesktopReviewField?
 
-    init(initialDate: Date = DayKey.startOfDay(for: Date()), showsHeader: Bool = true) {
+    init(
+        initialDate: Date = DayKey.startOfDay(for: Date()),
+        showsHeader: Bool = true,
+        onDirtyChange: @escaping (Bool) -> Void = { _ in },
+        onSaved: @escaping (String) -> Void = { _ in },
+        onSavingChange: @escaping (Bool) -> Void = { _ in }
+    ) {
         self.showsHeader = showsHeader
+        self.onDirtyChange = onDirtyChange
+        self.onSaved = onSaved
+        self.onSavingChange = onSavingChange
         _selectedDate = State(initialValue: DayKey.startOfDay(for: initialDate))
     }
 
@@ -48,6 +80,18 @@ struct DiaryView: View {
         return DiaryAttachmentService.activeAttachments(
             for: selectedReview.id,
             in: attachments
+        )
+    }
+
+    private var taskSummary: DailyReviewTaskSummary {
+        var tasks = selectedDayTasks
+        if selectedDayKey == DayKey.today {
+            tasks.append(contentsOf: carryoverTasks)
+        }
+        return DailyReviewTaskSummaryRules.summary(
+            from: tasks,
+            selectedDayKey: selectedDayKey,
+            includeCarryoverOnToday: true
         )
     }
 
@@ -91,14 +135,6 @@ struct DiaryView: View {
         return images
     }
 
-    private func normalizedFileName(_ fileName: String?) -> String? {
-        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
-            return nil
-        }
-        return value.lowercased()
-    }
-
     private var hasImages: Bool {
         !displayedImages.isEmpty
     }
@@ -108,342 +144,320 @@ struct DiaryView: View {
     }
 
     private var canSave: Bool {
-        DailyReviewRules.hasContent(
+        guard !isImportingImages, !isSaving else { return false }
+        return selectedReview != nil || DailyReviewRules.hasContent(
             title: reviewTitle,
             content: content,
             imageFileNames: hasImages ? ["attachment"] : []
         )
     }
 
-    private var contentMaxWidth: CGFloat {
-        showsHeader ? postMaxWidth : .infinity
+    private var currentSnapshot: DiaryComposerSnapshot {
+        DiaryComposerSnapshot(
+            title: reviewTitle,
+            content: content,
+            attachmentCacheKeys: attachmentPreviewCacheKeys,
+            legacyImageFileNames: legacyImageFileNames
+        )
     }
 
-    private var contentHorizontalPadding: CGFloat {
-        showsHeader ? 28 : 12
-    }
-
-    private var contentTopPadding: CGFloat {
-        showsHeader ? 0 : 12
-    }
-
-    private var contentBottomPadding: CGFloat {
-        showsHeader ? 112 : 12
-    }
-
-    private var captionMinHeight: CGFloat {
-        showsHeader ? 96 : (hasImages ? 26 : 44)
-    }
-
-    private var captionMaxHeight: CGFloat {
-        showsHeader ? .infinity : (hasImages ? 34 : 56)
-    }
-
-    private var imagePreviewHeight: CGFloat {
-        guard !showsHeader else { return 340 }
-        let captionGrowth = max(captionEditorHeight - 34, 0)
-        return max(260, 348 - captionGrowth)
-    }
-
-    private var selectedDayNumber: String {
-        "\(Calendar.current.component(.day, from: selectedDate))"
-    }
-
-    private var reviewTitleFieldWidth: CGFloat {
-        let displayTitle = reviewTitle.isEmpty ? "하루 회고" : reviewTitle
-        let font = NSFont.systemFont(ofSize: 14, weight: .bold)
-        let measuredWidth = (displayTitle as NSString).size(withAttributes: [.font: font]).width
-        return min(max(ceil(measuredWidth) + 8, 58), 220)
-    }
-
-    private var captionEditorHeight: CGFloat {
-        guard !showsHeader else { return captionMinHeight }
-
-        let lineHeight: CGFloat = 20
-        let verticalPadding: CGFloat = 12
-        let estimatedHeight = CGFloat(estimatedCaptionLineCount) * lineHeight + verticalPadding
-        let minHeight: CGFloat = hasImages ? 34 : 44
-        let maxHeight: CGFloat = hasImages ? 140 : 110
-        return min(max(ceil(estimatedHeight), minHeight), maxHeight)
-    }
-
-    private var estimatedCaptionLineCount: Int {
-        guard !content.isEmpty else { return 1 }
-
-        let charactersPerLine = hasImages ? 34 : 38
-        return content
-            .components(separatedBy: .newlines)
-            .reduce(0) { total, line in
-                total + max(1, Int(ceil(Double(line.count) / Double(charactersPerLine))))
-            }
+    private var hasUnsavedChanges: Bool {
+        guard let initialSnapshot else { return false }
+        return currentSnapshot != initialSnapshot
     }
 
     var body: some View {
         VStack(spacing: 0) {
             if showsHeader {
-                header
-                    .padding(.horizontal, 28)
-                    .padding(.top, 24)
-                    .padding(.bottom, 16)
+                dateNavigationHeader
+                Divider()
+                    .overlay(AppTheme.border)
             }
 
-            if showsHeader {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        postComposer
-
-                        if let message {
-                            Text(message)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
-                    }
-                    .frame(maxWidth: contentMaxWidth)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.horizontal, contentHorizontalPadding)
-                    .padding(.top, contentTopPadding)
-                    .padding(.bottom, contentBottomPadding)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    taskSummarySection
+                    titleSection
+                    contentSection
+                    imageSection
                 }
-            } else {
-                postComposer
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.horizontal, 26)
-                    .padding(.top, 18)
-                    .padding(.bottom, 14)
+                .frame(maxWidth: composerMaxWidth)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, showsHeader ? 28 : 24)
+                .padding(.top, 20)
+                .padding(.bottom, 20)
             }
+
+            footer
+                .frame(maxWidth: composerMaxWidth)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, showsHeader ? 28 : 24)
+                .padding(.bottom, 20)
         }
         .background(AppTheme.panel)
         .onAppear(perform: loadSelectedReview)
         .onChange(of: selectedDayKey) {
             loadSelectedReview()
         }
+        .onChange(of: currentSnapshot) {
+            onDirtyChange(hasUnsavedChanges)
+        }
         .onChange(of: displayedImages.count) {
             selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
         }
+        .alert(
+            "변경사항을 버리고 날짜를 이동할까요?",
+            isPresented: $showsDateChangeConfirmation
+        ) {
+            Button("변경사항 버리기", role: .destructive, action: confirmDateChange)
+            Button("계속 작성", role: .cancel) {
+                pendingDate = nil
+            }
+        } message: {
+            Text("저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.")
+        }
     }
 
-    private var header: some View {
-        HStack(spacing: 14) {
+    private var dateNavigationHeader: some View {
+        HStack(spacing: 12) {
             Button {
-                selectedDate = DayKey.addingDays(-1, to: selectedDate)
+                requestDateChange(DayKey.addingDays(-1, to: selectedDate))
             } label: {
                 Image(systemName: "chevron.left")
-                    .frame(width: 28, height: 28)
+                    .frame(width: 30, height: 30)
             }
             .buttonStyle(.borderless)
+            .help("이전 날짜")
 
             Text(DayKey.display(selectedDate))
-                .font(.system(size: 26, weight: .bold))
+                .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(AppTheme.primaryText)
                 .frame(minWidth: 210, alignment: .leading)
 
             Button("오늘") {
-                selectedDate = DayKey.startOfDay(for: Date())
+                requestDateChange(DayKey.startOfDay(for: Date()))
             }
             .buttonStyle(.bordered)
 
             Button {
-                selectedDate = DayKey.addingDays(1, to: selectedDate)
+                requestDateChange(DayKey.addingDays(1, to: selectedDate))
             } label: {
                 Image(systemName: "chevron.right")
-                    .frame(width: 28, height: 28)
+                    .frame(width: 30, height: 30)
             }
             .buttonStyle(.borderless)
+            .help("다음 날짜")
 
             Spacer()
-
-            Button {
-                addImages()
-            } label: {
-                Label("이미지", systemImage: "photo.on.rectangle.angled")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
-                    .calendarToolbarButtonBackground()
-            }
-            .buttonStyle(.plain)
-            .disabled(isImportingImages)
-
-            Button {
-                save()
-            } label: {
-                Label("저장", systemImage: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
-                    .calendarToolbarButtonBackground(isPrimary: true)
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
         }
+        .padding(.horizontal, 28)
+        .padding(.vertical, 18)
     }
 
-    private var postComposer: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                timelineColumn
+    private var taskSummarySection: some View {
+        DisclosureGroup(isExpanded: $isTaskSummaryExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                if taskSummary.isEmpty {
+                    Text("이 날짜에 등록된 작업이 없습니다")
+                        .font(.callout)
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 2)
+                } else {
+                    taskGroup(
+                        title: "완료",
+                        systemImage: "checkmark.circle.fill",
+                        color: AppTheme.done,
+                        items: taskSummary.completed
+                    )
+                    taskGroup(
+                        title: "진행 중",
+                        systemImage: "clock.fill",
+                        color: AppTheme.doing,
+                        items: taskSummary.inProgress
+                    )
+                    taskGroup(
+                        title: "할 일",
+                        systemImage: "circle",
+                        color: AppTheme.todo,
+                        items: taskSummary.pending
+                    )
+                }
+            }
+            .padding(.top, 14)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("작업 요약")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 5) {
-                            TextField("하루 회고", text: $reviewTitle)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(AppTheme.primaryText)
-                                .frame(width: reviewTitleFieldWidth, alignment: .leading)
-                                .help("회고 제목")
+                HStack(spacing: 8) {
+                    summaryCountChip(
+                        title: "완료",
+                        count: taskSummary.completed.count,
+                        color: AppTheme.done
+                    )
+                    summaryCountChip(
+                        title: "진행 중",
+                        count: taskSummary.inProgress.count,
+                        color: AppTheme.doing
+                    )
+                    summaryCountChip(
+                        title: "할 일",
+                        count: taskSummary.pending.count,
+                        color: AppTheme.todo
+                    )
+                }
+            }
+        }
+        .tint(AppTheme.secondaryText)
+        .padding(16)
+        .background(AppTheme.input.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityIdentifier("desktop-review-task-summary")
+    }
 
-                            Text("›")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
+    private func summaryCountChip(title: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text("\(title) \(count)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.16), in: Capsule())
+    }
 
-                            Text(DayKey.display(selectedDate))
-                                .font(.system(size: 13))
+    @ViewBuilder
+    private func taskGroup(
+        title: String,
+        systemImage: String,
+        color: Color,
+        items: [DailyReviewTaskSummaryItem]
+    ) -> some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.secondaryText)
+
+                ForEach(items) { item in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(color)
+                            .frame(width: 16)
+
+                        Text(item.title)
+                            .font(.callout)
+                            .foregroundStyle(AppTheme.primaryText)
+                            .lineLimit(2)
+
+                        Spacer(minLength: 8)
+
+                        if let carryoverText = carryoverText(for: item) {
+                            Text(carryoverText)
+                                .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText)
                         }
-
-                    }
-
-                    if showsHeader {
-                        HStack(spacing: 5) {
-                            Text("회고")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(AppTheme.primaryText)
-
-                            Text("›")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-
-                            Text(DayKey.display(selectedDate))
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                        }
-                    }
-
-                    captionEditor
-
-                    if hasImages {
-                        inlineImagePreview
-                    }
-
-                    composerToolbar
-
-                    if !showsHeader {
-                        Text("이 날짜에 기록 추가")
-                            .font(.system(size: 14))
-                            .foregroundStyle(AppTheme.secondaryText.opacity(0.78))
-                            .padding(.top, 4)
                     }
                 }
             }
-            .padding(.horizontal, showsHeader ? 16 : 0)
-            .padding(.top, showsHeader ? 14 : 0)
-            .padding(.bottom, showsHeader ? 12 : 10)
+        }
+    }
 
-            if showsHeader || hasImages {
-                Spacer(minLength: 0)
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("제목 (선택)")
+                .font(.headline)
+                .foregroundStyle(AppTheme.primaryText)
+
+            TextField("하루 회고", text: $reviewTitle)
+                .focused($focusedField, equals: .title)
+                .diaryTextFieldStyle()
+                .accessibilityIdentifier("desktop-review-title-field")
+                .onSubmit {
+                    focusedField = .content
+                }
+        }
+    }
+
+    private var contentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("자유 기록")
+                .font(.headline)
+                .foregroundStyle(AppTheme.primaryText)
+
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $content)
+                    .focused($focusedField, equals: .content)
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .frame(minHeight: 160, idealHeight: 220, maxHeight: 360)
+                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(AppTheme.border, lineWidth: 1)
+                    }
+                    .accessibilityIdentifier("desktop-review-content-field")
+
+                if content.isEmpty {
+                    Text("오늘 하루를 자유롭게 기록해 보세요")
+                        .font(.system(size: 15))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 16)
+                        .allowsHitTesting(false)
+                }
             }
+        }
+    }
 
-            Divider()
-                .overlay(AppTheme.border)
+    private var imageSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("이미지")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
 
-            HStack(spacing: 12) {
-                if let message {
-                    Label(message, systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppTheme.done)
-                        .transition(.opacity)
-                } else if showsHeader {
-                    Label("회고 옵션", systemImage: "slider.horizontal.3")
-                        .font(.system(size: 13, weight: .semibold))
+                if hasImages {
+                    Text("\(selectedImageIndex + 1)/\(displayedImages.count)")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
                 Spacer()
 
-                Button {
-                    save()
-                } label: {
-                    Text(showsHeader ? "작성하기" : "저장")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(canSave ? AppTheme.primaryText : AppTheme.secondaryText)
-                        .padding(.horizontal, 18)
-                        .frame(height: 36)
-                        .background(canSave ? AppTheme.selectedTab : AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                Button(action: addImages) {
+                    if isImportingImages {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("이미지 추가", systemImage: "photo.badge.plus")
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSave)
-                .help("회고 저장")
-            }
-            .padding(.horizontal, showsHeader ? 16 : 0)
-            .padding(.top, 14)
-            .animation(.snappy(duration: 0.18), value: message)
-        }
-    }
-
-    private var timelineColumn: some View {
-        VStack(spacing: 8) {
-            reviewTimelineIcon
-
-            Rectangle()
-                .fill(AppTheme.border)
-                .frame(width: 2)
-                .frame(height: showsHeader ? 120 : (hasImages ? 430 : 74))
-
-            if !showsHeader {
-                reviewTimelineIcon(size: 18, fontSize: 10)
-            }
-        }
-        .frame(width: threadColumnWidth)
-    }
-
-    private var reviewTimelineIcon: some View {
-        reviewTimelineIcon(size: 36, fontSize: 18)
-    }
-
-    private func reviewTimelineIcon(size: CGFloat, fontSize: CGFloat) -> some View {
-        Image(systemName: "book.closed")
-            .font(.system(size: fontSize, weight: .semibold))
-            .foregroundStyle(AppTheme.event)
-            .frame(width: size, height: size)
-    }
-
-    private var composerToolbar: some View {
-        HStack(spacing: 8) {
-            Button {
-                addImages()
-            } label: {
-                Image(systemName: "photo")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 30, height: 30)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppTheme.secondaryText)
-            .disabled(isImportingImages)
-            .help("이미지 추가")
-
-            if showsHeader {
-                composerIcon("face.smiling")
-                composerIcon("line.3.horizontal.decrease")
-                composerIcon("list.bullet.rectangle")
-                composerIcon("mappin")
-                composerIcon("music.note")
+                .buttonStyle(.bordered)
+                .disabled(
+                    isImportingImages ||
+                        isSaving ||
+                        hasLegacyImageReferences ||
+                        attachmentDrafts.count >= DiaryAttachmentService.maximumAttachmentCount
+                )
+                .help(hasLegacyImageReferences ? "이전 이미지를 정리한 뒤 추가할 수 있습니다" : "이미지 추가")
             }
 
             if hasImages {
-                Text("\(selectedImageIndex + 1)/\(displayedImages.count)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
+                inlineImagePreview
             }
         }
-    }
-
-    private func composerIcon(_ systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(AppTheme.secondaryText.opacity(0.7))
-            .frame(width: 30, height: 30)
     }
 
     private var inlineImagePreview: some View {
@@ -458,13 +472,11 @@ struct DiaryView: View {
                     Spacer()
 
                     if canRemoveSelectedImage {
-                        Button(role: .destructive) {
-                            removeSelectedImage()
-                        } label: {
+                        Button(role: .destructive, action: removeSelectedImage) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 14, weight: .bold))
                                 .frame(width: 30, height: 30)
-                                .background(.black.opacity(0.48), in: Circle())
+                                .background(.black.opacity(0.52), in: Circle())
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.white)
@@ -492,7 +504,6 @@ struct DiaryView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(maxHeight: .infinity, alignment: .center)
 
             if displayedImages.count > 1 {
                 VStack {
@@ -503,15 +514,24 @@ struct DiaryView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: imagePreviewHeight)
+        .aspectRatio(16 / 10, contentMode: .fit)
+        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
     }
 
     private var carouselDots: some View {
         HStack(spacing: 6) {
             ForEach(displayedImages.indices, id: \.self) { index in
                 Circle()
-                    .fill(index == selectedImageIndex ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.45))
+                    .fill(
+                        index == selectedImageIndex
+                            ? AppTheme.primaryText
+                            : AppTheme.secondaryText.opacity(0.45)
+                    )
                     .frame(width: 6, height: 6)
             }
         }
@@ -520,23 +540,45 @@ struct DiaryView: View {
         .background(AppTheme.floatingBar.opacity(0.86), in: Capsule())
     }
 
-    private var captionEditor: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: $content)
-                .font(.system(size: 15))
-                .foregroundStyle(AppTheme.primaryText)
-                .scrollContentBackground(.hidden)
-                .frame(
-                    minHeight: showsHeader ? captionMinHeight : captionEditorHeight,
-                    maxHeight: showsHeader ? captionMaxHeight : captionEditorHeight
-                )
-                .padding(0)
+    private var footer: some View {
+        VStack(spacing: 14) {
+            Divider()
+                .overlay(AppTheme.border)
 
-            if content.isEmpty {
-                Text(showsHeader ? "새로운 기록이 있나요?" : "오늘 하루는 어땠나요?")
-                    .font(.system(size: 15))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .allowsHitTesting(false)
+            HStack(spacing: 12) {
+                if let message {
+                    Label(
+                        message,
+                        systemImage: messageIsError
+                            ? "exclamationmark.triangle.fill"
+                            : "checkmark.circle.fill"
+                    )
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(messageIsError ? .red : AppTheme.done)
+                    .lineLimit(2)
+                    .accessibilityIdentifier("desktop-review-status-message")
+                }
+
+                Spacer()
+
+                Button(action: save) {
+                    HStack(spacing: 8) {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(isSaving ? "저장 중" : "저장")
+                    }
+                    .font(.system(size: 14, weight: .bold))
+                    .padding(.horizontal, 18)
+                    .frame(height: 36)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.selectedTab)
+                .disabled(!canSave)
+                .keyboardShortcut("s", modifiers: .command)
+                .help("회고 저장 (Command-S)")
+                .accessibilityIdentifier("desktop-review-save-button")
             }
         }
     }
@@ -546,7 +588,7 @@ struct DiaryView: View {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .bold))
                 .frame(width: 34, height: 34)
-                .background(.black.opacity(0.44), in: Circle())
+                .background(.black.opacity(0.46), in: Circle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
@@ -563,14 +605,21 @@ struct DiaryView: View {
             reviews = try modelContext.fetch(
                 BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
             )
+            selectedDayTasks = try modelContext.fetch(
+                BoundedQueryService.boardTasksDescriptor(selectedDayKey: selectedDayKey)
+            )
+            carryoverTasks = selectedDayKey == DayKey.today
+                ? try modelContext.fetch(
+                    BoundedQueryService.carryoverTasksDescriptor(before: selectedDayKey)
+                )
+                : []
+
             if let review = selectedReview {
                 diaryBlocks = try modelContext.fetch(
                     BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
                 )
                 attachments = try modelContext.fetch(
-                    BoundedQueryService.diaryAttachmentsDescriptor(
-                        reviewID: review.id
-                    )
+                    BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
                 )
             } else {
                 diaryBlocks = []
@@ -580,7 +629,10 @@ struct DiaryView: View {
             reviews = []
             diaryBlocks = []
             attachments = []
+            selectedDayTasks = []
+            carryoverTasks = []
             message = "회고를 불러오지 못했습니다."
+            messageIsError = true
             return
         }
 
@@ -610,62 +662,92 @@ struct DiaryView: View {
             )
         } ?? []
         selectedImageIndex = 0
+        isTaskSummaryExpanded = true
         message = nil
+        messageIsError = false
+        isSaving = false
+        initialSnapshot = currentSnapshot
+        onSavingChange(false)
+        onDirtyChange(false)
     }
 
-    @discardableResult
-    private func save(forceCreate: Bool = false) -> DailyReview? {
+    private func save() {
+        guard canSave else { return }
+        isSaving = true
+        onSavingChange(true)
+        message = nil
+
+        defer {
+            isSaving = false
+            onSavingChange(false)
+        }
+
         do {
-            let review: DailyReview?
+            let savedReview: DailyReview?
             if hasLegacyImageReferences {
-                review = try PersistenceCommandService.perform(in: modelContext) {
+                savedReview = try PersistenceCommandService.perform(in: modelContext) {
                     DailyReviewService.save(
                         review: selectedReview,
                         dayKey: selectedDayKey,
                         title: reviewTitle,
                         content: content,
                         imageFileNames: legacyImageFileNames,
-                        in: modelContext,
-                        forceCreate: forceCreate
+                        in: modelContext
                     )
                 }
             } else {
-                review = try DiaryAttachmentService.saveReview(
+                savedReview = try DiaryAttachmentService.saveReview(
                     review: selectedReview,
                     dayKey: selectedDayKey,
                     title: reviewTitle,
                     content: content,
                     attachments: attachmentDrafts,
-                    in: modelContext,
-                    forceCreate: forceCreate
+                    in: modelContext
                 )
             }
-            guard let review else { return nil }
+
+            guard let savedReview else {
+                message = "회고를 저장하지 못했습니다."
+                messageIsError = true
+                return
+            }
+
             reviews = try modelContext.fetch(
                 BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
             )
             diaryBlocks = try modelContext.fetch(
-                BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
+                BoundedQueryService.diaryBlocksDescriptor(reviewID: savedReview.id)
             )
             attachments = try modelContext.fetch(
-                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
+                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: savedReview.id)
             )
             if !hasLegacyImageReferences {
-                let savedAttachments = attachments
-                attachmentDrafts = savedAttachments.map { DiaryAttachmentDraft(attachment: $0) }
-                attachmentPreviewCacheKeys = savedAttachments.map {
+                let activeAttachments = DiaryAttachmentService.activeAttachments(
+                    for: savedReview.id,
+                    in: attachments
+                )
+                attachmentDrafts = activeAttachments.map {
+                    DiaryAttachmentDraft(attachment: $0)
+                }
+                attachmentPreviewCacheKeys = activeAttachments.map {
                     DiaryImageStore.attachmentPreviewCacheKey(
                         instanceID: $0.instanceID,
                         sha256: $0.sha256
                     )
                 }
             }
-            message = "회고가 저장됐어요"
-            return review
+
+            let successMessage = "회고가 저장됐어요"
+            message = successMessage
+            messageIsError = false
+            initialSnapshot = currentSnapshot
+            focusedField = nil
+            onDirtyChange(false)
+            onSaved(successMessage)
         } catch {
             modelContext.rollback()
             message = "회고 저장 실패: \(error.localizedDescription)"
-            return nil
+            messageIsError = true
         }
     }
 
@@ -679,7 +761,8 @@ struct DiaryView: View {
     private func chooseAndAddImages() async {
         guard !isImportingImages else { return }
         guard !hasLegacyImageReferences else {
-            message = "기존 이미지는 읽기 전용으로 유지됩니다"
+            message = "기존 이미지를 정리한 뒤 새 이미지를 추가할 수 있습니다."
+            messageIsError = true
             return
         }
 
@@ -695,7 +778,8 @@ struct DiaryView: View {
                 0
             )
             guard availableCount > 0 else {
-                message = "이미지는 최대 \(DiaryAttachmentService.maximumAttachmentCount)개까지 추가할 수 있습니다"
+                message = "이미지는 최대 \(DiaryAttachmentService.maximumAttachmentCount)개까지 추가할 수 있습니다."
+                messageIsError = true
                 return
             }
             let accepted = Array(newDrafts.prefix(availableCount))
@@ -706,14 +790,17 @@ struct DiaryView: View {
             })
             selectedImageIndex = firstNewIndex
             if accepted.count < newDrafts.count {
-                message = "이미지 \(accepted.count)개 추가됨, 최대 개수 초과"
+                message = "이미지 \(accepted.count)개 추가됨, 최대 개수를 초과한 이미지는 제외했습니다."
+                messageIsError = true
             } else {
                 message = accepted.count == 1
-                    ? "이미지를 추가했습니다. 저장하면 반영됩니다"
-                    : "이미지 \(accepted.count)개를 추가했습니다. 저장하면 반영됩니다"
+                    ? "이미지를 추가했습니다. 저장하면 반영됩니다."
+                    : "이미지 \(accepted.count)개를 추가했습니다. 저장하면 반영됩니다."
+                messageIsError = false
             }
         } catch {
             message = "이미지 추가 실패: \(error.localizedDescription)"
+            messageIsError = true
         }
     }
 
@@ -727,8 +814,9 @@ struct DiaryView: View {
             }
             selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
             message = legacyImageFileNames.isEmpty
-                ? "이전 이미지를 모두 정리했습니다. 저장하면 백업할 수 있습니다"
-                : "이전 이미지를 삭제했습니다. 저장하면 반영됩니다"
+                ? "이전 이미지를 모두 정리했습니다. 저장하면 새 이미지를 추가할 수 있습니다."
+                : "이전 이미지를 삭제했습니다. 저장하면 반영됩니다."
+            messageIsError = false
             return
         }
 
@@ -740,7 +828,8 @@ struct DiaryView: View {
             attachmentPreviewCacheKeys.remove(at: draftIndex)
         }
         selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
-        message = "이미지를 삭제했습니다. 저장하면 반영됩니다"
+        message = "이미지를 삭제했습니다. 저장하면 반영됩니다."
+        messageIsError = false
     }
 
     private var canRemoveSelectedImage: Bool {
@@ -753,89 +842,112 @@ struct DiaryView: View {
             return true
         }
     }
+
+    private func requestDateChange(_ date: Date) {
+        focusedField = nil
+        guard DayKey.key(for: date) != selectedDayKey else { return }
+        if hasUnsavedChanges {
+            pendingDate = date
+            showsDateChangeConfirmation = true
+        } else {
+            selectedDate = DayKey.startOfDay(for: date)
+        }
+    }
+
+    private func confirmDateChange() {
+        guard let pendingDate else { return }
+        initialSnapshot = currentSnapshot
+        onDirtyChange(false)
+        self.pendingDate = nil
+        selectedDate = DayKey.startOfDay(for: pendingDate)
+    }
+
+    private func carryoverText(for item: DailyReviewTaskSummaryItem) -> String? {
+        guard item.isCarryover,
+              let date = DayKey.date(from: item.plannedDayKey) else { return nil }
+        let components = Calendar.current.dateComponents([.month, .day], from: date)
+        guard let month = components.month, let day = components.day else { return nil }
+        return "\(month)월 \(day)일에서 이월"
+    }
+
+    private func normalizedFileName(_ fileName: String?) -> String? {
+        guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
 }
 
 struct DailyReviewSheet: View {
     var selectedDate: Date
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @State private var hasReviewImages = false
+    @State private var hasUnsavedChanges = false
+    @State private var isSaving = false
+    @State private var showsDiscardConfirmation = false
 
-    private var selectedDayKey: String {
-        DayKey.key(for: selectedDate)
-    }
-
-    private var sheetWidth: CGFloat {
-        620
-    }
-
-    private var sheetHeight: CGFloat {
-        hasReviewImages ? 636 : 310
+    private var preferredHeight: CGFloat {
+        let availableHeight = NSScreen.main?.visibleFrame.height ?? 820
+        return min(max(availableHeight * 0.72, 480), 760)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Button("취소") {
-                    dismiss()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .frame(width: 120, alignment: .leading)
+                Button("취소", action: requestDismiss)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .frame(width: 150, alignment: .leading)
+                    .disabled(isSaving)
+                    .keyboardShortcut(.cancelAction)
 
-                Text("오늘 회고")
+                Text("회고 작성")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(AppTheme.primaryText)
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                HStack(spacing: 14) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 22, weight: .semibold))
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 23, weight: .semibold))
-                }
-                .foregroundStyle(AppTheme.primaryText)
-                .frame(width: 120, alignment: .trailing)
+                Text(DayKey.display(selectedDate))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(width: 150, alignment: .trailing)
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .frame(height: 58)
 
             Divider()
                 .overlay(AppTheme.border)
 
-            DiaryView(initialDate: selectedDate, showsHeader: false)
+            DiaryView(
+                initialDate: selectedDate,
+                showsHeader: false,
+                onDirtyChange: { hasUnsavedChanges = $0 },
+                onSavingChange: { isSaving = $0 }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: sheetWidth, height: sheetHeight)
+        .frame(width: 600, height: preferredHeight)
         .background(AppTheme.panel)
-        .animation(.snappy(duration: 0.18), value: hasReviewImages)
-        .task {
-            loadReviewImageState()
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .alert(
+            "변경사항을 버릴까요?",
+            isPresented: $showsDiscardConfirmation
+        ) {
+            Button("변경사항 버리기", role: .destructive) {
+                hasUnsavedChanges = false
+                dismiss()
+            }
+            Button("계속 작성", role: .cancel) {}
+        } message: {
+            Text("저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.")
         }
     }
 
-    private func loadReviewImageState() {
-        do {
-            guard let review = try modelContext.fetch(
-                BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
-            ).first else {
-                hasReviewImages = false
-                return
-            }
-            let blocks = try modelContext.fetch(
-                BoundedQueryService.diaryBlocksDescriptor(reviewID: review.id)
-            )
-            let attachments = try modelContext.fetch(
-                BoundedQueryService.diaryAttachmentsDescriptor(reviewID: review.id)
-            )
-            let unresolvedFileNames = DiaryAttachmentService.unresolvedLegacyImageFileNames(
-                for: review,
-                blocks: blocks,
-                attachments: attachments
-            )
-            hasReviewImages = !attachments.isEmpty || !unresolvedFileNames.isEmpty
-        } catch {
-            hasReviewImages = false
+    private func requestDismiss() {
+        if hasUnsavedChanges {
+            showsDiscardConfirmation = true
+        } else {
+            dismiss()
         }
     }
 }
@@ -856,15 +968,21 @@ private enum DiaryImageSource {
 private struct DiaryImageView: View {
     var request: DiaryPreviewImageRequest
     @State private var image: NSImage?
+    @State private var isLoading = true
 
     var body: some View {
         Group {
             if let image {
                 Image(nsImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
+            } else if isLoading {
+                ProgressView()
+                    .controlSize(.regular)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AppTheme.input)
+                    .accessibilityLabel("이미지 불러오는 중")
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle")
@@ -879,9 +997,11 @@ private struct DiaryImageView: View {
         }
         .task(id: request.cacheKey) {
             image = nil
+            isLoading = true
             let loadedImage = await DiaryImageStore.previewImage(for: request)
             guard !Swift.Task.isCancelled else { return }
             image = loadedImage
+            isLoading = false
         }
     }
 }
