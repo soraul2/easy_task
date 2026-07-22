@@ -30,19 +30,22 @@ public struct CalendarWidgetEventSnapshot: Codable, Equatable, Identifiable, Sen
 }
 
 public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public let schemaVersion: Int
     public let generatedAt: Date
+    public let themeID: String?
     public let events: [CalendarWidgetEventSnapshot]
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
         generatedAt: Date,
+        themeID: String? = nil,
         events: [CalendarWidgetEventSnapshot]
     ) {
         self.schemaVersion = schemaVersion
         self.generatedAt = generatedAt
+        self.themeID = themeID
         self.events = events
     }
 
@@ -50,6 +53,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     public static func make(
         events: [CalendarEvent],
         referenceDate: Date = Date(),
+        themeID: String = AppThemePreset.defaultID,
         maximumEventCount: Int = 256
     ) -> CalendarWidgetSnapshot {
         let monthStart = DayKey.startOfMonth(for: referenceDate)
@@ -92,6 +96,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
 
         return CalendarWidgetSnapshot(
             generatedAt: referenceDate,
+            themeID: AppThemePreset.preset(for: themeID).id,
             events: snapshots
         )
     }
@@ -101,7 +106,9 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     }
 
     public func hasSameContent(as other: CalendarWidgetSnapshot) -> Bool {
-        schemaVersion == other.schemaVersion && events == other.events
+        schemaVersion == other.schemaVersion
+            && themeID == other.themeID
+            && events == other.events
     }
 }
 
