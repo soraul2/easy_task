@@ -40,9 +40,12 @@ func calendarWidgetSnapshotFiltersSortsAndFindsSpanningEvents() throws {
 
     let snapshot = CalendarWidgetSnapshot.make(
         events: [second, distant, removed, first],
-        referenceDate: referenceDate
+        referenceDate: referenceDate,
+        themeID: "roseLilac"
     )
 
+    #expect(snapshot.schemaVersion == 2)
+    #expect(snapshot.themeID == "roseLilac")
     #expect(snapshot.events.map(\.title) == ["프로젝트 일정", "회의"])
     #expect(snapshot.events.first?.colorID == CalendarEventColor.red.rawValue)
     #expect(snapshot.events.last?.colorID == CalendarEventPalette.defaultColor)
@@ -65,10 +68,17 @@ func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent() throws {
     )
     let first = CalendarWidgetSnapshot(
         generatedAt: Date(timeIntervalSince1970: 100),
+        themeID: "appleSystem",
         events: [event]
     )
     let sameContent = CalendarWidgetSnapshot(
         generatedAt: Date(timeIntervalSince1970: 200),
+        themeID: "appleSystem",
+        events: [event]
+    )
+    let changedTheme = CalendarWidgetSnapshot(
+        generatedAt: Date(timeIntervalSince1970: 300),
+        themeID: "roseLilac",
         events: [event]
     )
 
@@ -76,6 +86,23 @@ func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent() throws {
     #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL) == first)
     #expect(try !CalendarWidgetSnapshotStore.writeIfChanged(sameContent, directoryURL: directoryURL))
     #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.generatedAt == first.generatedAt)
+    #expect(try CalendarWidgetSnapshotStore.writeIfChanged(changedTheme, directoryURL: directoryURL))
+    #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID == "roseLilac")
+}
+
+@Test
+func calendarWidgetSnapshotDecodesLegacyThemeLessPayload() throws {
+    let data = Data(
+        #"{"schemaVersion":1,"generatedAt":"2026-07-16T00:00:00Z","events":[]}"#.utf8
+    )
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let snapshot = try decoder.decode(CalendarWidgetSnapshot.self, from: data)
+
+    #expect(snapshot.schemaVersion == 1)
+    #expect(snapshot.themeID == nil)
+    #expect(snapshot.events.isEmpty)
 }
 
 @Test

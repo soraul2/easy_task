@@ -7,6 +7,7 @@ import WidgetKit
 struct CalendarWidgetSnapshotPublisher: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query private var events: [CalendarEvent]
+    @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     private var eventFingerprint: String {
         events.map { event in
@@ -24,10 +25,14 @@ struct CalendarWidgetSnapshotPublisher: View {
         .joined(separator: ";")
     }
 
+    private var snapshotFingerprint: String {
+        "\(selectedThemeID)|\(eventFingerprint)"
+    }
+
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
-            .task(id: eventFingerprint) {
+            .task(id: snapshotFingerprint) {
                 publishSnapshot()
             }
             .onChange(of: scenePhase) {
@@ -39,7 +44,10 @@ struct CalendarWidgetSnapshotPublisher: View {
     @MainActor
     private func publishSnapshot() {
         do {
-            let snapshot = CalendarWidgetSnapshot.make(events: events)
+            let snapshot = CalendarWidgetSnapshot.make(
+                events: events,
+                themeID: selectedThemeID
+            )
             if try CalendarWidgetSnapshotStore.writeIfChanged(snapshot) {
                 WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
             }
