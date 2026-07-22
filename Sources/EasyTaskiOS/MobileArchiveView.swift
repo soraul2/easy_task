@@ -27,11 +27,20 @@ struct MobileArchiveView: View {
 
         NavigationStack {
             List {
-                if querySession?.isLoading == true && records.isEmpty {
-                    ProgressView("기록 불러오는 중")
-                        .frame(maxWidth: .infinity, minHeight: 260)
+                if hasActiveFilterOptions {
+                    MobileArchiveActiveFilterBar(filter: $filter)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 2, trailing: 16))
+                }
+
+                if querySession?.isLoading == true && records.isEmpty {
+                    ForEach(0..<3, id: \.self) { _ in
+                        MobileArchiveSkeletonCard()
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    }
                 } else if records.isEmpty {
                     emptyState
                         .listRowSeparator(.hidden)
@@ -105,6 +114,9 @@ struct MobileArchiveView: View {
                         Image(systemName: hasActiveFilterOptions
                             ? "line.3.horizontal.decrease.circle.fill"
                             : "line.3.horizontal.decrease.circle")
+                            .foregroundStyle(AppTheme.primaryText)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel(hasActiveFilterOptions ? "적용된 기록 필터 변경" : "기록 필터")
                 }
@@ -166,6 +178,91 @@ struct MobileArchiveView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 260)
+    }
+}
+
+private struct MobileArchiveActiveFilterBar: View {
+    @Binding var filter: ArchiveFilter
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if filter.period != .all {
+                    MobileArchiveFilterChip(title: filter.period.title) {
+                        filter.period = .all
+                    }
+                }
+
+                if filter.scope != .all {
+                    MobileArchiveFilterChip(title: filter.scope.title) {
+                        filter.scope = .all
+                    }
+                }
+
+                Button("모두 지우기") {
+                    filter.period = .all
+                    filter.scope = .all
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .frame(minHeight: 44)
+            }
+        }
+        .accessibilityLabel("적용된 기록 필터")
+    }
+}
+
+private struct MobileArchiveFilterChip: View {
+    var title: String
+    var onRemove: () -> Void
+
+    var body: some View {
+        Button(action: onRemove) {
+            HStack(spacing: 6) {
+                Text(title)
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            .background(AppTheme.selectedTab, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .frame(minHeight: 44)
+        .accessibilityLabel("\(title) 필터 제거")
+    }
+}
+
+private struct MobileArchiveSkeletonCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Circle()
+                    .frame(width: 36, height: 36)
+                VStack(alignment: .leading, spacing: 7) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .frame(width: 150, height: 15)
+                    RoundedRectangle(cornerRadius: 4)
+                        .frame(width: 90, height: 11)
+                }
+            }
+
+            RoundedRectangle(cornerRadius: 4)
+                .frame(height: 12)
+            RoundedRectangle(cornerRadius: 4)
+                .frame(width: 210, height: 12)
+        }
+        .foregroundStyle(AppTheme.input)
+        .padding(14)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("기록 불러오는 중")
     }
 }
 #endif

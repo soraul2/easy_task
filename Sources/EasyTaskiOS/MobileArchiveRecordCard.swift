@@ -12,26 +12,8 @@ struct MobileArchiveRecordCard: View {
 
     @State private var tasksExpanded = false
 
-    private var title: String {
-        let reviewTitle = record.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !reviewTitle.isEmpty { return reviewTitle }
-        return record.review == nil ? "작업 기록" : "하루 회고"
-    }
-
-    private var displayDate: String {
-        guard let date = DayKey.date(from: record.dayKey) else { return record.dayKey }
-        return DayKey.display(date)
-    }
-
-    private var summaryText: String {
-        var parts: [String] = []
-        if !record.tasks.isEmpty {
-            parts.append("작업 \(record.tasks.count)")
-        }
-        if record.review != nil {
-            parts.append("회고")
-        }
-        return parts.joined(separator: " · ")
+    private var presentation: ArchiveDayPresentation {
+        ArchiveDayPresentation(record: record)
     }
 
     var body: some View {
@@ -53,26 +35,50 @@ struct MobileArchiveRecordCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
+        .onAppear {
+            if presentation.shouldExpandTaskListForSearch {
+                tasksExpanded = true
+            }
+        }
+        .onChange(of: presentation.shouldExpandTaskListForSearch) { _, shouldExpand in
+            if shouldExpand {
+                tasksExpanded = true
+            }
+        }
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: record.review == nil ? "checkmark.circle" : "book.closed")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(record.review == nil ? AppTheme.done : AppTheme.event)
-                .frame(width: 34, height: 34)
-                .background(AppTheme.input, in: Circle())
+                .foregroundStyle(record.review == nil ? AppTheme.doneForeground : AppTheme.eventForeground)
+                .frame(width: 36, height: 36)
+                .background(record.review == nil ? AppTheme.done : AppTheme.event, in: Circle())
 
             VStack(alignment: .leading, spacing: 7) {
-                MobileArchiveTitleLine(title: title, displayDate: displayDate)
+                MobileArchiveTitleLine(
+                    title: presentation.title,
+                    displayDate: presentation.displayDate
+                )
 
-                if !summaryText.isEmpty {
-                    Text(summaryText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppTheme.selectedTab.opacity(0.24), in: Capsule())
+                HStack(spacing: 6) {
+                    if !presentation.summaryText.isEmpty {
+                        Text(presentation.summaryText)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(AppTheme.selectedTab, in: Capsule())
+                    }
+
+                    if presentation.reviewMatchesSearch {
+                        Label("회고 일치", systemImage: "magnifyingglass")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppTheme.eventForeground)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(AppTheme.event, in: Capsule())
+                    }
                 }
             }
 
@@ -84,11 +90,12 @@ struct MobileArchiveRecordCard: View {
             } label: {
                 Image(systemName: "rectangle.3.group")
                     .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 34, height: 34)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .frame(width: 44, height: 44)
                     .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(displayDate) 칸반보드 열기")
+            .accessibilityLabel("\(presentation.displayDate) 칸반보드 열기")
         }
     }
 
@@ -121,16 +128,16 @@ struct MobileArchiveRecordCard: View {
                     Text("\(record.tasks.count)")
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(AppTheme.selectedTab.opacity(0.24), in: Capsule())
+                        .background(AppTheme.selectedTab, in: Capsule())
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .bold))
                         .rotationEffect(.degrees(tasksExpanded ? 0 : -90))
                 }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
+                .foregroundStyle(AppTheme.primaryText)
                 .padding(.horizontal, 10)
-                .frame(height: 38)
+                .frame(minHeight: 44)
                 .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
@@ -141,20 +148,19 @@ struct MobileArchiveRecordCard: View {
             .accessibilityLabel(tasksExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
 
             if tasksExpanded {
-                ForEach(record.tasks) { task in
-                    MobileArchiveTaskRow(task: task)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                VStack(spacing: 0) {
+                    ForEach(Array(record.tasks.enumerated()), id: \.element.id) { index, task in
+                        MobileArchiveTaskRow(
+                            task: task,
+                            isSearchMatch: presentation.taskMatchesSearch(task.id)
+                        )
+                        if index < record.tasks.count - 1 {
+                            Divider()
+                                .overlay(AppTheme.border)
+                        }
+                    }
                 }
-            } else {
-                ForEach(record.tasks.prefix(3)) { task in
-                    MobileArchiveTaskCompactRow(task: task)
-                }
-                if record.tasks.count > 3 {
-                    Text("외 \(record.tasks.count - 3)개")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .padding(.leading, 2)
-                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
@@ -216,7 +222,7 @@ private struct MobileExpandableReviewText: View {
                 }
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.event)
+                .foregroundStyle(AppTheme.primaryText)
             }
         }
     }
@@ -226,6 +232,8 @@ private struct MobileArchiveImageCarousel: View {
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     @State private var selectedIndex = 0
+    @State private var viewerStartIndex = 0
+    @State private var showingViewer = false
     @State private var imageAspectRatios: [String: CGFloat] = [:]
     @State private var legacyResolution = MobileLegacyImageResolution()
 
@@ -261,6 +269,13 @@ private struct MobileArchiveImageCarousel: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .aspectRatio(selectedAspectRatio, contentMode: .fit)
                 .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    viewerStartIndex = safeIndex
+                    showingViewer = true
+                }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("두 번 탭하여 전체 화면으로 보기")
 
                 if items.count > 1 {
                     Text("\(safeIndex + 1)/\(items.count)")
@@ -290,6 +305,12 @@ private struct MobileArchiveImageCarousel: View {
             )
             guard !Swift.Task<Never, Never>.isCancelled else { return }
             legacyResolution = resolution
+        }
+        .fullScreenCover(isPresented: $showingViewer) {
+            MobileArchiveImageViewer(
+                items: items,
+                initialIndex: viewerStartIndex
+            )
         }
     }
 
@@ -348,6 +369,65 @@ private struct MobileArchiveImageCarousel: View {
     }
 }
 
+private struct MobileArchiveImageViewer: View {
+    var items: [MobileArchiveImageItem]
+    @State private var selectedIndex: Int
+    @Environment(\.dismiss) private var dismiss
+
+    init(items: [MobileArchiveImageItem], initialIndex: Int) {
+        self.items = items
+        _selectedIndex = State(initialValue: min(max(initialIndex, 0), max(items.count - 1, 0)))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                Color.black.ignoresSafeArea()
+
+                TabView(selection: $selectedIndex) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        MobileAsyncThumbnailImage(
+                            request: item.thumbnailRequest,
+                            placeholderMessage: "이미지를 불러올 수 없음",
+                            minHeight: 240,
+                            accessibilityLabel: "회고 이미지 \(index + 1)"
+                        )
+                        .background(Color.black)
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+
+                if items.count > 1 {
+                    Text("\(selectedIndex + 1) / \(items.count)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.64), in: Capsule())
+                        .padding(.bottom, 20)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.58), in: Circle())
+                    }
+                    .accessibilityLabel("전체 화면 이미지 닫기")
+                }
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
 private struct MobileArchiveImageItem: Identifiable {
     var id: String
     var data: Data?
@@ -363,42 +443,14 @@ private struct MobileArchiveImageItem: Identifiable {
     }
 }
 
-private struct MobileArchiveTaskCompactRow: View {
-    var task: TodoTask
-    @Query private var checklistItems: [TaskChecklistItem]
-
-    init(task: TodoTask) {
-        self.task = task
-        _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
-    }
-
-    private var checklistProgress: ChecklistProgress {
-        TaskChecklistService.progress(in: checklistItems)
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(AppTheme.done)
-            Text(task.title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            MobileChecklistProgressChip(progress: checklistProgress)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
 private struct MobileArchiveTaskRow: View {
     var task: TodoTask
+    var isSearchMatch: Bool
     @Query private var checklistItems: [TaskChecklistItem]
 
-    init(task: TodoTask) {
+    init(task: TodoTask, isSearchMatch: Bool) {
         self.task = task
+        self.isSearchMatch = isSearchMatch
         _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
     }
 
@@ -413,35 +465,57 @@ private struct MobileArchiveTaskRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(task.title)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(2)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AppTheme.doneForeground)
+                .frame(width: 24, height: 24)
+                .background(AppTheme.done, in: Circle())
+                .accessibilityHidden(true)
 
-            if let note = task.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .lineLimit(3)
-            }
-
-            HStack(spacing: 10) {
-                Text(displayDate)
-                if let estimatedMinutes = task.estimatedMinutes {
-                    Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(task.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                    if isSearchMatch {
+                        Text("일치")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(AppTheme.eventForeground)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(AppTheme.event, in: Capsule())
+                    }
                 }
-                Spacer(minLength: 4)
-                MobileChecklistProgressChip(progress: checklistProgress)
+
+                if let note = task.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .lineLimit(3)
+                }
+
+                HStack(spacing: 10) {
+                    Text(displayDate)
+                    if let estimatedMinutes = task.estimatedMinutes {
+                        Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
+                    }
+                    Spacer(minLength: 4)
+                    MobileChecklistProgressChip(progress: checklistProgress)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
             }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(AppTheme.cardMutedText)
         }
-        .padding(11)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.done.opacity(0.24), in: RoundedRectangle(cornerRadius: 8))
+        .background(isSearchMatch ? AppTheme.selectedTab : Color.clear, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
+            if isSearchMatch {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
         }
     }
 }
