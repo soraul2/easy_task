@@ -8,7 +8,7 @@ func cloudKitProbeParsesExplicitArguments() throws {
     let token = UUID()
     let configuration = try #require(CloudKitConvergenceProbe.configuration(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-role", "reader",
             "--cloudkit-probe-token", token.uuidString,
             "--cloudkit-probe-expect", "absent",
@@ -24,7 +24,7 @@ func cloudKitProbeParsesExplicitArguments() throws {
         timeoutSeconds: 45,
         exitsWhenFinished: true
     ))
-    #expect(CloudKitConvergenceProbe.configuration(arguments: ["EasyTask"]) == nil)
+    #expect(CloudKitConvergenceProbe.configuration(arguments: ["PlanBase"]) == nil)
 }
 
 @Test
@@ -32,7 +32,7 @@ func cloudKitProbeParsesConflictKindAndVariant() throws {
     let token = UUID()
     let configuration = try #require(CloudKitConvergenceProbe.configuration(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "conflict",
             "--cloudkit-probe-role", "writer",
             "--cloudkit-probe-token", token.uuidString,
@@ -53,7 +53,7 @@ func cloudKitProbeParsesConflictKindAndVariant() throws {
 @Test
 func cloudKitProbeRejectsMalformedExplicitArgumentsWithoutOpeningNormalApp() {
     let arguments = [
-        "EasyTask",
+        "PlanBase",
         "--cloudkit-probe-kind", "unsupported",
         "--cloudkit-probe-role", "reader",
         "--cloudkit-probe-token", UUID().uuidString
@@ -61,19 +61,19 @@ func cloudKitProbeRejectsMalformedExplicitArgumentsWithoutOpeningNormalApp() {
 
     #expect(CloudKitConvergenceProbe.isProbeInvocation(arguments: arguments))
     #expect(CloudKitConvergenceProbe.configuration(arguments: arguments) == nil)
-    #expect(!CloudKitConvergenceProbe.isProbeInvocation(arguments: ["EasyTask"]))
+    #expect(!CloudKitConvergenceProbe.isProbeInvocation(arguments: ["PlanBase"]))
 }
 
 @Test
 @MainActor
 func cloudKitProbeWriterReaderAndCleanupLifecycle() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let token = UUID()
 
     let writeResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-role", "writer",
             "--cloudkit-probe-token", token.uuidString
         ],
@@ -85,7 +85,7 @@ func cloudKitProbeWriterReaderAndCleanupLifecycle() async throws {
 
     let readResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-role", "reader",
             "--cloudkit-probe-token", token.uuidString,
             "--cloudkit-probe-expect", "present",
@@ -97,7 +97,7 @@ func cloudKitProbeWriterReaderAndCleanupLifecycle() async throws {
 
     let cleanupResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-role", "cleanup",
             "--cloudkit-probe-token", token.uuidString
         ],
@@ -110,7 +110,7 @@ func cloudKitProbeWriterReaderAndCleanupLifecycle() async throws {
 @Test
 @MainActor
 func cloudKitProbeCleanupNeverDeletesNonMarkerCollision() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let token = UUID()
     let date = try #require(DayKey.date(from: "2099-12-31"))
@@ -125,7 +125,7 @@ func cloudKitProbeCleanupNeverDeletesNonMarkerCollision() async throws {
 
     let result = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-role", "cleanup",
             "--cloudkit-probe-token", token.uuidString
         ],
@@ -139,13 +139,13 @@ func cloudKitProbeCleanupNeverDeletesNonMarkerCollision() async throws {
 @Test
 @MainActor
 func cloudKitMediaProbeVerifiesImageBytesAndCleansGraph() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let token = UUID()
 
     let writeResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "media",
             "--cloudkit-probe-role", "writer",
             "--cloudkit-probe-token", token.uuidString
@@ -174,7 +174,7 @@ func cloudKitMediaProbeVerifiesImageBytesAndCleansGraph() async throws {
 
     let readResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "media",
             "--cloudkit-probe-role", "reader",
             "--cloudkit-probe-token", token.uuidString,
@@ -186,7 +186,7 @@ func cloudKitMediaProbeVerifiesImageBytesAndCleansGraph() async throws {
 
     let cleanupResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "media",
             "--cloudkit-probe-role", "cleanup",
             "--cloudkit-probe-token", token.uuidString
@@ -201,7 +201,7 @@ func cloudKitMediaProbeVerifiesImageBytesAndCleansGraph() async throws {
 @Test
 @MainActor
 func cloudKitMediaProbeRefusesOccupiedDayWithoutMutation() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let existing = DailyReview(
         dayKey: CloudKitConvergenceProbe.mediaMarkerDayKey,
@@ -212,7 +212,7 @@ func cloudKitMediaProbeRefusesOccupiedDayWithoutMutation() async throws {
 
     let result = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "media",
             "--cloudkit-probe-role", "writer",
             "--cloudkit-probe-token", UUID().uuidString
@@ -229,7 +229,7 @@ func cloudKitMediaProbeRefusesOccupiedDayWithoutMutation() async throws {
 @Test
 @MainActor
 func cloudKitMediaCleanupPreservesAttachmentWithWrongOwner() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let token = UUID()
     let data = try #require(Data(base64Encoded:
@@ -240,7 +240,7 @@ func cloudKitMediaCleanupPreservesAttachmentWithWrongOwner() async throws {
         id: token,
         reviewId: UUID(),
         order: 0,
-        originalFileName: "easytask-cloudkit-probe-\(token.uuidString.lowercased()).png",
+        originalFileName: "planbase-cloudkit-probe-\(token.uuidString.lowercased()).png",
         mimeType: metadata.mediaType.rawValue,
         byteCount: metadata.byteCount,
         sha256: metadata.sha256,
@@ -251,7 +251,7 @@ func cloudKitMediaCleanupPreservesAttachmentWithWrongOwner() async throws {
 
     let result = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "media",
             "--cloudkit-probe-role", "cleanup",
             "--cloudkit-probe-token", token.uuidString
@@ -266,7 +266,7 @@ func cloudKitMediaCleanupPreservesAttachmentWithWrongOwner() async throws {
 @Test
 @MainActor
 func cloudKitConflictProbeConvergesOnDeterministicNewerVariant() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let token = UUID()
 
@@ -276,7 +276,7 @@ func cloudKitConflictProbeConvergesOnDeterministicNewerVariant() async throws {
     ] {
         let result = try #require(await CloudKitConvergenceProbe.runIfRequested(
             arguments: [
-                "EasyTask",
+                "PlanBase",
                 "--cloudkit-probe-kind", "conflict",
                 "--cloudkit-probe-role", "writer",
                 "--cloudkit-probe-token", token.uuidString,
@@ -290,7 +290,7 @@ func cloudKitConflictProbeConvergesOnDeterministicNewerVariant() async throws {
 
     let readResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "conflict",
             "--cloudkit-probe-role", "reader",
             "--cloudkit-probe-token", token.uuidString,
@@ -312,7 +312,7 @@ func cloudKitConflictProbeConvergesOnDeterministicNewerVariant() async throws {
 
     let cleanupResult = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "conflict",
             "--cloudkit-probe-role", "cleanup",
             "--cloudkit-probe-token", token.uuidString
@@ -326,7 +326,7 @@ func cloudKitConflictProbeConvergesOnDeterministicNewerVariant() async throws {
 @Test
 @MainActor
 func cloudKitConflictReaderRejectsCollisionBeforeReconciliation() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let token = UUID()
     let markerDate = try #require(DayKey.date(from: "2099-12-29"))
@@ -352,7 +352,7 @@ func cloudKitConflictReaderRejectsCollisionBeforeReconciliation() async throws {
 
     let result = try #require(await CloudKitConvergenceProbe.runIfRequested(
         arguments: [
-            "EasyTask",
+            "PlanBase",
             "--cloudkit-probe-kind", "conflict",
             "--cloudkit-probe-role", "reader",
             "--cloudkit-probe-token", token.uuidString,
@@ -371,7 +371,7 @@ func cloudKitConflictReaderRejectsCollisionBeforeReconciliation() async throws {
 @Test
 @MainActor
 func extendedProbeCleanupPreservesNonMarkerCollisions() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let mediaToken = UUID()
     let conflictToken = UUID()
@@ -395,7 +395,7 @@ func extendedProbeCleanupPreservesNonMarkerCollisions() async throws {
     ] {
         let result = try #require(await CloudKitConvergenceProbe.runIfRequested(
             arguments: [
-                "EasyTask",
+                "PlanBase",
                 "--cloudkit-probe-kind", kind.rawValue,
                 "--cloudkit-probe-role", "cleanup",
                 "--cloudkit-probe-token", token.uuidString

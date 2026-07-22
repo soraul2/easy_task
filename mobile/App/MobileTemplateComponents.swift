@@ -1,5 +1,5 @@
 #if os(iOS)
-import EasyTaskCore
+import PlanBaseCore
 import SwiftUI
 
 struct MobileTemplateDraftEditRow: View {

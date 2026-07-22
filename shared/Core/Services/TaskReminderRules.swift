@@ -53,7 +53,13 @@ public struct TaskReminderReconciliationPlan: Equatable, Sendable {
 }
 
 public enum TaskReminderRules {
-    public static let identifierPrefix = "easytask.task-reminder."
+    public static let identifierPrefix = "planbase.task-reminder."
+    public static let legacyIdentifierPrefix =
+        PlanBaseCompatibility.legacyTaskReminderIdentifierPrefix
+    public static let managedIdentifierPrefixes = [
+        identifierPrefix,
+        legacyIdentifierPrefix
+    ]
 
     public static func normalizedDate(_ date: Date?) -> Date? {
         guard let date,
@@ -67,8 +73,13 @@ public enum TaskReminderRules {
     }
 
     public static func taskID(from identifier: String) -> UUID? {
-        guard identifier.hasPrefix(identifierPrefix) else { return nil }
-        return UUID(uuidString: String(identifier.dropFirst(identifierPrefix.count)))
+        guard let prefix = managedIdentifierPrefixes.first(where: identifier.hasPrefix)
+        else { return nil }
+        return UUID(uuidString: String(identifier.dropFirst(prefix.count)))
+    }
+
+    public static func isManagedIdentifier(_ identifier: String) -> Bool {
+        managedIdentifierPrefixes.contains(where: identifier.hasPrefix)
     }
 
     public static func snapshot(
@@ -115,9 +126,7 @@ public enum TaskReminderRules {
         ) { result, snapshot in
             result[snapshot.identifier] = snapshot
         }
-        let ownedPending = pending.filter {
-            $0.identifier.hasPrefix(identifierPrefix)
-        }
+        let ownedPending = pending.filter { isManagedIdentifier($0.identifier) }
         let pendingByIdentifier = Dictionary(
             grouping: ownedPending,
             by: \.identifier

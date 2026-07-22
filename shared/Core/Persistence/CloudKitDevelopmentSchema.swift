@@ -3,7 +3,7 @@ import CoreData
 import Foundation
 import SwiftData
 
-public extension EasyTaskContainerFactory {
+public extension PlanBaseContainerFactory {
     static let cloudKitSchemaInitializationArgument = "--initialize-cloudkit-schema"
 
     @discardableResult
@@ -15,7 +15,7 @@ public extension EasyTaskContainerFactory {
         }
 
         let temporaryStoreURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("EasyTask-CloudKit-Schema-\(UUID().uuidString).sqlite")
+            .appendingPathComponent("PlanBase-CloudKit-Schema-\(UUID().uuidString).sqlite")
         defer {
             for suffix in ["", "-shm", "-wal"] {
                 try? FileManager.default.removeItem(
@@ -38,7 +38,7 @@ public extension EasyTaskContainerFactory {
             }
 
             let container = NSPersistentCloudKitContainer(
-                name: "EasyTask",
+                name: PlanBaseCompatibility.cloudKitStoreName,
                 managedObjectModel: managedObjectModel
             )
             container.persistentStoreDescriptions = [storeDescription]

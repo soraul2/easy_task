@@ -1,5 +1,5 @@
 import AppKit
-import EasyTaskCore
+import PlanBaseCore
 import Foundation
 import SwiftData
 import UniformTypeIdentifiers
@@ -15,7 +15,7 @@ enum BackupService {
         let contents = try BackupPackageCodec.makeContents(context: context)
         let panel = NSSavePanel()
         panel.allowedContentTypes = [backupPackageType]
-        panel.nameFieldStringValue = "easytask-backup-\(DayKey.today).easytaskbackup"
+        panel.nameFieldStringValue = "planbase-backup-\(DayKey.today).easytaskbackup"
         panel.isExtensionHidden = false
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
         try BackupPackageCodec.write(contents, to: url)

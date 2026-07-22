@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 extension CloudKitConvergenceProbe {
-    static let conflictMarkerTitle = "__EASYTASK_CLOUDKIT_CONFLICT_PROBE__"
+    static let conflictMarkerTitle = "__PLANBASE_CLOUDKIT_CONFLICT_PROBE__"
 
     @MainActor
     static func runConflictProbe(

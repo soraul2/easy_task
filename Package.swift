@@ -11,18 +11,25 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "EasyTaskCore",
-            targets: ["EasyTaskCore"]
+            name: "PlanBaseCore",
+            targets: ["PlanBaseCore"]
         )
     ],
     targets: [
+        // Keep this module name stable because the shipped SwiftData schemas
+        // were compiled in it. PlanBaseCore is the public product surface.
         .target(
             name: "EasyTaskCore",
             path: "shared/Core"
         ),
-        .testTarget(
-            name: "TodoDesktopMVPTests",
+        .target(
+            name: "PlanBaseCore",
             dependencies: ["EasyTaskCore"],
+            path: "shared/PlanBaseCore"
+        ),
+        .testTarget(
+            name: "PlanBaseCoreTests",
+            dependencies: ["PlanBaseCore", "EasyTaskCore"],
             path: "shared/Tests"
         ),
     ],

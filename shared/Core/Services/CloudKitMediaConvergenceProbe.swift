@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 extension CloudKitConvergenceProbe {
-    static let mediaMarkerTitle = "__EASYTASK_CLOUDKIT_MEDIA_PROBE__"
+    static let mediaMarkerTitle = "__PLANBASE_CLOUDKIT_MEDIA_PROBE__"
     static let mediaMarkerDayKey = "2099-12-30"
 
     @MainActor
@@ -287,7 +287,7 @@ private extension CloudKitConvergenceProbe {
     }
 
     static func mediaMarkerFileName(token: UUID) -> String {
-        "easytask-cloudkit-probe-\(token.uuidString.lowercased()).png"
+        "planbase-cloudkit-probe-\(token.uuidString.lowercased()).png"
     }
 
     static func mediaMarkerData() throws -> Data {

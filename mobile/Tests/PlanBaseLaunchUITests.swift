@@ -1,6 +1,6 @@
 import XCTest
 
-final class EasyTaskLaunchUITests: XCTestCase {
+final class PlanBaseLaunchUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
     }

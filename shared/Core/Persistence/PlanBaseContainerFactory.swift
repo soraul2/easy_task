@@ -5,7 +5,7 @@ import SwiftData
 import Security
 #endif
 
-public enum EasyTaskStoreMode: Sendable, Equatable {
+public enum PlanBaseStoreMode: Sendable, Equatable {
     case local
     case cloudKit
 
@@ -14,16 +14,18 @@ public enum EasyTaskStoreMode: Sendable, Equatable {
     }
 }
 
-public enum EasyTaskContainerFactory {
-    public static let cloudKitContainerIdentifier = "iCloud.com.soraul2.easytask"
-    public static let applicationGroupIdentifier = "group.com.soraul2.easytask"
-    public static let appStoreMode = EasyTaskStoreMode.cloudKit
+public enum PlanBaseContainerFactory {
+    public static let cloudKitContainerIdentifier =
+        PlanBaseCompatibility.cloudKitContainerIdentifier
+    public static let applicationGroupIdentifier =
+        PlanBaseCompatibility.applicationGroupIdentifier
+    public static let appStoreMode = PlanBaseStoreMode.cloudKit
     static let applicationSupportDirectoryName = "PlanBase"
 
     /// Uses CloudKit only when the current executable was signed with the
     /// capabilities required by the platform. This prevents Core Data's
     /// asynchronous CloudKit setup from terminating a malformed build.
-    public static var runtimeAppStoreMode: EasyTaskStoreMode {
+    public static var runtimeAppStoreMode: PlanBaseStoreMode {
 #if os(iOS)
         let hasRequiredEntitlements = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: applicationGroupIdentifier
@@ -45,11 +47,11 @@ public enum EasyTaskContainerFactory {
     @MainActor
     public static func makeAppPersistent(
         storeURL: URL? = nil,
-        mode: EasyTaskStoreMode? = nil
+        mode: PlanBaseStoreMode? = nil
     ) throws -> ModelContainer {
         let resolvedMode = mode ?? runtimeAppStoreMode
         if mode == nil, resolvedMode == .local, appStoreMode == .cloudKit {
-            print("EasyTask CloudKit entitlements unavailable; opening the local store.")
+            print("PlanBase CloudKit entitlements unavailable; opening the local store.")
         }
         let resolvedStoreURL = try storeURL ?? defaultStoreURL()
         let migration = try LegacyStoreMigrationService.prepareIfNeeded(
@@ -66,7 +68,7 @@ public enum EasyTaskContainerFactory {
             )
             try LegacyStoreMigrationService.finish(migration)
             print(
-                "EasyTask legacy store migration completed: "
+                "PlanBase legacy store migration completed: "
                     + "inserted=\(report.merge.insertedRecords), "
                     + "updated=\(report.merge.updatedRecords), "
                     + "rejectedImages=\(migration.rejectedImageFileNames.count), "
@@ -76,14 +78,14 @@ public enum EasyTaskContainerFactory {
         } catch {
             // Keep the backup and pending marker. The next launch discards only the
             // incomplete current store and retries from the immutable legacy payload.
-            print("EasyTask legacy store migration pending retry: \(error)")
+            print("PlanBase legacy store migration pending retry: \(error)")
             throw error
         }
     }
 
     public static func makePersistent(
         storeURL: URL? = nil,
-        mode: EasyTaskStoreMode = .local
+        mode: PlanBaseStoreMode = .local
     ) throws -> ModelContainer {
         let configuration = makeConfiguration(
             storeURL: storeURL,
@@ -145,7 +147,7 @@ public enum EasyTaskContainerFactory {
     ) throws -> Bool {
         guard !FileManager.default.fileExists(atPath: destinationStoreURL.path),
               FileManager.default.fileExists(atPath: sourceStoreURL.path),
-              isRecognizedEasyTaskStore(at: sourceStoreURL) else {
+              isRecognizedPlanBaseStore(at: sourceStoreURL) else {
             return false
         }
 
@@ -175,7 +177,7 @@ public enum EasyTaskContainerFactory {
 
     static func makeConfiguration(
         storeURL: URL?,
-        mode: EasyTaskStoreMode,
+        mode: PlanBaseStoreMode,
         isStoredInMemoryOnly: Bool
     ) -> ModelConfiguration {
         let cloudKitDatabase: ModelConfiguration.CloudKitDatabase = mode.usesCloudKit
@@ -184,7 +186,7 @@ public enum EasyTaskContainerFactory {
 
         if let storeURL {
             return ModelConfiguration(
-                "EasyTask",
+                PlanBaseCompatibility.modelConfigurationName,
                 schema: schema,
                 url: storeURL,
                 allowsSave: true,
@@ -201,7 +203,7 @@ public enum EasyTaskContainerFactory {
 
     static func resolvedAppStoreMode(
         hasRequiredRuntimeEntitlements: Bool
-    ) -> EasyTaskStoreMode {
+    ) -> PlanBaseStoreMode {
         guard appStoreMode.usesCloudKit, hasRequiredRuntimeEntitlements else {
             return .local
         }
@@ -256,7 +258,7 @@ public enum EasyTaskContainerFactory {
         )
     }
 
-    static func isRecognizedEasyTaskStore(at storeURL: URL) -> Bool {
+    static func isRecognizedPlanBaseStore(at storeURL: URL) -> Bool {
         guard let metadata = try? NSPersistentStoreCoordinator.metadataForPersistentStore(
             ofType: NSSQLiteStoreType,
             at: storeURL,

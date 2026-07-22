@@ -7,7 +7,7 @@ import Testing
 @Test
 @MainActor
 func backupPackageRoundTripIncludesAttachmentBytes() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let png = testPNG(0x11)
     let review = try #require(try DiaryAttachmentService.saveReview(
         review: nil,
@@ -37,7 +37,7 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
 @Test
 @MainActor
 func backupPackageReadsV2AndWritesV5() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     var legacyContents = try BackupPackageCodec.makeContents(context: source.mainContext)
     legacyContents.manifest.formatVersion = 2
     legacyContents.records.formatVersion = 2
@@ -52,7 +52,7 @@ func backupPackageReadsV2AndWritesV5() throws {
 @Test
 @MainActor
 func backupPackageRoundTripsTaskReminderAndRejectsIdentityMismatch() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let day = try #require(DayKey.date(from: "2026-07-12"))
     let reminderAt = Date(timeIntervalSinceReferenceDate: 120_000)
     let task = Task(
@@ -66,7 +66,7 @@ func backupPackageRoundTripsTaskReminderAndRejectsIdentityMismatch() throws {
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
     #expect(contents.records.payload.tasks.first?.reminderAt == reminderAt)
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let restored = try #require(destination.mainContext.fetch(FetchDescriptor<Task>()).first)
     #expect(restored.reminderAt == reminderAt)
@@ -219,7 +219,7 @@ func tamperedPackageChecksumIsRejectedBeforeRestore() throws {
         try BackupPackageCodec.validate(contents)
     }
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let local = DailyReview(dayKey: "2026-07-10", content: "로컬 유지")
     destination.mainContext.insert(local)
     try destination.mainContext.save()
@@ -236,7 +236,7 @@ func tamperedPackageChecksumIsRejectedBeforeRestore() throws {
 func importingSamePackageTwiceCreatesNoDuplicates() throws {
     let source = try packageSourceContainer(image: testPNG(0x14))
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
 
     let first = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let second = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
@@ -302,7 +302,7 @@ func reconciledDuplicateDoesNotMaskLaterIdentityCorruption() throws {
         updatedAt: timestamp
     )
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     destination.mainContext.insert(DailyReview(
         id: logicalID,
         instanceID: lowerInstanceID,
@@ -347,7 +347,7 @@ func mergeRollsBackWhenReconciledReviewExceedsAttachmentLimit() throws {
     )
     let firstContents = try BackupPackageCodec.makeContents(context: firstSource.mainContext)
     let secondContents = try BackupPackageCodec.makeContents(context: secondSource.mainContext)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
 
     _ = try BackupPackageCodec.restoreMerging(firstContents, into: destination.mainContext)
     #expect(throws: BackupPackageError.tooManyAttachments(actual: 12, maximum: 10)) {
@@ -366,7 +366,7 @@ func mergeRollsBackWhenReconciledReviewExceedsAttachmentLimit() throws {
 @MainActor
 func packageMergePreservesNewerLocalReview() throws {
     let reviewID = UUID()
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     source.mainContext.insert(DailyReview(
         id: reviewID,
         dayKey: "2026-07-11",
@@ -377,7 +377,7 @@ func packageMergePreservesNewerLocalReview() throws {
     try source.mainContext.save()
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     destination.mainContext.insert(DailyReview(
         id: reviewID,
         dayKey: "2026-07-11",
@@ -404,7 +404,7 @@ func packageMergeFailureRollsBackDatabaseAndAttachment() throws {
 
     let source = try packageSourceContainer(image: testPNG(0x15))
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let local = DailyReview(dayKey: "2026-07-09", content: "롤백 기준")
     destination.mainContext.insert(local)
     try destination.mainContext.save()
@@ -521,7 +521,7 @@ func packageValidationRejectsNonCanonicalAttachmentOrder() throws {
 @Test
 @MainActor
 func packageExportRejectsUnresolvedLegacyImageReferences() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     container.mainContext.insert(DailyReview(
         dayKey: "2026-07-11",
         content: "이관 대기",
@@ -567,7 +567,7 @@ func sameInstanceAndTimestampWithDifferentContentIsRejected() throws {
 @Test
 @MainActor
 func sameTaskInstanceRejectsDifferentValidEventRelationship() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let day = try #require(DayKey.date(from: "2026-07-11"))
     let firstEvent = CalendarEvent(title: "첫 이벤트", startAt: day, endAt: day)
     let secondEvent = CalendarEvent(title: "둘째 이벤트", startAt: day, endAt: day)
@@ -582,7 +582,7 @@ func sameTaskInstanceRejectsDifferentValidEventRelationship() throws {
     source.mainContext.insert(task)
     try source.mainContext.save()
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
 
     var tampered = contents
@@ -606,7 +606,7 @@ func repeatedAttachmentImportSurvivesCanonicalReviewRewire() throws {
     let source = try packageSourceContainer(image: testPNG(0x55))
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
     let sourceReview = try #require(contents.records.payload.dailyReviews?.first)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let localReview = DailyReview(
         id: UUID(),
         instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
@@ -637,7 +637,7 @@ func rewiredAttachmentImportRejectsRelativeOrderTampering() throws {
     let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x58)
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
     let sourceReview = try #require(contents.records.payload.dailyReviews?.first)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     destination.mainContext.insert(DailyReview(
         id: UUID(),
         instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
@@ -684,7 +684,7 @@ func rewiredAttachmentImportAcceptsPartiallyOverlappingSnapshot() throws {
     refreshRecordsMetadata(&partialContents)
     try BackupPackageCodec.validate(partialContents)
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let localReview = DailyReview(
         id: UUID(),
         instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
@@ -712,7 +712,7 @@ func rewiredAttachmentImportAcceptsPartiallyOverlappingSnapshot() throws {
 func olderSnapshotPreservesNewerLocalAttachmentOrder() throws {
     let source = try packageSourceContainer(imageCount: 2, markerOffset: 0x5C)
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
 
     let review = try #require(destination.mainContext
@@ -762,8 +762,8 @@ func equalTimestampCandidatesConvergeRegardlessOfImportOrder() throws {
     )
     let lower = try BackupPackageCodec.makeContents(context: lowerSource.mainContext)
     let higher = try BackupPackageCodec.makeContents(context: higherSource.mainContext)
-    let firstDestination = try EasyTaskContainerFactory.makeInMemory()
-    let secondDestination = try EasyTaskContainerFactory.makeInMemory()
+    let firstDestination = try PlanBaseContainerFactory.makeInMemory()
+    let secondDestination = try PlanBaseContainerFactory.makeInMemory()
 
     _ = try BackupPackageCodec.restoreMerging(lower, into: firstDestination.mainContext)
     _ = try BackupPackageCodec.restoreMerging(higher, into: firstDestination.mainContext)
@@ -783,7 +783,7 @@ func equalTimestampCandidatesConvergeRegardlessOfImportOrder() throws {
 @Test
 @MainActor
 func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     _ = DailyReviewService.save(
         review: nil,
         dayKey: "2026-07-11",
@@ -811,7 +811,7 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
     payload.taskTemplateItems[0].updatedAt = nil
     payload = try BackupCodec.decode(BackupCodec.encode(payload))
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let first = try BackupPackageCodec.restoreLegacyJSONMerging(
         payload,
         into: destination.mainContext
@@ -836,7 +836,7 @@ func legacyJSONMergeIsIdempotentAndReportsImageReferences() throws {
 @MainActor
 func repeatedLegacyJSONImportSurvivesReviewAndBlockReconciliation() throws {
     let timestamp = Date(timeIntervalSince1970: 600)
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let sourceReview = DailyReview(
         id: UUID(),
         dayKey: "2026-07-11",
@@ -859,7 +859,7 @@ func repeatedLegacyJSONImportSurvivesReviewAndBlockReconciliation() throws {
     payload.dailyReviews?[0].instanceID = nil
     payload.diaryBlocks?[0].instanceID = nil
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     destination.mainContext.insert(DailyReview(
         id: UUID(),
         instanceID: UUID(uuidString: "FFFFFFFF-FFFF-4FFF-BFFF-FFFFFFFFFFFF")!,
@@ -886,7 +886,7 @@ func repeatedLegacyJSONImportSurvivesReviewAndBlockReconciliation() throws {
 @Test
 @MainActor
 func legacyReplaceAllDoesNotLeaveV3AttachmentOrphans() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let emptyPayload = try BackupCodec.makePayload(context: source.mainContext)
     let destination = try packageSourceContainer(image: testPNG(0x1A))
     #expect(try destination.mainContext.fetch(FetchDescriptor<DiaryAttachment>()).count == 1)
@@ -899,7 +899,7 @@ func legacyReplaceAllDoesNotLeaveV3AttachmentOrphans() throws {
 
 @MainActor
 private func packageSourceContainer(image: Data) throws -> ModelContainer {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     _ = try DiaryAttachmentService.saveReview(
         review: nil,
         dayKey: "2026-07-11",
@@ -916,7 +916,7 @@ private func packageSourceContainer(
     imageCount: Int,
     markerOffset: UInt8
 ) throws -> ModelContainer {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let drafts = (0..<imageCount).map { index in
         DiaryAttachmentDraft(data: testPNG(markerOffset &+ UInt8(index)))
     }
@@ -939,7 +939,7 @@ private func reviewContainer(
     content: String,
     updatedAt: Date
 ) throws -> ModelContainer {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     container.mainContext.insert(DailyReview(
         id: id,
         instanceID: instanceID,
@@ -961,7 +961,7 @@ private func taskReminderMergeContainer(
     reminderAt: Date?,
     updatedAt: Date
 ) throws -> ModelContainer {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     container.mainContext.insert(Task(
         id: id,
         instanceID: instanceID,
@@ -988,7 +988,7 @@ private func testPNG(_ marker: UInt8) -> Data {
 
 private func temporaryPackageURL() -> URL {
     FileManager.default.temporaryDirectory
-        .appendingPathComponent("EasyTaskBackupTests-\(UUID().uuidString)")
+        .appendingPathComponent("PlanBaseBackupTests-\(UUID().uuidString)")
         .appendingPathExtension("easytaskbackup")
 }
 

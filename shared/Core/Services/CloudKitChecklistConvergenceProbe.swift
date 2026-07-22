@@ -2,11 +2,11 @@ import Foundation
 import SwiftData
 
 extension CloudKitConvergenceProbe {
-    static let checklistMarkerTitle = "__EASYTASK_CLOUDKIT_CHECKLIST_PROBE__"
+    static let checklistMarkerTitle = "__PLANBASE_CLOUDKIT_CHECKLIST_PROBE__"
     static let checklistMarkerDayKey = "2099-12-28"
     static let checklistMarkerItemTitles = [
-        "__EASYTASK_CHECKLIST_ITEM_A__",
-        "__EASYTASK_CHECKLIST_ITEM_B__"
+        "__PLANBASE_CHECKLIST_ITEM_A__",
+        "__PLANBASE_CHECKLIST_ITEM_B__"
     ]
 
     @MainActor

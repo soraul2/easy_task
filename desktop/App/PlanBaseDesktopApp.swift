@@ -1,10 +1,10 @@
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 @main
 @MainActor
-struct TodoDesktopMVPApp: App {
+struct PlanBaseDesktopApp: App {
     @State private var persistenceState: PersistenceState
 
     init() {
@@ -58,15 +58,15 @@ struct TodoDesktopMVPApp: App {
     private static func openPersistentStore() -> PersistenceState {
         do {
 #if DEBUG
-            _ = try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
+            _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
-            let modelContainer = try EasyTaskContainerFactory.makeAppPersistent()
+            let modelContainer = try PlanBaseContainerFactory.makeAppPersistent()
 #if DEBUG
             startCloudKitProbeIfRequested(modelContainer: modelContainer)
 #endif
             return .ready(modelContainer)
         } catch {
-            print("EasyTask persistent store startup failed: \(error)")
+            print("PlanBase persistent store startup failed: \(error)")
             return .failed(error.localizedDescription)
         }
     }

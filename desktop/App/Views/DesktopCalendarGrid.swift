@@ -1,5 +1,5 @@
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 struct CalendarEventSegment: Identifiable {
     var event: CalendarEvent

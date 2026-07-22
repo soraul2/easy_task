@@ -118,20 +118,20 @@ func schemaV6ContainsEveryCurrentPersistedModel() {
 func versionedContainerReopensFileBackedStore() throws {
     try withTemporaryStore { storeURL in
         try writeFixture(
-            to: EasyTaskContainerFactory.makePersistent(storeURL: storeURL),
+            to: PlanBaseContainerFactory.makePersistent(storeURL: storeURL),
             title: "versioned fixture"
         )
 
-        let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let reopened = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: reopened, title: "versioned fixture")
     }
 }
 
 @Test
 @MainActor
-func appStoreLocationCopiesOnlyRecognizedEasyTaskStore() throws {
+func appStoreLocationCopiesOnlyRecognizedPlanBaseStore() throws {
     let applicationSupportURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("EasyTaskStoreLocation-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("PlanBaseStoreLocation-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(
         at: applicationSupportURL,
         withIntermediateDirectories: true
@@ -143,7 +143,7 @@ func appStoreLocationCopiesOnlyRecognizedEasyTaskStore() throws {
     try autoreleasepool {
         let schema = Schema(versionedSchema: EasyTaskSchemaV6.self)
         let configuration = ModelConfiguration(
-            "EasyTaskLegacyLocation",
+            "PlanBaseLegacyLocation",
             schema: schema,
             url: legacyStoreURL,
             allowsSave: true,
@@ -153,7 +153,7 @@ func appStoreLocationCopiesOnlyRecognizedEasyTaskStore() throws {
         try writeFixture(to: container, title: title)
     }
 
-    let destinationURL = try EasyTaskContainerFactory.prepareDefaultStoreLocation(
+    let destinationURL = try PlanBaseContainerFactory.prepareDefaultStoreLocation(
         applicationSupportURL: applicationSupportURL
     )
 
@@ -161,7 +161,7 @@ func appStoreLocationCopiesOnlyRecognizedEasyTaskStore() throws {
     #expect(destinationURL.deletingLastPathComponent().lastPathComponent == "PlanBase")
     #expect(FileManager.default.fileExists(atPath: legacyStoreURL.path))
     #expect(FileManager.default.fileExists(atPath: destinationURL.path))
-    let reopened = try EasyTaskContainerFactory.makePersistent(
+    let reopened = try PlanBaseContainerFactory.makePersistent(
         storeURL: destinationURL,
         mode: .local
     )
@@ -171,7 +171,7 @@ func appStoreLocationCopiesOnlyRecognizedEasyTaskStore() throws {
 @Test
 func appStoreLocationLeavesUnrecognizedGlobalStoreUntouched() throws {
     let applicationSupportURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("EasyTaskForeignStore-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("PlanBaseForeignStore-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(
         at: applicationSupportURL,
         withIntermediateDirectories: true
@@ -179,10 +179,10 @@ func appStoreLocationLeavesUnrecognizedGlobalStoreUntouched() throws {
     defer { try? FileManager.default.removeItem(at: applicationSupportURL) }
 
     let unrelatedStoreURL = applicationSupportURL.appendingPathComponent("default.store")
-    let unrelatedData = Data("not an EasyTask store".utf8)
+    let unrelatedData = Data("not a PlanBase store".utf8)
     try unrelatedData.write(to: unrelatedStoreURL)
 
-    let destinationURL = try EasyTaskContainerFactory.prepareDefaultStoreLocation(
+    let destinationURL = try PlanBaseContainerFactory.prepareDefaultStoreLocation(
         applicationSupportURL: applicationSupportURL
     )
 
@@ -201,7 +201,7 @@ func v3AttachmentPersistsInFileBackedStore() throws {
         let updatedAt = Date(timeIntervalSince1970: 200)
         let data = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01])
         let sha256 = "275f1bcbbb585c71e3b2184304eccfa0e37de92022ca3b6f4e9c10df32318d85"
-        let container = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let container = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         container.mainContext.insert(DiaryAttachment(
             id: id,
             instanceID: instanceID,
@@ -217,7 +217,7 @@ func v3AttachmentPersistsInFileBackedStore() throws {
         ))
         try container.mainContext.save()
 
-        let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let reopened = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let attachment = try #require(
             reopened.mainContext.fetch(FetchDescriptor<DiaryAttachment>()).first
         )
@@ -242,7 +242,7 @@ func versionedV1StoreMigratesToV2WithoutDataLoss() throws {
     try withTemporaryStore { storeURL in
         let v1Schema = Schema(versionedSchema: EasyTaskSchemaV1.self)
         let configuration = ModelConfiguration(
-            "EasyTaskV1",
+            "PlanBaseV1",
             schema: v1Schema,
             url: storeURL,
             allowsSave: true,
@@ -254,7 +254,7 @@ func versionedV1StoreMigratesToV2WithoutDataLoss() throws {
         )
         try writeV1Fixture(to: v1Container, title: "v1 fixture")
 
-        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "v1 fixture")
         try expectStableInstanceIdentityBackfill(in: migrated)
     }
@@ -266,7 +266,7 @@ func versionedV2StoreMigratesToV3WithoutDataLoss() throws {
     try withTemporaryStore { storeURL in
         let v2Schema = Schema(versionedSchema: EasyTaskSchemaV2.self)
         let configuration = ModelConfiguration(
-            "EasyTaskV2",
+            "PlanBaseV2",
             schema: v2Schema,
             url: storeURL,
             allowsSave: true,
@@ -278,7 +278,7 @@ func versionedV2StoreMigratesToV3WithoutDataLoss() throws {
         )
         try writeV2Fixture(to: v2Container, title: "v2 fixture")
 
-        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "v2 fixture")
         let review = try #require(migrated.mainContext.fetch(FetchDescriptor<DailyReview>()).first)
         let imageBlock = try #require(
@@ -297,7 +297,7 @@ func versionedV3StoreMigratesToV4WithStableIdentityAndNoReminder() throws {
     try withTemporaryStore { storeURL in
         let schema = Schema(versionedSchema: EasyTaskSchemaV3.self)
         let configuration = ModelConfiguration(
-            "EasyTaskV3",
+            "PlanBaseV3",
             schema: schema,
             url: storeURL,
             allowsSave: true,
@@ -316,7 +316,7 @@ func versionedV3StoreMigratesToV4WithStableIdentityAndNoReminder() throws {
         ))
         try container.mainContext.save()
 
-        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let task = try #require(migrated.mainContext.fetch(FetchDescriptor<Task>()).first)
         #expect(task.id == id)
         #expect(task.instanceID == instanceID)
@@ -331,7 +331,7 @@ func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
     try withTemporaryStore { storeURL in
         let schema = Schema(versionedSchema: EasyTaskSchemaV4.self)
         let configuration = ModelConfiguration(
-            "EasyTaskV4",
+            "PlanBaseV4",
             schema: schema,
             url: storeURL,
             allowsSave: true,
@@ -358,7 +358,7 @@ func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
         ))
         try container.mainContext.save()
 
-        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let task = try #require(migrated.mainContext.fetch(FetchDescriptor<Task>()).first)
         let templateItem = try #require(
             migrated.mainContext.fetch(FetchDescriptor<TaskTemplateItem>()).first
@@ -380,7 +380,7 @@ func compatibleV5StoreWithUnknownMigrationChecksumMigratesToV6WithoutDataLoss() 
         try autoreleasepool {
             let schema = Schema(versionedSchema: EasyTaskSchemaV5.self)
             let configuration = ModelConfiguration(
-                "EasyTaskV5WithoutPlan",
+                "PlanBaseV5WithoutPlan",
                 schema: schema,
                 url: storeURL,
                 allowsSave: true,
@@ -402,8 +402,8 @@ func compatibleV5StoreWithUnknownMigrationChecksumMigratesToV6WithoutDataLoss() 
             at: storeURL
         )
 
-        #expect(!EasyTaskContainerFactory.isStoreCompatibleWithCurrentSchema(at: storeURL))
-        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+        #expect(!PlanBaseContainerFactory.isStoreCompatibleWithCurrentSchema(at: storeURL))
+        let reopened = try PlanBaseContainerFactory.makeAppPersistent(
             storeURL: storeURL,
             mode: .local
         )
@@ -418,7 +418,7 @@ func existingUnversionedStoreOpensWithSchemaV1WithoutDataLoss() throws {
     try withTemporaryStore { storeURL in
         try writeUnversionedV1Fixture(to: storeURL, title: "legacy fixture")
 
-        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: migrated, title: "legacy fixture")
         try expectStableInstanceIdentityBackfill(in: migrated)
     }
@@ -430,7 +430,7 @@ func initialDesktopStoreBridgesToV3WithBackupAndNoDuplicates() throws {
     try withTemporaryStore { storeURL in
         try writeInitialDesktopFixture(to: storeURL, title: "initial desktop fixture")
 
-        let migrated = try EasyTaskContainerFactory.makeAppPersistent(
+        let migrated = try PlanBaseContainerFactory.makeAppPersistent(
             storeURL: storeURL,
             mode: .local
         )
@@ -462,7 +462,7 @@ func initialDesktopStoreBridgesToV3WithBackupAndNoDuplicates() throws {
         )
         #expect(!FileManager.default.fileExists(atPath: markerURL.path))
 
-        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+        let reopened = try PlanBaseContainerFactory.makeAppPersistent(
             storeURL: storeURL,
             mode: .local
         )
@@ -483,7 +483,7 @@ func initialDesktopStoreBridgesToV3WithBackupAndNoDuplicates() throws {
 func pendingBridgeWithoutOriginalBackupDoesNotRemoveCurrentStore() throws {
     try withTemporaryStore { storeURL in
         try writeFixture(
-            to: EasyTaskContainerFactory.makePersistent(storeURL: storeURL),
+            to: PlanBaseContainerFactory.makePersistent(storeURL: storeURL),
             title: "protected current fixture"
         )
         let markerURL = storeURL.deletingLastPathComponent().appendingPathComponent(
@@ -495,7 +495,7 @@ func pendingBridgeWithoutOriginalBackupDoesNotRemoveCurrentStore() throws {
         try markerData.write(to: markerURL, options: .atomic)
 
         do {
-            _ = try EasyTaskContainerFactory.makeAppPersistent(
+            _ = try PlanBaseContainerFactory.makeAppPersistent(
                 storeURL: storeURL,
                 mode: .local
             )
@@ -505,7 +505,7 @@ func pendingBridgeWithoutOriginalBackupDoesNotRemoveCurrentStore() throws {
         }
 
         try FileManager.default.removeItem(at: markerURL)
-        let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let reopened = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         try expectFixture(in: reopened, title: "protected current fixture")
     }
 }
@@ -516,7 +516,7 @@ func appFactoryOpensPreviousDefaultV3ConfigurationWithoutBackup() throws {
     try withTemporaryStore { storeURL in
         let schema = Schema(versionedSchema: EasyTaskSchemaV3.self)
         let previousConfiguration = ModelConfiguration(
-            "EasyTaskV3",
+            "PlanBaseV3",
             schema: schema,
             url: storeURL,
             allowsSave: true,
@@ -534,7 +534,7 @@ func appFactoryOpensPreviousDefaultV3ConfigurationWithoutBackup() throws {
         ))
         try previousContainer.mainContext.save()
 
-        let reopened = try EasyTaskContainerFactory.makeAppPersistent(
+        let reopened = try PlanBaseContainerFactory.makeAppPersistent(
             storeURL: storeURL,
             mode: .local
         )
@@ -565,7 +565,7 @@ private func migratedDuplicateTaskWinner(reversed: Bool) throws -> String {
     try withTemporaryStore { storeURL in
         let v1Schema = Schema(versionedSchema: EasyTaskSchemaV1.self)
         let configuration = ModelConfiguration(
-            "EasyTaskV1Duplicates",
+            "PlanBaseV1Duplicates",
             schema: v1Schema,
             url: storeURL,
             allowsSave: true,
@@ -597,7 +597,7 @@ private func migratedDuplicateTaskWinner(reversed: Bool) throws -> String {
         }
         try context.save()
 
-        let migrated = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let migratedTasks = try migrated.mainContext.fetch(FetchDescriptor<Task>())
         #expect(Set(migratedTasks.map(\.instanceID)).count == 2)
         _ = try DataIntegrityService.reconcile(context: migrated.mainContext)
@@ -631,7 +631,7 @@ private func writeUnversionedV1Fixture(to storeURL: URL, title: String) throws {
 private func writeInitialDesktopFixture(to storeURL: URL, title: String) throws {
     let schema = Schema(EasyTaskLegacySchema.models)
     let configuration = ModelConfiguration(
-        "EasyTaskInitialDesktop",
+        "PlanBaseInitialDesktop",
         schema: schema,
         url: storeURL,
         allowsSave: true,
@@ -905,7 +905,7 @@ private func withTemporaryStore(
     _ operation: (URL) throws -> Void
 ) throws {
     let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("EasyTaskSchemaV1-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("PlanBaseSchemaV1-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
 

@@ -26,9 +26,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.soraul2.easytask</string>
+			<string>com.soraul2.planbase</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>planbase</string>
 				<string>easytask</string>
 			</array>
 		</dict>
@@ -66,7 +67,7 @@
 				<string>com.apple.package</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>EasyTask Backup Package</string>
+			<string>PlanBase Backup Package</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.soraul2.easytask.backup-package</string>
 			<key>UTTypeTagSpecification</key>

@@ -2,7 +2,7 @@ import Combine
 import Foundation
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 enum AppTab: String, CaseIterable, Identifiable {
     case board
@@ -46,7 +46,7 @@ struct AppRootView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     private var cloudKitEnabled: Bool {
-        EasyTaskContainerFactory.runtimeAppStoreMode.usesCloudKit
+        PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
     }
 
     var body: some View {
@@ -132,7 +132,7 @@ struct AppRootView: View {
             }
             let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
                 context: modelContext,
-                appSupportFolder: "TodoDesktopMVP"
+                appSupportFolder: PlanBaseCompatibility.legacyDesktopImageFolderName
             )
             if !migration.missingFileNames.isEmpty ||
                 !migration.rejectedFileNames.isEmpty ||

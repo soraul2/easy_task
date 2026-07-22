@@ -3,7 +3,7 @@ import SwiftData
 
 public enum PersistenceCommandService {
     public static let dataChangedNotification = Notification.Name(
-        "EasyTaskPersistenceDataChanged"
+        "PlanBasePersistenceDataChanged"
     )
 
     @MainActor

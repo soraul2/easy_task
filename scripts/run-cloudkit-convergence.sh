@@ -3,29 +3,29 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-device_id="${EASYTASK_DEVICE_ID:-${1:-}}"
-xcode_device_id="${EASYTASK_XCODE_DEVICE_ID:-${2:-$device_id}}"
-derived_root="${EASYTASK_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}/EasyTaskCloudKitConvergence}"
-probe_timeout="${EASYTASK_PROBE_TIMEOUT:-180}"
-probe_kind="${EASYTASK_PROBE_KIND:-event}"
-log_root="$(mktemp -d "${TMPDIR:-/tmp}/EasyTaskCloudKitProbe.XXXXXX")"
+device_id="${PLANBASE_DEVICE_ID:-${1:-}}"
+xcode_device_id="${PLANBASE_XCODE_DEVICE_ID:-${2:-$device_id}}"
+derived_root="${PLANBASE_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}/PlanBaseCloudKitConvergence}"
+probe_timeout="${PLANBASE_PROBE_TIMEOUT:-180}"
+probe_kind="${PLANBASE_PROBE_KIND:-event}"
+log_root="$(mktemp -d "${TMPDIR:-/tmp}/PlanBaseCloudKitProbe.XXXXXX")"
 
 if [[ -z "$device_id" ]]; then
-  print -u2 "usage: EASYTASK_DEVICE_ID=<devicectl-id> EASYTASK_XCODE_DEVICE_ID=<xcode-udid> $0"
+  print -u2 "usage: PLANBASE_DEVICE_ID=<devicectl-id> PLANBASE_XCODE_DEVICE_ID=<xcode-udid> $0"
   exit 64
 fi
 
 case "$probe_kind" in
   event|media|conflict|checklist) ;;
   *)
-    print -u2 "EASYTASK_PROBE_KIND must be event, media, conflict, or checklist."
+    print -u2 "PLANBASE_PROBE_KIND must be event, media, conflict, or checklist."
     exit 64
     ;;
 esac
 
-mac_app="$derived_root/Build/Products/Debug/EasyTask macOS.app"
-mac_binary="$mac_app/Contents/MacOS/EasyTask macOS"
-ios_app="$derived_root/Build/Products/Debug-iphoneos/EasyTask.app"
+mac_app="$derived_root/Build/Products/Debug/PlanBase.app"
+mac_binary="$mac_app/Contents/MacOS/PlanBase"
+ios_app="$derived_root/Build/Products/Debug-iphoneos/PlanBase.app"
 bundle_id="com.soraul2.easytask"
 mac_pid=""
 device_session_pid=""
@@ -237,11 +237,11 @@ run_device_reader() {
     --cloudkit-probe-exit
 }
 
-if [[ "${EASYTASK_SKIP_BUILD:-0}" != "1" ]]; then
+if [[ "${PLANBASE_SKIP_BUILD:-0}" != "1" ]]; then
   print "[1/5] Building signed macOS Debug app"
   xcodebuild -quiet \
-    -project EasyTask.xcodeproj \
-    -scheme EasyTask-macOS \
+    -project PlanBase.xcodeproj \
+    -scheme PlanBase-macOS \
     -configuration Debug \
     -destination 'platform=macOS' \
     -derivedDataPath "$derived_root" \
@@ -250,8 +250,8 @@ if [[ "${EASYTASK_SKIP_BUILD:-0}" != "1" ]]; then
 
   print "[2/5] Building signed iPhone Debug app"
   xcodebuild -quiet \
-    -project EasyTask.xcodeproj \
-    -scheme EasyTask-iOS \
+    -project PlanBase.xcodeproj \
+    -scheme PlanBase-iOS \
     -configuration Debug \
     -destination "id=$xcode_device_id" \
     -derivedDataPath "$derived_root" \

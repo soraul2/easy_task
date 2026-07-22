@@ -19,7 +19,7 @@ func memoRulesDeriveTitlePreviewAndNormalizedSearch() {
 @Test
 @MainActor
 func memoServiceSkipsBlankDraftButKeepsExistingMemoWhenCleared() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
 
     let blank = try MemoService.save(memo: nil, content: "  \n ", in: context)
@@ -51,7 +51,7 @@ func memoServiceSkipsBlankDraftButKeepsExistingMemoWhenCleared() throws {
 @Test
 @MainActor
 func memoQueryPinsFirstSearchesFullContentAndPaginates() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let base = Date(timeIntervalSince1970: 1_000)
 
@@ -92,7 +92,7 @@ func memoQueryPinsFirstSearchesFullContentAndPaginates() throws {
 @Test
 @MainActor
 func memoEditorDebouncesAndFlushesPendingChanges() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let session = MemoEditorSession(memo: nil, context: context)
 
@@ -116,7 +116,7 @@ func memoEditorDebouncesAndFlushesPendingChanges() async throws {
 @Test
 @MainActor
 func memoPinDeleteAndIntegrityConvergeOnNewestUpdate() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let logicalID = UUID()
     let older = Memo(
@@ -155,7 +155,7 @@ func memoPinDeleteAndIntegrityConvergeOnNewestUpdate() throws {
 @Test
 @MainActor
 func backupV5RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let memo = Memo(
         content: "백업 메모\n본문",
         isPinned: true,
@@ -169,7 +169,7 @@ func backupV5RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     #expect(contents.manifest.formatVersion == 5)
     #expect(contents.records.payload.memos?.count == 1)
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let first = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let second = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let restored = try #require(destination.mainContext.fetch(FetchDescriptor<Memo>()).first)
@@ -179,7 +179,7 @@ func backupV5RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     #expect(restored.content == memo.content)
     #expect(restored.isPinned)
 
-    let legacySource = try EasyTaskContainerFactory.makeInMemory()
+    let legacySource = try PlanBaseContainerFactory.makeInMemory()
     var v4Contents = try BackupPackageCodec.makeContents(context: legacySource.mainContext)
     v4Contents.manifest.formatVersion = 4
     v4Contents.records.formatVersion = 4
@@ -187,7 +187,7 @@ func backupV5RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     refreshMemoPackageRecordsMetadata(&v4Contents)
     try BackupPackageCodec.validate(v4Contents)
 
-    let legacyDestination = try EasyTaskContainerFactory.makeInMemory()
+    let legacyDestination = try PlanBaseContainerFactory.makeInMemory()
     _ = try BackupPackageCodec.restoreMerging(
         v4Contents,
         into: legacyDestination.mainContext

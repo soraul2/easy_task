@@ -1,6 +1,6 @@
 import SwiftData
 import SwiftUI
-import EasyTaskCore
+import PlanBaseCore
 
 private enum BoardSheet: Identifiable {
     case carryover

@@ -10,7 +10,7 @@ private enum PersistenceCommandTestError: Error {
 @Test
 @MainActor
 func persistenceCommandCommitsSuccessfulMutation() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
 
     let task = try PersistenceCommandService.perform(in: context) {
@@ -26,7 +26,7 @@ func persistenceCommandCommitsSuccessfulMutation() throws {
 @Test
 @MainActor
 func persistenceCommandRollsBackFailedMutationWithoutLosingPriorSave() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let existingTask = Task(title: "기존 작업", plannedAt: Date(), order: 100)
     context.insert(existingTask)
@@ -248,7 +248,7 @@ func unsafeBackupImageNamesLeaveExistingDataUnchanged() throws {
 @MainActor
 func validRestoreIsDurableAfterReopeningStore() throws {
     let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("EasyTaskDataSafety-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("PlanBaseDataSafety-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -354,7 +354,7 @@ func backupDayKeysRemainPortableAcrossDateOffsets() throws {
 @MainActor
 func injectedRestoreFailureRollsBackDurableStore() throws {
     let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("EasyTaskRollbackSafety-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("PlanBaseRollbackSafety-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
 

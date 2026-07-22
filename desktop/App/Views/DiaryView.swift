@@ -1,5 +1,5 @@
 import AppKit
-import EasyTaskCore
+import PlanBaseCore
 import SwiftData
 import SwiftUI
 
@@ -26,8 +26,8 @@ struct DiaryView: View {
     @State private var reviews: [DailyReview] = []
     @State private var diaryBlocks: [DiaryBlock] = []
     @State private var attachments: [DiaryAttachment] = []
-    @State private var selectedDayTasks: [EasyTaskCore.Task] = []
-    @State private var carryoverTasks: [EasyTaskCore.Task] = []
+    @State private var selectedDayTasks: [Task] = []
+    @State private var carryoverTasks: [Task] = []
 
     @State private var selectedDate: Date
     @State private var reviewTitle = ""

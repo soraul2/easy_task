@@ -98,7 +98,7 @@ public final class CloudKitSyncMonitor {
     private var accountStatusErrorDescription: String?
 
     public init(
-        containerIdentifier: String = EasyTaskContainerFactory.cloudKitContainerIdentifier
+        containerIdentifier: String = PlanBaseContainerFactory.cloudKitContainerIdentifier
     ) {
         self.containerIdentifier = containerIdentifier
     }
@@ -208,7 +208,7 @@ public final class CloudKitSyncMonitor {
 
 public enum CloudKitSyncService {
     private static let logger = Logger(
-        subsystem: "com.soraul2.easytask",
+        subsystem: PlanBaseCompatibility.appStoreBundleIdentifier,
         category: "CloudKitSync"
     )
 

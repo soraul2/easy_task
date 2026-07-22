@@ -1,27 +1,27 @@
-import EasyTaskCore
+import PlanBaseCore
 import SwiftUI
 import WidgetKit
 
-private struct EasyTaskCalendarEntry: TimelineEntry {
+private struct PlanBaseCalendarEntry: TimelineEntry {
     let date: Date
     let snapshot: CalendarWidgetSnapshot
 }
 
-private struct EasyTaskCalendarProvider: TimelineProvider {
-    func placeholder(in context: Context) -> EasyTaskCalendarEntry {
-        EasyTaskCalendarEntry(date: Date(), snapshot: .preview)
+private struct PlanBaseCalendarProvider: TimelineProvider {
+    func placeholder(in context: Context) -> PlanBaseCalendarEntry {
+        PlanBaseCalendarEntry(date: Date(), snapshot: .preview)
     }
 
     func getSnapshot(
         in context: Context,
-        completion: @escaping (EasyTaskCalendarEntry) -> Void
+        completion: @escaping (PlanBaseCalendarEntry) -> Void
     ) {
         completion(entry(at: Date(), usesPreviewData: context.isPreview))
     }
 
     func getTimeline(
         in context: Context,
-        completion: @escaping (Timeline<EasyTaskCalendarEntry>) -> Void
+        completion: @escaping (Timeline<PlanBaseCalendarEntry>) -> Void
     ) {
         let now = Date()
         let entry = entry(at: now, usesPreviewData: false)
@@ -29,21 +29,21 @@ private struct EasyTaskCalendarProvider: TimelineProvider {
         completion(Timeline(entries: [entry], policy: .after(nextDay)))
     }
 
-    private func entry(at date: Date, usesPreviewData: Bool) -> EasyTaskCalendarEntry {
+    private func entry(at date: Date, usesPreviewData: Bool) -> PlanBaseCalendarEntry {
         let snapshot: CalendarWidgetSnapshot
         if usesPreviewData {
             snapshot = .preview
         } else {
             snapshot = (try? CalendarWidgetSnapshotStore.read()) ?? .empty(at: date)
         }
-        return EasyTaskCalendarEntry(date: date, snapshot: snapshot)
+        return PlanBaseCalendarEntry(date: date, snapshot: snapshot)
     }
 }
 
-private struct EasyTaskCalendarWidgetView: View {
+private struct PlanBaseCalendarWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var colorScheme
-    let entry: EasyTaskCalendarEntry
+    let entry: PlanBaseCalendarEntry
 
     private var theme: CalendarWidgetTheme {
         CalendarWidgetTheme(
@@ -76,7 +76,7 @@ private struct EasyTaskCalendarWidgetView: View {
 }
 
 private struct TodayCalendarWidget: View {
-    let entry: EasyTaskCalendarEntry
+    let entry: PlanBaseCalendarEntry
     let theme: CalendarWidgetTheme
 
     private var dayKey: String {
@@ -128,7 +128,7 @@ private struct TodayCalendarWidget: View {
                 Spacer(minLength: 0)
             }
         }
-        .widgetURL(EasyTaskDeepLink.calendarURL(dayKey: dayKey))
+        .widgetURL(PlanBaseDeepLink.calendarURL(dayKey: dayKey))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(todayAccessibilityLabel)
     }
@@ -142,7 +142,7 @@ private struct TodayCalendarWidget: View {
 }
 
 private struct MonthCalendarWidget: View {
-    let entry: EasyTaskCalendarEntry
+    let entry: PlanBaseCalendarEntry
     let theme: CalendarWidgetTheme
 
     private let columns = Array(
@@ -181,7 +181,7 @@ private struct MonthCalendarWidget: View {
                 }
 
                 ForEach(dates, id: \.self) { date in
-                    if let url = EasyTaskDeepLink.calendarURL(dayKey: DayKey.key(for: date)) {
+                    if let url = PlanBaseDeepLink.calendarURL(dayKey: DayKey.key(for: date)) {
                         Link(destination: url) {
                             MonthDayCell(
                                 date: date,
@@ -259,7 +259,7 @@ private struct MonthDayCell: View {
 }
 
 private struct LargeMonthCalendarWidget: View {
-    let entry: EasyTaskCalendarEntry
+    let entry: PlanBaseCalendarEntry
     let theme: CalendarWidgetTheme
 
     private let columns = Array(
@@ -313,7 +313,7 @@ private struct LargeMonthCalendarWidget: View {
 
                 LazyVGrid(columns: columns, spacing: 2) {
                     ForEach(dates, id: \.self) { date in
-                        if let url = EasyTaskDeepLink.calendarURL(dayKey: DayKey.key(for: date)) {
+                        if let url = PlanBaseDeepLink.calendarURL(dayKey: DayKey.key(for: date)) {
                             Link(destination: url) {
                                 LargeMonthDayCell(
                                     date: date,
@@ -513,13 +513,13 @@ private extension CalendarWidgetSnapshot {
     }
 }
 
-struct EasyTaskCalendarWidget: Widget {
+struct PlanBaseCalendarWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(
             kind: CalendarWidgetConstants.kind,
-            provider: EasyTaskCalendarProvider()
+            provider: PlanBaseCalendarProvider()
         ) { entry in
-            EasyTaskCalendarWidgetView(entry: entry)
+            PlanBaseCalendarWidgetView(entry: entry)
         }
         .configurationDisplayName("PlanBase 캘린더")
         .description("오늘의 이벤트와 월간 일정을 앱 테마로 홈 화면에서 확인합니다.")
@@ -529,8 +529,8 @@ struct EasyTaskCalendarWidget: Widget {
 }
 
 @main
-struct EasyTaskWidgetBundle: WidgetBundle {
+struct PlanBaseWidgetBundle: WidgetBundle {
     var body: some Widget {
-        EasyTaskCalendarWidget()
+        PlanBaseCalendarWidget()
     }
 }

@@ -1,5 +1,5 @@
 #if os(iOS)
-import EasyTaskCore
+import PlanBaseCore
 import Foundation
 import SwiftData
 import UIKit
@@ -45,14 +45,14 @@ final class TaskNotificationScheduler {
         do {
             _ = try await center.requestAuthorization(options: [.alert, .sound])
         } catch {
-            print("EasyTask notification authorization failed: \(error)")
+            print("PlanBase notification authorization failed: \(error)")
         }
         return await authorizationState()
     }
 
     func reconcile(context: ModelContext, now: Date = Date()) async {
 #if DEBUG
-        guard !EasyTaskLaunchEnvironment.isUITesting else { return }
+        guard !PlanBaseLaunchEnvironment.isUITesting else { return }
 #endif
 
         if isReconciling {
@@ -67,7 +67,7 @@ final class TaskNotificationScheduler {
             do {
                 try await reconcileOnce(context: context, now: now)
             } catch {
-                print("EasyTask notification reconciliation failed: \(error)")
+                print("PlanBase notification reconciliation failed: \(error)")
             }
         } while needsAnotherPass
     }
@@ -77,11 +77,11 @@ final class TaskNotificationScheduler {
         let pendingRequests = await center.pendingNotificationRequests()
         let ownedPendingIDs = pendingRequests
             .map(\.identifier)
-            .filter { $0.hasPrefix(TaskReminderRules.identifierPrefix) }
+            .filter(TaskReminderRules.isManagedIdentifier)
         let delivered = await center.deliveredNotifications()
         let ownedDeliveredIDs = delivered
             .map { $0.request.identifier }
-            .filter { $0.hasPrefix(TaskReminderRules.identifierPrefix) }
+            .filter(TaskReminderRules.isManagedIdentifier)
 
         guard authorization.canSchedule else {
             if authorization == .denied, !ownedPendingIDs.isEmpty {
@@ -127,7 +127,7 @@ final class TaskNotificationScheduler {
                 try await center.add(request(for: snapshot))
             } catch {
                 print(
-                    "EasyTask notification scheduling failed " +
+                    "PlanBase notification scheduling failed " +
                         "for \(snapshot.identifier): \(error)"
                 )
             }
@@ -186,7 +186,7 @@ struct TaskNotificationRoute: Equatable, Sendable {
 @MainActor
 final class TaskNotificationRouteStore {
     static let shared = TaskNotificationRouteStore()
-    static let didReceiveRoute = Notification.Name("EasyTaskTaskNotificationRoute")
+    static let didReceiveRoute = Notification.Name("PlanBaseTaskNotificationRoute")
 
     private var pendingRoute: TaskNotificationRoute?
 
@@ -201,7 +201,7 @@ final class TaskNotificationRouteStore {
     }
 }
 
-final class EasyTaskAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class PlanBaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil

@@ -1,11 +1,11 @@
 #if os(iOS)
 import Combine
-import EasyTaskCore
+import PlanBaseCore
 import Foundation
 import SwiftData
 import SwiftUI
 
-enum EasyTaskLaunchEnvironment {
+enum PlanBaseLaunchEnvironment {
     static var isUITesting: Bool {
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
@@ -16,8 +16,8 @@ enum EasyTaskLaunchEnvironment {
 }
 
 @main
-struct EasyTaskiOSApp: App {
-    @UIApplicationDelegateAdaptor(EasyTaskAppDelegate.self) private var appDelegate
+struct PlanBaseMobileApp: App {
+    @UIApplicationDelegateAdaptor(PlanBaseAppDelegate.self) private var appDelegate
     @State private var persistenceState: PersistenceState
 
     init() {
@@ -50,9 +50,9 @@ struct EasyTaskiOSApp: App {
 
     private static func makePersistenceState() -> PersistenceState {
 #if DEBUG
-        if EasyTaskLaunchEnvironment.isUITesting {
+        if PlanBaseLaunchEnvironment.isUITesting {
             do {
-                return .ready(try EasyTaskContainerFactory.makeInMemory())
+                return .ready(try PlanBaseContainerFactory.makeInMemory())
             } catch {
                 return .failed(error.localizedDescription)
             }
@@ -71,15 +71,15 @@ struct EasyTaskiOSApp: App {
 
         do {
 #if DEBUG
-            _ = try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
+            _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
-            let modelContainer = try EasyTaskContainerFactory.makeAppPersistent()
+            let modelContainer = try PlanBaseContainerFactory.makeAppPersistent()
 #if DEBUG
             startCloudKitProbeIfRequested(modelContainer: modelContainer)
 #endif
             return .ready(modelContainer)
         } catch {
-            print("EasyTask 저장소를 열 수 없습니다: \(error.localizedDescription)")
+            print("PlanBase 저장소를 열 수 없습니다: \(error.localizedDescription)")
             return .failed(error.localizedDescription)
         }
     }
@@ -191,7 +191,7 @@ private struct MobileAppRootView: View {
     private var showsSyncWarningBanner = true
 
     private var cloudKitEnabled: Bool {
-        EasyTaskContainerFactory.runtimeAppStoreMode.usesCloudKit
+        PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
     }
 
     var body: some View {
@@ -390,7 +390,7 @@ private struct MobileAppRootView: View {
     private func seedDemoDataIfNeeded() throws {
         let policy = SeedPolicy.appStartup(
             cloudKitEnabled: cloudKitEnabled &&
-                !EasyTaskLaunchEnvironment.isUITesting
+                !PlanBaseLaunchEnvironment.isUITesting
         )
         guard case .demo = policy else { return }
 
@@ -469,7 +469,7 @@ private struct MobileAppRootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        guard let dayKey = EasyTaskDeepLink.calendarDayKey(from: url),
+        guard let dayKey = PlanBaseDeepLink.calendarDayKey(from: url),
               let date = DayKey.date(from: dayKey) else {
             return
         }
@@ -483,7 +483,7 @@ struct MobileCloudKitSyncStatusButton: View {
     @State private var isPresented = false
 
     var body: some View {
-        if EasyTaskContainerFactory.runtimeAppStoreMode.usesCloudKit {
+        if PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit {
             Button {
                 isPresented = true
             } label: {
@@ -498,7 +498,7 @@ struct MobileCloudKitSyncStatusButton: View {
 }
 
 private enum MobileCloudKitSyncUI {
-    static let showsWarningBannerKey = "easytask.icloud.shows-warning-banner"
+    static let showsWarningBannerKey = "planbase.icloud.shows-warning-banner"
 }
 
 private struct MobileCloudKitSyncStatusSheet: View {
@@ -674,9 +674,9 @@ private struct MobileThemePresetCard: View {
 }
 #else
 @main
-struct EasyTaskiOSPlaceholder {
+struct PlanBaseMobilePlaceholder {
     static func main() {
-        print("EasyTaskiOS builds only for iOS.")
+        print("PlanBaseMobile builds only for iOS.")
     }
 }
 #endif

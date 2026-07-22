@@ -8,7 +8,7 @@ import Testing
 func relationshipDeletionCommandsRemainConsistentAfterReopen() throws {
     try withConvergenceStore { storeURL in
         let date = try #require(DayKey.date(from: "2026-07-12"))
-        let initial = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let initial = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let event = CalendarEvent(
             title: "삭제할 이벤트",
             startAt: date,
@@ -37,7 +37,7 @@ func relationshipDeletionCommandsRemainConsistentAfterReopen() throws {
         initial.mainContext.insert(placementTask)
         try initial.mainContext.save()
 
-        let mutating = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let mutating = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let storedEvent = try #require(mutating.mainContext.fetch(
             FetchDescriptor<CalendarEvent>()
         ).first)
@@ -64,7 +64,7 @@ func relationshipDeletionCommandsRemainConsistentAfterReopen() throws {
             )
         }
 
-        let reopened = try EasyTaskContainerFactory.makePersistent(storeURL: storeURL)
+        let reopened = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
         let tasks = try reopened.mainContext.fetch(FetchDescriptor<Task>())
         #expect(try reopened.mainContext.fetch(FetchDescriptor<CalendarEvent>()).isEmpty)
         #expect(try reopened.mainContext.fetch(FetchDescriptor<TemplatePlacement>()).isEmpty)
@@ -79,7 +79,7 @@ private func withConvergenceStore(
 ) throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(
-            "EasyTaskConvergence-\(UUID().uuidString)",
+            "PlanBaseConvergence-\(UUID().uuidString)",
             isDirectory: true
         )
     try FileManager.default.createDirectory(

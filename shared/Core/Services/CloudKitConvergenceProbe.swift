@@ -148,11 +148,11 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
 }
 
 public enum CloudKitConvergenceProbe {
-    public static let markerTitle = "__EASYTASK_CLOUDKIT_PROBE__"
-    public static let logPrefix = "EASYTASK_CKPROBE"
+    public static let markerTitle = "__PLANBASE_CLOUDKIT_PROBE__"
+    public static let logPrefix = "PLANBASE_CKPROBE"
 
     private static let logger = Logger(
-        subsystem: "com.soraul2.easytask",
+        subsystem: PlanBaseCompatibility.appStoreBundleIdentifier,
         category: "CloudKitProbe"
     )
 

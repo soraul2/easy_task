@@ -123,7 +123,7 @@ func cloudKitPartialFailureSurfacesQuotaExceededCause() {
 @Test
 func cloudKitErrorDescriptionPreservesUnknownErrors() {
     let error = NSError(
-        domain: "EasyTaskTests",
+        domain: "PlanBaseTests",
         code: 42,
         userInfo: [NSLocalizedDescriptionKey: "알 수 없는 원본 오류"]
     )
@@ -206,7 +206,7 @@ func cloudKitSystemDeferralDoesNotBecomeBlockingError() {
 @Test
 @MainActor
 func syncFailureStatusDoesNotDiscardLocalRecords() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let task = Task(title: "로컬에 남아야 하는 작업", plannedAt: Date(), order: 100)
     context.insert(task)
@@ -227,26 +227,26 @@ func syncFailureStatusDoesNotDiscardLocalRecords() throws {
 
 @Test
 func cloudKitConfigurationUsesExplicitSharedContainer() {
-    let configuration = EasyTaskContainerFactory.makeConfiguration(
+    let configuration = PlanBaseContainerFactory.makeConfiguration(
         storeURL: nil,
         mode: .cloudKit,
         isStoredInMemoryOnly: false
     )
 
     #expect(configuration.cloudKitContainerIdentifier == "iCloud.com.soraul2.easytask")
-    #expect(EasyTaskStoreMode.cloudKit.usesCloudKit)
-    #expect(EasyTaskContainerFactory.appStoreMode == .cloudKit)
+    #expect(PlanBaseStoreMode.cloudKit.usesCloudKit)
+    #expect(PlanBaseContainerFactory.appStoreMode == .cloudKit)
 }
 
 @Test
 func appStoreModeFallsBackToLocalWithoutRequiredRuntimeEntitlements() {
     #expect(
-        EasyTaskContainerFactory.resolvedAppStoreMode(
+        PlanBaseContainerFactory.resolvedAppStoreMode(
             hasRequiredRuntimeEntitlements: false
         ) == .local
     )
     #expect(
-        EasyTaskContainerFactory.resolvedAppStoreMode(
+        PlanBaseContainerFactory.resolvedAppStoreMode(
             hasRequiredRuntimeEntitlements: true
         ) == .cloudKit
     )
@@ -254,14 +254,14 @@ func appStoreModeFallsBackToLocalWithoutRequiredRuntimeEntitlements() {
 
 @Test
 func localConfigurationKeepsCloudKitDisabled() {
-    let configuration = EasyTaskContainerFactory.makeConfiguration(
+    let configuration = PlanBaseContainerFactory.makeConfiguration(
         storeURL: nil,
         mode: .local,
         isStoredInMemoryOnly: false
     )
 
     #expect(configuration.cloudKitContainerIdentifier == nil)
-    #expect(!EasyTaskStoreMode.local.usesCloudKit)
+    #expect(!PlanBaseStoreMode.local.usesCloudKit)
 }
 
 @Test
@@ -305,7 +305,7 @@ func onlySuccessfulCompletedImportsTriggerReconciliation(
 @Test
 @MainActor
 func successfulCloudKitImportPersistsReconciliationRepairs() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-12"))
     let olderReview = DailyReview(
@@ -373,8 +373,8 @@ func successfulCloudKitImportPersistsReconciliationRepairs() throws {
 @Test
 func cloudKitSchemaInitializationRequiresExplicitLaunchArgument() throws {
     #expect(
-        try EasyTaskContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested(
-            arguments: ["EasyTask"]
+        try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested(
+            arguments: ["PlanBase"]
         ) == false
     )
 }

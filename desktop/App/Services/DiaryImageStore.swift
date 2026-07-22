@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
-import EasyTaskCore
+import PlanBaseCore
 
 struct DiaryPreviewImageRequest: Sendable {
     enum Source: Sendable {
@@ -21,7 +21,8 @@ struct DiaryResolvedLegacyImage: Sendable {
 }
 
 enum DiaryImageStore {
-    private static let appSupportFolder = "TodoDesktopMVP"
+    private static let appSupportFolder =
+        PlanBaseCompatibility.legacyDesktopImageFolderName
     private static let previewMaxPixelSize = 1_600
 
     static var directoryURL: URL {

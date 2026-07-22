@@ -1,6 +1,6 @@
 #if os(iOS)
 import Combine
-import EasyTaskCore
+import PlanBaseCore
 import Foundation
 import SwiftData
 import SwiftUI

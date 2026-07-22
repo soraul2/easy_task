@@ -7,7 +7,7 @@ import Testing
 @Test
 @MainActor
 func checklistDraftSaveNormalizesAndCancelLeavesPersistenceUntouched() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-14"))
     let task = Task(title: "장보기", plannedAt: day, order: 100)
@@ -54,7 +54,7 @@ func checklistDraftSaveNormalizesAndCancelLeavesPersistenceUntouched() throws {
 @Test
 @MainActor
 func checklistCardToggleUpdatesOnlyChecklistCompletion() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-14"))
     let task = Task(title: "장보기", status: .doing, plannedAt: day, order: 100)
@@ -96,7 +96,7 @@ func checklistCardToggleUpdatesOnlyChecklistCompletion() throws {
 @Test
 @MainActor
 func checklistSurvivesTaskMovesAndStatusChangesButDeletesWithTask() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let firstDay = try #require(DayKey.date(from: "2026-07-13"))
     let secondDay = try #require(DayKey.date(from: "2026-07-14"))
@@ -123,7 +123,7 @@ func checklistSurvivesTaskMovesAndStatusChangesButDeletesWithTask() throws {
 @Test
 @MainActor
 func templateCopiesChecklistTitlesAndAppliesAllItemsUnchecked() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let sourceDay = try #require(DayKey.date(from: "2026-07-14"))
     let targetDay = try #require(DayKey.date(from: "2026-07-15"))
@@ -192,7 +192,7 @@ func archiveSearchMatchesChecklistTitleAndReturnsParentTaskDate() throws {
 @Test
 @MainActor
 func integrityReconcilesChecklistDuplicatesOrphansBlanksAndCompletionMetadata() throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-14"))
     let task = Task(title: "무결성", plannedAt: day, order: 100)
@@ -240,7 +240,7 @@ func integrityReconcilesChecklistDuplicatesOrphansBlanksAndCompletionMetadata() 
 @Test
 @MainActor
 func backupV5RoundTripPreservesChecklistAndIsIdempotent() throws {
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     let day = try #require(DayKey.date(from: "2026-07-14"))
     let task = Task(title: "백업", plannedAt: day, order: 100)
     let checklist = TaskChecklistItem(
@@ -268,7 +268,7 @@ func backupV5RoundTripPreservesChecklistAndIsIdempotent() throws {
     #expect(contents.records.payload.taskChecklistItems?.count == 1)
     #expect(contents.records.payload.taskTemplateItems.first?.checklistTitles == ["검증", "배포"])
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let first = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let second = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let restored = try destination.mainContext.fetch(FetchDescriptor<TaskChecklistItem>())
@@ -294,7 +294,7 @@ func v3PackageWithoutChecklistFieldsPreservesLocalChecklistData() throws {
     let templateItemInstanceID = UUID()
     let day = try #require(DayKey.date(from: "2026-07-14"))
 
-    let destination = try EasyTaskContainerFactory.makeInMemory()
+    let destination = try PlanBaseContainerFactory.makeInMemory()
     let localTask = Task(
         id: taskID,
         instanceID: taskInstanceID,
@@ -329,7 +329,7 @@ func v3PackageWithoutChecklistFieldsPreservesLocalChecklistData() throws {
     destination.mainContext.insert(localTemplateItem)
     try destination.mainContext.save()
 
-    let source = try EasyTaskContainerFactory.makeInMemory()
+    let source = try PlanBaseContainerFactory.makeInMemory()
     source.mainContext.insert(Task(
         id: taskID,
         instanceID: taskInstanceID,
@@ -380,7 +380,7 @@ func v3PackageWithoutChecklistFieldsPreservesLocalChecklistData() throws {
 @Test
 @MainActor
 func cloudKitChecklistProbeVerifiesParentChildrenAndCleanup() async throws {
-    let container = try EasyTaskContainerFactory.makeInMemory()
+    let container = try PlanBaseContainerFactory.makeInMemory()
     let token = UUID()
     let writer = try await CloudKitConvergenceProbe.runChecklistProbe(
         configuration: CloudKitProbeConfiguration(role: .writer, token: token),
@@ -422,7 +422,7 @@ func cloudKitChecklistProbeVerifiesParentChildrenAndCleanup() async throws {
 func cloudKitChecklistProbeKindParsesFromArguments() {
     let token = UUID()
     let configuration = CloudKitConvergenceProbe.configuration(arguments: [
-        "EasyTask",
+        "PlanBase",
         "--cloudkit-probe-kind", "checklist",
         "--cloudkit-probe-role", "reader",
         "--cloudkit-probe-token", token.uuidString
