@@ -181,6 +181,12 @@ func archiveSearchMatchesChecklistTitleAndReturnsParentTaskDate() throws {
 
     #expect(records.map(\.dayKey) == ["2026-07-14"])
     #expect(records.first?.tasks.map(\.id) == [task.id])
+    #expect(records.first?.matchedTaskIDs == [task.id])
+    #expect(records.first?.matchedChecklistItemIDs == [item.id])
+
+    let presentation = try #require(records.first.map(ArchiveDayPresentation.init(record:)))
+    #expect(presentation.shouldExpandTaskListForSearch)
+    #expect(presentation.checklistItemMatchesSearch(item.id))
 }
 
 @Test

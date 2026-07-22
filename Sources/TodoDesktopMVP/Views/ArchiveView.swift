@@ -655,7 +655,8 @@ private struct ArchiveDayGroupView: View {
                     ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
                         ArchiveTaskRow(
                             task: task,
-                            isSearchMatch: presentation.taskMatchesSearch(task.id)
+                            isSearchMatch: presentation.taskMatchesSearch(task.id),
+                            matchedChecklistItemIDs: presentation.matchedChecklistItemIDs
                         )
                         if index < group.tasks.count - 1 {
                             Divider()
@@ -882,6 +883,23 @@ private struct ArchiveReviewMissingImage: View {
 private struct ArchiveTaskRow: View {
     var task: Task
     var isSearchMatch: Bool
+    var matchedChecklistItemIDs: Set<UUID>
+    @Query private var checklistItems: [TaskChecklistItem]
+
+    init(
+        task: Task,
+        isSearchMatch: Bool,
+        matchedChecklistItemIDs: Set<UUID>
+    ) {
+        self.task = task
+        self.isSearchMatch = isSearchMatch
+        self.matchedChecklistItemIDs = matchedChecklistItemIDs
+        _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
+    }
+
+    private var matchingChecklistItems: [TaskChecklistItem] {
+        checklistItems.filter { matchedChecklistItemIDs.contains($0.id) }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -913,6 +931,21 @@ private struct ArchiveTaskRow: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
                         .lineLimit(2)
+                }
+
+                if !matchingChecklistItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(matchingChecklistItems.prefix(3))) { item in
+                            Label("체크리스트: \(item.title)", systemImage: "magnifyingglass")
+                                .lineLimit(2)
+                        }
+                        if matchingChecklistItems.count > 3 {
+                            Text("외 \(matchingChecklistItems.count - 3)개 일치")
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
                 }
 
                 HStack(spacing: 8) {

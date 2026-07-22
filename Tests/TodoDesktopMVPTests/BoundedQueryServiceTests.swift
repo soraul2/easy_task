@@ -229,6 +229,44 @@ func archiveSearchScansBoundedWindowsUntilSparseMatch() throws {
 
 @Test
 @MainActor
+func archivePageSearchIncludesChecklistMatches() throws {
+    let container = try EasyTaskContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let referenceDate = try #require(DayKey.date(from: "2026-07-12"))
+    let task = Task(
+        title: "장보기",
+        status: .done,
+        plannedAt: referenceDate,
+        order: 100
+    )
+    task.completedAt = referenceDate
+    task.completedDayKey = "2026-07-12"
+    let checklistItem = TaskChecklistItem(
+        taskId: task.id,
+        title: "오트밀",
+        order: 100
+    )
+    context.insert(task)
+    context.insert(checklistItem)
+    try context.save()
+
+    var filter = ArchiveFilter()
+    filter.searchText = "오트밀"
+    filter.scope = .tasks
+    let page = try BoundedQueryService.archivePage(
+        in: context,
+        filter: filter,
+        referenceDate: referenceDate
+    )
+
+    let record = try #require(page.records.first)
+    #expect(record.tasks.map(\.id) == [task.id])
+    #expect(record.matchedTaskIDs == [task.id])
+    #expect(record.matchedChecklistItemIDs == [checklistItem.id])
+}
+
+@Test
+@MainActor
 func boundedReviewMediaAndArchiveCandidateDescriptorsUseExactOwners() throws {
     let container = try EasyTaskContainerFactory.makeInMemory()
     let context = container.mainContext
