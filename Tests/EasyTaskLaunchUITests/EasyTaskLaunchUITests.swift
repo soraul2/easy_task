@@ -118,7 +118,14 @@ final class EasyTaskLaunchUITests: XCTestCase {
         XCTAssertTrue(app.buttons["\(firstItemTitle) 완료 상태"].waitForExistence(timeout: 5))
         newChecklistField.tap()
         newChecklistField.typeText(secondItemTitle)
-        app.buttons["체크리스트 항목 추가"].tap()
+        let addChecklistButton = app.buttons["체크리스트 항목 추가"]
+        addChecklistButton.tap()
+        let secondItemButton = app.buttons["\(secondItemTitle) 완료 상태"]
+        if !secondItemButton.waitForExistence(timeout: 2) {
+            addChecklistButton.tap()
+        }
+        XCTAssertTrue(secondItemButton.waitForExistence(timeout: 5))
+        app.swipeDown()
 
         let reorderButton = app.buttons["체크리스트 순서 편집"]
         XCTAssertTrue(scrollToHittable(reorderButton, in: app))
