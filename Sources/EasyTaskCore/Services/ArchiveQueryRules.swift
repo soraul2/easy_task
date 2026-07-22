@@ -85,6 +85,7 @@ public struct ArchiveDayRecord: Identifiable {
     public var tasks: [Task]
     public var review: DailyReview?
     public var matchedTaskIDs: Set<UUID>
+    public var matchedChecklistItemIDs: Set<UUID>
     public var reviewMatchesSearch: Bool
     public var hasSearchQuery: Bool
 
@@ -95,6 +96,7 @@ public struct ArchiveDayRecord: Identifiable {
         tasks: [Task],
         review: DailyReview?,
         matchedTaskIDs: Set<UUID> = [],
+        matchedChecklistItemIDs: Set<UUID> = [],
         reviewMatchesSearch: Bool = false,
         hasSearchQuery: Bool = false
     ) {
@@ -102,6 +104,7 @@ public struct ArchiveDayRecord: Identifiable {
         self.tasks = tasks
         self.review = review
         self.matchedTaskIDs = matchedTaskIDs
+        self.matchedChecklistItemIDs = matchedChecklistItemIDs
         self.reviewMatchesSearch = reviewMatchesSearch
         self.hasSearchQuery = hasSearchQuery
     }
@@ -114,6 +117,7 @@ public struct ArchiveDayPresentation: Equatable {
     public var taskCount: Int
     public var hasReview: Bool
     public var matchedTaskIDs: Set<UUID>
+    public var matchedChecklistItemIDs: Set<UUID>
     public var reviewMatchesSearch: Bool
     public var hasSearchQuery: Bool
 
@@ -127,6 +131,7 @@ public struct ArchiveDayPresentation: Equatable {
         taskCount = record.tasks.count
         hasReview = record.review != nil
         matchedTaskIDs = record.matchedTaskIDs
+        matchedChecklistItemIDs = record.matchedChecklistItemIDs
         reviewMatchesSearch = record.reviewMatchesSearch
         hasSearchQuery = record.hasSearchQuery
     }
@@ -148,6 +153,10 @@ public struct ArchiveDayPresentation: Equatable {
 
     public func taskMatchesSearch(_ taskID: UUID) -> Bool {
         matchedTaskIDs.contains(taskID)
+    }
+
+    public func checklistItemMatchesSearch(_ itemID: UUID) -> Bool {
+        matchedChecklistItemIDs.contains(itemID)
     }
 }
 
@@ -190,12 +199,19 @@ public enum ArchiveQueryRules {
                     return $0.instanceID.uuidString < $1.instanceID.uuidString
                 }
             }
+        let activeChecklistItems = checklistItems.filter { $0.supersededAt == nil }
         let checklistItemsByTaskID = Dictionary(
-            grouping: checklistItems.filter { $0.supersededAt == nil },
+            grouping: activeChecklistItems,
             by: \.taskId
         )
         let searchQuery = filter.normalizedSearchText
         let hasSearchQuery = !searchQuery.isEmpty
+        let completedTaskIDs = Set(completedTasks.map(\.id))
+        let matchingChecklistItemIDs = hasSearchQuery && filter.scope.includesTasks
+            ? Set(activeChecklistItems.filter {
+                completedTaskIDs.contains($0.taskId) && contains($0.title, query: searchQuery)
+            }.map(\.id))
+            : []
         let matchingTasks = hasSearchQuery && filter.scope.includesTasks
             ? completedTasks.filter {
                 matchesSearch(
@@ -236,6 +252,12 @@ public enum ArchiveQueryRules {
                         (tasksByDay[key] ?? [])
                             .map(\.id)
                             .filter(matchingTaskIDs.contains)
+                    ),
+                    matchedChecklistItemIDs: Set(
+                        (tasksByDay[key] ?? [])
+                            .flatMap { checklistItemsByTaskID[$0.id] ?? [] }
+                            .map(\.id)
+                            .filter(matchingChecklistItemIDs.contains)
                     ),
                     reviewMatchesSearch: reviewsByDay[key]
                         .map { matchingReviewIDs.contains($0.id) } ?? false,

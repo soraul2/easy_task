@@ -152,7 +152,8 @@ struct MobileArchiveRecordCard: View {
                     ForEach(Array(record.tasks.enumerated()), id: \.element.id) { index, task in
                         MobileArchiveTaskRow(
                             task: task,
-                            isSearchMatch: presentation.taskMatchesSearch(task.id)
+                            isSearchMatch: presentation.taskMatchesSearch(task.id),
+                            matchedChecklistItemIDs: presentation.matchedChecklistItemIDs
                         )
                         if index < record.tasks.count - 1 {
                             Divider()
@@ -446,16 +447,26 @@ private struct MobileArchiveImageItem: Identifiable {
 private struct MobileArchiveTaskRow: View {
     var task: TodoTask
     var isSearchMatch: Bool
+    var matchedChecklistItemIDs: Set<UUID>
     @Query private var checklistItems: [TaskChecklistItem]
 
-    init(task: TodoTask, isSearchMatch: Bool) {
+    init(
+        task: TodoTask,
+        isSearchMatch: Bool,
+        matchedChecklistItemIDs: Set<UUID>
+    ) {
         self.task = task
         self.isSearchMatch = isSearchMatch
+        self.matchedChecklistItemIDs = matchedChecklistItemIDs
         _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
     }
 
     private var checklistProgress: ChecklistProgress {
         TaskChecklistService.progress(in: checklistItems)
+    }
+
+    private var matchingChecklistItems: [TaskChecklistItem] {
+        checklistItems.filter { matchedChecklistItemIDs.contains($0.id) }
     }
 
     private var displayDate: String {
@@ -493,6 +504,22 @@ private struct MobileArchiveTaskRow: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
                         .lineLimit(3)
+                }
+
+                if !matchingChecklistItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(matchingChecklistItems.prefix(3))) { item in
+                            Label("체크리스트: \(item.title)", systemImage: "magnifyingglass")
+                                .lineLimit(2)
+                        }
+                        if matchingChecklistItems.count > 3 {
+                            Text("외 \(matchingChecklistItems.count - 3)개 일치")
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .accessibilityIdentifier("archive-checklist-search-match")
                 }
 
                 HStack(spacing: 10) {
