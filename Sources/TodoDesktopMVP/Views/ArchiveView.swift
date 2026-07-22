@@ -11,6 +11,8 @@ struct ArchiveView: View {
     @State private var filter = ArchiveFilter()
     @State private var message: String?
     @State private var querySession: ArchiveQuerySession?
+    @State private var showingFilter = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         let attachmentIndex = DiaryAttachmentIndex(
@@ -27,13 +29,14 @@ struct ArchiveView: View {
                 .padding(.top, 24)
                 .padding(.bottom, 12)
 
-            ArchiveDetailedSearchPanel(
+            ArchiveSearchToolbar(
                 text: $filter.searchText,
                 period: $filter.period,
                 scope: $filter.scope,
                 startDate: $filter.customStartDate,
                 endDate: $filter.customEndDate,
-                onReset: resetSearch
+                showingFilter: $showingFilter,
+                searchFocused: $searchFocused
             )
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -47,8 +50,9 @@ struct ArchiveView: View {
                     }
 
                     if querySession?.isLoading == true && archiveGroups.isEmpty {
-                        ProgressView("기록 불러오는 중")
-                            .frame(maxWidth: .infinity, minHeight: 180)
+                        ForEach(0..<3, id: \.self) { _ in
+                            ArchiveSkeletonCard()
+                        }
                     } else if archiveGroups.isEmpty {
                         emptyState
                     } else {
@@ -123,6 +127,15 @@ struct ArchiveView: View {
                   sourceContext === modelContext else { return }
             querySession?.refreshPreservingDepth()
         }
+        .background {
+            Button("") {
+                searchFocused = true
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
     }
 
     private var header: some View {
@@ -138,27 +151,27 @@ struct ArchiveView: View {
 
             Spacer()
 
-            Button {
-                exportBackup()
+            Menu {
+                Button {
+                    exportBackup()
+                } label: {
+                    Label("백업 내보내기", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    importBackup()
+                } label: {
+                    Label("백업 가져오기", systemImage: "square.and.arrow.down")
+                }
             } label: {
-                Label("내보내기", systemImage: "square.and.arrow.up")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 34, height: 34)
                     .calendarToolbarButtonBackground()
             }
             .buttonStyle(.plain)
-
-            Button {
-                importBackup()
-            } label: {
-                Label("가져오기", systemImage: "square.and.arrow.down")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
-                    .calendarToolbarButtonBackground()
-            }
-            .buttonStyle(.plain)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .help("기록 및 백업 메뉴")
         }
     }
 
@@ -181,10 +194,6 @@ struct ArchiveView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
-    }
-
-    private func resetSearch() {
-        filter.reset()
     }
 
     private func shouldDebounceSearch(
@@ -226,85 +235,154 @@ struct ArchiveView: View {
     }
 }
 
-private struct ArchiveDetailedSearchPanel: View {
+private struct ArchiveSearchToolbar: View {
     @Binding var text: String
     @Binding var period: ArchivePeriod
     @Binding var scope: ArchiveScope
     @Binding var startDate: Date
     @Binding var endDate: Date
-    var onReset: () -> Void
+    @Binding var showingFilter: Bool
+    @FocusState.Binding var searchFocused: Bool
+
+    private var hasActiveFilterOptions: Bool {
+        period != .all || scope != .all
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                ArchiveSearchField(text: $text)
+                ArchiveSearchField(text: $text, searchFocused: $searchFocused)
 
                 Button {
-                    onReset()
+                    showingFilter.toggle()
                 } label: {
-                    Label("초기화", systemImage: "arrow.counterclockwise")
+                    Label(
+                        "필터",
+                        systemImage: hasActiveFilterOptions
+                            ? "line.3.horizontal.decrease.circle.fill"
+                            : "line.3.horizontal.decrease.circle"
+                    )
                         .font(.system(size: 13, weight: .semibold))
                         .padding(.horizontal, 12)
                         .frame(height: 44)
                         .calendarToolbarButtonBackground()
                 }
                 .buttonStyle(.plain)
+                .popover(isPresented: $showingFilter, arrowEdge: .top) {
+                    ArchiveFilterPopover(
+                        period: $period,
+                        scope: $scope,
+                        startDate: $startDate,
+                        endDate: $endDate
+                    )
+                }
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) {
-                    periodPicker
-                    scopePicker
+            if hasActiveFilterOptions {
+                HStack(spacing: 8) {
+                    if period != .all {
+                        ArchiveFilterChip(title: period.title) {
+                            period = .all
+                        }
+                    }
+                    if scope != .all {
+                        ArchiveFilterChip(title: scope.title) {
+                            scope = .all
+                        }
+                    }
+                    Button("모두 지우기") {
+                        period = .all
+                        scope = .all
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
                     Spacer(minLength: 0)
                 }
+            }
+        }
+    }
+}
 
-                VStack(alignment: .leading, spacing: 12) {
-                    periodPicker
-                    scopePicker
+private struct ArchiveFilterPopover: View {
+    @Binding var period: ArchivePeriod
+    @Binding var scope: ArchiveScope
+    @Binding var startDate: Date
+    @Binding var endDate: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text("기록 필터")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.primaryText)
+                Spacer()
+                if period != .all || scope != .all {
+                    Button("초기화") {
+                        period = .all
+                        scope = .all
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
                 }
+            }
+
+            FilterPicker(title: "기간") {
+                Picker("기간", selection: $period) {
+                    ForEach(ArchivePeriod.allCases) { period in
+                        Text(period.title).tag(period)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 300)
+            }
+
+            FilterPicker(title: "검색 대상") {
+                Picker("검색 대상", selection: $scope) {
+                    ForEach(ArchiveScope.allCases) { scope in
+                        Text(scope.title).tag(scope)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 210)
             }
 
             if period == .custom {
                 HStack(spacing: 12) {
                     DatePicker("시작", selection: $startDate, displayedComponents: .date)
                     DatePicker("종료", selection: $endDate, displayedComponents: .date)
-                    Spacer(minLength: 0)
                 }
                 .datePickerStyle(.compact)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
             }
         }
-        .padding(14)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
+        .padding(18)
+        .frame(width: 400)
+        .background(AppTheme.panel)
     }
+}
 
-    private var periodPicker: some View {
-        FilterPicker(title: "기간") {
-            Picker("기간", selection: $period) {
-                ForEach(ArchivePeriod.allCases) { period in
-                    Text(period.title).tag(period)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 320)
-        }
-    }
+private struct ArchiveFilterChip: View {
+    var title: String
+    var onRemove: () -> Void
 
-    private var scopePicker: some View {
-        FilterPicker(title: "검색 대상") {
-            Picker("검색 대상", selection: $scope) {
-                ForEach(ArchiveScope.allCases) { scope in
-                    Text(scope.title).tag(scope)
-                }
+    var body: some View {
+        Button(action: onRemove) {
+            HStack(spacing: 6) {
+                Text(title)
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
             }
-            .pickerStyle(.segmented)
-            .frame(width: 210)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(AppTheme.selectedTab, in: Capsule())
         }
+        .buttonStyle(.plain)
+        .help("\(title) 필터 제거")
     }
 }
 
@@ -325,6 +403,7 @@ private struct FilterPicker<Content: View>: View {
 
 private struct ArchiveSearchField: View {
     @Binding var text: String
+    @FocusState.Binding var searchFocused: Bool
 
     var body: some View {
         HStack(spacing: 9) {
@@ -336,6 +415,7 @@ private struct ArchiveSearchField: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .foregroundStyle(AppTheme.primaryText)
+                .focused($searchFocused)
 
             if !text.isEmpty {
                 Button {
@@ -375,12 +455,43 @@ private struct ArchiveMessageView: View {
     }
 }
 
+private struct ArchiveSkeletonCard: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .frame(width: 36, height: 36)
+
+            VStack(alignment: .leading, spacing: 12) {
+                RoundedRectangle(cornerRadius: 4)
+                    .frame(width: 220, height: 15)
+                RoundedRectangle(cornerRadius: 4)
+                    .frame(height: 12)
+                RoundedRectangle(cornerRadius: 4)
+                    .frame(width: 360, height: 12)
+            }
+        }
+        .foregroundStyle(AppTheme.input)
+        .padding(18)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("기록 불러오는 중")
+    }
+}
+
 private struct ArchiveDayGroupView: View {
     var group: ArchiveDayRecord
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
     @State private var isTaskListExpanded = false
+
+    private var presentation: ArchiveDayPresentation {
+        ArchiveDayPresentation(record: group)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -404,41 +515,88 @@ private struct ArchiveDayGroupView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
+        .onAppear {
+            if presentation.shouldExpandTaskListForSearch {
+                isTaskListExpanded = true
+            }
+        }
+        .onChange(of: presentation.shouldExpandTaskListForSearch) { _, shouldExpand in
+            if shouldExpand {
+                isTaskListExpanded = true
+            }
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(recordTitle)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(AppTheme.primaryText)
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 7) {
+                titleLine
+                if !presentation.summaryText.isEmpty || presentation.reviewMatchesSearch {
+                    metadataBadges
+                }
+            }
 
-            Text("›")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-
-            Text(displayDate)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-
-            Spacer()
-
-            Text(summaryText)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
+            Spacer(minLength: 8)
 
             Button {
                 openBoard()
             } label: {
                 Image(systemName: "rectangle.3.group")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 30, height: 28)
-                    .calendarToolbarButtonBackground()
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 30, height: 28)
+                        .calendarToolbarButtonBackground()
             }
             .buttonStyle(.plain)
             .help("\(group.dayKey) 칸반보드로 이동")
+        }
+    }
+
+    private var titleLine: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(presentation.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(1)
+                Text("›")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                Text(presentation.displayDate)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize()
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(presentation.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(2)
+                Text(presentation.displayDate)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .foregroundStyle(AppTheme.primaryText)
+    }
+
+    private var metadataBadges: some View {
+        HStack(spacing: 6) {
+            if !presentation.summaryText.isEmpty {
+                Text(presentation.summaryText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.selectedTab, in: Capsule())
+            }
+
+            if presentation.reviewMatchesSearch {
+                Label("회고 일치", systemImage: "magnifyingglass")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.eventForeground)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.event, in: Capsule())
+            }
         }
     }
 
@@ -473,14 +631,14 @@ private struct ArchiveDayGroupView: View {
                     Text("\(group.tasks.count)")
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
+                        .background(AppTheme.selectedTab, in: Capsule())
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .bold))
                         .rotationEffect(.degrees(isTaskListExpanded ? 0 : -90))
                 }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
+                .foregroundStyle(AppTheme.primaryText)
                 .padding(.horizontal, 10)
                 .frame(height: 34)
                 .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
@@ -493,20 +651,19 @@ private struct ArchiveDayGroupView: View {
             .help(isTaskListExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
 
             if isTaskListExpanded {
-                ForEach(group.tasks) { task in
-                    ArchiveTaskRow(task: task)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                VStack(spacing: 0) {
+                    ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
+                        ArchiveTaskRow(
+                            task: task,
+                            isSearchMatch: presentation.taskMatchesSearch(task.id)
+                        )
+                        if index < group.tasks.count - 1 {
+                            Divider()
+                                .overlay(AppTheme.border)
+                        }
+                    }
                 }
-            } else {
-                ForEach(group.tasks.prefix(3)) { task in
-                    ArchiveTaskCompactRow(task: task)
-                }
-                if group.tasks.count > 3 {
-                    Text("외 \(group.tasks.count - 3)개")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .padding(.top, 2)
-                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
@@ -515,8 +672,9 @@ private struct ArchiveDayGroupView: View {
         VStack(spacing: 8) {
             Image(systemName: group.review == nil ? "checkmark.circle" : "book.closed")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(group.review == nil ? AppTheme.done : AppTheme.event)
+                .foregroundStyle(group.review == nil ? AppTheme.doneForeground : AppTheme.eventForeground)
                 .frame(width: 36, height: 36)
+                .background(group.review == nil ? AppTheme.done : AppTheme.event, in: Circle())
 
             Rectangle()
                 .fill(AppTheme.border)
@@ -524,30 +682,6 @@ private struct ArchiveDayGroupView: View {
                 .frame(maxHeight: .infinity)
         }
         .frame(width: 40)
-    }
-
-    private var displayDate: String {
-        guard let date = DayKey.date(from: group.dayKey) else { return group.dayKey }
-        return DayKey.display(date)
-    }
-
-    private var recordTitle: String {
-        let title = group.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !title.isEmpty {
-            return title
-        }
-        return group.review == nil ? "작업 기록" : "하루 회고"
-    }
-
-    private var summaryText: String {
-        var parts: [String] = []
-        if !group.tasks.isEmpty {
-            parts.append("작업 \(group.tasks.count)")
-        }
-        if group.review != nil {
-            parts.append("회고")
-        }
-        return parts.joined(separator: " · ")
     }
 
     private func openBoard() {
@@ -745,40 +879,34 @@ private struct ArchiveReviewMissingImage: View {
     }
 }
 
-private struct ArchiveTaskCompactRow: View {
-    var task: Task
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(AppTheme.done)
-            Text(task.title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .lineLimit(1)
-                .layoutPriority(1)
-            Spacer()
-            TaskChecklistProgressLabel(taskID: task.id)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
 private struct ArchiveTaskRow: View {
     var task: Task
+    var isSearchMatch: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(AppTheme.doneForeground)
+                .frame(width: 22, height: 22)
+                .background(AppTheme.done, in: Circle())
+                .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 5) {
-                Text(task.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(task.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .lineLimit(2)
+                    if isSearchMatch {
+                        Text("일치")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(AppTheme.eventForeground)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(AppTheme.event, in: Capsule())
+                    }
+                }
 
                 if let note = task.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(note)
@@ -795,16 +923,19 @@ private struct ArchiveTaskRow: View {
                     TaskChecklistProgressLabel(taskID: task.id)
                 }
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(AppTheme.cardMutedText)
+                .foregroundStyle(AppTheme.secondaryText)
             }
 
             Spacer()
         }
-        .padding(12)
-        .background(AppTheme.done.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 11)
+        .background(isSearchMatch ? AppTheme.selectedTab : Color.clear, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
+            if isSearchMatch {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
         }
     }
 }
