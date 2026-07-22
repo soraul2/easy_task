@@ -21,7 +21,10 @@ shared/
   Core/                     # 공통 모델, 서비스, 테마
   Resources/                # 양 플랫폼 공용 에셋과 마이그레이션 리소스
   Tests/                    # 공통 로직 단위 테스트
-backups/                    # Git에서 제외되는 로컬 저장소 안전 백업
+docs/                       # 아키텍처, 동기화, 리팩터링 문서
+scripts/                    # 빌드와 CloudKit 검증 스크립트
+.local/
+  backups/                  # Git에서 제외되는 로컬 저장소 안전 백업
 ```
 
 ## 공통 코어
