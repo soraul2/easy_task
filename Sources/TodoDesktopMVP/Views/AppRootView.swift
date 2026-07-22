@@ -45,6 +45,10 @@ struct AppRootView: View {
     @State private var syncMonitor = CloudKitSyncMonitor()
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
+    private var cloudKitEnabled: Bool {
+        EasyTaskContainerFactory.runtimeAppStoreMode.usesCloudKit
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             content
@@ -56,7 +60,9 @@ struct AppRootView: View {
 
             HStack(spacing: 14) {
                 FloatingTabBar(selectedTab: $selectedTab)
-                CloudKitSyncStatusButton(monitor: syncMonitor)
+                if cloudKitEnabled {
+                    CloudKitSyncStatusButton(monitor: syncMonitor)
+                }
                 ThemeSelectorButton(selectedThemeID: $selectedThemeID)
             }
             .padding(.bottom, 20)
@@ -66,7 +72,9 @@ struct AppRootView: View {
         .environment(syncMonitor)
         .task {
             start()
-            await syncMonitor.refreshAccountStatus()
+            if cloudKitEnabled {
+                await syncMonitor.refreshAccountStatus()
+            }
         }
         .onChange(of: selectedTab) {
             persistArchiveIfNeeded()
@@ -78,7 +86,9 @@ struct AppRootView: View {
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
             refreshCurrentDay()
-            Swift.Task { await syncMonitor.refreshAccountStatus() }
+            if cloudKitEnabled {
+                Swift.Task { await syncMonitor.refreshAccountStatus() }
+            }
         }
         .onChange(of: selectedThemeID) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
@@ -145,7 +155,7 @@ struct AppRootView: View {
 
     private func seedDemoDataIfNeeded() throws {
         let policy = SeedPolicy.appStartup(
-            cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
+            cloudKitEnabled: cloudKitEnabled
         )
         guard case .demo = policy else { return }
 

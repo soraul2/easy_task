@@ -239,6 +239,20 @@ func cloudKitConfigurationUsesExplicitSharedContainer() {
 }
 
 @Test
+func appStoreModeFallsBackToLocalWithoutRequiredRuntimeEntitlements() {
+    #expect(
+        EasyTaskContainerFactory.resolvedAppStoreMode(
+            hasRequiredRuntimeEntitlements: false
+        ) == .local
+    )
+    #expect(
+        EasyTaskContainerFactory.resolvedAppStoreMode(
+            hasRequiredRuntimeEntitlements: true
+        ) == .cloudKit
+    )
+}
+
+@Test
 func localConfigurationKeepsCloudKitDisabled() {
     let configuration = EasyTaskContainerFactory.makeConfiguration(
         storeURL: nil,
