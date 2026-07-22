@@ -38,6 +38,35 @@ final class EasyTaskLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testArchiveTasksStayCollapsedAndBoardNavigationWorks() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let archiveTab = app.tabBars.firstMatch.buttons["기록"]
+        XCTAssertTrue(archiveTab.waitForExistence(timeout: 15))
+        archiveTab.tap()
+
+        let disclosure = app.buttons["그날 한 일 펼치기"].firstMatch
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 10))
+        let completedTaskTitle = app.staticTexts["완료 영역 접힘 확인"]
+        XCTAssertFalse(completedTaskTitle.exists)
+
+        disclosure.tap()
+        XCTAssertTrue(completedTaskTitle.waitForExistence(timeout: 5))
+
+        let boardButton = app.buttons.matching(
+            NSPredicate(format: "label ENDSWITH %@", "칸반보드 열기")
+        ).firstMatch
+        XCTAssertTrue(boardButton.waitForExistence(timeout: 5))
+        boardButton.tap()
+        XCTAssertTrue(
+            app.textFields["해당 날짜에 할 일 입력"]
+                .waitForExistence(timeout: 10)
+        )
+    }
+
+    @MainActor
     func testReviewComposerIsDirectlyAccessibleFromBoard() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]

@@ -74,6 +74,39 @@ public struct AppThemeColorSet: Hashable, Sendable {
     public var done: ThemeColorToken
     public var event: ThemeColorToken
     public var eventPalette: [ThemeColorToken]
+
+    public var resolvedDoneForeground: ThemeColorToken {
+        resolvedForeground(
+            on: done,
+            preferred: [cardText, primaryText]
+        )
+    }
+
+    public var resolvedEventForeground: ThemeColorToken {
+        resolvedForeground(
+            on: event,
+            preferred: [eventText, primaryText]
+        )
+    }
+
+    private func resolvedForeground(
+        on background: ThemeColorToken,
+        preferred: [ThemeColorToken]
+    ) -> ThemeColorToken {
+        let fallbackCandidates = [
+            ThemeColorToken(hex: "#000000"),
+            ThemeColorToken(hex: "#FFFFFF")
+        ]
+        let candidates = preferred + fallbackCandidates
+        if let accessible = candidates.first(where: {
+            $0.contrastRatio(to: background) >= 4.5
+        }) {
+            return accessible
+        }
+        return candidates.max(by: {
+            $0.contrastRatio(to: background) < $1.contrastRatio(to: background)
+        }) ?? ThemeColorToken(hex: "#FFFFFF")
+    }
 }
 
 public struct AppThemePreset: Identifiable, Hashable, Sendable {
@@ -219,9 +252,9 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
                 event: "#B8809D",
                 eventPalette: ["#B8809D", "#C78F91", "#A889B9", "#B99379", "#789A91", "#7E86A9"],
                 primaryText: "#4D404C",
-                secondaryText: "#8C7484",
+                secondaryText: "#4D404C",
                 cardText: "#4D404C",
-                cardMutedText: "#8B7180"
+                cardMutedText: "#4D404C"
             )
         case "forestCream":
             return light(
@@ -483,9 +516,9 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
             floatingBar: ThemeColorToken(hex: "#30262E"),
             border: ThemeColorToken(hex: "#655363"),
             primaryText: ThemeColorToken(hex: "#FFF4F7"),
-            secondaryText: ThemeColorToken(hex: "#D9C7D3"),
+            secondaryText: ThemeColorToken(hex: "#FFF4F7"),
             cardText: ThemeColorToken(hex: "#FFF8FA"),
-            cardMutedText: ThemeColorToken(hex: "#DCC8D5"),
+            cardMutedText: ThemeColorToken(hex: "#FFF4F7"),
             selectedTab: ThemeColorToken(hex: "#675872"),
             columnTodo: ThemeColorToken(hex: "#30282F"),
             columnDoing: ThemeColorToken(hex: "#3F2D35"),
@@ -660,8 +693,10 @@ public enum AppTheme {
     public static var todo: Color { colors.todo.color }
     public static var doing: Color { colors.doing.color }
     public static var done: Color { colors.done.color }
+    public static var doneForeground: Color { colors.resolvedDoneForeground.color }
     public static var event: Color { colors.event.color }
     public static var eventText: Color { colors.eventText.color }
+    public static var eventForeground: Color { colors.resolvedEventForeground.color }
     public static var cardText: Color { colors.cardText.color }
     public static var cardMutedText: Color { colors.cardMutedText.color }
 

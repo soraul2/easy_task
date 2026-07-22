@@ -380,7 +380,8 @@ private struct MobileAppRootView: View {
 
     private func seedDemoDataIfNeeded() throws {
         let policy = SeedPolicy.appStartup(
-            cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit
+            cloudKitEnabled: EasyTaskContainerFactory.appStoreMode.usesCloudKit &&
+                !EasyTaskLaunchEnvironment.isUITesting
         )
         guard case .demo = policy else { return }
 

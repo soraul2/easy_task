@@ -84,13 +84,70 @@ public struct ArchiveDayRecord: Identifiable {
     public var dayKey: String
     public var tasks: [Task]
     public var review: DailyReview?
+    public var matchedTaskIDs: Set<UUID>
+    public var reviewMatchesSearch: Bool
+    public var hasSearchQuery: Bool
 
     public var id: String { dayKey }
 
-    public init(dayKey: String, tasks: [Task], review: DailyReview?) {
+    public init(
+        dayKey: String,
+        tasks: [Task],
+        review: DailyReview?,
+        matchedTaskIDs: Set<UUID> = [],
+        reviewMatchesSearch: Bool = false,
+        hasSearchQuery: Bool = false
+    ) {
         self.dayKey = dayKey
         self.tasks = tasks
         self.review = review
+        self.matchedTaskIDs = matchedTaskIDs
+        self.reviewMatchesSearch = reviewMatchesSearch
+        self.hasSearchQuery = hasSearchQuery
+    }
+}
+
+public struct ArchiveDayPresentation: Equatable {
+    public var dayKey: String
+    public var title: String
+    public var displayDate: String
+    public var taskCount: Int
+    public var hasReview: Bool
+    public var matchedTaskIDs: Set<UUID>
+    public var reviewMatchesSearch: Bool
+    public var hasSearchQuery: Bool
+
+    public init(record: ArchiveDayRecord) {
+        let reviewTitle = record.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        dayKey = record.dayKey
+        title = reviewTitle.isEmpty
+            ? (record.review == nil ? "작업 기록" : "하루 회고")
+            : reviewTitle
+        displayDate = DayKey.date(from: record.dayKey).map(DayKey.display) ?? record.dayKey
+        taskCount = record.tasks.count
+        hasReview = record.review != nil
+        matchedTaskIDs = record.matchedTaskIDs
+        reviewMatchesSearch = record.reviewMatchesSearch
+        hasSearchQuery = record.hasSearchQuery
+    }
+
+    public var summaryText: String {
+        var parts: [String] = []
+        if taskCount > 0 {
+            parts.append("작업 \(taskCount)")
+        }
+        if hasReview {
+            parts.append("회고")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    public var shouldExpandTaskListForSearch: Bool {
+        hasSearchQuery && !matchedTaskIDs.isEmpty
+    }
+
+    public func taskMatchesSearch(_ taskID: UUID) -> Bool {
+        matchedTaskIDs.contains(taskID)
     }
 }
 
@@ -137,25 +194,34 @@ public enum ArchiveQueryRules {
             grouping: checklistItems.filter { $0.supersededAt == nil },
             by: \.taskId
         )
+        let searchQuery = filter.normalizedSearchText
+        let hasSearchQuery = !searchQuery.isEmpty
+        let matchingTasks = hasSearchQuery && filter.scope.includesTasks
+            ? completedTasks.filter {
+                matchesSearch(
+                    $0,
+                    checklistItems: checklistItemsByTaskID[$0.id] ?? [],
+                    query: searchQuery
+                )
+            }
+            : []
+        let matchingTaskIDs = Set(matchingTasks.map(\.id))
+        let matchingReviewIDs = hasSearchQuery && filter.scope.includesReviews
+            ? Set(reviewsByDay.values.filter {
+                matchesSearch($0, query: searchQuery)
+            }.map(\.id))
+            : []
 
         let dayKeys: Set<String>
-        if filter.normalizedSearchText.isEmpty {
+        if !hasSearchQuery {
             let taskKeys = filter.scope.includesTasks ? Set(tasksByDay.keys) : Set<String>()
             let reviewKeys = filter.scope.includesReviews ? Set(reviewsByDay.keys) : Set<String>()
             dayKeys = taskKeys.union(reviewKeys)
         } else {
-            let taskKeys = filter.scope.includesTasks
-                ? completedTasks.filter {
-                    matchesSearch(
-                        $0,
-                        checklistItems: checklistItemsByTaskID[$0.id] ?? [],
-                        query: filter.normalizedSearchText
-                    )
-                }.map(dayKey)
-                : []
-            let reviewKeys = filter.scope.includesReviews
-                ? nonEmptyReviews.filter { matchesSearch($0, query: filter.normalizedSearchText) }.map(\.dayKey)
-                : []
+            let taskKeys = matchingTasks.map(dayKey)
+            let reviewKeys = reviewsByDay.values
+                .filter { matchingReviewIDs.contains($0.id) }
+                .map(\.dayKey)
             dayKeys = Set(taskKeys).union(reviewKeys)
         }
 
@@ -165,7 +231,15 @@ public enum ArchiveQueryRules {
                 ArchiveDayRecord(
                     dayKey: key,
                     tasks: (tasksByDay[key] ?? []).sorted(by: tasksNewestFirst),
-                    review: reviewsByDay[key]
+                    review: reviewsByDay[key],
+                    matchedTaskIDs: Set(
+                        (tasksByDay[key] ?? [])
+                            .map(\.id)
+                            .filter(matchingTaskIDs.contains)
+                    ),
+                    reviewMatchesSearch: reviewsByDay[key]
+                        .map { matchingReviewIDs.contains($0.id) } ?? false,
+                    hasSearchQuery: hasSearchQuery
                 )
             }
             .filter { !$0.tasks.isEmpty || $0.review != nil }
