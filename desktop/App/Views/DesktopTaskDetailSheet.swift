@@ -2,6 +2,12 @@ import SwiftData
 import SwiftUI
 import PlanBaseCore
 
+private struct PendingDesktopDetailCompletion {
+    var taskID: UUID
+    var title: String
+    var reminderAt: Date
+}
+
 struct TaskDetailSheet: View {
     var task: Task
     @Environment(\.modelContext) private var modelContext
@@ -18,6 +24,7 @@ struct TaskDetailSheet: View {
     @State private var isChecklistLoaded = false
     @State private var checklistLoadFailureMessage: String?
     @State private var persistenceFailureMessage: String?
+    @State private var pendingTaskCompletion: PendingDesktopDetailCompletion?
     @FocusState private var isNewChecklistItemFocused: Bool
 
     init(task: Task) {
@@ -62,10 +69,10 @@ struct TaskDetailSheet: View {
                         .labelsHidden()
 
                     if let reminderAt = task.reminderAt {
-                        DetailFieldLabel("알림")
+                        DetailFieldLabel(reminderFieldTitle(for: reminderAt))
                         Label(
                             reminderAt.formatted(date: .abbreviated, time: .shortened),
-                            systemImage: "bell"
+                            systemImage: reminderSystemImage(for: reminderAt)
                         )
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(AppTheme.primaryText)
@@ -170,6 +177,30 @@ struct TaskDetailSheet: View {
         .task(id: task.id) {
             loadChecklist()
         }
+        .alert(
+            "예정된 알림이 있습니다",
+            isPresented: Binding(
+                get: { pendingTaskCompletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingTaskCompletion = nil
+                    }
+                }
+            ),
+            presenting: pendingTaskCompletion
+        ) { pending in
+            Button("완료하기", role: .destructive) {
+                pendingTaskCompletion = nil
+                save(taskID: pending.taskID)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { pending in
+            Text(
+                "\"\(pending.title)\" 작업을 완료하면 " +
+                    "\(pending.reminderAt.formatted(date: .abbreviated, time: .shortened)) 알림이 중지됩니다. " +
+                    "알림 설정 기록은 계속 유지됩니다."
+            )
+        }
         .persistenceFailureAlert(message: $persistenceFailureMessage)
     }
 
@@ -208,7 +239,7 @@ struct TaskDetailSheet: View {
             .buttonStyle(.bordered)
 
             Button {
-                save()
+                requestSave()
             } label: {
                 Label("저장", systemImage: "checkmark")
             }
@@ -306,7 +337,22 @@ struct TaskDetailSheet: View {
         }
     }
 
-    private func save() {
+    private func requestSave() {
+        let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
+        if status == .done,
+           currentStatus != .done,
+           let reminderAt = TaskReminderRules.upcomingReminderDate(for: task, now: Date()) {
+            pendingTaskCompletion = PendingDesktopDetailCompletion(
+                taskID: task.id,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                reminderAt: reminderAt
+            )
+            return
+        }
+        save(taskID: task.id)
+    }
+
+    private func save(taskID: UUID) {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canSave else { return }
         if !newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -322,13 +368,20 @@ struct TaskDetailSheet: View {
         }
         let estimatedMinutes = estimateInput.value
         let checklistDrafts = normalizedChecklistDrafts()
-        let oldDayKey = task.plannedDayKey
-        let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         let newPlannedAt = DayKey.startOfDay(for: plannedDate)
         let newDayKey = DayKey.key(for: newPlannedAt)
         let now = Date()
 
         do {
+            guard let activeTask = try modelContext.fetch(
+                BoundedQueryService.taskDescriptor(id: taskID)
+            ).first else {
+                persistenceFailureMessage = "작업이 변경되어 저장하지 못했습니다."
+                return
+            }
+            let oldDayKey = activeTask.plannedDayKey
+            let oldStatus = TaskStatus(rawValue: activeTask.status) ?? .todo
+
             try PersistenceCommandService.perform(in: modelContext) {
                 let nextOrder: Double?
                 if oldDayKey != newDayKey || oldStatus != status {
@@ -342,25 +395,25 @@ struct TaskDetailSheet: View {
                 }
 
                 if oldStatus != status {
-                    TaskRules.applyStatus(status, to: task, completionDayKey: newDayKey)
+                    TaskRules.applyStatus(status, to: activeTask, completionDayKey: newDayKey)
                 }
 
                 if oldDayKey != newDayKey || nextOrder != nil {
-                    TaskRules.move(task, to: newPlannedAt, order: nextOrder)
+                    TaskRules.move(activeTask, to: newPlannedAt, order: nextOrder)
                 }
 
-                task.title = trimmedTitle
-                task.note = trimmedNote.isEmpty ? nil : trimmedNote
-                task.priority = selectedPriority?.rawValue
-                task.tags = tags
-                task.estimatedMinutes = estimatedMinutes
-                task.updatedAt = now
+                activeTask.title = trimmedTitle
+                activeTask.note = trimmedNote.isEmpty ? nil : trimmedNote
+                activeTask.priority = selectedPriority?.rawValue
+                activeTask.tags = tags
+                activeTask.estimatedMinutes = estimatedMinutes
+                activeTask.updatedAt = now
 
                 TaskChecklistService.replaceItems(
-                    for: task.id,
+                    for: activeTask.id,
                     drafts: checklistDrafts,
                     existingItems: try TaskChecklistService.items(
-                        for: task.id,
+                        for: activeTask.id,
                         in: modelContext
                     ),
                     in: modelContext,
@@ -371,6 +424,17 @@ struct TaskDetailSheet: View {
         } catch {
             persistenceFailureMessage = "작업을 저장하지 못했습니다."
         }
+    }
+
+    private func reminderFieldTitle(for reminderAt: Date) -> String {
+        if status == .done {
+            return "설정했던 알림"
+        }
+        return reminderAt <= Date() ? "지난 알림" : "알림"
+    }
+
+    private func reminderSystemImage(for reminderAt: Date) -> String {
+        status == .done || reminderAt <= Date() ? "bell.slash" : "bell"
     }
 
     private func parsedEstimatedMinutesInput() -> (value: Int?, errorMessage: String?) {

@@ -72,6 +72,11 @@ public enum TaskReminderRules {
         identifierPrefix + taskID.uuidString.lowercased()
     }
 
+    public static func managedIdentifiers(for taskID: UUID) -> [String] {
+        let value = taskID.uuidString.lowercased()
+        return managedIdentifierPrefixes.map { $0 + value }
+    }
+
     public static func taskID(from identifier: String) -> UUID? {
         guard let prefix = managedIdentifierPrefixes.first(where: identifier.hasPrefix)
         else { return nil }
@@ -80,6 +85,43 @@ public enum TaskReminderRules {
 
     public static func isManagedIdentifier(_ identifier: String) -> Bool {
         managedIdentifierPrefixes.contains(where: identifier.hasPrefix)
+    }
+
+    public static func upcomingReminderDate(
+        for task: Task,
+        now: Date = Date()
+    ) -> Date? {
+        guard task.supersededAt == nil,
+              let reminderAt = normalizedDate(task.reminderAt),
+              reminderAt > now else { return nil }
+        return reminderAt
+    }
+
+    public static func hasUpcomingReminder(
+        _ task: Task,
+        now: Date = Date()
+    ) -> Bool {
+        upcomingReminderDate(for: task, now: now) != nil
+    }
+
+    public static func upcomingReminderCount(
+        in tasks: [Task],
+        now: Date = Date()
+    ) -> Int {
+        Set(tasks.compactMap { task in
+            hasUpcomingReminder(task, now: now) ? task.id : nil
+        }).count
+    }
+
+    public static func reminderWasEdited(
+        initialEnabled: Bool,
+        initialDate: Date?,
+        currentEnabled: Bool,
+        currentDate: Date?
+    ) -> Bool {
+        guard initialEnabled == currentEnabled else { return true }
+        guard currentEnabled else { return false }
+        return normalizedDate(initialDate) != normalizedDate(currentDate)
     }
 
     public static func snapshot(

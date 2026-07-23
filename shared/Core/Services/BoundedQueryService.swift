@@ -104,6 +104,48 @@ public enum BoundedQueryService {
         )
     }
 
+    public static func widgetPlannedTasksDescriptor(
+        from startDayKey: String,
+        through endDayKey: String
+    ) -> FetchDescriptor<Task> {
+        let lowerBound = min(startDayKey, endDayKey)
+        let upperBound = max(startDayKey, endDayKey)
+        return FetchDescriptor(
+            predicate: #Predicate<Task> { task in
+                task.supersededAt == nil &&
+                    task.archivedAt == nil &&
+                    task.plannedDayKey >= lowerBound &&
+                    task.plannedDayKey <= upperBound
+            },
+            sortBy: [
+                SortDescriptor(\Task.plannedDayKey),
+                SortDescriptor(\Task.order),
+                SortDescriptor(\Task.title)
+            ]
+        )
+    }
+
+    public static func widgetCompletedTasksDescriptor(
+        from startDayKey: String,
+        through endDayKey: String
+    ) -> FetchDescriptor<Task> {
+        let lowerBound = min(startDayKey, endDayKey)
+        let upperBound = max(startDayKey, endDayKey)
+        return FetchDescriptor(
+            predicate: #Predicate<Task> { task in
+                task.supersededAt == nil &&
+                    task.archivedAt == nil &&
+                    (task.completedDayKey ?? "") >= lowerBound &&
+                    (task.completedDayKey ?? "") <= upperBound
+            },
+            sortBy: [
+                SortDescriptor(\Task.completedDayKey),
+                SortDescriptor(\Task.updatedAt),
+                SortDescriptor(\Task.title)
+            ]
+        )
+    }
+
     public static func templatePlacementsDescriptor(
         from startDayKey: String,
         through endDayKey: String

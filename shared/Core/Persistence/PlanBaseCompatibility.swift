@@ -7,6 +7,7 @@ public enum PlanBaseCompatibility {
     public static let cloudKitContainerIdentifier = "iCloud.com.soraul2.easytask"
     public static let applicationGroupIdentifier = "group.com.soraul2.easytask"
     public static let calendarWidgetKind = "com.soraul2.easytask.calendar-widget"
+    public static let lockScreenWidgetKind = "com.soraul2.easytask.today-lock-screen-widget"
     public static let backupFormatIdentifier = "com.soraul2.easytask.backup"
     public static let legacyDeepLinkScheme = "easytask"
     public static let legacyTaskReminderIdentifierPrefix = "easytask.task-reminder."

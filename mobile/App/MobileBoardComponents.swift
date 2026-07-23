@@ -240,6 +240,20 @@ private struct MobileTaskRow: View {
         TaskChecklistService.progress(in: checklistItems)
     }
 
+    private var reminderPresentation: (title: String, systemImage: String)? {
+        guard let reminderAt = TaskReminderRules.normalizedDate(task.reminderAt) else {
+            return nil
+        }
+        let formatted = reminderAt.formatted(date: .abbreviated, time: .shortened)
+        if status == .done {
+            return ("설정했던 알림 · \(formatted)", "bell.slash.fill")
+        }
+        if reminderAt <= Date() {
+            return ("지난 알림 · \(formatted)", "bell.slash.fill")
+        }
+        return (formatted, "bell.fill")
+    }
+
     private var hasDetailChips: Bool {
         priority != nil ||
             task.estimatedMinutes != nil ||
@@ -302,14 +316,12 @@ private struct MobileTaskRow: View {
                                 systemImage: "clock"
                             )
                         }
-                        if let reminderAt = task.reminderAt {
+                        if let reminderPresentation {
                             MobileTaskDetailChip(
-                                title: reminderAt.formatted(
-                                    date: .abbreviated,
-                                    time: .shortened
-                                ),
-                                systemImage: "bell.fill"
+                                title: reminderPresentation.title,
+                                systemImage: reminderPresentation.systemImage
                             )
+                            .accessibilityIdentifier("\(task.title) 알림 기록")
                         }
                         if status != .doing {
                             MobileChecklistProgressChip(progress: checklistProgress)

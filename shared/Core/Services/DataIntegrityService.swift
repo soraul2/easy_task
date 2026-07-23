@@ -587,9 +587,7 @@ private extension DataIntegrityService {
         if !task.order.isFinite {
             changes += assign(&task.order, 0)
         }
-        let reminderAt = status == .done
-            ? nil
-            : TaskReminderRules.normalizedDate(task.reminderAt)
+        let reminderAt = TaskReminderRules.normalizedDate(task.reminderAt)
         changes += assign(&task.reminderAt, reminderAt)
 
         let dateDerivedPlannedAt = isFinite(task.plannedAt) ? task.plannedAt : task.createdAt

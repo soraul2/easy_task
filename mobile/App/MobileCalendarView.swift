@@ -212,10 +212,25 @@ struct MobileCalendarView: View {
             let laneHeight: CGFloat = 18
             let barHeight: CGFloat = 16
             let maxEventLanes = max(1, min(3, Int((cellHeight - eventTopInset - 6) / laneHeight)))
-            let segments: [MobileCalendarEventSegment] = isPlacementMode ? [] : eventSegments(
-                in: dates,
-                events: events,
-                maxLanes: maxEventLanes
+            let activeEvents = events.filter { $0.supersededAt == nil }
+            let eventsByRenderID = Dictionary(
+                activeEvents.map { ($0.instanceID, $0) },
+                uniquingKeysWith: { current, _ in current }
+            )
+            let layout = CalendarEventGridLayout.make(
+                items: isPlacementMode ? [] : activeEvents.map {
+                    CalendarEventGridLayoutItem(
+                        renderID: $0.instanceID,
+                        eventID: $0.id,
+                        title: $0.title,
+                        startDayKey: $0.startDayKey,
+                        endDayKey: $0.endDayKey,
+                        updatedAt: $0.updatedAt
+                    )
+                },
+                dates: dates,
+                visibleMonth: visibleMonth,
+                maximumLanes: maxEventLanes
             )
 
             VStack(spacing: 0) {
@@ -249,17 +264,19 @@ struct MobileCalendarView: View {
                         }
                     }
 
-                    ForEach(segments) { segment in
-                        MobileCalendarEventSpanBar(
-                            event: segment.event,
-                            isDimmed: segment.isDimmed
-                        )
-                        .frame(width: max(cellWidth * CGFloat(segment.span), 24), height: barHeight)
-                        .offset(
-                            x: cellWidth * CGFloat(segment.startColumn),
-                            y: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight
-                        )
-                        .allowsHitTesting(false)
+                    ForEach(layout.segments) { segment in
+                        if let event = eventsByRenderID[segment.renderID] {
+                            MobileCalendarEventSpanBar(
+                                event: event,
+                                isDimmed: segment.isDimmed
+                            )
+                            .frame(width: max(cellWidth * CGFloat(segment.span), 24), height: barHeight)
+                            .offset(
+                                x: cellWidth * CGFloat(segment.startColumn),
+                                y: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight
+                            )
+                            .allowsHitTesting(false)
+                        }
                     }
                 }
                 .frame(height: gridHeight)
@@ -287,64 +304,6 @@ struct MobileCalendarView: View {
 
     private var validPlacementDrafts: [TemplateTaskDraft] {
         placementDrafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    }
-
-    private func eventSegments(
-        in monthDates: [Date],
-        events: [CalendarEvent],
-        maxLanes: Int
-    ) -> [MobileCalendarEventSegment] {
-        let weeks = stride(from: 0, to: monthDates.count, by: 7).map {
-            Array(monthDates[$0..<min($0 + 7, monthDates.count)])
-        }
-        let monthStartKey = DayKey.key(for: DayKey.startOfMonth(for: visibleMonth))
-        let nextMonthStartKey = DayKey.key(for: DayKey.addingMonths(1, to: DayKey.startOfMonth(for: visibleMonth)))
-        var segments: [MobileCalendarEventSegment] = []
-
-        for (weekIndex, weekDates) in weeks.enumerated() {
-            guard let weekStart = weekDates.first, let weekEnd = weekDates.last else { continue }
-            let weekStartKey = DayKey.key(for: weekStart)
-            let weekEndKey = DayKey.key(for: weekEnd)
-            let weekKeys = weekDates.map(DayKey.key(for:))
-            let overlappingEvents = CalendarEventRules.events(
-                overlapping: weekStart,
-                through: weekEnd,
-                in: events
-            )
-
-            var laneEndColumns: [Int] = []
-
-            for event in overlappingEvents {
-                let segmentStartKey = max(event.startDayKey, weekStartKey)
-                let segmentEndKey = min(event.endDayKey, weekEndKey)
-                guard let startColumn = weekKeys.firstIndex(of: segmentStartKey),
-                      let endColumn = weekKeys.firstIndex(of: segmentEndKey) else {
-                    continue
-                }
-
-                let lane: Int
-                if let availableLane = laneEndColumns.firstIndex(where: { $0 < startColumn }) {
-                    lane = availableLane
-                    laneEndColumns[availableLane] = endColumn
-                } else {
-                    lane = laneEndColumns.count
-                    laneEndColumns.append(endColumn)
-                }
-
-                guard lane < maxLanes else { continue }
-
-                segments.append(MobileCalendarEventSegment(
-                    event: event,
-                    weekIndex: weekIndex,
-                    startColumn: startColumn,
-                    span: endColumn - startColumn + 1,
-                    lane: lane,
-                    isDimmed: segmentEndKey < monthStartKey || segmentStartKey >= nextMonthStartKey
-                ))
-            }
-        }
-
-        return segments
     }
 
     private func startTemplatePlacement(_ template: TaskTemplate, drafts: [TemplateTaskDraft]) {

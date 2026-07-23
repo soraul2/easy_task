@@ -74,6 +74,18 @@ public enum DayKey {
         return (0..<42).map { addingDays($0, to: gridStart) }
     }
 
+    public static func adaptiveMonthGridDates(for date: Date) -> [Date] {
+        let monthStart = startOfMonth(for: date)
+        let weekday = calendar.component(.weekday, from: monthStart)
+        let leadingDays = weekday - calendar.firstWeekday
+        let normalizedLeadingDays = leadingDays >= 0 ? leadingDays : leadingDays + 7
+        let dayCount = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 31
+        let requiredWeekCount = (normalizedLeadingDays + dayCount + 6) / 7
+        let weekCount = min(6, max(5, requiredWeekCount))
+        let gridStart = addingDays(-normalizedLeadingDays, to: monthStart)
+        return (0..<(weekCount * 7)).map { addingDays($0, to: gridStart) }
+    }
+
     public static func isSameMonth(_ lhs: Date, _ rhs: Date) -> Bool {
         calendar.isDate(lhs, equalTo: rhs, toGranularity: .month)
     }

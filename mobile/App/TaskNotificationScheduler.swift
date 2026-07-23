@@ -16,12 +16,19 @@ enum TaskNotificationAuthorizationState: Equatable {
 }
 
 @MainActor
-final class TaskNotificationScheduler {
-    static let shared = TaskNotificationScheduler()
+protocol TaskNotificationCenterClient: AnyObject {
+    func authorizationState() async -> TaskNotificationAuthorizationState
+    func requestAlertAndSoundAuthorization() async throws
+    func pendingNotificationRequests() async -> [UNNotificationRequest]
+    func deliveredNotificationRequests() async -> [UNNotificationRequest]
+    func add(_ request: UNNotificationRequest) async throws
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String])
+}
 
+@MainActor
+private final class SystemTaskNotificationCenterClient: TaskNotificationCenterClient {
     private let center: UNUserNotificationCenter
-    private var isReconciling = false
-    private var needsAnotherPass = false
 
     init(center: UNUserNotificationCenter = .current()) {
         self.center = center
@@ -41,13 +48,65 @@ final class TaskNotificationScheduler {
         }
     }
 
+    func requestAlertAndSoundAuthorization() async throws {
+        _ = try await center.requestAuthorization(options: [.alert, .sound])
+    }
+
+    func pendingNotificationRequests() async -> [UNNotificationRequest] {
+        await center.pendingNotificationRequests()
+    }
+
+    func deliveredNotificationRequests() async -> [UNNotificationRequest] {
+        await center.deliveredNotifications().map(\.request)
+    }
+
+    func add(_ request: UNNotificationRequest) async throws {
+        try await center.add(request)
+    }
+
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+}
+
+@MainActor
+final class TaskNotificationScheduler {
+    static let shared = TaskNotificationScheduler()
+
+    private let center: any TaskNotificationCenterClient
+    private var isReconciling = false
+    private var needsAnotherPass = false
+
+    init(center: (any TaskNotificationCenterClient)? = nil) {
+        self.center = center ?? SystemTaskNotificationCenterClient()
+    }
+
+    func authorizationState() async -> TaskNotificationAuthorizationState {
+        await center.authorizationState()
+    }
+
     func requestAuthorization() async -> TaskNotificationAuthorizationState {
         do {
-            _ = try await center.requestAuthorization(options: [.alert, .sound])
+            try await center.requestAlertAndSoundAuthorization()
         } catch {
             print("PlanBase notification authorization failed: \(error)")
         }
         return await authorizationState()
+    }
+
+    func cancelNotifications(for taskIDs: [UUID]) {
+#if DEBUG
+        guard !PlanBaseLaunchEnvironment.isUITesting else { return }
+#endif
+        let identifiers = Set(taskIDs.flatMap(TaskReminderRules.managedIdentifiers))
+            .sorted()
+        guard !identifiers.isEmpty else { return }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
     func reconcile(context: ModelContext, now: Date = Date()) async {
@@ -78,9 +137,9 @@ final class TaskNotificationScheduler {
         let ownedPendingIDs = pendingRequests
             .map(\.identifier)
             .filter(TaskReminderRules.isManagedIdentifier)
-        let delivered = await center.deliveredNotifications()
-        let ownedDeliveredIDs = delivered
-            .map { $0.request.identifier }
+        let deliveredRequests = await center.deliveredNotificationRequests()
+        let ownedDeliveredIDs = deliveredRequests
+            .map(\.identifier)
             .filter(TaskReminderRules.isManagedIdentifier)
 
         guard authorization.canSchedule else {

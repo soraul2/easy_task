@@ -297,19 +297,6 @@ struct MobileMonthDayCell: View {
     }
 }
 
-struct MobileCalendarEventSegment: Identifiable {
-    var event: CalendarEvent
-    var weekIndex: Int
-    var startColumn: Int
-    var span: Int
-    var lane: Int
-    var isDimmed: Bool
-
-    var id: String {
-        "\(event.id.uuidString)-\(weekIndex)-\(lane)"
-    }
-}
-
 struct MobileCalendarEventSpanBar: View {
     var event: CalendarEvent
     var isDimmed: Bool

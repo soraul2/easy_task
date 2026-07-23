@@ -24,6 +24,10 @@ func taskReminderIdentifierRoundTripsLogicalTaskID() {
     #expect(TaskReminderRules.taskID(from: legacyIdentifier) == taskID)
     #expect(TaskReminderRules.isManagedIdentifier(legacyIdentifier))
     #expect(TaskReminderRules.taskID(from: "unrelated.\(taskID)") == nil)
+    #expect(Set(TaskReminderRules.managedIdentifiers(for: taskID)) == Set([
+        identifier,
+        legacyIdentifier
+    ]))
 }
 
 @Test
@@ -40,8 +44,14 @@ func taskReminderRulesSetReplaceClearAndComplete() throws {
     #expect(!TaskRules.setReminder(first, on: task, now: changedAt.addingTimeInterval(1)))
 
     TaskRules.applyStatus(.done, to: task, now: changedAt.addingTimeInterval(2))
+    #expect(task.reminderAt == Date(timeIntervalSinceReferenceDate: 7_200))
+    let replacement = Date(timeIntervalSinceReferenceDate: 8_123.4)
+    #expect(TaskRules.setReminder(replacement, on: task, now: changedAt.addingTimeInterval(3)))
+    #expect(task.reminderAt == Date(timeIntervalSinceReferenceDate: 8_100))
+    TaskRules.applyStatus(.done, to: task, now: changedAt.addingTimeInterval(4))
+    #expect(task.reminderAt == Date(timeIntervalSinceReferenceDate: 8_100))
+    #expect(TaskRules.setReminder(nil, on: task, now: changedAt.addingTimeInterval(5)))
     #expect(task.reminderAt == nil)
-    #expect(!TaskRules.setReminder(first, on: task, now: changedAt.addingTimeInterval(3)))
 }
 
 @Test
@@ -115,6 +125,113 @@ func taskReminderReconciliationSchedulesReplacesAndCancelsOnlyOwnedRequests() {
 
 @Test
 @MainActor
+func taskReminderUpcomingRulesAndCompletionRoundTrip() throws {
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let now = Date(timeIntervalSinceReferenceDate: 10_000)
+    let future = Date(timeIntervalSinceReferenceDate: 10_234.9)
+    let past = Date(timeIntervalSinceReferenceDate: 9_900)
+    let task = Task(
+        title: "미래 알림",
+        plannedAt: day,
+        order: 100
+    )
+    let pastTask = Task(
+        title: "지난 알림",
+        plannedAt: day,
+        order: 200
+    )
+    #expect(TaskRules.setReminder(future, on: task, now: now))
+    #expect(TaskRules.setReminder(past, on: pastTask, now: now))
+
+    #expect(TaskReminderRules.upcomingReminderDate(for: task, now: now) ==
+        Date(timeIntervalSinceReferenceDate: 10_200))
+    #expect(TaskReminderRules.hasUpcomingReminder(task, now: now))
+    #expect(!TaskReminderRules.hasUpcomingReminder(pastTask, now: now))
+    #expect(TaskReminderRules.upcomingReminderCount(in: [task, task, pastTask], now: now) == 1)
+
+    TaskRules.applyStatus(.done, to: task, now: now)
+    #expect(task.reminderAt == Date(timeIntervalSinceReferenceDate: 10_200))
+    #expect(TaskReminderRules.snapshot(for: task, now: now) == nil)
+
+    TaskRules.applyStatus(.doing, to: task, now: now.addingTimeInterval(1))
+    #expect(TaskReminderRules.snapshot(for: task, now: now)?.reminderAt ==
+        Date(timeIntervalSinceReferenceDate: 10_200))
+
+    TaskRules.applyStatus(.done, to: pastTask, now: now)
+    TaskRules.applyStatus(.todo, to: pastTask, now: now.addingTimeInterval(1))
+    #expect(pastTask.reminderAt == past)
+    #expect(TaskReminderRules.snapshot(for: pastTask, now: now) == nil)
+}
+
+@Test
+@MainActor
+func taskReminderUpcomingBoundaryRejectsNilCurrentPastAndSuperseded() throws {
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let now = Date(timeIntervalSinceReferenceDate: 10_000)
+    let noReminder = Task(title: "없음", plannedAt: day, order: 100)
+    let currentMinute = Task(
+        title: "현재 분",
+        plannedAt: day,
+        order: 200,
+        reminderAt: Date(timeIntervalSinceReferenceDate: 10_019)
+    )
+    let future = Task(
+        title: "미래",
+        plannedAt: day,
+        order: 300,
+        reminderAt: Date(timeIntervalSinceReferenceDate: 10_081)
+    )
+    let superseded = Task(
+        title: "대체됨",
+        plannedAt: day,
+        order: 400,
+        reminderAt: Date(timeIntervalSinceReferenceDate: 10_081)
+    )
+    superseded.supersededAt = now
+
+    #expect(!TaskReminderRules.hasUpcomingReminder(noReminder, now: now))
+    #expect(!TaskReminderRules.hasUpcomingReminder(currentMinute, now: now))
+    #expect(TaskReminderRules.hasUpcomingReminder(future, now: now))
+    #expect(!TaskReminderRules.hasUpcomingReminder(superseded, now: now))
+    #expect(TaskReminderRules.upcomingReminderCount(
+        in: [noReminder, currentMinute, future, future, superseded],
+        now: now
+    ) == 1)
+}
+
+@Test
+func taskReminderEditDetectionDistinguishesPreservedPastFromNewInput() {
+    let past = Date(timeIntervalSinceReferenceDate: 9_900)
+    let anotherPastMinute = Date(timeIntervalSinceReferenceDate: 9_840)
+
+    #expect(!TaskReminderRules.reminderWasEdited(
+        initialEnabled: true,
+        initialDate: past,
+        currentEnabled: true,
+        currentDate: past.addingTimeInterval(20)
+    ))
+    #expect(TaskReminderRules.reminderWasEdited(
+        initialEnabled: true,
+        initialDate: past,
+        currentEnabled: true,
+        currentDate: anotherPastMinute
+    ))
+    #expect(TaskReminderRules.reminderWasEdited(
+        initialEnabled: true,
+        initialDate: past,
+        currentEnabled: false,
+        currentDate: nil
+    ))
+    #expect(TaskReminderRules.reminderWasEdited(
+        initialEnabled: false,
+        initialDate: nil,
+        currentEnabled: true,
+        currentDate: past
+    ))
+}
+
+@Test
+@MainActor
 func taskReminderDescriptorFetchesOnlyActiveOpenReminders() throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
@@ -150,7 +267,7 @@ func taskReminderDescriptorFetchesOnlyActiveOpenReminders() throws {
 
 @Test
 @MainActor
-func integrityNormalizesReminderAndClearsCompletedReminder() throws {
+func integrityNormalizesAndPreservesCompletedReminder() throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-12"))
@@ -173,5 +290,41 @@ func integrityNormalizesReminderAndClearsCompletedReminder() throws {
     _ = try DataIntegrityService.reconcile(context: context)
 
     #expect(open.reminderAt == Date(timeIntervalSinceReferenceDate: 7_200))
-    #expect(done.reminderAt == nil)
+    #expect(done.reminderAt == Date(timeIntervalSinceReferenceDate: 7_980))
+}
+
+@Test
+@MainActor
+func integrityPreservesReminderOnNewestCompletedDuplicateRepresentative() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let logicalID = UUID()
+    let day = try #require(DayKey.date(from: "2026-07-12"))
+    let older = Task(
+        id: logicalID,
+        title: "이전 미완료",
+        status: .todo,
+        plannedAt: day,
+        order: 100,
+        reminderAt: Date(timeIntervalSinceReferenceDate: 7_234.9),
+        updatedAt: Date(timeIntervalSinceReferenceDate: 100)
+    )
+    let representative = Task(
+        id: logicalID,
+        title: "최신 완료",
+        status: .done,
+        plannedAt: day,
+        order: 200,
+        reminderAt: Date(timeIntervalSinceReferenceDate: 8_123.4),
+        updatedAt: Date(timeIntervalSinceReferenceDate: 200)
+    )
+    context.insert(older)
+    context.insert(representative)
+    try context.save()
+
+    _ = try DataIntegrityService.reconcile(context: context)
+
+    #expect(representative.status == TaskStatus.done.rawValue)
+    #expect(representative.reminderAt == Date(timeIntervalSinceReferenceDate: 8_100))
+    #expect(older.supersededAt != nil)
 }

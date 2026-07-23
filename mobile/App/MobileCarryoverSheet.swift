@@ -4,6 +4,11 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+private struct PendingMobileCarryoverCompletion {
+    var taskIDs: [UUID]
+    var upcomingReminderCount: Int
+}
+
 struct MobileCarryoverSheet: View {
     var tasks: [TodoTask]
     var onApplied: (String) -> Void
@@ -12,6 +17,7 @@ struct MobileCarryoverSheet: View {
     @State private var movedTaskIDs: Set<UUID> = []
     @State private var message: String?
     @State private var isErrorMessage = false
+    @State private var pendingCompletion: PendingMobileCarryoverCompletion?
 
     private var remainingTasks: [TodoTask] {
         tasks.filter { !movedTaskIDs.contains($0.id) }
@@ -38,7 +44,7 @@ struct MobileCarryoverSheet: View {
                             Label("모두 오늘로 이월", systemImage: "calendar.badge.plus")
                         }
                         Button(role: .destructive) {
-                            completeAll()
+                            requestCompleteAll()
                         } label: {
                             Label("원래 날짜에 모두 완료", systemImage: "checkmark.circle")
                         }
@@ -69,15 +75,69 @@ struct MobileCarryoverSheet: View {
                 }
             }
         }
+        .alert(
+            "예정된 알림이 있습니다",
+            isPresented: Binding(
+                get: { pendingCompletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingCompletion = nil
+                    }
+                }
+            ),
+            presenting: pendingCompletion
+        ) { pending in
+            Button("완료하기", role: .destructive) {
+                pendingCompletion = nil
+                completeAll(taskIDs: pending.taskIDs)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { pending in
+            Text(
+                "\(pending.upcomingReminderCount)개의 작업에 예정된 알림이 있습니다. " +
+                    "모두 완료하면 해당 알림이 중지되며 설정 기록은 계속 유지됩니다."
+            )
+        }
         .presentationDetents([.medium, .large])
     }
 
-    private func completeAll() {
+    private func requestCompleteAll() {
         let tasksToComplete = remainingTasks
+        let pending = PendingMobileCarryoverCompletion(
+            taskIDs: tasksToComplete.map(\.id),
+            upcomingReminderCount: TaskReminderRules.upcomingReminderCount(
+                in: tasksToComplete,
+                now: Date()
+            )
+        )
+        if pending.upcomingReminderCount > 0 {
+            pendingCompletion = pending
+        } else {
+            completeAll(taskIDs: pending.taskIDs)
+        }
+    }
+
+    private func completeAll(taskIDs: [UUID]) {
         do {
+            var tasksToComplete: [TodoTask] = []
+            for taskID in taskIDs {
+                if let task = try modelContext.fetch(
+                    BoundedQueryService.taskDescriptor(id: taskID)
+                ).first,
+                   task.status != TaskStatus.done.rawValue {
+                    tasksToComplete.append(task)
+                }
+            }
+            guard !tasksToComplete.isEmpty else {
+                showError("완료할 작업이 변경되었습니다")
+                return
+            }
             try PersistenceCommandService.perform(in: modelContext) {
                 TaskRules.completeOnPlannedDays(tasksToComplete)
             }
+            TaskNotificationScheduler.shared.cancelNotifications(
+                for: tasksToComplete.map(\.id)
+            )
             onApplied("\(tasksToComplete.count)개 작업을 원래 날짜에 완료 처리했어요")
             dismiss()
         } catch {

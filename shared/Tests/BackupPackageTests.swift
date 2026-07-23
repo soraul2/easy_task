@@ -51,12 +51,13 @@ func backupPackageReadsV2AndWritesV5() throws {
 
 @Test
 @MainActor
-func backupPackageRoundTripsTaskReminderAndRejectsIdentityMismatch() throws {
+func backupPackageRoundTripsCompletedTaskReminderAndRejectsIdentityMismatch() throws {
     let source = try PlanBaseContainerFactory.makeInMemory()
     let day = try #require(DayKey.date(from: "2026-07-12"))
     let reminderAt = Date(timeIntervalSinceReferenceDate: 120_000)
     let task = Task(
         title: "백업 알림",
+        status: .done,
         plannedAt: day,
         order: 100,
         reminderAt: reminderAt
@@ -69,6 +70,7 @@ func backupPackageRoundTripsTaskReminderAndRejectsIdentityMismatch() throws {
     let destination = try PlanBaseContainerFactory.makeInMemory()
     _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
     let restored = try #require(destination.mainContext.fetch(FetchDescriptor<Task>()).first)
+    #expect(restored.status == TaskStatus.done.rawValue)
     #expect(restored.reminderAt == reminderAt)
 
     var tampered = contents

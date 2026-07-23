@@ -5,12 +5,20 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private struct PendingMobileTaskDetailCompletion {
+    var taskID: UUID
+    var title: String
+    var reminderAt: Date
+}
+
 struct MobileTaskDetailSheet: View {
     private enum SaveFailure: Error {
         case reminderExpired
     }
 
     var task: TodoTask
+    private let initialReminderEnabled: Bool
+    private let initialReminderAt: Date?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -32,10 +40,13 @@ struct MobileTaskDetailSheet: View {
     @State private var notificationAuthorization: TaskNotificationAuthorizationState = .notDetermined
     @State private var saveError: String?
     @State private var isSaving = false
+    @State private var pendingCompletion: PendingMobileTaskDetailCompletion?
     @FocusState private var isNewChecklistTitleFocused: Bool
 
     init(task: TodoTask) {
         self.task = task
+        initialReminderEnabled = task.reminderAt != nil
+        initialReminderAt = TaskReminderRules.normalizedDate(task.reminderAt)
         _title = State(initialValue: task.title)
         _note = State(initialValue: task.note ?? "")
         _status = State(initialValue: TaskStatus(rawValue: task.status) ?? .todo)
@@ -171,9 +182,27 @@ struct MobileTaskDetailSheet: View {
                         .disabled(status == .done)
 
                     if status == .done {
-                        Label("완료한 작업에는 알림을 설정할 수 없습니다", systemImage: "checkmark.circle")
+                        if reminderEnabled {
+                            Label(
+                                "설정했던 알림 · " + reminderDate.formatted(
+                                    date: .abbreviated,
+                                    time: .shortened
+                                ),
+                                systemImage: "bell.slash.fill"
+                            )
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            Text("완료 상태에서는 알림이 울리지 않으며 설정 기록만 유지됩니다.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Label(
+                                "완료한 작업에는 활성 알림이 없습니다",
+                                systemImage: "checkmark.circle"
+                            )
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                        }
                     } else if reminderEnabled {
                         HStack(spacing: 8) {
                             reminderPresetButton("10분 후", minutes: 10)
@@ -225,7 +254,7 @@ struct MobileTaskDetailSheet: View {
                     Button("취소") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("저장", action: save)
+                    Button("저장", action: requestSave)
                         .disabled(
                             isSaving ||
                             !isChecklistLoaded ||
@@ -234,6 +263,30 @@ struct MobileTaskDetailSheet: View {
                         )
                 }
             }
+        }
+        .alert(
+            "예정된 알림이 있습니다",
+            isPresented: Binding(
+                get: { pendingCompletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingCompletion = nil
+                    }
+                }
+            ),
+            presenting: pendingCompletion
+        ) { pending in
+            Button("완료하기", role: .destructive) {
+                pendingCompletion = nil
+                save(confirmedCompletion: true, taskID: pending.taskID)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { pending in
+            Text(
+                "\(pending.title) 작업을 완료하면 " +
+                    "\(pending.reminderAt.formatted(date: .abbreviated, time: .shortened)) " +
+                    "알림이 중지됩니다. 알림 설정 기록은 계속 유지됩니다."
+            )
         }
         .task {
             loadChecklistDrafts()
@@ -244,24 +297,39 @@ struct MobileTaskDetailSheet: View {
             guard isEnabled, reminderDate <= Date() else { return }
             reminderDate = Self.defaultReminderDate(for: plannedDate)
         }
-        .onChange(of: status) { _, nextStatus in
-            if nextStatus == .done {
-                reminderEnabled = false
-            }
-        }
         .onChange(of: scenePhase) { _, nextPhase in
             guard nextPhase == .active else { return }
             refreshNotificationAuthorization()
         }
     }
 
-    private func save() {
+    private func requestSave() {
+        guard !isSaving, isChecklistLoaded, !isChecklistLoading else { return }
+        let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
+        let effectiveReminderAt = reminderEnabled
+            ? TaskReminderRules.normalizedDate(reminderDate)
+            : nil
+        if currentStatus != .done,
+           status == .done,
+           let reminderAt = effectiveReminderAt,
+           reminderAt > Date() {
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            pendingCompletion = PendingMobileTaskDetailCompletion(
+                taskID: task.id,
+                title: trimmedTitle.isEmpty ? "선택한" : trimmedTitle,
+                reminderAt: reminderAt
+            )
+            return
+        }
+
+        save(confirmedCompletion: false)
+    }
+
+    private func save(confirmedCompletion: Bool, taskID: UUID? = nil) {
         guard !isSaving, isChecklistLoaded, !isChecklistLoading else { return }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
 
-        let oldDayKey = task.plannedDayKey
-        let oldStatus = TaskStatus(rawValue: task.status) ?? .todo
         let newPlannedAt = DayKey.startOfDay(for: plannedDate)
         let newDayKey = DayKey.key(for: newPlannedAt)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -276,8 +344,15 @@ struct MobileTaskDetailSheet: View {
             ? TaskReminderRules.normalizedDate(reminderDate)
             : nil
         let checklistDrafts = checklistDrafts
+        let reminderWasEdited = TaskReminderRules.reminderWasEdited(
+            initialEnabled: initialReminderEnabled,
+            initialDate: initialReminderAt,
+            currentEnabled: reminderEnabled,
+            currentDate: reminderAt
+        )
         if status != .done,
            reminderEnabled,
+           reminderWasEdited,
            reminderAt.map({ $0 <= Date() }) != false {
             saveError = "알림 시각은 현재보다 이후로 선택해 주세요"
             return
@@ -286,10 +361,34 @@ struct MobileTaskDetailSheet: View {
         saveError = nil
         isSaving = true
         do {
+            guard let currentTask = try modelContext.fetch(
+                BoundedQueryService.taskDescriptor(id: taskID ?? task.id)
+            ).first else {
+                isSaving = false
+                saveError = "작업이 변경되어 저장하지 못했습니다"
+                return
+            }
+            let oldDayKey = currentTask.plannedDayKey
+            let oldStatus = TaskStatus(rawValue: currentTask.status) ?? .todo
+            if oldStatus != .done,
+               status == .done,
+               !confirmedCompletion,
+               let reminderAt,
+               reminderAt > Date() {
+                isSaving = false
+                pendingCompletion = PendingMobileTaskDetailCompletion(
+                    taskID: currentTask.id,
+                    title: trimmedTitle,
+                    reminderAt: reminderAt
+                )
+                return
+            }
+
             try PersistenceCommandService.perform(in: modelContext) {
                 let now = Date()
                 if status != .done,
                    reminderEnabled,
+                   reminderWasEdited,
                    reminderAt.map({ $0 > now }) != true {
                     throw SaveFailure.reminderExpired
                 }
@@ -307,37 +406,42 @@ struct MobileTaskDetailSheet: View {
                 if oldStatus != status {
                     TaskRules.applyStatus(
                         status,
-                        to: task,
+                        to: currentTask,
                         now: now,
                         completionDayKey: newDayKey
                     )
                 }
 
                 if oldDayKey != newDayKey || nextOrder != nil {
-                    TaskRules.move(task, to: newPlannedAt, order: nextOrder, now: now)
+                    TaskRules.move(currentTask, to: newPlannedAt, order: nextOrder, now: now)
                 }
 
-                _ = TaskRules.setReminder(reminderAt, on: task, now: now)
-                task.title = trimmedTitle
-                task.note = trimmedNote.isEmpty ? nil : trimmedNote
-                task.priority = priority?.rawValue
-                task.estimatedMinutes = estimatedMinutes
-                task.tags = tags
-                task.updatedAt = now
+                _ = TaskRules.setReminder(reminderAt, on: currentTask, now: now)
+                currentTask.title = trimmedTitle
+                currentTask.note = trimmedNote.isEmpty ? nil : trimmedNote
+                currentTask.priority = priority?.rawValue
+                currentTask.estimatedMinutes = estimatedMinutes
+                currentTask.tags = tags
+                currentTask.updatedAt = now
 
                 let existingChecklistItems = try TaskChecklistService.items(
-                    for: task.id,
+                    for: currentTask.id,
                     in: modelContext
                 )
                 TaskChecklistService.replaceItems(
-                    for: task.id,
+                    for: currentTask.id,
                     drafts: checklistDrafts,
                     existingItems: existingChecklistItems,
                     in: modelContext,
                     now: now
                 )
             }
-            finishSaving(reminderRequested: status != .done && reminderAt != nil)
+            if status == .done {
+                TaskNotificationScheduler.shared.cancelNotifications(for: [currentTask.id])
+            }
+            finishSaving(
+                reminderRequested: status != .done && reminderAt.map { $0 > Date() } == true
+            )
         } catch SaveFailure.reminderExpired {
             isSaving = false
             saveError = "알림 시각은 현재보다 이후로 선택해 주세요"

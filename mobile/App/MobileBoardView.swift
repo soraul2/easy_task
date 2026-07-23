@@ -20,6 +20,13 @@ private enum MobileBoardSheet: Identifiable {
     }
 }
 
+private struct PendingMobileTaskCompletion {
+    var taskID: UUID
+    var title: String
+    var reminderAt: Date
+    var completionDayKey: String
+}
+
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
     var onShowTheme: () -> Void
@@ -33,6 +40,7 @@ struct MobileBoardView: View {
     @State private var quickTitle = ""
     @State private var selectedStatus: TaskStatus = .todo
     @State private var presentedSheet: MobileBoardSheet?
+    @State private var pendingTaskCompletion: PendingMobileTaskCompletion?
     @State private var statusNotice: String?
     @State private var statusNoticeToken = UUID()
 
@@ -103,7 +111,7 @@ struct MobileBoardView: View {
                     selectedStatus: selectedStatus,
                     onEdit: { presentedSheet = .task($0) },
                     onDelete: deleteTask,
-                    onStatusChange: changeTaskStatus
+                    onStatusChange: requestTaskStatusChange
                 )
             }
             .background(AppTheme.background.ignoresSafeArea())
@@ -167,6 +175,29 @@ struct MobileBoardView: View {
                     )
                 }
             }
+            .alert(
+                "예정된 알림이 있습니다",
+                isPresented: Binding(
+                    get: { pendingTaskCompletion != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            pendingTaskCompletion = nil
+                        }
+                    }
+                ),
+                presenting: pendingTaskCompletion
+            ) { pending in
+                Button("완료하기", role: .destructive) {
+                    completePendingTask(pending)
+                }
+                Button("취소", role: .cancel) {}
+            } message: { pending in
+                Text(
+                    "\(pending.title) 작업을 완료하면 " +
+                        "\(pending.reminderAt.formatted(date: .abbreviated, time: .shortened)) " +
+                        "알림이 중지됩니다. 알림 설정 기록은 계속 유지됩니다."
+                )
+            }
         }
     }
 
@@ -205,10 +236,58 @@ struct MobileBoardView: View {
         }
     }
 
-    private func changeTaskStatus(task: TodoTask, status: TaskStatus) {
+    private func requestTaskStatusChange(task: TodoTask, status: TaskStatus) {
+        let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
+        guard currentStatus != status else { return }
+
+        let now = Date()
+        if status == .done,
+           currentStatus != .done,
+           let reminderAt = TaskReminderRules.upcomingReminderDate(for: task, now: now) {
+            pendingTaskCompletion = PendingMobileTaskCompletion(
+                taskID: task.id,
+                title: task.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                reminderAt: reminderAt,
+                completionDayKey: selectedDayKey
+            )
+            return
+        }
+
+        changeTaskStatus(task: task, status: status, completionDayKey: selectedDayKey)
+    }
+
+    private func completePendingTask(_ pending: PendingMobileTaskCompletion) {
+        pendingTaskCompletion = nil
+        do {
+            guard let task = try modelContext.fetch(
+                BoundedQueryService.taskDescriptor(id: pending.taskID)
+            ).first else {
+                showBoardNotice("작업이 변경되어 완료하지 못했습니다")
+                return
+            }
+            changeTaskStatus(
+                task: task,
+                status: .done,
+                completionDayKey: pending.completionDayKey
+            )
+        } catch {
+            showBoardNotice("작업을 다시 불러오지 못했습니다")
+        }
+    }
+
+    private func changeTaskStatus(
+        task: TodoTask,
+        status: TaskStatus,
+        completionDayKey: String
+    ) {
+        let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
+        guard currentStatus != status else { return }
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.applyStatus(status, to: task, completionDayKey: selectedDayKey)
+                TaskRules.applyStatus(status, to: task, completionDayKey: completionDayKey)
+            }
+            if status == .done {
+                TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])
             }
             showStatusNotice(task: task, status: status)
         } catch {

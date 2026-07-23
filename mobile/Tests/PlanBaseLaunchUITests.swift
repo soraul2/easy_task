@@ -214,16 +214,105 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testReminderCompletionSkipsAlertForNoneAndPast() {
+        let app = launchReminderFixtureApp()
+        let noReminderTitle = "알림 완료 테스트: 알림 없음"
+        let pastReminderTitle = "알림 완료 테스트: 지난 알림"
+
+        let noReminderDone = app.buttons["\(noReminderTitle) 완료 상태"]
+        XCTAssertTrue(scrollToHittable(noReminderDone, in: app))
+        noReminderDone.tap()
+        XCTAssertFalse(app.alerts["예정된 알림이 있습니다"].waitForExistence(timeout: 1))
+
+        let pastReminderDone = app.buttons["\(pastReminderTitle) 완료 상태"]
+        XCTAssertTrue(scrollToHittable(pastReminderDone, in: app))
+        pastReminderDone.tap()
+        XCTAssertFalse(app.alerts["예정된 알림이 있습니다"].waitForExistence(timeout: 1))
+
+        let boardStatusPicker = app.segmentedControls.firstMatch
+        XCTAssertTrue(boardStatusPicker.buttons["완료"].waitForExistence(timeout: 5))
+        boardStatusPicker.buttons["완료"].tap()
+        let record = app.descendants(matching: .any)["\(pastReminderTitle) 알림 기록"]
+        XCTAssertTrue(scrollToHittable(record, in: app))
+        XCTAssertTrue(record.label.contains("설정했던 알림"))
+    }
+
+    @MainActor
+    func testFutureReminderCompletionCanCancelAndThenPreservesRecord() {
+        let app = launchReminderFixtureApp()
+        let taskTitle = "알림 완료 테스트: 미래 알림"
+        let doneButton = app.buttons["\(taskTitle) 완료 상태"]
+        XCTAssertTrue(scrollToHittable(doneButton, in: app))
+        doneButton.tap()
+
+        let alert = app.alerts["예정된 알림이 있습니다"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.buttons["완료하기"].exists)
+        XCTAssertTrue(alert.buttons["취소"].exists)
+        alert.buttons["취소"].tap()
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5))
+
+        doneButton.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["완료하기"].tap()
+
+        let boardStatusPicker = app.segmentedControls.firstMatch
+        XCTAssertTrue(boardStatusPicker.buttons["완료"].waitForExistence(timeout: 5))
+        boardStatusPicker.buttons["완료"].tap()
+        let record = app.descendants(matching: .any)["\(taskTitle) 알림 기록"]
+        XCTAssertTrue(scrollToHittable(record, in: app))
+        XCTAssertTrue(record.label.contains("설정했던 알림"))
+    }
+
+    @MainActor
+    func testCarryoverCompletionReportsFutureReminderCount() {
+        let app = launchReminderFixtureApp()
+        let boardMenu = app.buttons["보드 작업"]
+        XCTAssertTrue(boardMenu.waitForExistence(timeout: 15))
+        boardMenu.tap()
+        app.buttons["이월함"].tap()
+
+        let completeAll = app.buttons["원래 날짜에 모두 완료"]
+        XCTAssertTrue(completeAll.waitForExistence(timeout: 5))
+        completeAll.tap()
+
+        let alert = app.alerts["예정된 알림이 있습니다"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "1개의 작업")
+        ).firstMatch.exists)
+        alert.buttons["취소"].tap()
+    }
+
+    @MainActor
+    private func launchReminderFixtureApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reminder-fixtures"]
+        app.launch()
+        XCTAssertTrue(
+            app.textFields["해당 날짜에 할 일 입력"]
+                .waitForExistence(timeout: 15)
+        )
+        return app
+    }
+
+    @MainActor
     private func scrollToHittable(
         _ element: XCUIElement,
         in app: XCUIApplication,
         attempts: Int = 8
     ) -> Bool {
         for _ in 0..<attempts {
-            if element.waitForExistence(timeout: 1), element.isHittable {
+            if element.waitForExistence(timeout: 0.5), element.isHittable {
                 return true
             }
-            app.swipeUp()
+            app.swipeUp(velocity: .slow)
+        }
+        for _ in 0..<(attempts * 2) {
+            if element.waitForExistence(timeout: 0.5), element.isHittable {
+                return true
+            }
+            app.swipeDown(velocity: .slow)
         }
         return element.exists && element.isHittable
     }

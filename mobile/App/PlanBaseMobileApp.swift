@@ -13,6 +13,14 @@ enum PlanBaseLaunchEnvironment {
         false
 #endif
     }
+
+    static var usesReminderCompletionFixtures: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--ui-testing-reminder-fixtures")
+#else
+        false
+#endif
+    }
 }
 
 @main
@@ -183,6 +191,7 @@ private struct MobileAppRootView: View {
     @State private var activeDayKey = DayKey.today
     @State private var selectedBoardDayKey = DayKey.today
     @State private var isFollowingToday = true
+    @State private var isWidgetSnapshotPublisherReady = false
     @State private var showingSyncStatus = false
     @State private var showingThemePicker = false
     @State private var syncMonitor = CloudKitSyncMonitor()
@@ -243,7 +252,9 @@ private struct MobileAppRootView: View {
         .tint(AppTheme.event)
         .background(AppTheme.background)
         .background {
-            CalendarWidgetSnapshotPublisher()
+            if isWidgetSnapshotPublisherReady {
+                CalendarWidgetSnapshotPublisher()
+            }
         }
         .toolbarBackground(AppTheme.floatingBar, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
@@ -364,6 +375,7 @@ private struct MobileAppRootView: View {
                     saveChanges: false
                 )
             }
+            isWidgetSnapshotPublisherReady = true
             let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
                 context: modelContext,
                 appSupportFolder: MobileImageStorage.appSupportFolder
@@ -380,6 +392,7 @@ private struct MobileAppRootView: View {
             }
             try PersistenceCommandService.perform(in: modelContext) {
                 try seedDemoDataIfNeeded()
+                try seedReminderCompletionFixturesIfNeeded()
                 try archiveTasksIfNeeded()
             }
         } catch {
@@ -406,6 +419,53 @@ private struct MobileAppRootView: View {
             reviews: reviews,
             policy: policy
         )
+    }
+
+    private func seedReminderCompletionFixturesIfNeeded() throws {
+#if DEBUG
+        guard PlanBaseLaunchEnvironment.usesReminderCompletionFixtures else { return }
+        let fixturePrefix = "알림 완료 테스트:"
+        let existing = try modelContext.fetch(FetchDescriptor<TodoTask>())
+        guard !existing.contains(where: { $0.title.hasPrefix(fixturePrefix) }) else { return }
+
+        let now = Date()
+        let today = DayKey.startOfDay(for: now)
+        let yesterday = DayKey.addingDays(-1, to: today)
+        let pastReminder = TaskReminderRules.normalizedDate(
+            now.addingTimeInterval(-3_600)
+        )
+        let futureReminder = TaskReminderRules.normalizedDate(
+            now.addingTimeInterval(3_600)
+        )
+
+        modelContext.insert(TodoTask(
+            title: "\(fixturePrefix) 알림 없음",
+            status: .todo,
+            plannedAt: today,
+            order: 900
+        ))
+        modelContext.insert(TodoTask(
+            title: "\(fixturePrefix) 지난 알림",
+            status: .todo,
+            plannedAt: today,
+            order: 1_000,
+            reminderAt: pastReminder
+        ))
+        modelContext.insert(TodoTask(
+            title: "\(fixturePrefix) 미래 알림",
+            status: .todo,
+            plannedAt: today,
+            order: 1_100,
+            reminderAt: futureReminder
+        ))
+        modelContext.insert(TodoTask(
+            title: "\(fixturePrefix) 이월 미래 알림",
+            status: .todo,
+            plannedAt: yesterday,
+            order: 1_200,
+            reminderAt: futureReminder
+        ))
+#endif
     }
 
     private func archiveTasksIfNeeded(todayKey: String = DayKey.today) throws {
@@ -469,12 +529,17 @@ private struct MobileAppRootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        guard let dayKey = PlanBaseDeepLink.calendarDayKey(from: url),
-              let date = DayKey.date(from: dayKey) else {
+        if let dayKey = PlanBaseDeepLink.calendarDayKey(from: url),
+           let date = DayKey.date(from: dayKey) {
+            calendarNavigationDate = date
+            selectedTab = .calendar
             return
         }
-        calendarNavigationDate = date
-        selectedTab = .calendar
+        if let route = PlanBaseDeepLink.boardRoute(from: url),
+           let date = DayKey.date(from: route.resolvedDayKey()) {
+            selectedBoardDate = date
+            selectedTab = .board
+        }
     }
 }
 

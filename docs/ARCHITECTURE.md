@@ -11,9 +11,9 @@ PlanBase.xcodeproj          # iPhone/macOS 앱 번들 타겟과 공유 scheme
 Package.swift               # SwiftPM 기반 공통 코어/테스트 구성
 mobile/
   App/                      # iPhone 앱 구현
-  Widget/                   # iPhone 홈 화면 캘린더 위젯
+  Widget/                   # iPhone 홈 화면 캘린더·잠금 화면 오늘 위젯
   Configuration/            # iOS/Widget Info.plist, entitlements, export 설정
-  Tests/                    # iPhone UI 테스트
+  Tests/                    # iPhone scheduler 단위 테스트와 UI 테스트
 desktop/
   App/                      # macOS 앱 구현
   Configuration/            # macOS Info.plist, entitlements, export 설정
@@ -44,7 +44,7 @@ SwiftData 모델의 모듈 정체성을 유지하기 위해 실제 모델 소스
 - 메모: `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
-- 캘린더 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `PlanBaseDeepLink`
+- 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlanBaseDeepLink`
 - 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·메모를 포함하는 V5 `BackupPackageCodec`(V2~V5 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일 JSON: `SpecialDays.kr.json`
@@ -66,15 +66,20 @@ iPhone 앱은 `mobile/App`에 둔다.
 - `MobileArchiveView`: 회고와 완료 작업 피드
 - `MobileMemoView`: 검색·고정 목록과 자동 저장 편집기
 - `MobileReviewComposerSheet`: 이미지 첨부 가능한 회고 작성
-- `CalendarWidgetSnapshotPublisher`: 캘린더 변경을 App Group 스냅샷으로 발행
+- `CalendarWidgetSnapshotPublisher`: 캘린더와 8일 Task 요약을 App Group 스냅샷으로 발행
+- `TaskNotificationScheduler`: iPhone 로컬 알림 예약·즉시 취소·전체 수렴
 - Xcode `PlanBase-iOS` 타겟과 같은 이름의 공유 scheme을 사용한다.
 
-iPhone 홈 화면 위젯은 `mobile/Widget`에 둔다.
+iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 
 - 소형은 오늘 이벤트, 중형은 월간 42일 그리드와 이벤트 표시점, 대형은 날짜별 이벤트 제목을 제공한다.
+- 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공한다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
-- 스냅샷에는 선택 테마 ID를 포함하며 위젯은 시스템 Light/Dark 환경에 맞는 동일 테마 팔레트를 사용한다.
+- 스냅샷 v4에는 선택 테마, 캘린더 범위와 별도로 오늘부터 8일간의 최소 Task/Event 요약을 포함한다.
+  대표 제목 하나만 저장하고 잠금 화면에서는 `privacySensitive()`로 보호한다.
 - 날짜 탭은 `planbase://calendar?date=yyyy-MM-dd`로 앱의 해당 날짜 캘린더를 연다.
+- 잠금 화면 탭은 처리 시점의 오늘을 해석하는 `planbase://board?scope=today`로 보드를 연다.
+  명시적 보드 날짜는 `planbase://board?date=yyyy-MM-dd`를 사용한다.
   기존 위젯과 링크를 위해 `easytask://`도 계속 수신한다.
 - Xcode `PlanBaseWidgetExtension` 타겟에서 `PlanBaseCore` 패키지 제품에 의존하고 `PlanBase.app`에 내장된다.
 
@@ -113,7 +118,9 @@ iPhone 홈 화면 위젯은 `mobile/Widget`에 둔다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
 9. 메모는 날짜·Task·회고와 독립적으로 저장하며 600ms 자동 저장과 상단 고정을 제공한다.
 10. 백업 V5는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V5를 읽는다.
-11. `Task.reminderAt`이 알림 원본이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
+11. `Task.reminderAt`이 알림 원본이자 설정 기록이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
+    미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
+    저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
 12. 보드와 캘린더는 선택 날짜 또는 42일 월 그리드 범위만 live query하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다.
 13. iPhone 앱은 이벤트 변경·앱 활성화 때 App Group 위젯 스냅샷을 갱신하고, 내용이 달라졌을 때만 WidgetKit 타임라인을 다시 요청한다.
 
@@ -145,6 +152,8 @@ iPhone 홈 화면 위젯은 `mobile/Widget`에 둔다.
 - 첨부는 `reviewId`로 대표 회고에 재연결하며 MIME, 크기, SHA-256을 원본 데이터에서 다시 계산한다.
 - 활성 첨부는 회고당 최대 10개이며, 백업 병합은 무결성 정리 후의 최종 개수를 저장 전에 다시 검증한다.
 - 백업 병합은 `(id, instanceID)` 후보를 보존하고 최종 저장 전에 같은 무결성 규칙으로 수렴시킨다.
+- 완료·재개는 `Task.reminderAt`을 지우지 않는다. 완료 또는 과거 시각은 예약 집합에서만 제외하고,
+  사용자가 알림 토글을 명시적으로 끈 경우에만 값을 `nil`로 만든다.
 
 ## 이미지와 백업
 
@@ -194,7 +203,8 @@ iPhone 홈 화면 위젯은 `mobile/Widget`에 둔다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
 - 메모 검색은 기록과 분리하고 제목·본문 전체를 대상으로 40개씩 조회한다. 편집은 600ms debounce로 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
-- iOS 홈 화면 캘린더 위젯은 소형·중형·대형을 지원하며 스냅샷에는 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트와 선택 테마 ID만 포함한다.
+- iOS 홈 화면 캘린더 위젯은 소형·중형·대형을 지원하며 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트를 사용한다.
+- iOS 잠금 화면 오늘 위젯은 세 accessory family를 지원한다. 앱이 무결성 수렴을 마친 뒤 bounded query로 8일 요약을 발행하며 두 widget kind를 함께 reload한다.
 
 ## 다음 단계
 

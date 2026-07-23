@@ -18,6 +18,12 @@ private enum BoardSheet: Identifiable {
     }
 }
 
+private struct PendingDesktopTaskCompletion {
+    var taskID: UUID
+    var title: String
+    var reminderAt: Date
+}
+
 extension View {
     func persistenceFailureAlert(message: Binding<String?>) -> some View {
         alert(
@@ -53,6 +59,7 @@ struct BoardView: View {
     @State private var presentedSheet: BoardSheet?
     @State private var templateName = ""
     @State private var persistenceFailureMessage: String?
+    @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var todayKey: String { DayKey.today }
@@ -222,6 +229,29 @@ struct BoardView: View {
             case .dailyReview:
                 DailyReviewSheet(selectedDate: selectedDate)
             }
+        }
+        .alert(
+            "예정된 알림이 있습니다",
+            isPresented: Binding(
+                get: { pendingTaskCompletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingTaskCompletion = nil
+                    }
+                }
+            ),
+            presenting: pendingTaskCompletion
+        ) { pending in
+            Button("완료하기", role: .destructive) {
+                completePendingTask(pending)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { pending in
+            Text(
+                "\"\(pending.title)\" 작업을 완료하면 " +
+                    "\(pending.reminderAt.formatted(date: .abbreviated, time: .shortened)) 알림이 중지됩니다. " +
+                    "알림 설정 기록은 계속 유지됩니다."
+            )
         }
         .persistenceFailureAlert(message: boardFailureMessage)
     }
@@ -449,20 +479,50 @@ struct BoardView: View {
             return false
         }
 
-        return performPersistenceCommand(
-            failureMessage: "작업 상태를 변경하지 못했습니다."
-        ) {
-            let nextOrder = try BoundedQueryService.nextOrder(
-                in: modelContext,
-                dayKey: task.plannedDayKey,
-                status: status
-            )
-            TaskRules.applyStatus(status, to: task)
-            task.order = nextOrder
-        }
+        return requestTaskStatusChange(task, to: status)
     }
 
     private func moveTask(_ task: Task, to status: TaskStatus) {
+        _ = requestTaskStatusChange(task, to: status)
+    }
+
+    @discardableResult
+    private func requestTaskStatusChange(_ task: Task, to status: TaskStatus) -> Bool {
+        let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
+        guard currentStatus != status else { return false }
+
+        if status == .done,
+           currentStatus != .done,
+           let reminderAt = TaskReminderRules.upcomingReminderDate(for: task, now: Date()) {
+            pendingTaskCompletion = PendingDesktopTaskCompletion(
+                taskID: task.id,
+                title: task.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                reminderAt: reminderAt
+            )
+            return true
+        }
+
+        return persistTaskStatusChange(task, to: status)
+    }
+
+    private func completePendingTask(_ pending: PendingDesktopTaskCompletion) {
+        pendingTaskCompletion = nil
+        do {
+            guard let task = try modelContext.fetch(
+                BoundedQueryService.taskDescriptor(id: pending.taskID)
+            ).first,
+                  task.status != TaskStatus.done.rawValue else {
+                persistenceFailureMessage = "작업이 변경되어 완료하지 못했습니다."
+                return
+            }
+            _ = persistTaskStatusChange(task, to: .done)
+        } catch {
+            persistenceFailureMessage = "작업을 다시 불러오지 못했습니다."
+        }
+    }
+
+    @discardableResult
+    private func persistTaskStatusChange(_ task: Task, to status: TaskStatus) -> Bool {
         performPersistenceCommand(
             failureMessage: "작업 상태를 변경하지 못했습니다."
         ) {
@@ -500,11 +560,23 @@ struct BoardView: View {
         }
     }
 
-    private func completeAllCarryoverTasks() {
-        performPersistenceCommand(
-            failureMessage: "이월 작업을 완료 처리하지 못했습니다."
-        ) {
-            TaskRules.completeOnPlannedDays(carryoverTasks)
+    private func completeAllCarryoverTasks(taskIDs: [UUID]) {
+        do {
+            var tasksToComplete: [Task] = []
+            for taskID in taskIDs {
+                if let task = try modelContext.fetch(
+                    BoundedQueryService.taskDescriptor(id: taskID)
+                ).first,
+                   task.status != TaskStatus.done.rawValue {
+                    tasksToComplete.append(task)
+                }
+            }
+            guard !tasksToComplete.isEmpty else { return }
+            try PersistenceCommandService.perform(in: modelContext) {
+                TaskRules.completeOnPlannedDays(tasksToComplete)
+            }
+        } catch {
+            persistenceFailureMessage = "이월 작업을 완료 처리하지 못했습니다."
         }
     }
 

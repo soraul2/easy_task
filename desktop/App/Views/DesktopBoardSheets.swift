@@ -2,13 +2,19 @@ import SwiftData
 import SwiftUI
 import PlanBaseCore
 
+private struct PendingDesktopCarryoverCompletion {
+    var taskIDs: [UUID]
+    var upcomingReminderCount: Int
+}
+
 struct CarryoverSheet: View {
     var tasks: [Task]
     @Binding var failureMessage: String?
     var onBringToToday: (Task) -> Void
-    var onCompleteAll: () -> Void
+    var onCompleteAll: ([UUID]) -> Void
     var onDelete: (Task) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var pendingCompletion: PendingDesktopCarryoverCompletion?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -26,7 +32,7 @@ struct CarryoverSheet: View {
 
                 if !tasks.isEmpty {
                     Button {
-                        onCompleteAll()
+                        requestCompleteAll()
                     } label: {
                         Label("원래 날짜에 모두 완료", systemImage: "checkmark.circle")
                             .font(.system(size: 13, weight: .semibold))
@@ -69,7 +75,45 @@ struct CarryoverSheet: View {
         .padding(22)
         .frame(minWidth: 520, idealWidth: 620, minHeight: 360, idealHeight: 480)
         .background(AppTheme.panel)
+        .alert(
+            "예정된 알림이 있습니다",
+            isPresented: Binding(
+                get: { pendingCompletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingCompletion = nil
+                    }
+                }
+            ),
+            presenting: pendingCompletion
+        ) { pending in
+            Button("완료하기", role: .destructive) {
+                pendingCompletion = nil
+                onCompleteAll(pending.taskIDs)
+            }
+            Button("취소", role: .cancel) {}
+        } message: { pending in
+            Text(
+                "\(pending.upcomingReminderCount)개의 작업에 예정된 알림이 있습니다. " +
+                    "모두 완료하면 해당 알림이 중지되며 설정 기록은 계속 유지됩니다."
+            )
+        }
         .persistenceFailureAlert(message: $failureMessage)
+    }
+
+    private func requestCompleteAll() {
+        let pending = PendingDesktopCarryoverCompletion(
+            taskIDs: tasks.map(\.id),
+            upcomingReminderCount: TaskReminderRules.upcomingReminderCount(
+                in: tasks,
+                now: Date()
+            )
+        )
+        if pending.upcomingReminderCount > 0 {
+            pendingCompletion = pending
+        } else {
+            onCompleteAll(pending.taskIDs)
+        }
     }
 }
 

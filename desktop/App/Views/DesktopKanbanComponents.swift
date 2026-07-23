@@ -125,8 +125,8 @@ struct TaskCard: View {
 
                     if let reminderAt = task.reminderAt {
                         Label(
-                            reminderAt.formatted(date: .abbreviated, time: .shortened),
-                            systemImage: "bell"
+                            reminderText(for: reminderAt),
+                            systemImage: reminderSystemImage(for: reminderAt)
                         )
                         .font(.caption)
                         .foregroundStyle(AppTheme.cardMutedText)
@@ -233,6 +233,21 @@ struct TaskCard: View {
                 draftTitle = title
             }
         }
+    }
+
+    private func reminderText(for reminderAt: Date) -> String {
+        let formatted = reminderAt.formatted(date: .abbreviated, time: .shortened)
+        if status == .done {
+            return "설정했던 알림 · \(formatted)"
+        }
+        if reminderAt <= Date() {
+            return "지난 알림 · \(formatted)"
+        }
+        return formatted
+    }
+
+    private func reminderSystemImage(for reminderAt: Date) -> String {
+        status == .done || reminderAt <= Date() ? "bell.slash" : "bell"
     }
 
     private func commitTitle() {
