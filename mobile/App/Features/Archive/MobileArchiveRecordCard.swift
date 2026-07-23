@@ -27,8 +27,6 @@ struct MobileArchiveRecordCard: View {
             if !record.tasks.isEmpty {
                 taskPreview
             }
-
-            boardButton
         }
         .padding(16)
         .foregroundStyle(AppTheme.primaryText)
@@ -66,6 +64,8 @@ struct MobileArchiveRecordCard: View {
                         .padding(.vertical, 4)
                         .background(AppTheme.event, in: Capsule())
                 }
+
+                detailButton
             }
 
             HStack(alignment: .center, spacing: 10) {
@@ -117,9 +117,7 @@ struct MobileArchiveRecordCard: View {
     private var taskPreview: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(.snappy(duration: 0.18)) {
-                    tasksExpanded.toggle()
-                }
+                tasksExpanded.toggle()
             } label: {
                 HStack(spacing: 8) {
                     Label("그날 한 일", systemImage: "checkmark.circle")
@@ -131,6 +129,7 @@ struct MobileArchiveRecordCard: View {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .bold))
                         .rotationEffect(.degrees(tasksExpanded ? 0 : -90))
+                        .animation(.snappy(duration: 0.18), value: tasksExpanded)
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
@@ -159,33 +158,29 @@ struct MobileArchiveRecordCard: View {
                         }
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
 
-    private var boardButton: some View {
+    private var detailButton: some View {
         Button {
             guard let date = DayKey.date(from: record.dayKey) else { return }
             onOpenBoardDate(date)
         } label: {
-            HStack(spacing: 10) {
-                Label("그날 보기", systemImage: "rectangle.3.group")
-                    .font(.subheadline.weight(.semibold))
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .accessibilityHidden(true)
-            }
-            .foregroundStyle(AppTheme.primaryText)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 10))
+            Text("상세보기")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 32)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(minWidth: 44, minHeight: 44)
         .accessibilityLabel("\(presentation.displayDate) 칸반보드 열기")
         .accessibilityHint("이 날짜의 작업 보드로 이동합니다")
     }

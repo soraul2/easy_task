@@ -329,35 +329,35 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
     var dayBadgeSize: CGFloat {
         switch self {
         case .compact: 10
-        case .expanded: 15
+        case .expanded: 14
         }
     }
 
     var eventTopInset: CGFloat {
         switch self {
         case .compact: 10
-        case .expanded: 16
+        case .expanded: 15
         }
     }
 
     var laneHeight: CGFloat {
         switch self {
         case .compact: 3
-        case .expanded: 11
+        case .expanded: 8.5
         }
     }
 
     var barHeight: CGFloat {
         switch self {
         case .compact: 2
-        case .expanded: 10
+        case .expanded: 8
         }
     }
 
     var maximumLaneLimit: Int {
         switch self {
         case .compact: 3
-        case .expanded: 4
+        case .expanded: 5
         }
     }
 }
@@ -609,11 +609,12 @@ private struct CalendarWidgetEventBar: View {
                     .fill(theme.eventColor(event.colorID))
             case .expanded:
                 Text(event.title)
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: 7, weight: .semibold))
                     .foregroundStyle(theme.eventForeground(event.colorID))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .padding(.horizontal, 3)
+                    .minimumScaleFactor(0.85)
+                    .allowsTightening(true)
+                    .padding(.horizontal, 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background(
                         theme.eventColor(event.colorID),

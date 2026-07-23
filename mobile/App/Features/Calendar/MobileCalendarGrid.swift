@@ -340,8 +340,13 @@ struct MobileMonthDayCell: View {
 
 struct MobileCalendarEventSpanBar: View {
     var event: CalendarEvent
+    var visibleDaySpan: Int
     var isDimmed: Bool
     var usesGraphicStyle: Bool
+
+    private var usesCompactTitle: Bool {
+        visibleDaySpan == 1
+    }
 
     var body: some View {
         Group {
@@ -355,13 +360,15 @@ struct MobileCalendarEventSpanBar: View {
                 Text(event.title)
                     .font(.caption2.weight(.semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(usesCompactTitle ? 0.7 : 1)
+                    .allowsTightening(usesCompactTitle)
                     .truncationMode(.tail)
                     .foregroundStyle(
                         isDimmed
                             ? AppTheme.secondaryText
                             : CalendarEventPalette.foreground(for: event.color)
                     )
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, usesCompactTitle ? 2 : 4)
                     .frame(
                         maxWidth: .infinity,
                         maxHeight: .infinity,

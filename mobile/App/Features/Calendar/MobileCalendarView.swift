@@ -283,6 +283,7 @@ struct MobileCalendarView: View {
                         if let event = eventsByRenderID[segment.renderID] {
                             MobileCalendarEventSpanBar(
                                 event: event,
+                                visibleDaySpan: segment.span,
                                 isDimmed: segment.isDimmed,
                                 usesGraphicStyle: usesGraphicEventBars
                             )

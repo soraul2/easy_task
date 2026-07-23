@@ -397,8 +397,6 @@ private struct MobileTaskRow: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
-                    MobileTaskStatusBadge(status: status, accentColor: accentColor)
-
                     Text(task.title)
                         .font(.headline)
                         .lineLimit(2)
@@ -602,26 +600,6 @@ private struct MobileTaskRow: View {
     }
 }
 
-private struct MobileTaskStatusBadge: View {
-    var status: TaskStatus
-    var accentColor: Color
-
-    var body: some View {
-        Label(status.title, systemImage: status.systemImage)
-            .font(.caption.weight(.bold))
-            .lineLimit(1)
-            .foregroundStyle(AppTheme.cardText)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(AppTheme.panel.opacity(0.60), in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(accentColor.opacity(0.52), lineWidth: 1)
-            }
-            .accessibilityLabel("현재 상태 \(status.title)")
-    }
-}
-
 private struct MobileTaskDetailChip: View {
     var title: String
     var systemImage: String
@@ -689,12 +667,12 @@ private struct MobileTaskStatusSlider: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(AppTheme.panel.opacity(0.92))
                     .frame(width: max(segmentWidth - 6, 0), height: 42)
-                    .offset(x: CGFloat(selectedIndex) * segmentWidth + 3)
                     .overlay {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(accentColor.opacity(0.82), lineWidth: 1.5)
                     }
                     .shadow(color: accentColor.opacity(0.22), radius: 8, x: 0, y: 3)
+                    .offset(x: CGFloat(selectedIndex) * segmentWidth + 3)
                     .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selectedIndex)
 
                 HStack(spacing: 0) {
