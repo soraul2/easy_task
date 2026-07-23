@@ -1,19 +1,107 @@
+import AppIntents
+import Foundation
 import PlanBaseCore
 import SwiftUI
 import WidgetKit
+
+private enum CalendarWidgetMonthSelectionStore {
+    private static let selectedMonthDayKey = "calendarWidget.selectedMonthDayKey"
+
+    private static var defaults: UserDefaults? {
+        UserDefaults(suiteName: CalendarWidgetConstants.appGroupIdentifier)
+    }
+
+    static func selection(
+        snapshot: CalendarWidgetSnapshot,
+        referenceDate: Date
+    ) -> CalendarWidgetMonthSelection {
+        CalendarWidgetMonthNavigation.selection(
+            selectedMonthDayKey: defaults?.string(forKey: selectedMonthDayKey),
+            snapshot: snapshot,
+            referenceDate: referenceDate
+        )
+    }
+
+    static func move(by monthDelta: Int, referenceDate: Date = Date()) {
+        let snapshot = currentSnapshot(referenceDate: referenceDate)
+        let selection = CalendarWidgetMonthNavigation.moving(
+            selectedMonthDayKey: defaults?.string(forKey: selectedMonthDayKey),
+            by: monthDelta,
+            snapshot: snapshot,
+            referenceDate: referenceDate
+        )
+        defaults?.set(DayKey.key(for: selection.month), forKey: selectedMonthDayKey)
+    }
+
+    static func reset() {
+        defaults?.removeObject(forKey: selectedMonthDayKey)
+    }
+
+    private static func currentSnapshot(referenceDate: Date) -> CalendarWidgetSnapshot {
+        do {
+            return try CalendarWidgetSnapshotStore.read()
+                ?? CalendarWidgetSnapshot(generatedAt: referenceDate, events: [])
+        } catch {
+            return CalendarWidgetSnapshot(generatedAt: referenceDate, events: [])
+        }
+    }
+}
+
+struct ChangeCalendarWidgetMonthIntent: AppIntent {
+    static let title: LocalizedStringResource = "캘린더 위젯 월 이동"
+    static let description = IntentDescription("PlanBase 캘린더 위젯의 표시 월을 이동합니다.")
+    static let isDiscoverable = false
+    static let openAppWhenRun = false
+
+    @Parameter(title: "이동 방향")
+    var monthDelta: Int
+
+    init() {}
+
+    init(monthDelta: Int) {
+        self.monthDelta = monthDelta
+    }
+
+    func perform() async throws -> some IntentResult {
+        CalendarWidgetMonthSelectionStore.move(by: monthDelta)
+        WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
+        return .result()
+    }
+}
+
+struct ResetCalendarWidgetMonthIntent: AppIntent {
+    static let title: LocalizedStringResource = "이번 달 보기"
+    static let description = IntentDescription("PlanBase 캘린더 위젯을 이번 달로 되돌립니다.")
+    static let isDiscoverable = false
+    static let openAppWhenRun = false
+
+    func perform() async throws -> some IntentResult {
+        CalendarWidgetMonthSelectionStore.reset()
+        WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
+        return .result()
+    }
+}
 
 private struct PlanBaseCalendarEntry: TimelineEntry {
     let date: Date
     let snapshot: CalendarWidgetSnapshot
     let availability: PlanBaseWidgetSnapshotAvailability
+    let monthSelection: CalendarWidgetMonthSelection
 }
 
 private struct PlanBaseCalendarProvider: TimelineProvider {
     func placeholder(in context: Context) -> PlanBaseCalendarEntry {
-        PlanBaseCalendarEntry(
-            date: Date(),
-            snapshot: .preview,
-            availability: .available
+        let date = Date()
+        let snapshot = CalendarWidgetSnapshot.preview
+        return PlanBaseCalendarEntry(
+            date: date,
+            snapshot: snapshot,
+            availability: .available,
+            monthSelection: CalendarWidgetMonthNavigation.selection(
+                selectedMonthDayKey: nil,
+                snapshot: snapshot,
+                referenceDate: date
+            )
         )
     }
 
@@ -36,16 +124,18 @@ private struct PlanBaseCalendarProvider: TimelineProvider {
 
     private func entry(at date: Date, usesPreviewData: Bool) -> PlanBaseCalendarEntry {
         if usesPreviewData {
-            return PlanBaseCalendarEntry(
+            let snapshot = CalendarWidgetSnapshot.preview
+            return makeEntry(
                 date: date,
-                snapshot: .preview,
-                availability: .available
+                snapshot: snapshot,
+                availability: .available,
+                usesStoredSelection: false
             )
         }
 
         do {
             guard let snapshot = try CalendarWidgetSnapshotStore.read() else {
-                return PlanBaseCalendarEntry(
+                return makeEntry(
                     date: date,
                     snapshot: .empty(at: date),
                     availability: .missing
@@ -54,30 +144,54 @@ private struct PlanBaseCalendarProvider: TimelineProvider {
             let availability: PlanBaseWidgetSnapshotAvailability = snapshot.covers(
                 dayKey: DayKey.key(for: date)
             ) ? .available : .staleCoverage
-            return PlanBaseCalendarEntry(
+            return makeEntry(
                 date: date,
                 snapshot: snapshot,
                 availability: availability
             )
         } catch CalendarWidgetSnapshotStore.StoreError.unsupportedSchemaVersion {
-            return PlanBaseCalendarEntry(
+            return makeEntry(
                 date: date,
                 snapshot: .empty(at: date),
                 availability: .unsupportedNewerSchema
             )
         } catch is DecodingError {
-            return PlanBaseCalendarEntry(
+            return makeEntry(
                 date: date,
                 snapshot: .empty(at: date),
                 availability: .corrupt
             )
         } catch {
-            return PlanBaseCalendarEntry(
+            return makeEntry(
                 date: date,
                 snapshot: .empty(at: date),
                 availability: .corrupt
             )
         }
+    }
+
+    private func makeEntry(
+        date: Date,
+        snapshot: CalendarWidgetSnapshot,
+        availability: PlanBaseWidgetSnapshotAvailability,
+        usesStoredSelection: Bool = true
+    ) -> PlanBaseCalendarEntry {
+        let monthSelection = usesStoredSelection
+            ? CalendarWidgetMonthSelectionStore.selection(
+                snapshot: snapshot,
+                referenceDate: date
+            )
+            : CalendarWidgetMonthNavigation.selection(
+                selectedMonthDayKey: nil,
+                snapshot: snapshot,
+                referenceDate: date
+            )
+        return PlanBaseCalendarEntry(
+            date: date,
+            snapshot: snapshot,
+            availability: availability,
+            monthSelection: monthSelection
+        )
     }
 }
 
@@ -237,7 +351,7 @@ private struct MonthCalendarWidget: View {
     let theme: CalendarWidgetTheme
 
     private var month: Date {
-        DayKey.startOfMonth(for: entry.date)
+        entry.monthSelection.month
     }
 
     private var dates: [Date] {
@@ -245,17 +359,15 @@ private struct MonthCalendarWidget: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(DayKey.monthTitle(month))
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(theme.primaryText)
-
-                Spacer(minLength: 0)
-            }
+        VStack(alignment: .leading, spacing: 1) {
+            CalendarWidgetMonthHeader(
+                monthSelection: entry.monthSelection,
+                theme: theme,
+                style: .compact
+            )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .compact)
-                .frame(height: 10)
+                .frame(height: 9)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -276,7 +388,7 @@ private struct LargeMonthCalendarWidget: View {
     let theme: CalendarWidgetTheme
 
     private var month: Date {
-        DayKey.startOfMonth(for: entry.date)
+        entry.monthSelection.month
     }
 
     private var dates: [Date] {
@@ -284,14 +396,12 @@ private struct LargeMonthCalendarWidget: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(DayKey.monthTitle(month))
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(theme.primaryText)
-
-                Spacer(minLength: 0)
-            }
+        VStack(alignment: .leading, spacing: 2) {
+            CalendarWidgetMonthHeader(
+                monthSelection: entry.monthSelection,
+                theme: theme,
+                style: .expanded
+            )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .expanded)
                 .frame(height: 14)
@@ -310,9 +420,99 @@ private struct LargeMonthCalendarWidget: View {
     }
 }
 
+private struct CalendarWidgetMonthHeader: View {
+    let monthSelection: CalendarWidgetMonthSelection
+    let theme: CalendarWidgetTheme
+    let style: CalendarWidgetMonthGridStyle
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Button(intent: ResetCalendarWidgetMonthIntent()) {
+                Text(DayKey.monthTitle(monthSelection.month))
+                    .font(.system(size: style.monthHeaderFontSize, weight: .medium))
+                    .foregroundStyle(theme.primaryText)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("이번 달로 이동")
+
+            Spacer(minLength: 4)
+
+            monthButton(
+                systemName: "chevron.left",
+                label: "이전 달",
+                delta: -1,
+                isEnabled: monthSelection.canMoveBackward
+            )
+            monthButton(
+                systemName: "chevron.right",
+                label: "다음 달",
+                delta: 1,
+                isEnabled: monthSelection.canMoveForward
+            )
+        }
+        .frame(height: style.monthHeaderHeight)
+    }
+
+    @ViewBuilder
+    private func monthButton(
+        systemName: String,
+        label: String,
+        delta: Int,
+        isEnabled: Bool
+    ) -> some View {
+        Button(intent: ChangeCalendarWidgetMonthIntent(monthDelta: delta)) {
+            Image(systemName: systemName)
+                .font(.system(
+                    size: style.monthControlFontSize,
+                    weight: .semibold
+                ))
+                .foregroundStyle(
+                    theme.secondaryText.opacity(isEnabled ? 1 : 0.28)
+                )
+                .frame(
+                    width: style.monthControlWidth,
+                    height: style.monthHeaderHeight
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(label)
+    }
+}
+
 private enum CalendarWidgetMonthGridStyle: Equatable {
     case compact
     case expanded
+
+    var monthHeaderFontSize: CGFloat {
+        switch self {
+        case .compact: 11
+        case .expanded: 13
+        }
+    }
+
+    var monthHeaderHeight: CGFloat {
+        switch self {
+        case .compact: 13
+        case .expanded: 16
+        }
+    }
+
+    var monthControlFontSize: CGFloat {
+        switch self {
+        case .compact: 8
+        case .expanded: 9
+        }
+    }
+
+    var monthControlWidth: CGFloat {
+        switch self {
+        case .compact: 18
+        case .expanded: 20
+        }
+    }
 
     var dayFontSize: CGFloat {
         switch self {
@@ -323,15 +523,15 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 
     var dayBadgeSize: CGFloat {
         switch self {
-        case .compact: 11
+        case .compact: 10
         case .expanded: 15
         }
     }
 
     var eventTopInset: CGFloat {
         switch self {
-        case .compact: 11
-        case .expanded: 17
+        case .compact: 10
+        case .expanded: 16
         }
     }
 
@@ -352,7 +552,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
     var maximumLaneLimit: Int {
         switch self {
         case .compact: 3
-        case .expanded: 3
+        case .expanded: 4
         }
     }
 }

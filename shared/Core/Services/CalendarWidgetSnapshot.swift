@@ -451,6 +451,96 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public struct CalendarWidgetMonthSelection: Equatable, Sendable {
+    public let month: Date
+    public let canMoveBackward: Bool
+    public let canMoveForward: Bool
+
+    public init(
+        month: Date,
+        canMoveBackward: Bool,
+        canMoveForward: Bool
+    ) {
+        self.month = month
+        self.canMoveBackward = canMoveBackward
+        self.canMoveForward = canMoveForward
+    }
+}
+
+public enum CalendarWidgetMonthNavigation {
+    public static func selection(
+        selectedMonthDayKey: String?,
+        snapshot: CalendarWidgetSnapshot,
+        referenceDate: Date
+    ) -> CalendarWidgetMonthSelection {
+        let currentMonth = DayKey.startOfMonth(for: referenceDate)
+        guard let firstCoveredDate = DayKey.date(from: snapshot.coveredStartDayKey),
+              let lastCoveredDate = DayKey.date(from: snapshot.coveredEndDayKey) else {
+            return CalendarWidgetMonthSelection(
+                month: currentMonth,
+                canMoveBackward: false,
+                canMoveForward: false
+            )
+        }
+
+        let firstMonth = DayKey.startOfMonth(for: firstCoveredDate)
+        let lastMonth = DayKey.startOfMonth(for: lastCoveredDate)
+        let firstMonthKey = DayKey.key(for: firstMonth)
+        let lastMonthKey = DayKey.key(for: lastMonth)
+        let fallbackMonthKey = DayKey.key(for: currentMonth)
+        let fallbackMonth = firstMonthKey <= fallbackMonthKey
+            && fallbackMonthKey <= lastMonthKey
+            ? currentMonth
+            : firstMonth
+        let requestedMonth = selectedMonthDayKey
+            .flatMap(DayKey.date(from:))
+            .map(DayKey.startOfMonth(for:))
+        let requestedMonthKey = requestedMonth.map(DayKey.key(for:))
+        let month: Date
+        if let requestedMonth,
+           let requestedMonthKey,
+           firstMonthKey <= requestedMonthKey,
+           requestedMonthKey <= lastMonthKey {
+            month = requestedMonth
+        } else {
+            month = fallbackMonth
+        }
+        let monthKey = DayKey.key(for: month)
+
+        return CalendarWidgetMonthSelection(
+            month: month,
+            canMoveBackward: firstMonthKey < monthKey,
+            canMoveForward: monthKey < lastMonthKey
+        )
+    }
+
+    public static func moving(
+        selectedMonthDayKey: String?,
+        by monthDelta: Int,
+        snapshot: CalendarWidgetSnapshot,
+        referenceDate: Date
+    ) -> CalendarWidgetMonthSelection {
+        let currentSelection = selection(
+            selectedMonthDayKey: selectedMonthDayKey,
+            snapshot: snapshot,
+            referenceDate: referenceDate
+        )
+        let step = monthDelta < 0 ? -1 : monthDelta > 0 ? 1 : 0
+        guard step != 0,
+              (step < 0
+                  ? currentSelection.canMoveBackward
+                  : currentSelection.canMoveForward) else {
+            return currentSelection
+        }
+        let targetMonth = DayKey.addingMonths(step, to: currentSelection.month)
+        return selection(
+            selectedMonthDayKey: DayKey.key(for: targetMonth),
+            snapshot: snapshot,
+            referenceDate: referenceDate
+        )
+    }
+}
+
 public enum CalendarWidgetSnapshotStore {
     public enum StoreError: Error, Equatable {
         case appGroupContainerUnavailable

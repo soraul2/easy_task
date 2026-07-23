@@ -215,6 +215,66 @@ func calendarWidgetSnapshotUsesNewestLogicalEventRepresentative() throws {
 }
 
 @Test
+func calendarWidgetMonthNavigationStaysInsideSnapshotCoverage() throws {
+    let referenceDate = try #require(DayKey.date(from: "2026-07-16"))
+    let snapshot = CalendarWidgetSnapshot(
+        generatedAt: referenceDate,
+        events: []
+    )
+
+    let current = CalendarWidgetMonthNavigation.selection(
+        selectedMonthDayKey: nil,
+        snapshot: snapshot,
+        referenceDate: referenceDate
+    )
+    #expect(DayKey.key(for: current.month) == "2026-07-01")
+    #expect(current.canMoveBackward)
+    #expect(current.canMoveForward)
+
+    let previous = CalendarWidgetMonthNavigation.moving(
+        selectedMonthDayKey: "2026-07-01",
+        by: -1,
+        snapshot: snapshot,
+        referenceDate: referenceDate
+    )
+    #expect(DayKey.key(for: previous.month) == "2026-06-01")
+    #expect(!previous.canMoveBackward)
+    #expect(previous.canMoveForward)
+
+    let previousBoundary = CalendarWidgetMonthNavigation.moving(
+        selectedMonthDayKey: "2026-06-01",
+        by: -1,
+        snapshot: snapshot,
+        referenceDate: referenceDate
+    )
+    #expect(previousBoundary == previous)
+
+    let normalizedNextMonth = CalendarWidgetMonthNavigation.selection(
+        selectedMonthDayKey: "2026-08-20",
+        snapshot: snapshot,
+        referenceDate: referenceDate
+    )
+    #expect(DayKey.key(for: normalizedNextMonth.month) == "2026-08-01")
+
+    let lastMonth = CalendarWidgetMonthNavigation.moving(
+        selectedMonthDayKey: "2026-08-01",
+        by: 1,
+        snapshot: snapshot,
+        referenceDate: referenceDate
+    )
+    #expect(DayKey.key(for: lastMonth.month) == "2026-09-01")
+    #expect(lastMonth.canMoveBackward)
+    #expect(!lastMonth.canMoveForward)
+
+    let staleSelection = CalendarWidgetMonthNavigation.selection(
+        selectedMonthDayKey: "2026-10-01",
+        snapshot: snapshot,
+        referenceDate: referenceDate
+    )
+    #expect(staleSelection == current)
+}
+
+@Test
 func calendarWidgetSnapshotStoreReplacesMalformedPayload() throws {
     let directoryURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
