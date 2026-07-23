@@ -21,6 +21,14 @@ enum PlanBaseLaunchEnvironment {
         false
 #endif
     }
+
+    static var usesEmptyBoardFixture: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--ui-testing-empty-board")
+#else
+        false
+#endif
+    }
 }
 
 @main
@@ -405,6 +413,7 @@ private struct MobileAppRootView: View {
     }
 
     private func seedDemoDataIfNeeded() throws {
+        guard !PlanBaseLaunchEnvironment.usesEmptyBoardFixture else { return }
         let policy = SeedPolicy.appStartup(
             cloudKitEnabled: cloudKitEnabled &&
                 !PlanBaseLaunchEnvironment.isUITesting
@@ -590,12 +599,14 @@ private struct MobileCloudKitSyncStatusSheet: View {
                         LabeledContent("마지막 성공", value: "확인 전")
                     }
                 }
+                .listRowBackground(AppTheme.panel)
 
                 if let advisoryDescription = monitor.syncAdvisoryDescription {
                     Section("안내") {
                         Text(advisoryDescription)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
+                    .listRowBackground(AppTheme.panel)
                 }
 
                 if let errorDescription = monitor.lastErrorDescription {
@@ -603,6 +614,7 @@ private struct MobileCloudKitSyncStatusSheet: View {
                         Text(errorDescription)
                             .foregroundStyle(.red)
                     }
+                    .listRowBackground(AppTheme.panel)
                 }
 
                 Section("화면 표시") {
@@ -611,8 +623,9 @@ private struct MobileCloudKitSyncStatusSheet: View {
                     }
                     Text("배너를 숨겨도 이 기기 저장과 iCloud 자동 재시도는 계속됩니다.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
+                .listRowBackground(AppTheme.panel)
 
                 Section {
                     Button {
@@ -621,7 +634,12 @@ private struct MobileCloudKitSyncStatusSheet: View {
                         Label("계정 상태 다시 확인", systemImage: "arrow.clockwise")
                     }
                 }
+                .listRowBackground(AppTheme.panel)
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
+            .tint(AppTheme.event)
             .navigationTitle("iCloud 동기화")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -631,30 +649,56 @@ private struct MobileCloudKitSyncStatusSheet: View {
             }
         }
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
     }
 }
 
 struct MobileThemePickerSheet: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
     @Binding var selectedThemeID: String
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 12)
-    ]
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 12)]
+    }
+
+    private var appearanceTitle: String {
+        colorScheme == .light ? "라이트 모드" : "다크 모드"
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(AppThemePreset.all) { preset in
-                        MobileThemePresetCard(
-                            preset: preset,
-                            appearance: AppThemeAppearance(colorScheme: colorScheme),
-                            isSelected: selectedThemeID == preset.id
-                        ) {
-                            AppTheme.activate(preset.id, colorScheme: colorScheme)
-                            selectedThemeID = preset.id
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label(
+                            "\(appearanceTitle) 미리보기",
+                            systemImage: "circle.lefthalf.filled"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+
+                        Text("선택한 테마는 기기의 라이트·다크 모드에 맞춰 자동으로 바뀝니다.")
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(AppThemePreset.all) { preset in
+                            MobileThemePresetCard(
+                                preset: preset,
+                                appearance: AppThemeAppearance(colorScheme: colorScheme),
+                                isSelected: selectedThemeID == preset.id
+                            ) {
+                                AppTheme.activate(preset.id, colorScheme: colorScheme)
+                                selectedThemeID = preset.id
+                            }
                         }
                     }
                 }
@@ -702,17 +746,17 @@ private struct MobileThemePresetCard: View {
                 }
 
                 HStack(spacing: 0) {
-                    ForEach(Array(preset.sourceColors.prefix(4).enumerated()), id: \.offset) { _, color in
-                        color.frame(maxWidth: .infinity)
+                    ForEach(Array(colors.eventPalette.prefix(4).enumerated()), id: \.offset) { _, color in
+                        color.color.frame(maxWidth: .infinity)
                     }
                 }
                 .frame(height: 24)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
 
                 HStack(spacing: 6) {
-                    themeSample(color: colors.todo.color, symbol: "circle")
-                    themeSample(color: colors.doing.color, symbol: "arrow.right")
-                    themeSample(color: colors.done.color, symbol: "checkmark")
+                    themeSample(color: colors.todo, symbol: "circle")
+                    themeSample(color: colors.doing, symbol: "arrow.right")
+                    themeSample(color: colors.done, symbol: "checkmark")
                 }
             }
             .padding(12)
@@ -730,15 +774,16 @@ private struct MobileThemePresetCard: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(preset.name) 테마")
         .accessibilityValue(isSelected ? "선택됨" : "")
+        .accessibilityHint(isSelected ? "현재 적용된 테마" : "두 번 탭하여 테마 적용")
     }
 
-    private func themeSample(color: Color, symbol: String) -> some View {
+    private func themeSample(color: ThemeColorToken, symbol: String) -> some View {
         Image(systemName: symbol)
             .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(colors.cardText.color)
+            .foregroundStyle(colors.resolvedCardForeground(on: color).color)
             .frame(maxWidth: .infinity)
             .frame(height: 30)
-            .background(color, in: RoundedRectangle(cornerRadius: 6))
+            .background(color.color, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 #else

@@ -22,7 +22,7 @@ private struct MobileCalendarQueryRange: Hashable {
     let endDayKey: String
 
     init(visibleMonth: Date) {
-        let dates = DayKey.monthGridDates(for: visibleMonth)
+        let dates = DayKey.adaptiveMonthGridDates(for: visibleMonth)
         let fallbackDayKey = DayKey.key(for: visibleMonth)
         startDayKey = dates.first.map(DayKey.key(for:)) ?? fallbackDayKey
         endDayKey = dates.last.map(DayKey.key(for:)) ?? fallbackDayKey
@@ -58,6 +58,7 @@ struct MobileCalendarView: View {
     @Binding var navigationDate: Date?
     var onOpenBoardDate: (Date) -> Void
     var onShowTheme: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.modelContext) private var modelContext
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
@@ -107,6 +108,7 @@ struct MobileCalendarView: View {
                     onShowTemplates: { sheet = .templates },
                     onAddEvent: { sheet = .addEvent(selectedDate) }
                 )
+                .dynamicTypeSize(.xSmall ... .xxxLarge)
                 if let placementTemplate {
                     CalendarTemplatePlacementStatus(
                         templateName: placementTemplate.name,
@@ -202,16 +204,29 @@ struct MobileCalendarView: View {
         templatePlacements: [TemplatePlacement]
     ) -> some View {
         GeometryReader { proxy in
-            let dates = DayKey.monthGridDates(for: visibleMonth)
+            let dates = DayKey.adaptiveMonthGridDates(for: visibleMonth)
+            let rowCount = max(1, dates.count / 7)
             let isPlacementMode = placementTemplate != nil
-            let headerHeight: CGFloat = 30
-            let gridHeight = max(proxy.size.height - headerHeight, 324)
-            let cellHeight = gridHeight / 6
+            let usesGraphicEventBars = dynamicTypeSize.isAccessibilitySize
+            let headerHeight: CGFloat = usesGraphicEventBars ? 38 : 28
+            let gridHeight = max(
+                proxy.size.height - headerHeight,
+                CGFloat(rowCount) * 54
+            )
+            let cellHeight = gridHeight / CGFloat(rowCount)
             let cellWidth = proxy.size.width / 7
-            let eventTopInset = min(max(cellHeight * 0.30, 24), 32)
-            let laneHeight: CGFloat = 18
-            let barHeight: CGFloat = 16
-            let maxEventLanes = max(1, min(3, Int((cellHeight - eventTopInset - 6) / laneHeight)))
+            let eventTopInset = usesGraphicEventBars
+                ? min(max(cellHeight * 0.24, 40), 46)
+                : min(max(cellHeight * 0.24, 26), 34)
+            let laneHeight: CGFloat = usesGraphicEventBars ? 8 : 18
+            let barHeight: CGFloat = usesGraphicEventBars ? 6 : 17
+            let maxEventLanes = max(
+                1,
+                min(
+                    usesGraphicEventBars ? 5 : 4,
+                    Int((cellHeight - eventTopInset - 5) / laneHeight)
+                )
+            )
             let activeEvents = events.filter { $0.supersededAt == nil }
             let eventsByRenderID = Dictionary(
                 activeEvents.map { ($0.instanceID, $0) },
@@ -249,7 +264,7 @@ struct MobileCalendarView: View {
                                 templatePlacements: isPlacementMode ? [] : placementsForDate(date, in: templatePlacements),
                                 specialDays: specialDayStore.days(on: date),
                                 showsTrailingDivider: (index + 1) % 7 != 0,
-                                showsBottomDivider: index < 35
+                                showsBottomDivider: index < dates.count - 7
                             )
                             .frame(height: cellHeight)
                             .onTapGesture {
@@ -268,7 +283,8 @@ struct MobileCalendarView: View {
                         if let event = eventsByRenderID[segment.renderID] {
                             MobileCalendarEventSpanBar(
                                 event: event,
-                                isDimmed: segment.isDimmed
+                                isDimmed: segment.isDimmed,
+                                usesGraphicStyle: usesGraphicEventBars
                             )
                             .frame(width: max(cellWidth * CGFloat(segment.span), 24), height: barHeight)
                             .offset(
@@ -284,8 +300,10 @@ struct MobileCalendarView: View {
             .frame(height: headerHeight + gridHeight)
             .clipShape(Rectangle())
             .overlay {
-                Rectangle()
-                    .stroke(AppTheme.border, lineWidth: 1)
+                Rectangle().stroke(
+                    AppTheme.border.opacity(0.62),
+                    lineWidth: 0.5
+                )
             }
             .frame(maxHeight: .infinity, alignment: .top)
         }

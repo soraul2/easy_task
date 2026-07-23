@@ -23,9 +23,9 @@ private enum PlanBaseLockScreenAvailability: Equatable {
         case .availableContent:
             ""
         case .availableEmpty:
-            "오늘 계획 없음"
+            "오늘 계획이 없어요"
         case .needsRefresh:
-            "PlanBase를 열어 갱신하세요"
+            "PlanBase를 열면 갱신돼요"
         case .requiresAppUpdate:
             "PlanBase를 업데이트해 주세요"
         }
@@ -153,15 +153,18 @@ private struct PlanBaseLockScreenWidgetView: View {
         switch entry.availability {
         case .availableContent:
             if let summary = entry.summary {
-                Text("PlanBase · 할 일 \(summary.remainingTaskCount) · 일정 \(summary.eventCount)")
+                Label(
+                    "할 일 \(summary.remainingTaskCount) · 일정 \(summary.eventCount)",
+                    systemImage: "checklist"
+                )
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .accessibilityLabel(
-                        "PlanBase, 오늘 남은 작업 \(summary.remainingTaskCount)개, 일정 \(summary.eventCount)개"
+                        "오늘 할 일 \(summary.remainingTaskCount)개, 일정 \(summary.eventCount)개"
                     )
             }
         case .availableEmpty:
-            Text("PlanBase · 오늘 계획 없음")
+            Label("오늘 계획이 없어요", systemImage: "checkmark.circle")
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
         case .needsRefresh, .requiresAppUpdate:
@@ -178,18 +181,26 @@ private struct PlanBaseLockScreenWidgetView: View {
             switch entry.availability {
             case .availableContent, .availableEmpty:
                 if let summary = entry.summary {
-                    if summary.remainingTaskCount == 0 {
-                        Image(systemName: "checkmark")
-                            .font(.title3.bold())
-                            .widgetAccentable()
-                    } else {
+                    if summary.remainingTaskCount > 0 {
                         VStack(spacing: 0) {
                             Text("\(summary.remainingTaskCount)")
                                 .font(.system(size: 22, weight: .bold, design: .rounded))
                                 .widgetAccentable()
-                            Text("남음")
+                            Text("할 일")
                                 .font(.system(size: 11, weight: .semibold))
                         }
+                    } else if summary.eventCount > 0 {
+                        VStack(spacing: 0) {
+                            Text("\(summary.eventCount)")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .widgetAccentable()
+                            Text("일정")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.title3.bold())
+                            .widgetAccentable()
                     }
                 }
             case .needsRefresh:
@@ -213,13 +224,17 @@ private struct PlanBaseLockScreenWidgetView: View {
             if let summary = entry.summary {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(
-                        "남음 \(summary.remainingTaskCount) · 완료 \(summary.doneCount) · 일정 \(summary.eventCount)"
+                        "할 일 \(summary.remainingTaskCount) · 완료 \(summary.doneCount) · 일정 \(summary.eventCount)"
                     )
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
 
-                    if let focusTitle = summary.focusTitle {
-                        Text(focusTitle)
+                    if let focusTitle = summary.focusTitle,
+                       let focusKind = summary.focusKind {
+                        Label(
+                            focusTitle,
+                            systemImage: focusSymbol(for: focusKind)
+                        )
                             .font(.system(size: 12, weight: .medium))
                             .lineLimit(1)
                             .privacySensitive()
@@ -227,7 +242,7 @@ private struct PlanBaseLockScreenWidgetView: View {
                 }
             }
         case .availableEmpty:
-            Label("오늘 계획 없음", systemImage: "checkmark.circle")
+            Label("오늘 계획이 없어요", systemImage: "checkmark.circle")
                 .font(.system(size: 11, weight: .semibold))
         case .needsRefresh:
             Label(entry.availability.message, systemImage: "arrow.clockwise")
@@ -242,13 +257,34 @@ private struct PlanBaseLockScreenWidgetView: View {
 
     private var circularAccessibilityLabel: String {
         switch entry.availability {
-        case .availableContent, .availableEmpty:
+        case .availableContent:
             if let summary = entry.summary {
-                return "오늘 남은 작업 \(summary.remainingTaskCount)개"
+                if summary.remainingTaskCount > 0 {
+                    return "오늘 할 일 \(summary.remainingTaskCount)개"
+                }
+                if summary.eventCount > 0 {
+                    return "오늘 일정 \(summary.eventCount)개"
+                }
+                return "오늘 할 일을 완료했어요"
             }
+            return entry.availability.message
+        case .availableEmpty:
             return entry.availability.message
         case .needsRefresh, .requiresAppUpdate:
             return entry.availability.message
+        }
+    }
+
+    private func focusSymbol(
+        for kind: LockScreenWidgetFocusKind
+    ) -> String {
+        switch kind {
+        case .doingTask:
+            "circle.dotted"
+        case .event:
+            "calendar"
+        case .todoTask:
+            "circle"
         }
     }
 }
@@ -316,6 +352,9 @@ private struct PlanBaseLockScreenWidgetPreviews: PreviewProvider {
             PlanBaseLockScreenWidgetView(entry: contentEntry)
                 .previewContext(WidgetPreviewContext(family: .accessoryCircular))
                 .previewDisplayName("Circular · 내용")
+            PlanBaseLockScreenWidgetView(entry: eventOnlyEntry)
+                .previewContext(WidgetPreviewContext(family: .accessoryCircular))
+                .previewDisplayName("Circular · 일정만")
             PlanBaseLockScreenWidgetView(entry: contentEntry)
                 .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
                 .previewDisplayName("Rectangular · 긴 제목")
@@ -341,6 +380,12 @@ private struct PlanBaseLockScreenWidgetPreviews: PreviewProvider {
         date: Date(),
         snapshot: .lockScreenEmptyPreview,
         availability: .availableEmpty
+    )
+
+    private static let eventOnlyEntry = PlanBaseLockScreenEntry(
+        date: Date(),
+        snapshot: .lockScreenEventOnlyPreview,
+        availability: .availableContent
     )
 
     private static let refreshEntry = PlanBaseLockScreenEntry(
@@ -377,6 +422,29 @@ private extension CalendarWidgetSnapshot {
             lockScreenCoveredStartDayKey: coverage.startDayKey,
             lockScreenCoveredEndDayKey: coverage.endDayKey,
             lockScreenDaySummaries: summaries
+        )
+    }
+
+    static var lockScreenEventOnlyPreview: CalendarWidgetSnapshot {
+        let today = Date()
+        let dayKey = DayKey.key(for: today)
+        return CalendarWidgetSnapshot(
+            generatedAt: today,
+            themeID: AppThemePreset.defaultID,
+            events: [],
+            lockScreenCoveredStartDayKey: dayKey,
+            lockScreenCoveredEndDayKey: dayKey,
+            lockScreenDaySummaries: [
+                LockScreenWidgetDaySummary(
+                    dayKey: dayKey,
+                    todoCount: 0,
+                    doingCount: 0,
+                    doneCount: 0,
+                    eventCount: 2,
+                    focusTitle: "팀 일정 확인",
+                    focusKind: .event
+                )
+            ]
         )
     }
 }

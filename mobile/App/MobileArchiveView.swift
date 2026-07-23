@@ -27,6 +27,17 @@ struct MobileArchiveView: View {
 
         NavigationStack {
             List {
+                if !records.isEmpty {
+                    MobileArchiveOverview(
+                        summary: ArchiveRecordSummary(records: records),
+                        hasMore: querySession?.hasMore == true,
+                        isFiltered: filter.hasActiveCriteria
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+                }
+
                 if hasActiveFilterOptions {
                     MobileArchiveActiveFilterBar(filter: $filter)
                         .listRowSeparator(.hidden)
@@ -108,7 +119,7 @@ struct MobileArchiveView: View {
             .navigationTitle("기록")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    MobileThemeButton(action: onShowTheme)
+                    MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
                     Button { showingFilter = true } label: {
                         Image(systemName: hasActiveFilterOptions
@@ -178,6 +189,114 @@ struct MobileArchiveView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 260)
+    }
+}
+
+private struct MobileArchiveOverview: View {
+    var summary: ArchiveRecordSummary
+    var hasMore: Bool
+    var isFiltered: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isFiltered ? "조건에 맞는 기록이에요" : "지나온 하루를 돌아보세요")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    summaryItem(
+                        title: "날짜",
+                        value: summary.dayCount,
+                        systemImage: "calendar"
+                    )
+                    summaryItem(
+                        title: "회고",
+                        value: summary.reviewCount,
+                        systemImage: "book.closed"
+                    )
+                    summaryItem(
+                        title: "완료한 일",
+                        value: summary.completedTaskCount,
+                        systemImage: "checkmark.circle"
+                    )
+                }
+
+                VStack(spacing: 8) {
+                    summaryItem(
+                        title: "날짜",
+                        value: summary.dayCount,
+                        systemImage: "calendar"
+                    )
+                    summaryItem(
+                        title: "회고",
+                        value: summary.reviewCount,
+                        systemImage: "book.closed"
+                    )
+                    summaryItem(
+                        title: "완료한 일",
+                        value: summary.completedTaskCount,
+                        systemImage: "checkmark.circle"
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(isFiltered ? "검색된" : "불러온") 기록 " +
+                "\(summary.dayCount)일, 회고 \(summary.reviewCount)개, " +
+                "완료한 일 \(summary.completedTaskCount)개"
+        )
+        .accessibilityIdentifier("archive-overview")
+    }
+
+    private var description: String {
+        if hasMore {
+            return "최근 불러온 회고와 완료한 일을 요약했어요."
+        }
+        return "회고와 완료한 일을 날짜별로 모았어요."
+    }
+
+    private func summaryItem(
+        title: String,
+        value: Int,
+        systemImage: String
+    ) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.eventForeground)
+                    .frame(width: 24, height: 24)
+                    .background(AppTheme.event, in: Circle())
+                    .accessibilityHidden(true)
+
+                Text(value, format: .number)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .contentTransition(.numericText())
+            }
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 68)
+        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 10))
     }
 }
 

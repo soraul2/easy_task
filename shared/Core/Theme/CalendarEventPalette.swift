@@ -36,6 +36,11 @@ public enum CalendarEventColor: String, CaseIterable, Identifiable {
     public var color: Color {
         AppTheme.eventColor(at: paletteIndex)
     }
+
+    @MainActor
+    public var foregroundColor: Color {
+        AppTheme.eventForeground(at: paletteIndex)
+    }
 }
 
 public enum CalendarEventPalette {
@@ -44,5 +49,11 @@ public enum CalendarEventPalette {
     @MainActor
     public static func color(for colorID: String?) -> Color {
         CalendarEventColor(rawValue: colorID ?? defaultColor)?.color ?? CalendarEventColor.blue.color
+    }
+
+    @MainActor
+    public static func foreground(for colorID: String?) -> Color {
+        CalendarEventColor(rawValue: colorID ?? defaultColor)?.foregroundColor
+            ?? CalendarEventColor.blue.foregroundColor
     }
 }

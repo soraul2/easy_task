@@ -41,15 +41,17 @@ struct MobileChecklistProgressChip: View {
 
 struct MobileThemeButton: View {
     var action: () -> Void
+    var minimumHitSize: CGFloat = 34
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "paintpalette")
                 .font(.system(size: 15, weight: .semibold))
-                .frame(width: 34, height: 34)
+                .frame(width: minimumHitSize, height: minimumHitSize)
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("테마 선택")
+        .accessibilityHint("앱 색상 테마 변경")
     }
 }
 

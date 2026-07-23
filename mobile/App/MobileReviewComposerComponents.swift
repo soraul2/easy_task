@@ -15,18 +15,27 @@ struct ReviewComposerHeader: View {
     @FocusState.Binding var focusedField: MobileReviewComposerField?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(DayKey.display(selectedDate), systemImage: "calendar")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-
+        VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 7) {
-                Text("제목 (선택)")
-                    .font(.caption.weight(.semibold))
+                Label(DayKey.display(selectedDate), systemImage: "calendar")
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
 
+                Text(DayKey.isToday(selectedDate) ? "오늘을 가볍게 돌아봐요" : "이날을 가볍게 돌아봐요")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text("짧은 한 줄부터 시작해도 충분해요.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("제목")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
                 TextField("하루 회고", text: $title)
-                    .font(.headline)
+                    .font(.body)
                     .textFieldStyle(.plain)
                     .focused($focusedField, equals: .title)
                     .submitLabel(.next)
@@ -43,10 +52,71 @@ struct ReviewComposerHeader: View {
     }
 }
 
+struct ReviewComposerPromptPicker: View {
+    var content: String
+    var onSelect: (DailyReviewWritingPrompt) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("어디서 시작할까요?")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(AppTheme.primaryText)
+
+            Text("질문을 고르면 회고에 소제목을 만들어드려요.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(DailyReviewWritingPrompt.allCases) { prompt in
+                        let isAdded = DailyReviewWritingRules.contains(prompt, in: content)
+                        Button {
+                            onSelect(prompt)
+                        } label: {
+                            Label(prompt.title, systemImage: prompt.systemImage)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(
+                                    isAdded
+                                        ? AppTheme.eventForeground
+                                        : AppTheme.primaryText
+                                )
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 44)
+                                .background(
+                                    isAdded ? AppTheme.event : AppTheme.input,
+                                    in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isAdded)
+                        .accessibilityLabel(
+                            isAdded
+                                ? "\(prompt.title) 항목 추가됨"
+                                : "\(prompt.title) 항목 추가"
+                        )
+                        .accessibilityHint(
+                            isAdded
+                                ? ""
+                                : "회고 본문에 소제목을 추가하고 입력을 시작합니다"
+                        )
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityIdentifier("review-writing-prompts")
+    }
+}
+
 struct ReviewComposerTaskSummary: View {
     var summary: DailyReviewTaskSummary
     var selectedDate: Date
-    @State private var isExpanded = true
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -66,28 +136,21 @@ struct ReviewComposerTaskSummary: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(AppTheme.secondaryText)
                 }
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("작업 요약")
             .accessibilityValue(isExpanded ? "펼쳐짐" : "접힘")
 
-            HStack(spacing: 8) {
-                ReviewSummaryCount(
-                    title: "완료",
-                    count: summary.completed.count,
-                    color: AppTheme.done
-                )
-                ReviewSummaryCount(
-                    title: "진행 중",
-                    count: summary.inProgress.count,
-                    color: AppTheme.doing
-                )
-                ReviewSummaryCount(
-                    title: "할 일",
-                    count: summary.pending.count,
-                    color: AppTheme.todo
-                )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    summaryCounts
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    summaryCounts
+                }
             }
 
             if isExpanded {
@@ -128,6 +191,25 @@ struct ReviewComposerTaskSummary: View {
                 .stroke(AppTheme.border, lineWidth: 1)
         }
         .accessibilityIdentifier("review-task-summary")
+    }
+
+    @ViewBuilder
+    private var summaryCounts: some View {
+        ReviewSummaryCount(
+            title: "완료",
+            count: summary.completed.count,
+            color: AppTheme.done
+        )
+        ReviewSummaryCount(
+            title: "진행 중",
+            count: summary.inProgress.count,
+            color: AppTheme.doing
+        )
+        ReviewSummaryCount(
+            title: "할 일",
+            count: summary.pending.count,
+            color: AppTheme.todo
+        )
     }
 
     private var sectionTitle: String {
@@ -174,25 +256,49 @@ private struct ReviewSummaryGroup: View {
                     .foregroundStyle(color)
 
                 ForEach(items) { item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Circle()
-                            .fill(color.opacity(0.75))
-                            .frame(width: 5, height: 5)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            taskBullet
 
-                        Text(item.title)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.primaryText)
+                            Text(item.title)
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.primaryText)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if item.isCarryover {
+                                Text(carryoverLabel(item.plannedDayKey))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                            }
+                        }
+
+                        HStack(alignment: .top, spacing: 8) {
+                            taskBullet
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.primaryText)
+
+                                if item.isCarryover {
+                                    Text(carryoverLabel(item.plannedDayKey))
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(AppTheme.secondaryText)
+                                }
+                            }
                             .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if item.isCarryover {
-                            Text(carryoverLabel(item.plannedDayKey))
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
                         }
                     }
                 }
             }
         }
+    }
+
+    private var taskBullet: some View {
+        Circle()
+            .fill(color.opacity(0.75))
+            .frame(width: 5, height: 5)
+            .accessibilityHidden(true)
     }
 
     private func carryoverLabel(_ dayKey: String) -> String {
@@ -207,10 +313,16 @@ struct ReviewComposerEditor: View {
     @FocusState.Binding var focusedField: MobileReviewComposerField?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("자유 기록")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("오늘의 생각")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Text("문장을 다듬지 않아도 괜찮아요. 떠오르는 대로 남겨보세요.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
 
             TextField(
                 "오늘 하루는 어땠나요?",
@@ -219,14 +331,21 @@ struct ReviewComposerEditor: View {
             )
             .font(.body)
             .textFieldStyle(.plain)
-            .lineLimit(6...18)
+            .lineLimit(7...20)
+            .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
+            .padding(14)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
             .focused($focusedField, equals: .content)
             .accessibilityIdentifier("review-content-field")
         }
-        .padding(14)
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
     }
@@ -444,6 +563,17 @@ private struct ReviewComposerImageItem: Identifiable {
     }
 }
 
+private extension DailyReviewWritingPrompt {
+    var systemImage: String {
+        switch self {
+        case .memorableMoment: "sparkles"
+        case .didWell: "hand.thumbsup"
+        case .learned: "lightbulb"
+        case .nextStep: "arrow.right"
+        }
+    }
+}
+
 private struct MobileReviewImagePreview: View {
     var request: MobileImageThumbnailRequest?
     var placeholderMessage: String
@@ -466,7 +596,7 @@ private struct MobileReviewImagePreview: View {
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "xmark")
                         .font(.headline)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .background(.black.opacity(0.52), in: Circle())
                         .foregroundStyle(.white)
                 }

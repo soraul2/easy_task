@@ -74,6 +74,7 @@ struct BoardEventStrip: View {
 struct BoardQuickAdd: View {
     @Binding var title: String
     var onAdd: () -> Void
+    @FocusState private var isTitleFocused: Bool
 
     private var canAdd: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -83,9 +84,10 @@ struct BoardQuickAdd: View {
         HStack(spacing: 8) {
             TextField("해당 날짜에 할 일 입력", text: $title)
                 .textFieldStyle(.plain)
+                .focused($isTitleFocused)
                 .submitLabel(.done)
-                .onSubmit(onAdd)
-            Button(action: onAdd) {
+                .onSubmit(submit)
+            Button(action: submit) {
                 Image(systemName: "plus")
                     .font(.headline)
             }
@@ -97,20 +99,147 @@ struct BoardQuickAdd: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
     }
+
+    private func submit() {
+        guard canAdd else { return }
+        onAdd()
+        if title.isEmpty {
+            isTitleFocused = false
+        }
+    }
 }
 
 struct BoardStatusPicker: View {
     @Binding var selectedStatus: TaskStatus
+    var taskCount: (TaskStatus) -> Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Picker("상태", selection: $selectedStatus) {
-            ForEach(TaskStatus.allCases) { status in
-                Text(status.title).tag(status)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    statusButtons
+                }
+            } else {
+                HStack(spacing: 8) {
+                    statusButtons
+                }
             }
         }
-        .pickerStyle(.segmented)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("보드 상태 필터")
+    }
+
+    @ViewBuilder
+    private var statusButtons: some View {
+        ForEach(TaskStatus.allCases) { status in
+            BoardStatusFilterButton(
+                status: status,
+                count: taskCount(status),
+                isSelected: status == selectedStatus,
+                usesAccessibilityLayout: dynamicTypeSize.isAccessibilitySize
+            ) {
+                selectedStatus = status
+            }
+        }
+    }
+}
+
+private struct BoardStatusFilterButton: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var status: TaskStatus
+    var count: Int
+    var isSelected: Bool
+    var usesAccessibilityLayout: Bool
+    var onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            Group {
+                if usesAccessibilityLayout {
+                    HStack(spacing: 10) {
+                        Image(systemName: status.systemImage)
+                            .font(.headline)
+                        Text(status.title)
+                            .font(.headline)
+                        Spacer(minLength: 8)
+                        countLabel
+                        selectionIndicator
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                } else {
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(spacing: 6) {
+                            Image(systemName: status.systemImage)
+                                .font(.subheadline.weight(.semibold))
+                            Spacer(minLength: 4)
+                            countLabel
+                            selectionIndicator
+                        }
+                        Text(status.title)
+                            .font(.subheadline.weight(.bold))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 11)
+                    .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+                }
+            }
+            .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText)
+            .background(
+                isSelected ? AppTheme.panel : AppTheme.input.opacity(0.72),
+                in: RoundedRectangle(cornerRadius: 14)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(
+                        isSelected ? accent : AppTheme.border.opacity(0.45),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+                    .allowsHitTesting(false)
+            }
+            .shadow(
+                color: isSelected ? accent.opacity(0.16) : .clear,
+                radius: 10,
+                y: 5
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(MobilePressFeedbackButtonStyle())
+        .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: isSelected)
+        .accessibilityIdentifier("board-status-filter-\(status.rawValue)")
+        .accessibilityLabel("\(status.title), \(count)개")
+        .accessibilityValue(isSelected ? "선택됨" : "선택 안 됨")
+        .accessibilityHint("\(status.title) 작업을 보여줘요")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityRemoveTraits(isSelected ? [] : .isSelected)
+    }
+
+    private var countLabel: some View {
+        Text("\(count)")
+            .font(.caption.monospacedDigit().weight(.bold))
+            .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(AppTheme.selectedTab.opacity(isSelected ? 0.46 : 0.20), in: Capsule())
+    }
+
+    @ViewBuilder
+    private var selectionIndicator: some View {
+        if isSelected {
+            Image(systemName: "checkmark")
+                .font(.caption2.weight(.bold))
+        }
+    }
+
+    private var accent: Color {
+        switch status {
+        case .todo: AppTheme.secondaryText
+        case .doing: AppTheme.event
+        case .done: AppTheme.done
+        }
     }
 }
 
@@ -126,11 +255,12 @@ struct BoardTaskList: View {
         List {
             if tasks.isEmpty {
                 ContentUnavailableView(
-                    "\(selectedStatus.title) 작업 없음",
-                    systemImage: "checklist",
-                    description: Text("빠른 입력이나 템플릿으로 작업을 추가하세요.")
+                    selectedStatus.emptyStateTitle,
+                    systemImage: selectedStatus.systemImage,
+                    description: Text(selectedStatus.emptyStateDescription)
                 )
                 .listRowBackground(Color.clear)
+                .accessibilityIdentifier("board-empty-\(selectedStatus.rawValue)")
             } else {
                 ForEach(tasks) { task in
                     MobileTaskRow(
@@ -149,6 +279,7 @@ struct BoardTaskList: View {
             }
         }
         .listStyle(.plain)
+        .accessibilityIdentifier("board-task-list")
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: MobileLayout.bottomTabClearance)
@@ -266,9 +397,12 @@ private struct MobileTaskRow: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
+                    MobileTaskStatusBadge(status: status, accentColor: accentColor)
+
                     Text(task.title)
                         .font(.headline)
                         .lineLimit(2)
+                        .strikethrough(status == .done, color: AppTheme.cardMutedText)
                         .foregroundStyle(AppTheme.cardText)
                     if let note = task.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(note)
@@ -287,6 +421,7 @@ private struct MobileTaskRow: View {
                             .background(AppTheme.panel.opacity(0.78), in: Circle())
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityIdentifier("\(task.title) 작업 편집")
                     .accessibilityLabel("\(task.title) 작업 편집")
 
                     Button(role: .destructive, action: onDelete) {
@@ -296,6 +431,7 @@ private struct MobileTaskRow: View {
                             .background(AppTheme.panel.opacity(0.78), in: Circle())
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityIdentifier("\(task.title) 작업 삭제")
                     .accessibilityLabel("\(task.title) 작업 삭제")
                 }
                 .foregroundStyle(.secondary)
@@ -325,6 +461,7 @@ private struct MobileTaskRow: View {
                         }
                         if status != .doing {
                             MobileChecklistProgressChip(progress: checklistProgress)
+                                .accessibilityIdentifier("\(task.title)-checklist-progress")
                         }
                         ForEach(visibleTags, id: \.self) { tag in
                             MobileTaskDetailChip(title: "#\(tag)", systemImage: "tag")
@@ -353,6 +490,17 @@ private struct MobileTaskRow: View {
         .background {
             RoundedRectangle(cornerRadius: 16)
                 .fill(cardColor.opacity(cardFillOpacity))
+        }
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(accentColor)
+                .frame(width: 4)
+                .padding(.vertical, 18)
+                .accessibilityHidden(true)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(accentColor.opacity(status == .doing ? 0.42 : 0.24), lineWidth: 1)
         }
         .shadow(color: accentColor.opacity(shadowOpacity), radius: status == .doing ? 18 : 12, x: 0, y: 8)
         .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
@@ -387,8 +535,7 @@ private struct MobileTaskRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityElement(children: .ignore)
-            .accessibilityIdentifier("checklist-progress")
+            .accessibilityIdentifier("\(task.title)-checklist-progress")
             .accessibilityLabel("\(task.title) 체크리스트")
             .accessibilityValue(
                 "\(checklistProgress.completedCount)개 완료, " +
@@ -461,6 +608,26 @@ private struct MobileTaskRow: View {
     }
 }
 
+private struct MobileTaskStatusBadge: View {
+    var status: TaskStatus
+    var accentColor: Color
+
+    var body: some View {
+        Label(status.title, systemImage: status.systemImage)
+            .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .foregroundStyle(AppTheme.cardText)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(AppTheme.panel.opacity(0.60), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(accentColor.opacity(0.52), lineWidth: 1)
+            }
+            .accessibilityLabel("현재 상태 \(status.title)")
+    }
+}
+
 private struct MobileTaskDetailChip: View {
     var title: String
     var systemImage: String
@@ -498,6 +665,7 @@ struct MobileStatusNotice: View {
 }
 
 private struct MobileTaskStatusSlider: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var taskTitle: String
     var status: TaskStatus
     var accentColor: Color
@@ -525,29 +693,41 @@ private struct MobileTaskStatusSlider: View {
                     }
 
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(accentColor.opacity(0.94))
-                    .frame(width: max(segmentWidth - 6, 0), height: 34)
+                    .fill(AppTheme.panel.opacity(0.92))
+                    .frame(width: max(segmentWidth - 6, 0), height: 42)
                     .offset(x: CGFloat(selectedIndex) * segmentWidth + 3)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accentColor.opacity(0.82), lineWidth: 1.5)
+                    }
                     .shadow(color: accentColor.opacity(0.22), radius: 8, x: 0, y: 3)
-                    .animation(.snappy(duration: 0.18), value: selectedIndex)
+                    .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selectedIndex)
 
                 HStack(spacing: 0) {
                     ForEach(statuses) { nextStatus in
                         Button {
                             updateStatus(nextStatus)
                         } label: {
-                            Text(nextStatus.title)
-                                .font(.caption.weight(.bold))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                                .frame(maxWidth: .infinity, minHeight: 40)
-                                .foregroundStyle(nextStatus == status
-                                    ? AppTheme.eventText
-                                    : AppTheme.cardText)
-                                .contentShape(Rectangle())
+                            HStack(spacing: 5) {
+                                Image(systemName: nextStatus.systemImage)
+                                    .font(.caption.weight(.bold))
+                                Text(nextStatus.title)
+                                    .font(.caption.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .foregroundStyle(nextStatus == status
+                                ? AppTheme.cardText
+                                : AppTheme.cardMutedText)
+                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MobilePressFeedbackButtonStyle())
                         .accessibilityLabel("\(taskTitle) \(nextStatus.title) 상태")
+                        .accessibilityValue(nextStatus == status ? "현재 상태" : "변경 가능")
+                        .accessibilityHint(nextStatus == status
+                            ? "현재 선택된 상태예요"
+                            : "두 번 탭하여 \(nextStatus.title)로 변경해요")
                         .accessibilityAddTraits(nextStatus == status ? .isSelected : [])
                     }
                 }
@@ -560,7 +740,9 @@ private struct MobileTaskStatusSlider: View {
                     }
             )
         }
-        .frame(height: 40)
+        .frame(height: 48)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(taskTitle) 상태 변경")
     }
 
     private func updateStatus(_ nextStatus: TaskStatus) {
@@ -575,6 +757,20 @@ private struct MobileTaskStatusSlider: View {
         return statuses[index]
     }
 
+}
+
+private struct MobilePressFeedbackButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.10),
+                value: configuration.isPressed
+            )
+    }
 }
 
 #endif

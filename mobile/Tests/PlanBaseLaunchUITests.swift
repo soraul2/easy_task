@@ -23,6 +23,24 @@ final class PlanBaseLaunchUITests: XCTestCase {
             app.textFields["해당 날짜에 할 일 입력"]
                 .waitForExistence(timeout: 10)
         )
+        for identifier in [
+            "board-status-filter-todo",
+            "board-status-filter-doing",
+            "board-status-filter-done"
+        ] {
+            let statusFilter = app.buttons[identifier]
+            XCTAssertTrue(statusFilter.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(statusFilter.frame.height, 44)
+        }
+        for identifier in [
+            "board-status-filter-doing",
+            "board-status-filter-done",
+            "board-status-filter-todo"
+        ] {
+            let statusFilter = app.buttons[identifier]
+            statusFilter.tap()
+            XCTAssertTrue(waitForSelected(statusFilter))
+        }
 
         calendarTab.tap()
         XCTAssertTrue(app.buttons["이벤트 추가"].waitForExistence(timeout: 10))
@@ -121,7 +139,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     func testChecklistDraftSaveCancelAndProgressChip() {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
+        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board"]
         app.launch()
 
         let taskTitle = "Checklist UI Test"
@@ -135,7 +153,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         quickAddField.typeText(taskTitle)
         app.buttons["작업 추가"].tap()
 
-        let editButton = app.buttons["\(taskTitle) 작업 편집"]
+        let editButton = app.descendants(matching: .any)["\(taskTitle) 작업 편집"]
         XCTAssertTrue(scrollToHittable(editButton, in: app))
         editButton.tap()
 
@@ -167,7 +185,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.buttons["저장"].tap()
 
         let progressChip = app.descendants(matching: .any)
-            .matching(identifier: "checklist-progress")
+            .matching(identifier: "\(taskTitle)-checklist-progress")
             .firstMatch
         XCTAssertTrue(scrollToHittable(progressChip, in: app))
         XCTAssertEqual(progressChip.value as? String, "1개 완료, 전체 2개")
@@ -187,14 +205,20 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(scrollToHittable(doingStatusButton, in: app))
         doingStatusButton.tap()
 
-        let statusPicker = app.segmentedControls.firstMatch
-        XCTAssertTrue(statusPicker.buttons["진행 중"].waitForExistence(timeout: 5))
-        statusPicker.buttons["진행 중"].tap()
+        let doingFilter = app.buttons["board-status-filter-doing"]
+        XCTAssertTrue(doingFilter.waitForExistence(timeout: 5))
+        doingFilter.tap()
+        XCTAssertTrue(waitForSelected(doingFilter))
 
-        let checklistDisclosure = app.descendants(matching: .any)
-            .matching(identifier: "checklist-progress")
-            .firstMatch
-        XCTAssertTrue(scrollToHittable(checklistDisclosure, in: app))
+        let checklistDisclosure = app.buttons["\(taskTitle)-checklist-progress"]
+        let boardTaskList = app.descendants(matching: .any)["board-task-list"]
+        XCTAssertTrue(boardTaskList.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToHittable(
+            checklistDisclosure,
+            in: boardTaskList,
+            attempts: 20,
+            velocity: .fast
+        ))
         XCTAssertTrue((checklistDisclosure.value as? String)?.contains("접힘") == true)
         checklistDisclosure.tap()
 
@@ -207,7 +231,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
         let currentDoingStatusButton = app.buttons["\(taskTitle) 진행 중 상태"]
         XCTAssertTrue(currentDoingStatusButton.waitForExistence(timeout: 5))
-        XCTAssertTrue(currentDoingStatusButton.isSelected)
+        XCTAssertTrue(waitForSelected(currentDoingStatusButton))
 
         checklistDisclosure.tap()
         XCTAssertFalse(secondItemToggle.waitForExistence(timeout: 1))
@@ -229,9 +253,10 @@ final class PlanBaseLaunchUITests: XCTestCase {
         pastReminderDone.tap()
         XCTAssertFalse(app.alerts["예정된 알림이 있습니다"].waitForExistence(timeout: 1))
 
-        let boardStatusPicker = app.segmentedControls.firstMatch
-        XCTAssertTrue(boardStatusPicker.buttons["완료"].waitForExistence(timeout: 5))
-        boardStatusPicker.buttons["완료"].tap()
+        let doneFilter = app.buttons["board-status-filter-done"]
+        XCTAssertTrue(doneFilter.waitForExistence(timeout: 5))
+        doneFilter.tap()
+        XCTAssertTrue(waitForSelected(doneFilter))
         let record = app.descendants(matching: .any)["\(pastReminderTitle) 알림 기록"]
         XCTAssertTrue(scrollToHittable(record, in: app))
         XCTAssertTrue(record.label.contains("설정했던 알림"))
@@ -256,9 +281,10 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
         alert.buttons["완료하기"].tap()
 
-        let boardStatusPicker = app.segmentedControls.firstMatch
-        XCTAssertTrue(boardStatusPicker.buttons["완료"].waitForExistence(timeout: 5))
-        boardStatusPicker.buttons["완료"].tap()
+        let doneFilter = app.buttons["board-status-filter-done"]
+        XCTAssertTrue(doneFilter.waitForExistence(timeout: 5))
+        doneFilter.tap()
+        XCTAssertTrue(waitForSelected(doneFilter))
         let record = app.descendants(matching: .any)["\(taskTitle) 알림 기록"]
         XCTAssertTrue(scrollToHittable(record, in: app))
         XCTAssertTrue(record.label.contains("설정했던 알림"))
@@ -285,6 +311,50 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testThemePickerExposesCurrentAppearanceAndEveryPreset() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let themeButton = app.buttons["테마 선택"].firstMatch
+        XCTAssertTrue(themeButton.waitForExistence(timeout: 15))
+        themeButton.tap()
+
+        XCTAssertTrue(app.navigationBars["테마"].waitForExistence(timeout: 5))
+        let appearanceDescription = app.staticTexts.matching(
+            NSPredicate(format: "label ENDSWITH %@", "모드 미리보기")
+        ).firstMatch
+        XCTAssertTrue(appearanceDescription.exists)
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Theme picker current appearance"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        let themeScrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(themeScrollView.exists)
+        let presetNames = [
+            "Apple System",
+            "Maroon Ember",
+            "Navy Blush",
+            "Plum Night",
+            "Rose Lilac",
+            "Forest Cream",
+            "Teal Paper",
+            "Solar Berry"
+        ]
+        for presetName in presetNames {
+            XCTAssertTrue(
+                scrollToHittable(
+                    app.buttons["\(presetName) 테마"],
+                    in: themeScrollView,
+                    attempts: 10
+                )
+            )
+        }
+    }
+
+    @MainActor
     private func launchReminderFixtureApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reminder-fixtures"]
@@ -299,21 +369,39 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     private func scrollToHittable(
         _ element: XCUIElement,
-        in app: XCUIApplication,
-        attempts: Int = 8
+        in scrollable: XCUIElement,
+        attempts: Int = 14,
+        velocity: XCUIGestureVelocity = .slow
     ) -> Bool {
         for _ in 0..<attempts {
             if element.waitForExistence(timeout: 0.5), element.isHittable {
                 return true
             }
-            app.swipeUp(velocity: .slow)
+            scrollable.swipeUp(velocity: velocity)
         }
         for _ in 0..<(attempts * 2) {
             if element.waitForExistence(timeout: 0.5), element.isHittable {
                 return true
             }
-            app.swipeDown(velocity: .slow)
+            scrollable.swipeDown(velocity: velocity)
         }
         return element.exists && element.isHittable
+    }
+
+    @MainActor
+    private func waitForSelected(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 2
+    ) -> Bool {
+        let predicate = NSPredicate { object, _ in
+            guard let element = object as? XCUIElement else { return false }
+            let value = element.value as? String
+            return value == "선택됨" || value == "현재 상태"
+        }
+        let expectation = XCTNSPredicateExpectation(
+            predicate: predicate,
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 }

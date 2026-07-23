@@ -76,15 +76,23 @@ public struct AppThemeColorSet: Hashable, Sendable {
     public var eventPalette: [ThemeColorToken]
 
     public var resolvedDoneForeground: ThemeColorToken {
+        resolvedCardForeground(on: done)
+    }
+
+    public var resolvedEventForeground: ThemeColorToken {
+        resolvedEventForeground(on: event)
+    }
+
+    public func resolvedCardForeground(on background: ThemeColorToken) -> ThemeColorToken {
         resolvedForeground(
-            on: done,
+            on: background,
             preferred: [cardText, primaryText]
         )
     }
 
-    public var resolvedEventForeground: ThemeColorToken {
+    public func resolvedEventForeground(on background: ThemeColorToken) -> ThemeColorToken {
         resolvedForeground(
-            on: event,
+            on: background,
             preferred: [eventText, primaryText]
         )
     }
@@ -695,7 +703,7 @@ public enum AppTheme {
     public static var done: Color { colors.done.color }
     public static var doneForeground: Color { colors.resolvedDoneForeground.color }
     public static var event: Color { colors.event.color }
-    public static var eventText: Color { colors.eventText.color }
+    public static var eventText: Color { colors.resolvedEventForeground.color }
     public static var eventForeground: Color { colors.resolvedEventForeground.color }
     public static var cardText: Color { colors.cardText.color }
     public static var cardMutedText: Color { colors.cardMutedText.color }
@@ -706,5 +714,11 @@ public enum AppTheme {
             return colors.event.color
         }
         return palette[index].color
+    }
+
+    public static func eventForeground(at index: Int) -> Color {
+        let palette = colors.eventPalette
+        let background = palette.indices.contains(index) ? palette[index] : colors.event
+        return colors.resolvedEventForeground(on: background).color
     }
 }

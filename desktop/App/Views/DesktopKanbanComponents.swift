@@ -3,6 +3,7 @@ import SwiftUI
 import PlanBaseCore
 
 struct KanbanColumn: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var title: String
     var status: TaskStatus
     var tasks: [Task]
@@ -13,6 +14,7 @@ struct KanbanColumn: View {
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onDelete: (Task) -> Void
+    @State private var isDropTargeted = false
 
     private var tint: Color {
         switch status {
@@ -22,28 +24,74 @@ struct KanbanColumn: View {
         }
     }
 
+    private var accent: Color {
+        switch status {
+        case .todo: AppTheme.secondaryText
+        case .doing: AppTheme.event
+        case .done: AppTheme.done
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(title)
-                    .font(.title3.weight(.bold))
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: status.systemImage)
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(AppTheme.primaryText)
+                    .frame(width: 34, height: 34)
+                    .background(AppTheme.panel.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accent.opacity(0.66), lineWidth: 1)
+                    }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text(status.guidanceText)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+
+                Spacer(minLength: 8)
+
                 Text("\(tasks.count)")
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(AppTheme.panel.opacity(0.72), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(accent.opacity(0.50), lineWidth: 1)
+                    }
+                    .accessibilityLabel("\(tasks.count)개 작업")
+            }
+
+            if isDropTargeted {
+                Label("\(title)로 옮기려면 여기에 놓으세요", systemImage: "arrow.down.circle.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
-                Spacer()
+                    .foregroundStyle(AppTheme.primaryText)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                    .background(AppTheme.panel.opacity(0.74), in: RoundedRectangle(cornerRadius: 9))
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
 
             LazyVStack(spacing: 10) {
                 if tasks.isEmpty {
-                    Text(emptyTitle)
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 7) {
+                        Label(status.emptyStateTitle, systemImage: status.systemImage)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.primaryText)
+                        Text(status.emptyStateDescription)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(AppTheme.panel.opacity(0.76), in: RoundedRectangle(cornerRadius: 10))
                 } else {
                     ForEach(tasks) { task in
                         TaskCard(
@@ -62,19 +110,44 @@ struct KanbanColumn: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(tint, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
+        .background(
+            isDropTargeted ? tint.opacity(0.96) : tint,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(accent)
+                .frame(height: 4)
+                .padding(.horizontal, 14)
+                .accessibilityHidden(true)
         }
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    isDropTargeted ? accent : AppTheme.border,
+                    lineWidth: isDropTargeted ? 2.5 : 1
+                )
+        }
+        .shadow(
+            color: isDropTargeted ? accent.opacity(0.20) : .clear,
+            radius: 14,
+            y: 7
+        )
         .dropDestination(for: String.self) { items, _ in
             guard let item = items.first else { return false }
             return onMove(item, status)
+        } isTargeted: { isTargeted in
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
+                isDropTargeted = isTargeted
+            }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(title) 컬럼, \(tasks.count)개 작업")
     }
 }
 
 struct TaskCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var task: Task
     var selectedDayKey: String
     var onStatusChange: (Task, TaskStatus) -> Void
@@ -108,6 +181,7 @@ struct TaskCard: View {
                     TextField("작업", text: $draftTitle)
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, weight: .semibold))
+                        .strikethrough(status == .done, color: AppTheme.cardMutedText)
                         .foregroundStyle(AppTheme.cardText)
                         .focused($isTitleFocused)
                         .onSubmit(commitTitle)
@@ -161,13 +235,20 @@ struct TaskCard: View {
 
             HStack(spacing: 8) {
                 Menu {
-                    ForEach(TaskStatus.allCases) { status in
-                        Button(status.title) {
-                            onStatusChange(task, status)
+                    ForEach(TaskStatus.allCases) { nextStatus in
+                        Button {
+                            onStatusChange(task, nextStatus)
+                        } label: {
+                            if nextStatus == status {
+                                Label(nextStatus.title, systemImage: "checkmark")
+                            } else {
+                                Label(nextStatus.title, systemImage: nextStatus.systemImage)
+                            }
                         }
                     }
                 } label: {
                     HStack(spacing: 5) {
+                        Image(systemName: status.systemImage)
                         Text(status.title)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 8, weight: .bold))
@@ -184,6 +265,10 @@ struct TaskCard: View {
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
+                .help("현재 \(status.title) · 다른 상태로 변경")
+                .accessibilityLabel("\(task.title) 상태")
+                .accessibilityValue(status.title)
+                .accessibilityHint("다른 상태를 선택할 수 있어요")
 
                 if let priority = task.priority.flatMap(TaskPriority.init(rawValue:)) {
                     Text(priority.title)
@@ -211,17 +296,49 @@ struct TaskCard: View {
                     .foregroundStyle(AppTheme.cardMutedText)
                     .help("다른 컬럼으로 드래그해서 상태 변경")
             }
+
+            HStack(spacing: 10) {
+                Label(status.guidanceText, systemImage: status.systemImage)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.cardMutedText)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Button {
+                    onStatusChange(task, status.primaryActionStatus)
+                } label: {
+                    Label(status.primaryActionTitle, systemImage: status.primaryActionSystemImage)
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(status == .doing ? AppTheme.event : AppTheme.selectedTab)
+                .help("\(task.title) 작업을 \(status.primaryActionStatus.title) 상태로 변경")
+                .accessibilityLabel("\(task.title) \(status.primaryActionTitle)")
+            }
         }
         .padding(14)
         .background {
             LightweightTaskCardBackground(baseColor: background, isLifted: isLifted)
         }
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(cardAccent)
+                .frame(width: 4)
+                .padding(.vertical, 14)
+                .accessibilityHidden(true)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(cardAccent.opacity(status == .doing ? 0.46 : 0.26), lineWidth: 1)
+        }
         .foregroundStyle(AppTheme.cardText)
         .contentShape(RoundedRectangle(cornerRadius: 8))
-        .scaleEffect(isLifted ? 1.01 : 1.0)
-        .offset(y: isLifted ? -2 : 0)
+        .scaleEffect(isLifted && !reduceMotion ? 1.01 : 1.0)
+        .offset(y: isLifted && !reduceMotion ? -2 : 0)
         .shadow(color: .black.opacity(isLifted ? 0.28 : 0.20), radius: isLifted ? 14 : 8, x: 0, y: isLifted ? 10 : 5)
-        .animation(.snappy(duration: 0.18), value: isLifted)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: isLifted)
         .onHover { hovering in
             isHovered = hovering
         }
@@ -232,6 +349,14 @@ struct TaskCard: View {
             if !isTitleFocused {
                 draftTitle = title
             }
+        }
+    }
+
+    private var cardAccent: Color {
+        switch status {
+        case .todo: AppTheme.secondaryText
+        case .doing: AppTheme.event
+        case .done: AppTheme.done
         }
     }
 

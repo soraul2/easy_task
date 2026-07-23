@@ -3,6 +3,7 @@ import PlanBaseCore
 import SwiftData
 import SwiftUI
 import Foundation
+import UIKit
 
 private enum MobileBoardSheet: Identifiable {
     case task(TodoTask)
@@ -105,7 +106,10 @@ struct MobileBoardView: View {
                 )
                 BoardEventStrip(events: dayEvents)
                 BoardQuickAdd(title: $quickTitle, onAdd: addQuickTask)
-                BoardStatusPicker(selectedStatus: $selectedStatus)
+                BoardStatusPicker(
+                    selectedStatus: $selectedStatus,
+                    taskCount: taskCount
+                )
                 BoardTaskList(
                     tasks: statusTasks,
                     selectedStatus: selectedStatus,
@@ -289,6 +293,7 @@ struct MobileBoardView: View {
             if status == .done {
                 TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])
             }
+            UISelectionFeedbackGenerator().selectionChanged()
             showStatusNotice(task: task, status: status)
         } catch {
             showBoardNotice("작업 상태를 변경하지 못했습니다")
@@ -297,8 +302,18 @@ struct MobileBoardView: View {
 
     private func showStatusNotice(task: TodoTask, status: TaskStatus) {
         let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let message = title.isEmpty ? "\(status.title)로 이동됨" : "\(title) · \(status.title)로 이동됨"
+        let message = title.isEmpty
+            ? status.transitionNotice
+            : "\(title) · \(status.transitionNotice)"
         showBoardNotice(message)
+    }
+
+    private func taskCount(for status: TaskStatus) -> Int {
+        boardTasks.reduce(into: 0) { result, task in
+            if task.status == status.rawValue {
+                result += 1
+            }
+        }
     }
 
     private func showBoardNotice(_ message: String) {

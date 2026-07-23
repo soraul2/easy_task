@@ -79,22 +79,27 @@ struct MobileEventEditorSheet: View {
                     Section {
                         Label(message, systemImage: "exclamationmark.circle")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
+                    .listRowBackground(AppTheme.panel)
                 }
                 Section("일정") {
                     TextField("큰 일정 또는 작업 맥락", text: $title)
                 }
+                .listRowBackground(AppTheme.panel)
                 Section("기간") {
                     MobileEventDateRangeEditor(startDate: $startDate, endDate: $endDate)
                 }
+                .listRowBackground(AppTheme.panel)
                 Section("띠 색상") {
                     MobileEventColorSelector(selection: $color)
                 }
+                .listRowBackground(AppTheme.panel)
                 Section("메모") {
                     TextField("메모", text: $note, axis: .vertical)
                         .lineLimit(3...6)
                 }
+                .listRowBackground(AppTheme.panel)
                 if isEditing {
                     Section {
                         Button(role: .destructive) {
@@ -103,8 +108,13 @@ struct MobileEventEditorSheet: View {
                             Label("이벤트 삭제", systemImage: "trash")
                         }
                     }
+                    .listRowBackground(AppTheme.panel)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
+            .tint(AppTheme.event)
             .navigationTitle(isEditing ? "이벤트 편집" : "이벤트 추가")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -147,6 +157,8 @@ struct MobileEventEditorSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
     }
 
     @discardableResult
@@ -260,12 +272,15 @@ private struct MobileEventDateRangeEditor: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(MobileEventDurationPreset.allCases) { preset in
-                    Button(preset.title) {
+                    Button {
                         applyPreset(preset)
+                    } label: {
+                        Text(preset.title)
+                            .frame(minHeight: 44)
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(selectedPreset == preset ? AppTheme.event : .secondary)
+                    .tint(selectedPreset == preset ? AppTheme.event : AppTheme.secondaryText)
+                    .accessibilityValue(selectedPreset == preset ? "선택됨" : "")
                 }
                 HStack(spacing: 6) {
                     TextField("직접", text: $customDurationText)
@@ -277,15 +292,15 @@ private struct MobileEventDateRangeEditor: View {
                         }
                     Text("일")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.secondaryText)
                     Button("적용") {
                         applyCustomDuration()
                     }
                     .font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
                     .disabled(customDuration == nil)
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 6)
                 .background(AppTheme.input, in: Capsule())
             }
             .padding(.vertical, 2)
@@ -324,23 +339,32 @@ private struct MobileEventColorSelector: View {
                 Button {
                     selection = option.rawValue
                 } label: {
-                    Circle()
-                        .fill(option.color)
-                        .frame(width: 32, height: 32)
-                        .overlay {
-                            Circle()
-                                .stroke(selection == option.rawValue ? AppTheme.primaryText : AppTheme.border, lineWidth: selection == option.rawValue ? 3 : 1)
-                        }
-                        .overlay {
-                            if selection == option.rawValue {
+                    ZStack {
+                        Circle()
+                            .fill(option.color)
+                            .frame(width: 32, height: 32)
+                            .overlay {
+                                Circle()
+                                    .stroke(
+                                        selection == option.rawValue
+                                            ? AppTheme.primaryText
+                                            : AppTheme.border,
+                                        lineWidth: selection == option.rawValue ? 3 : 1
+                                    )
+                            }
+
+                        if selection == option.rawValue {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(AppTheme.eventText)
-                            }
+                                    .foregroundStyle(option.foregroundColor)
                         }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.title)
+                .accessibilityValue(selection == option.rawValue ? "선택됨" : "")
             }
         }
         .padding(.vertical, 4)

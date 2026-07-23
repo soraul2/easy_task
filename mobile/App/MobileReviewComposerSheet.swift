@@ -82,6 +82,10 @@ struct MobileReviewComposerSheet: View {
         return max(DiaryAttachmentService.maximumAttachmentCount - attachmentDrafts.count, 0)
     }
 
+    private var attachmentCount: Int {
+        attachmentDrafts.count + legacyImageFileNames.count
+    }
+
     private var taskSummary: DailyReviewTaskSummary {
         var rows = selectedDayTaskRows
         if dayKey == DayKey.today {
@@ -111,36 +115,33 @@ struct MobileReviewComposerSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 16) {
                     ReviewComposerHeader(
                         title: $title,
                         selectedDate: selectedDate,
+                        focusedField: $focusedField
+                    )
+                    ReviewComposerPromptPicker(
+                        content: content,
+                        onSelect: addWritingPrompt
+                    )
+                    ReviewComposerEditor(
+                        content: $content,
                         focusedField: $focusedField
                     )
                     ReviewComposerTaskSummary(
                         summary: taskSummary,
                         selectedDate: selectedDate
                     )
-                    ReviewComposerEditor(
-                        content: $content,
-                        focusedField: $focusedField
-                    )
-                    ReviewComposerImages(
-                        attachmentDrafts: attachmentDrafts,
-                        legacyImageFileNames: legacyImageFileNames,
-                        selectedImageIndex: $selectedImageIndex,
-                        allowsCanonicalDeletion: legacyImageFileNames.isEmpty,
-                        onDeleteCanonical: removeCanonicalImage,
-                        onDeleteLegacy: removeLegacyImages
-                    )
-                    imagePicker
+                    mediaSection
                     statusMessage
+                    saveGuidance
                 }
                 .padding(16)
             }
             .scrollDismissesKeyboard(.interactively)
             .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("회고 작성")
+            .navigationTitle(selectedReview == nil ? "회고 작성" : "회고 수정")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -188,6 +189,44 @@ struct MobileReviewComposerSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    private var mediaSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("사진", systemImage: "photo.on.rectangle")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Spacer()
+
+                Text("\(attachmentCount)/\(DiaryAttachmentService.maximumAttachmentCount)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            Text("기억하고 싶은 장면이 있다면 함께 남겨보세요.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+
+            ReviewComposerImages(
+                attachmentDrafts: attachmentDrafts,
+                legacyImageFileNames: legacyImageFileNames,
+                selectedImageIndex: $selectedImageIndex,
+                allowsCanonicalDeletion: legacyImageFileNames.isEmpty,
+                onDeleteCanonical: removeCanonicalImage,
+                onDeleteLegacy: removeLegacyImages
+            )
+
+            imagePicker
+        }
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityIdentifier("review-media-section")
+    }
+
     private var imagePicker: some View {
         let importingImages = isImportingImages
         return PhotosPicker(
@@ -204,7 +243,7 @@ struct MobileReviewComposerSheet: View {
                 }
                 Text(importingImages ? "이미지 추가 중" : "이미지 추가")
             }
-            .frame(minHeight: 30)
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.bordered)
         .disabled(remainingAttachmentCount == 0 || isImportingImages || isSaving)
@@ -223,6 +262,23 @@ struct MobileReviewComposerSheet: View {
             .foregroundStyle(messageIsError ? .red : AppTheme.done)
             .font(.caption.weight(.bold))
             .accessibilityIdentifier("review-status-message")
+        }
+    }
+
+    @ViewBuilder
+    private var saveGuidance: some View {
+        if selectedReview == nil,
+           !canSave,
+           !isImportingImages,
+           !isSaving {
+            Label(
+                "글이나 사진을 하나만 남겨도 저장할 수 있어요.",
+                systemImage: "info.circle"
+            )
+            .font(.caption)
+            .foregroundStyle(AppTheme.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("review-save-guidance")
         }
     }
 
@@ -245,7 +301,7 @@ struct MobileReviewComposerSheet: View {
                 diaryBlocks = []
             }
         } catch {
-            message = "회고 이미지를 불러오지 못했어요"
+            message = "회고 이미지를 불러오지 못했어요. 잠시 후 다시 열어주세요."
             messageIsError = true
             return
         }
@@ -295,7 +351,7 @@ struct MobileReviewComposerSheet: View {
             }
             guard savedReview != nil else {
                 isSaving = false
-                message = "회고를 저장하지 못했어요"
+                message = "저장하지 못했어요. 입력한 내용은 그대로예요. 잠시 후 다시 시도해 주세요."
                 messageIsError = true
                 return
             }
@@ -313,9 +369,14 @@ struct MobileReviewComposerSheet: View {
             }
         } catch {
             isSaving = false
-            message = error.localizedDescription
+            message = "저장하지 못했어요. 입력한 내용은 그대로예요. 잠시 후 다시 시도해 주세요."
             messageIsError = true
         }
+    }
+
+    private func addWritingPrompt(_ prompt: DailyReviewWritingPrompt) {
+        content = DailyReviewWritingRules.appending(prompt, to: content)
+        focusedField = .content
     }
 
     private func saveLegacyReview() throws -> DailyReview? {

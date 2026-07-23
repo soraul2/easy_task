@@ -27,12 +27,14 @@ struct MobileArchiveRecordCard: View {
             if !record.tasks.isEmpty {
                 taskPreview
             }
+
+            boardButton
         }
-        .padding(14)
+        .padding(16)
         .foregroundStyle(AppTheme.primaryText)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
         .onAppear {
@@ -48,54 +50,50 @@ struct MobileArchiveRecordCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: record.review == nil ? "checkmark.circle" : "book.closed")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(record.review == nil ? AppTheme.doneForeground : AppTheme.eventForeground)
-                .frame(width: 36, height: 36)
-                .background(record.review == nil ? AppTheme.done : AppTheme.event, in: Circle())
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Label(presentation.displayDate, systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
 
-            VStack(alignment: .leading, spacing: 7) {
-                MobileArchiveTitleLine(
-                    title: presentation.title,
-                    displayDate: presentation.displayDate
-                )
+                Spacer(minLength: 4)
 
-                HStack(spacing: 6) {
-                    if !presentation.summaryText.isEmpty {
-                        Text(presentation.summaryText)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(AppTheme.selectedTab, in: Capsule())
-                    }
-
-                    if presentation.reviewMatchesSearch {
-                        Label("회고 일치", systemImage: "magnifyingglass")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.eventForeground)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(AppTheme.event, in: Capsule())
-                    }
+                if presentation.reviewMatchesSearch {
+                    Label("회고 일치", systemImage: "magnifyingglass")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.eventForeground)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(AppTheme.event, in: Capsule())
                 }
             }
 
-            Spacer(minLength: 4)
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: record.review == nil ? "checkmark.circle" : "book.closed")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(
+                        record.review == nil
+                            ? AppTheme.doneForeground
+                            : AppTheme.eventForeground
+                    )
+                    .frame(width: 40, height: 40)
+                    .background(record.review == nil ? AppTheme.done : AppTheme.event, in: Circle())
+                    .accessibilityHidden(true)
 
-            Button {
-                guard let date = DayKey.date(from: record.dayKey) else { return }
-                onOpenBoardDate(date)
-            } label: {
-                Image(systemName: "rectangle.3.group")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .frame(width: 44, height: 44)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(presentation.title)
+                        .font(.headline)
+                        .lineLimit(2)
+
+                    if !presentation.summaryText.isEmpty {
+                        Text(presentation.summaryText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(presentation.displayDate) 칸반보드 열기")
         }
     }
 
@@ -165,36 +163,31 @@ struct MobileArchiveRecordCard: View {
             }
         }
     }
-}
 
-private struct MobileArchiveTitleLine: View {
-    var title: String
-    var displayDate: String
+    private var boardButton: some View {
+        Button {
+            guard let date = DayKey.date(from: record.dayKey) else { return }
+            onOpenBoardDate(date)
+        } label: {
+            HStack(spacing: 10) {
+                Label("그날 보기", systemImage: "rectangle.3.group")
+                    .font(.subheadline.weight(.semibold))
 
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(title)
-                    .font(.headline)
-                    .fixedSize(horizontal: true, vertical: false)
-                Text("›")
-                    .font(.caption.weight(.semibold))
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(AppTheme.secondaryText)
-                Text(displayDate)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .fixedSize()
+                    .accessibilityHidden(true)
             }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(2)
-                Text(displayDate)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-            }
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 10))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(presentation.displayDate) 칸반보드 열기")
+        .accessibilityHint("이 날짜의 작업 보드로 이동합니다")
     }
 }
 

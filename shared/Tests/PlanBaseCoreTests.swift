@@ -1145,7 +1145,7 @@ func appThemePresetsMeetTextContrastTarget() {
     #expect(AppThemePreset.defaultID == "appleSystem")
     #expect(AppThemePreset.all.first?.id == AppThemePreset.defaultID)
 
-    for preset in AppThemePreset.all where preset.targetsWCAGTextContrast {
+    for preset in AppThemePreset.all {
         for appearance in AppThemeAppearance.allCases {
             let colors = preset.colorSet(for: appearance)
             let sharedSurfaces = [
@@ -1171,7 +1171,10 @@ func appThemePresetsMeetTextContrastTarget() {
             }
 
             for eventColor in colors.eventPalette {
-                #expect(colors.eventText.contrastRatio(to: eventColor) >= 4.5)
+                #expect(
+                    colors.resolvedEventForeground(on: eventColor)
+                        .contrastRatio(to: eventColor) >= 4.5
+                )
             }
         }
     }
@@ -1184,6 +1187,16 @@ func roseLilacThemeUsesRequestedSoftPalette() {
     #expect(preset.id == "roseLilac")
     #expect(preset.sourcePaletteHexes == ["#FBEFEF", "#FFE2E2", "#F5CBCB", "#C5B3D3"])
     #expect(!preset.targetsWCAGTextContrast)
+
+    for appearance in AppThemeAppearance.allCases {
+        let colors = preset.colorSet(for: appearance)
+        for eventColor in colors.eventPalette {
+            #expect(
+                colors.resolvedEventForeground(on: eventColor)
+                    .contrastRatio(to: eventColor) >= 4.5
+            )
+        }
+    }
 }
 
 @Test

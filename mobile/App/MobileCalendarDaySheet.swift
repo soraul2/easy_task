@@ -71,7 +71,7 @@ private struct MobileCalendarDaySheet: View {
                     }
                     if events.isEmpty {
                         Text("이벤트 없음")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
                     ForEach(events) { event in
                         HStack {
@@ -80,11 +80,11 @@ private struct MobileCalendarDaySheet: View {
                                     .lineLimit(2)
                                 Text("\(event.startDayKey) - \(event.endDayKey)")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(AppTheme.secondaryText)
                                 if let note = event.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     Text(note)
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(AppTheme.secondaryText)
                                         .lineLimit(2)
                                 }
                             }
@@ -93,6 +93,8 @@ private struct MobileCalendarDaySheet: View {
                                 eventEditorRoute = .edit(event)
                             } label: {
                                 Image(systemName: "pencil")
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderless)
                             .accessibilityLabel("이벤트 편집")
@@ -101,16 +103,19 @@ private struct MobileCalendarDaySheet: View {
                                 requestEventDeletion(event)
                             } label: {
                                 Image(systemName: "trash")
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderless)
                             .accessibilityLabel("이벤트 삭제")
                         }
                     }
                 }
+                .listRowBackground(AppTheme.panel)
                 Section("템플릿 배치") {
                     if templatePlacements.isEmpty {
                         Text("배치 없음")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
                     ForEach(templatePlacements) { placement in
                         MobileTemplatePlacementSummaryQueryHost(
@@ -121,6 +126,7 @@ private struct MobileCalendarDaySheet: View {
                         )
                     }
                 }
+                .listRowBackground(AppTheme.panel)
                 Section("작업") {
                     ForEach(boardTasks.prefix(6)) { task in
                         HStack {
@@ -129,26 +135,32 @@ private struct MobileCalendarDaySheet: View {
                             Spacer()
                             Text((TaskStatus(rawValue: task.status) ?? .todo).title)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppTheme.secondaryText)
                         }
                     }
                     if boardTasks.count > 6 {
                         Text("외 \(boardTasks.count - 6)개 작업")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
                     if boardTasks.isEmpty {
                         Text("작업 없음")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                     }
                 }
+                .listRowBackground(AppTheme.panel)
                 Button {
                     dismiss()
                     onOpenBoard()
                 } label: {
                     Label("이 날짜 칸반보드 열기", systemImage: "rectangle.3.group")
                 }
+                .listRowBackground(AppTheme.panel)
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
+            .tint(AppTheme.event)
             .navigationTitle(DayKey.display(date))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -157,6 +169,8 @@ private struct MobileCalendarDaySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
         .overlay(alignment: .bottom) {
             if let dayNotice {
                 CalendarNoticeBanner(message: dayNotice)
@@ -395,10 +409,14 @@ private struct MobileTemplatePlacementSummaryRow: View {
                     .lineLimit(2)
                 Text(stateSummary)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(deleteSummary.canDeleteTasks ? .secondary : AppTheme.event)
+                    .foregroundStyle(
+                        deleteSummary.canDeleteTasks
+                            ? AppTheme.secondaryText
+                            : AppTheme.event
+                    )
                 Text(taskSummary)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.secondaryText)
                     .lineLimit(2)
             }
 
@@ -409,11 +427,11 @@ private struct MobileTemplatePlacementSummaryRow: View {
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(AppTheme.secondaryText)
             .accessibilityLabel("템플릿 배치 삭제")
         }
         .padding(.vertical, 4)

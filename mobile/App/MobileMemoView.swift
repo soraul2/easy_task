@@ -24,12 +24,14 @@ struct MobileMemoView: View {
                 .searchable(text: $searchText, prompt: "메모 검색")
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        MobileThemeButton(action: onShowTheme)
+                        MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
                         Button {
                             path.append(MobileMemoRoute(memoInstanceID: nil))
                         } label: {
                             Image(systemName: "square.and.pencil")
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .accessibilityLabel("새 메모")
                     }
@@ -145,7 +147,7 @@ private extension MobileMemoView {
                     VStack(spacing: 10) {
                         Text(errorMessage)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppTheme.secondaryText)
                         Button("다시 시도") {
                             querySession?.retry()
                         }

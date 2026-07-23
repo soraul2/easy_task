@@ -11,59 +11,91 @@ struct CalendarHeader: View {
     var onAddEvent: () -> Void
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 2) {
             Button { moveMonth(by: -1) } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 32, height: 34)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("이전 달")
 
             Text(DayKey.monthTitle(visibleMonth))
-                .font(.title3.weight(.bold))
+                .font(.headline.weight(.semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.68)
+                .minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.isHeader)
 
             Button { moveMonth(by: 1) } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 32, height: 34)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("다음 달")
 
             Spacer(minLength: 0)
 
             if showsActions {
-                HStack(spacing: 6) {
-                    MobileThemeButton(action: onShowTheme)
-
-                    Button {
-                        onShowTemplates()
-                    } label: {
-                        Image(systemName: "square.grid.3x3")
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(width: 36, height: 34)
+                HStack(spacing: 2) {
+                    if !DayKey.isSameMonth(visibleMonth, Date()) {
+                        Button("오늘") {
+                            moveToToday()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .buttonStyle(.plain)
+                        .accessibilityHint("이번 달로 이동합니다")
                     }
-                    .accessibilityLabel("템플릿 배치")
+
+                    Menu {
+                        Button {
+                            onShowTheme()
+                        } label: {
+                            Label("테마 선택", systemImage: "paintpalette")
+                        }
+
+                        Button {
+                            onShowTemplates()
+                        } label: {
+                            Label("템플릿 배치", systemImage: "square.grid.3x3")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("캘린더 메뉴")
 
                     Button {
                         onAddEvent()
                     } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .bold))
-                            .frame(width: 36, height: 34)
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("이벤트 추가")
                 }
             }
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 2)
     }
 
     private func moveMonth(by offset: Int) {
         let month = DayKey.startOfMonth(for: DayKey.addingMonths(offset, to: visibleMonth))
         visibleMonth = month
         selectedDate = month
+    }
+
+    private func moveToToday() {
+        let today = DayKey.startOfDay(for: Date())
+        visibleMonth = DayKey.startOfMonth(for: today)
+        selectedDate = today
     }
 }
 
@@ -76,7 +108,7 @@ struct CalendarWeekdayHeader: View {
                 let symbol = symbols[index]
 
                 Text(symbol)
-                    .font(.caption.weight(.bold))
+                    .font(.caption2.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: .infinity)
                     .foregroundStyle(index == 0 ? Color(red: 0.98, green: 0.40, blue: 0.42) : AppTheme.secondaryText)
@@ -84,16 +116,16 @@ struct CalendarWeekdayHeader: View {
                     .overlay(alignment: .trailing) {
                         if index < symbols.count - 1 {
                             Rectangle()
-                                .fill(AppTheme.border)
-                                .frame(width: 1)
+                                .fill(AppTheme.border.opacity(0.62))
+                                .frame(width: 0.5)
                         }
                     }
             }
         }
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(AppTheme.border)
-                .frame(height: 1)
+                .fill(AppTheme.border.opacity(0.62))
+                .frame(height: 0.5)
         }
     }
 }
@@ -124,7 +156,7 @@ struct CalendarTemplatePlacementStatus: View {
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -157,6 +189,7 @@ struct CalendarNoticeBanner: View {
 }
 
 struct MobileMonthDayCell: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var date: Date
     var visibleMonth: Date
     var isSelected: Bool
@@ -175,6 +208,14 @@ struct MobileMonthDayCell: View {
         DayKey.isToday(date)
     }
 
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var dayBadgeSize: CGFloat {
+        usesAccessibilityLayout ? 40 : 20
+    }
+
     private var primarySpecialDay: SpecialDay? {
         specialDays.first
     }
@@ -185,9 +226,9 @@ struct MobileMonthDayCell: View {
 
     private var cellBackground: Color {
         if isPlacementSelected { return AppTheme.event.opacity(0.16) }
-        if isSelected { return AppTheme.selectedTab.opacity(0.32) }
-        if !isCurrentMonth { return AppTheme.input.opacity(0.38) }
-        return AppTheme.panel.opacity(isToday ? 0.92 : 0.72)
+        if isSelected { return AppTheme.event.opacity(0.08) }
+        if !isCurrentMonth { return AppTheme.input.opacity(0.30) }
+        return AppTheme.panel.opacity(isToday ? 0.92 : 0.78)
     }
 
     private var dayBackground: Color {
@@ -215,23 +256,24 @@ struct MobileMonthDayCell: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .top, spacing: 3) {
                 Text(DayKey.dayNumber(date))
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.caption2.weight(isToday ? .bold : .semibold))
                     .foregroundStyle(dayForeground)
-                    .frame(width: 18, height: 18)
+                    .frame(width: dayBadgeSize, height: dayBadgeSize)
                     .background(dayBackground, in: Circle())
 
-                if let specialDay = primarySpecialDay {
+                if let specialDay = primarySpecialDay,
+                   !usesAccessibilityLayout {
                     Text(specialDay.name)
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.caption2.weight(.medium))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .truncationMode(.tail)
                         .foregroundStyle(specialDayForeground(specialDay))
-                        .padding(.top, 2)
+                        .padding(.top, 3)
                 }
                 Spacer(minLength: 0)
                 if isPlacementSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.event)
                         .padding(.top, 2)
                 } else if !templatePlacements.isEmpty {
@@ -241,7 +283,7 @@ struct MobileMonthDayCell: View {
                             Text("\(templatePlacements.count)")
                         }
                     }
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppTheme.event)
                     .padding(.horizontal, 3)
                     .padding(.vertical, 2)
@@ -254,22 +296,21 @@ struct MobileMonthDayCell: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 5)
+        .padding(usesAccessibilityLayout ? 2 : 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(cellBackground)
         .overlay(alignment: .trailing) {
             if showsTrailingDivider {
                 Rectangle()
-                    .fill(AppTheme.border)
-                    .frame(width: 1)
+                    .fill(AppTheme.border.opacity(0.62))
+                    .frame(width: 0.5)
             }
         }
         .overlay(alignment: .bottom) {
             if showsBottomDivider {
                 Rectangle()
-                    .fill(AppTheme.border)
-                    .frame(height: 1)
+                    .fill(AppTheme.border.opacity(0.62))
+                    .frame(height: 0.5)
             }
         }
         .overlay {
@@ -300,19 +341,39 @@ struct MobileMonthDayCell: View {
 struct MobileCalendarEventSpanBar: View {
     var event: CalendarEvent
     var isDimmed: Bool
+    var usesGraphicStyle: Bool
 
     var body: some View {
-        Text(event.title)
-            .font(.system(size: 9, weight: .bold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .foregroundStyle(AppTheme.eventText)
-            .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(
-                CalendarEventPalette.color(for: event.color).opacity(isDimmed ? 0.52 : 0.96),
-                in: RoundedRectangle(cornerRadius: 2)
-            )
+        Group {
+            if usesGraphicStyle {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(
+                        CalendarEventPalette.color(for: event.color)
+                            .opacity(isDimmed ? 0.52 : 0.96)
+                    )
+            } else {
+                Text(event.title)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(
+                        isDimmed
+                            ? AppTheme.secondaryText
+                            : CalendarEventPalette.foreground(for: event.color)
+                    )
+                    .padding(.horizontal, 4)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .leading
+                    )
+                    .background(
+                        CalendarEventPalette.color(for: event.color)
+                            .opacity(isDimmed ? 0.52 : 0.96),
+                        in: RoundedRectangle(cornerRadius: 3)
+                    )
+            }
+        }
     }
 }
 #endif

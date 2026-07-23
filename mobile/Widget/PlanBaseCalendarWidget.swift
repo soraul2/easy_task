@@ -250,10 +250,6 @@ private struct CalendarWidgetUnavailableView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
-
-            Text("PlanBase")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(theme.secondaryText)
         }
         .widgetURL(PlanBaseDeepLink.calendarURL(dayKey: DayKey.key(for: entry.date)))
         .accessibilityElement(children: .combine)
@@ -307,7 +303,7 @@ private struct TodayCalendarWidget: View {
 
             if events.isEmpty {
                 Spacer(minLength: 0)
-                Label("등록된 이벤트 없음", systemImage: "calendar")
+                Label("오늘 일정이 없어요", systemImage: "calendar")
                     .font(.caption)
                     .foregroundStyle(theme.secondaryText)
                     .lineLimit(1)
@@ -321,7 +317,7 @@ private struct TodayCalendarWidget: View {
                                 .frame(width: 7, height: 7)
 
                             Text(event.title)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.caption2.weight(.medium))
                                 .foregroundStyle(theme.primaryText)
                                 .lineLimit(1)
                                 .privacySensitive()
@@ -338,7 +334,7 @@ private struct TodayCalendarWidget: View {
 
     private var todayAccessibilityLabel: String {
         guard !events.isEmpty else {
-            return "\(DayKey.display(entry.date)), 등록된 이벤트 없음"
+            return "\(DayKey.display(entry.date)), 오늘 일정이 없어요"
         }
         let totalCount = entry.snapshot.totalEventCount(onDayKey: dayKey)
         let overflowText = hiddenEventCount > 0 ? ", 외 \(hiddenEventCount)개" : ""
@@ -367,7 +363,7 @@ private struct MonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .compact)
-                .frame(height: 9)
+                .frame(height: 13)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -404,7 +400,7 @@ private struct LargeMonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .expanded)
-                .frame(height: 14)
+                .frame(height: 15)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -489,70 +485,67 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
     var monthHeaderFontSize: CGFloat {
         switch self {
         case .compact: 11
-        case .expanded: 13
+        case .expanded: 12
         }
     }
 
     var monthHeaderHeight: CGFloat {
         switch self {
-        case .compact: 13
+        case .compact: 14
         case .expanded: 16
         }
     }
 
     var monthControlFontSize: CGFloat {
         switch self {
-        case .compact: 8
-        case .expanded: 9
+        case .compact: 9
+        case .expanded: 10
         }
     }
 
     var monthControlWidth: CGFloat {
         switch self {
-        case .compact: 18
-        case .expanded: 20
+        case .compact: 22
+        case .expanded: 24
         }
     }
 
     var dayFontSize: CGFloat {
-        switch self {
-        case .compact: 8
-        case .expanded: 9
-        }
+        11
     }
 
     var dayBadgeSize: CGFloat {
         switch self {
-        case .compact: 10
-        case .expanded: 15
+        case .compact: 14
+        case .expanded: 16
         }
     }
 
     var eventTopInset: CGFloat {
         switch self {
-        case .compact: 10
-        case .expanded: 16
+        case .compact: 15
+        case .expanded: 17
         }
     }
 
     var laneHeight: CGFloat {
         switch self {
         case .compact: 3
-        case .expanded: 11
+        case .expanded: 14
         }
     }
 
     var barHeight: CGFloat {
         switch self {
         case .compact: 2
-        case .expanded: 10
+        case .expanded: 13
         }
     }
 
     var maximumLaneLimit: Int {
         switch self {
         case .compact: 3
-        case .expanded: 4
+        case .expanded: 3
         }
     }
 }
@@ -565,10 +558,7 @@ private struct CalendarWidgetWeekdayHeader: View {
         HStack(spacing: 0) {
             ForEach(Array(DayKey.weekdaySymbols().enumerated()), id: \.offset) { index, symbol in
                 Text(symbol)
-                    .font(.system(
-                        size: style == .compact ? 7 : 9,
-                        weight: .semibold
-                    ))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(index == 0 ? theme.sundayText : theme.secondaryText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(theme.panel.opacity(0.55))
@@ -729,7 +719,7 @@ private struct CalendarWidgetMonthDayCell: View {
 
                 if hiddenEventCount > 0 {
                     Text("+\(hiddenEventCount)")
-                        .font(.system(size: style == .compact ? 6 : 7, weight: .bold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(theme.secondaryText)
                         .lineLimit(1)
                 }
@@ -801,10 +791,10 @@ private struct CalendarWidgetEventBar: View {
                     .fill(theme.eventColor(event.colorID))
             case .expanded:
                 Text(event.title)
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(theme.eventForeground(event.colorID))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
                     .padding(.horizontal, 3)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background(
@@ -923,6 +913,52 @@ struct PlanBaseCalendarWidget: Widget {
         .contentMarginsDisabled()
     }
 }
+
+#if DEBUG
+private struct PlanBaseCalendarWidgetPreviews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            PlanBaseCalendarWidgetView(entry: availableEntry)
+                .previewContext(WidgetPreviewContext(family: .systemSmall))
+                .previewDisplayName("Small · 오늘")
+            PlanBaseCalendarWidgetView(entry: availableEntry)
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Medium · 월간 막대")
+            PlanBaseCalendarWidgetView(entry: availableEntry)
+                .previewContext(WidgetPreviewContext(family: .systemLarge))
+                .previewDisplayName("Large · 월간 제목")
+            PlanBaseCalendarWidgetView(entry: refreshEntry)
+                .previewContext(WidgetPreviewContext(family: .systemSmall))
+                .previewDisplayName("Small · 갱신 필요")
+        }
+    }
+
+    private static let previewDate = Date()
+    private static let previewSnapshot = CalendarWidgetSnapshot.preview
+
+    private static let availableEntry = PlanBaseCalendarEntry(
+        date: previewDate,
+        snapshot: previewSnapshot,
+        availability: .available,
+        monthSelection: CalendarWidgetMonthNavigation.selection(
+            selectedMonthDayKey: nil,
+            snapshot: previewSnapshot,
+            referenceDate: previewDate
+        )
+    )
+
+    private static let refreshEntry = PlanBaseCalendarEntry(
+        date: previewDate,
+        snapshot: .empty(at: previewDate),
+        availability: .missing,
+        monthSelection: CalendarWidgetMonthNavigation.selection(
+            selectedMonthDayKey: nil,
+            snapshot: .empty(at: previewDate),
+            referenceDate: previewDate
+        )
+    )
+}
+#endif
 
 @main
 struct PlanBaseWidgetBundle: WidgetBundle {
