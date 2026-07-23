@@ -70,12 +70,21 @@ struct TaskDetailSheet: View {
 
                     if let reminderAt = task.reminderAt {
                         DetailFieldLabel(reminderFieldTitle(for: reminderAt))
-                        Label(
-                            reminderAt.formatted(date: .abbreviated, time: .shortened),
-                            systemImage: reminderSystemImage(for: reminderAt)
-                        )
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AppTheme.primaryText)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label(
+                                reminderAt.formatted(date: .abbreviated, time: .shortened),
+                                systemImage: reminderSystemImage(for: reminderAt)
+                            )
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppTheme.primaryText)
+
+                            Text(
+                                "알림은 iPhone에서 설정·실행됩니다. " +
+                                    "Mac에서는 동기화된 시각만 표시합니다."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                        }
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
@@ -83,6 +92,7 @@ struct TaskDetailSheet: View {
                             RoundedRectangle(cornerRadius: 8)
                                 .stroke(AppTheme.border, lineWidth: 1)
                         }
+                        .accessibilityElement(children: .combine)
                     }
 
                     DetailFieldLabel("상태")
@@ -197,7 +207,8 @@ struct TaskDetailSheet: View {
         } message: { pending in
             Text(
                 "\"\(pending.title)\" 작업을 완료하면 " +
-                    "\(pending.reminderAt.formatted(date: .abbreviated, time: .shortened)) 알림이 중지됩니다. " +
+                    "\(pending.reminderAt.formatted(date: .abbreviated, time: .shortened)) " +
+                    "iPhone 예약 알림이 중지됩니다. " +
                     "알림 설정 기록은 계속 유지됩니다."
             )
         }

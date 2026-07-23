@@ -6,12 +6,14 @@ private enum CalendarSheet: Identifiable {
     case addEvent
     case templatePlacement
     case editEvent(UUID)
+    case day(Date)
 
     var id: String {
         switch self {
         case .addEvent: "addEvent"
         case .templatePlacement: "templatePlacement"
         case .editEvent(let id): "editEvent-\(id.uuidString)"
+        case .day(let date): "day-\(DayKey.key(for: date))"
         }
     }
 }
@@ -28,23 +30,28 @@ private struct DesktopCalendarQueryRange: Hashable {
     }
 }
 
-private struct DesktopCalendarEventsQueryHost<Content: View>: View {
+private struct DesktopCalendarMonthQueryHost<Content: View>: View {
     @Query private var events: [CalendarEvent]
-    private let content: ([CalendarEvent]) -> Content
+    @Query private var templatePlacements: [TemplatePlacement]
+    private let content: ([CalendarEvent], [TemplatePlacement]) -> Content
 
     init(
         range: DesktopCalendarQueryRange,
-        @ViewBuilder content: @escaping ([CalendarEvent]) -> Content
+        @ViewBuilder content: @escaping ([CalendarEvent], [TemplatePlacement]) -> Content
     ) {
         _events = Query(BoundedQueryService.eventsDescriptor(
             overlappingStartDayKey: range.startDayKey,
             endDayKey: range.endDayKey
         ))
+        _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
+            from: range.startDayKey,
+            through: range.endDayKey
+        ))
         self.content = content
     }
 
     var body: some View {
-        content(events)
+        content(events, templatePlacements)
     }
 }
 
@@ -61,10 +68,17 @@ struct CalendarView: View {
     @State private var startDate = DayKey.startOfDay(for: Date())
     @State private var endDate = DayKey.startOfDay(for: Date())
     @State private var selectedEventColor = CalendarEventPalette.defaultColor
+    @State private var note = ""
     @State private var presentedSheet: CalendarSheet?
     @State private var placementTemplate: TaskTemplate?
     @State private var placementDayKeys: Set<String> = []
     @State private var calendarMessage: String?
+
+    private let onOpenBoardDate: (Date) -> Void
+
+    init(onOpenBoardDate: @escaping (Date) -> Void = { _ in }) {
+        self.onOpenBoardDate = onOpenBoardDate
+    }
 
     private var monthDates: [Date] { DayKey.monthGridDates(for: visibleMonth) }
     private var isPlacementMode: Bool { placementTemplate != nil }
@@ -76,13 +90,19 @@ struct CalendarView: View {
     var body: some View {
         let queryRange = DesktopCalendarQueryRange(visibleMonth: visibleMonth)
 
-        DesktopCalendarEventsQueryHost(range: queryRange) { events in
-            calendarContent(events: events)
+        DesktopCalendarMonthQueryHost(range: queryRange) { events, templatePlacements in
+            calendarContent(
+                events: events,
+                templatePlacements: templatePlacements
+            )
         }
         .id(queryRange)
     }
 
-    private func calendarContent(events: [CalendarEvent]) -> some View {
+    private func calendarContent(
+        events: [CalendarEvent],
+        templatePlacements: [TemplatePlacement]
+    ) -> some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 22)
@@ -110,6 +130,7 @@ struct CalendarView: View {
                     startDate: $startDate,
                     endDate: $endDate,
                     color: $selectedEventColor,
+                    note: $note,
                     onAdd: addEvent
                 )
             case .templatePlacement:
@@ -121,8 +142,10 @@ struct CalendarView: View {
                         presentedSheet = nil
                     }
                 )
-            case .editEvent(let eventID):
-                if let event = events.first(where: { $0.supersededAt == nil && $0.id == eventID }) {
+            case .editEvent(let eventInstanceID):
+                if let event = events.first(where: {
+                    $0.supersededAt == nil && $0.instanceID == eventInstanceID
+                }) {
                     EventEditorSheet(
                         event: event,
                         onDelete: removeEvent
@@ -137,6 +160,19 @@ struct CalendarView: View {
                     .frame(width: 380)
                     .background(AppTheme.panel)
                 }
+            case .day(let date):
+                DesktopCalendarDayQueryHost(
+                    dayKey: DayKey.key(for: date),
+                    date: date,
+                    events: representativeEvents(on: date, in: events),
+                    templatePlacements: TemplateService.placements(
+                        on: date,
+                        in: templatePlacements
+                    ),
+                    onOpenBoard: {
+                        onOpenBoardDate(date)
+                    }
+                )
             }
         }
         .alert("저장 실패", isPresented: Binding(
@@ -173,6 +209,7 @@ struct CalendarView: View {
 
             Spacer()
 
+            dayDetailsButton(compact: false)
             templatePlacementButton(compact: false)
             addEventButton
         }
@@ -194,6 +231,7 @@ struct CalendarView: View {
 
             HStack(spacing: 10) {
                 Spacer()
+                dayDetailsButton(compact: true)
                 templatePlacementButton(compact: true)
                 addEventButton
             }
@@ -255,6 +293,29 @@ struct CalendarView: View {
         }
         .buttonStyle(.plain)
         .help(isPlacementMode ? "템플릿 배치 종료" : "템플릿을 날짜에 배치")
+    }
+
+    private func dayDetailsButton(compact: Bool) -> some View {
+        Button {
+            openDayDetails(for: selectedDate)
+        } label: {
+            if compact {
+                Image(systemName: "list.bullet.rectangle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 38, height: 34)
+                    .calendarToolbarButtonBackground()
+            } else {
+                Label("날짜 상세", systemImage: "list.bullet.rectangle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .calendarToolbarButtonBackground()
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isPlacementMode)
+        .help("선택한 날짜 상세 열기 (⌘↩)")
+        .keyboardShortcut(.return, modifiers: .command)
     }
 
     private var addEventButton: some View {
@@ -340,7 +401,26 @@ struct CalendarView: View {
             let laneHeight: CGFloat = cellHeight < 76 ? 18 : 21
             let barHeight: CGFloat = cellHeight < 76 ? 16 : 18
             let maxEventLanes = max(1, min(4, Int((cellHeight - eventTopInset - 6) / laneHeight)))
-            let segments = eventSegments(events: events, maxLanes: maxEventLanes)
+            let activeEvents = events.filter { $0.supersededAt == nil }
+            let eventsByRenderID = Dictionary(
+                activeEvents.map { ($0.instanceID, $0) },
+                uniquingKeysWith: { current, _ in current }
+            )
+            let layout = CalendarEventGridLayout.make(
+                items: activeEvents.map {
+                    CalendarEventGridLayoutItem(
+                        renderID: $0.instanceID,
+                        eventID: $0.id,
+                        title: $0.title,
+                        startDayKey: $0.startDayKey,
+                        endDayKey: $0.endDayKey,
+                        updatedAt: $0.updatedAt
+                    )
+                },
+                dates: monthDates,
+                visibleMonth: visibleMonth,
+                maximumLanes: maxEventLanes
+            )
 
             ZStack(alignment: .topLeading) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
@@ -351,6 +431,7 @@ struct CalendarView: View {
                             selectedDate: selectedDate,
                             placementMode: isPlacementMode,
                             isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
+                            hiddenEventCount: layout.hiddenEventCountByDayKey[DayKey.key(for: date)] ?? 0,
                             specialDays: Self.specialDayStore.days(on: date),
                             onSelect: {
                                 if isPlacementMode {
@@ -362,6 +443,9 @@ struct CalendarView: View {
                                     }
                                 }
                             },
+                            onOpenDetails: {
+                                openDayDetails(for: date)
+                            },
                             onAddEvent: {
                                 prepareAddEvent(for: date)
                             }
@@ -370,23 +454,26 @@ struct CalendarView: View {
                     }
                 }
 
-                ForEach(segments) { segment in
-                    CalendarEventSegmentButton(
-                        segment: segment,
-                        isDisabled: isPlacementMode,
-                        width: max(cellWidth * CGFloat(segment.span) - 10, 32),
-                        height: barHeight,
-                        xOffset: cellWidth * CGFloat(segment.startColumn) + 5,
-                        yOffset: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight,
-                        onEdit: { event in
-                            presentedSheet = .editEvent(event.id)
-                        },
-                        onDelete: { event in
-                            if let failureMessage = removeEvent(event) {
-                                calendarMessage = failureMessage
+                ForEach(layout.segments) { segment in
+                    if let event = eventsByRenderID[segment.renderID] {
+                        CalendarEventSegmentButton(
+                            segment: segment,
+                            event: event,
+                            isDisabled: isPlacementMode,
+                            width: max(cellWidth * CGFloat(segment.span) - 10, 32),
+                            height: barHeight,
+                            xOffset: cellWidth * CGFloat(segment.startColumn) + 5,
+                            yOffset: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight,
+                            onEdit: { event in
+                                presentedSheet = .editEvent(event.instanceID)
+                            },
+                            onDelete: { event in
+                                if let failureMessage = removeEvent(event) {
+                                    calendarMessage = failureMessage
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
             .frame(height: cellHeight * 6)
@@ -403,6 +490,7 @@ struct CalendarView: View {
             title: title,
             startAt: startDate,
             endAt: endDate,
+            note: note,
             color: selectedEventColor
         ) else {
             return "이벤트 정보를 확인해 주세요."
@@ -417,6 +505,7 @@ struct CalendarView: View {
         }
 
         title = ""
+        note = ""
         selectedEventColor = CalendarEventPalette.defaultColor
         return nil
     }
@@ -429,10 +518,21 @@ struct CalendarView: View {
         }
 
         title = ""
+        note = ""
         startDate = normalizedDate
         endDate = normalizedDate
         selectedEventColor = CalendarEventPalette.defaultColor
         presentedSheet = .addEvent
+    }
+
+    private func openDayDetails(for date: Date) {
+        guard !isPlacementMode else { return }
+        let normalizedDate = DayKey.startOfDay(for: date)
+        selectedDate = normalizedDate
+        if !DayKey.isSameMonth(normalizedDate, visibleMonth) {
+            visibleMonth = DayKey.startOfMonth(for: normalizedDate)
+        }
+        presentedSheet = .day(normalizedDate)
     }
 
     private func removeEvent(_ event: CalendarEvent) -> String? {
@@ -498,65 +598,27 @@ struct CalendarView: View {
         }
     }
 
-    private func eventSegments(
-        events: [CalendarEvent],
-        maxLanes: Int = 4
-    ) -> [CalendarEventSegment] {
-        let weeks = stride(from: 0, to: monthDates.count, by: 7).map {
-            Array(monthDates[$0..<min($0 + 7, monthDates.count)])
-        }
-
-        var segments: [CalendarEventSegment] = []
-
-        for (weekIndex, weekDates) in weeks.enumerated() {
-            guard let weekStart = weekDates.first, let weekEnd = weekDates.last else { continue }
-            let weekStartKey = DayKey.key(for: weekStart)
-            let weekEndKey = DayKey.key(for: weekEnd)
-
-            let overlappingEvents = CalendarEventRules.events(
-                overlapping: weekStart,
-                through: weekEnd,
-                in: events
-            )
-
-            var laneEndColumns: [Int] = []
-
-            for event in overlappingEvents {
-                let weekKeys = weekDates.map(DayKey.key(for:))
-                let segmentStartKey = max(event.startDayKey, weekStartKey)
-                let segmentEndKey = min(event.endDayKey, weekEndKey)
-
-                guard let startColumn = weekKeys.firstIndex(of: segmentStartKey),
-                      let endColumn = weekKeys.firstIndex(of: segmentEndKey) else {
-                    continue
-                }
-
-                let lane: Int
-                if let availableLane = laneEndColumns.firstIndex(where: { $0 < startColumn }) {
-                    lane = availableLane
-                    laneEndColumns[availableLane] = endColumn
-                } else {
-                    lane = laneEndColumns.count
-                    laneEndColumns.append(endColumn)
-                }
-
-                guard lane < maxLanes else { continue }
-
-                let monthStartKey = DayKey.key(for: DayKey.startOfMonth(for: visibleMonth))
-                let nextMonthStartKey = DayKey.key(for: DayKey.addingMonths(1, to: DayKey.startOfMonth(for: visibleMonth)))
-                let isDimmed = segmentEndKey < monthStartKey || segmentStartKey >= nextMonthStartKey
-
-                segments.append(CalendarEventSegment(
-                    event: event,
-                    weekIndex: weekIndex,
-                    startColumn: startColumn,
-                    span: endColumn - startColumn + 1,
-                    lane: lane,
-                    isDimmed: isDimmed
-                ))
+    private func representativeEvents(
+        on date: Date,
+        in events: [CalendarEvent]
+    ) -> [CalendarEvent] {
+        let dayEvents = CalendarEventRules.events(on: date, in: events)
+        let representativeItems = CalendarEventGridLayout.representativeItems(
+            from: dayEvents.map {
+                CalendarEventGridLayoutItem(
+                    renderID: $0.instanceID,
+                    eventID: $0.id,
+                    title: $0.title,
+                    startDayKey: $0.startDayKey,
+                    endDayKey: $0.endDayKey,
+                    updatedAt: $0.updatedAt
+                )
             }
-        }
-
-        return segments
+        )
+        let renderIDs = Set(representativeItems.map(\.renderID))
+        return CalendarEventRules.sorted(
+            dayEvents.filter { renderIDs.contains($0.instanceID) }
+        )
     }
+
 }

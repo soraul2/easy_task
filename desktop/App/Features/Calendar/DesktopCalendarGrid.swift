@@ -1,21 +1,9 @@
 import SwiftUI
 import PlanBaseCore
 
-struct CalendarEventSegment: Identifiable {
-    var event: CalendarEvent
-    var weekIndex: Int
-    var startColumn: Int
-    var span: Int
-    var lane: Int
-    var isDimmed: Bool
-
-    var id: String {
-        "\(event.id.uuidString)-\(weekIndex)-\(lane)"
-    }
-}
-
 struct CalendarEventSegmentButton: View {
-    var segment: CalendarEventSegment
+    var segment: CalendarEventGridSegment
+    var event: CalendarEvent
     var isDisabled: Bool
     var width: CGFloat
     var height: CGFloat
@@ -26,9 +14,9 @@ struct CalendarEventSegmentButton: View {
 
     var body: some View {
         Button {
-            onEdit(segment.event)
+            onEdit(event)
         } label: {
-            EventSpanBar(event: segment.event, isDimmed: segment.isDimmed)
+            EventSpanBar(event: event, isDimmed: segment.isDimmed)
         }
         .buttonStyle(.plain)
         .allowsHitTesting(!isDisabled)
@@ -36,7 +24,7 @@ struct CalendarEventSegmentButton: View {
         .offset(x: xOffset, y: yOffset)
         .contextMenu {
             Button(role: .destructive) {
-                onDelete(segment.event)
+                onDelete(event)
             } label: {
                 Label("삭제", systemImage: "trash")
             }
@@ -50,8 +38,10 @@ struct MonthDayCell: View {
     var selectedDate: Date
     var placementMode: Bool
     var isPlacementSelected: Bool
+    var hiddenEventCount: Int
     var specialDays: [SpecialDay]
     var onSelect: () -> Void
+    var onOpenDetails: () -> Void
     var onAddEvent: () -> Void
 
     @State private var isHovered = false
@@ -144,9 +134,41 @@ struct MonthDayCell: View {
                 .help("이 날짜에 이벤트 추가")
                 .transition(.opacity)
             }
+
+            if hiddenEventCount > 0, !placementMode {
+                Text("+\(hiddenEventCount)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(AppTheme.input, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(AppTheme.border, lineWidth: 1)
+                    }
+                    .padding(7)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel("숨겨진 이벤트 \(hiddenEventCount)개")
+            }
         }
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .gesture(
+            TapGesture(count: 2)
+                .exclusively(before: TapGesture(count: 1))
+                .onEnded { gesture in
+                    switch gesture {
+                    case .first:
+                        if placementMode {
+                            onSelect()
+                        } else {
+                            onOpenDetails()
+                        }
+                    case .second:
+                        onSelect()
+                    }
+                }
+        )
         .onHover { hovering in
             isHovered = hovering
         }

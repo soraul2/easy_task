@@ -262,6 +262,9 @@ struct MobileCalendarView: View {
                                 isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
                                 events: isPlacementMode ? [] : eventsForDate(date, in: events),
                                 templatePlacements: isPlacementMode ? [] : placementsForDate(date, in: templatePlacements),
+                                hiddenEventCount: isPlacementMode
+                                    ? 0
+                                    : layout.hiddenEventCountByDayKey[DayKey.key(for: date)] ?? 0,
                                 specialDays: specialDayStore.days(on: date),
                                 showsTrailingDivider: (index + 1) % 7 != 0,
                                 showsBottomDivider: index < dates.count - 7

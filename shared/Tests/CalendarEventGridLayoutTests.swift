@@ -162,3 +162,38 @@ func calendarEventGridLayoutRejectsInvalidRangesAndCountsLogicalDuplicatesOnce()
     #expect(result.displayedEventIDsByDayKey["2026-07-16"] == [eventID])
     #expect(result.hiddenEventCountByDayKey["2026-07-16"] == nil)
 }
+
+@Test
+func calendarEventGridLayoutBreaksEqualTimestampDuplicatesByRenderID() throws {
+    let eventID = UUID()
+    let updatedAt = try #require(DayKey.date(from: "2026-07-16"))
+    let lowerRenderID = try #require(UUID(
+        uuidString: "00000000-0000-0000-0000-000000000001"
+    ))
+    let higherRenderID = try #require(UUID(
+        uuidString: "00000000-0000-0000-0000-000000000002"
+    ))
+    let lower = CalendarEventGridLayoutItem(
+        renderID: lowerRenderID,
+        eventID: eventID,
+        title: "낮은 instanceID",
+        startDayKey: "2026-07-16",
+        endDayKey: "2026-07-16",
+        updatedAt: updatedAt
+    )
+    let higher = CalendarEventGridLayoutItem(
+        renderID: higherRenderID,
+        eventID: eventID,
+        title: "높은 instanceID",
+        startDayKey: "2026-07-16",
+        endDayKey: "2026-07-16",
+        updatedAt: updatedAt
+    )
+
+    let representatives = CalendarEventGridLayout.representativeItems(
+        from: [higher, lower]
+    )
+
+    #expect(representatives.count == 1)
+    #expect(representatives.first?.renderID == higherRenderID)
+}

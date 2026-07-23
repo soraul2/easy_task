@@ -36,6 +36,29 @@ func carryoverTasksAreOpenPastTasksSortedByDayAndOrder() throws {
 }
 
 @Test
+func carryoverCandidateCutoffStaysAtTodayWhenViewingFutureBoard() throws {
+    let yesterday = try #require(
+        DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 5))
+    )
+    let today = try #require(
+        DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 6))
+    )
+    let future = try #require(
+        DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 9))
+    )
+    let pastTask = Task(title: "어제 미완료", plannedAt: yesterday, order: 100)
+    let todayTask = Task(title: "오늘 작업", plannedAt: today, order: 100)
+    let futureTask = Task(title: "미래 작업", plannedAt: future, order: 100)
+
+    let candidates = TaskRules.carryoverTasks(
+        [futureTask, todayTask, pastTask],
+        before: DayKey.key(for: today)
+    )
+
+    #expect(candidates.map(\.title) == ["어제 미완료"])
+}
+
+@Test
 func movingTaskToDateUpdatesDayKeyOrderAndTimestamp() throws {
     let originalDate = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 4)))
     let targetDate = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 15)))

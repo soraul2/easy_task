@@ -222,7 +222,10 @@ struct AppRootView: View {
         case .board:
             BoardView(selectedDate: $selectedBoardDate)
         case .calendar:
-            CalendarView()
+            CalendarView { date in
+                selectedBoardDate = date
+                selectedTab = .board
+            }
         case .archive:
             ArchiveView { date in
                 selectedBoardDate = date

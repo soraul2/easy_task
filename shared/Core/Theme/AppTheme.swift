@@ -190,8 +190,8 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
         switch id {
         case "appleSystem":
             return light(
-                backgroundTop: "#F1F3F6",
-                backgroundBottom: "#ECEFF3",
+                backgroundTop: "#FFFFFF",
+                backgroundBottom: "#FFFFFF",
                 panel: "#FFFFFF",
                 input: "#F7F8FA",
                 floatingBar: "#F9FAFC",

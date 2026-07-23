@@ -10,14 +10,15 @@
 - [데이터 기반 계획](DATA_FOUNDATION_PLAN.md): 데이터 안전 작업 순서와 Git 운영 규칙
 - [구조 정리 체크리스트](STRUCTURE_CLEANUP_CHECKLIST.md): 현재 디렉터리·파일 정리 진행 상태
 
-## 출시 전 확인이 남은 계획
+## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [macOS·iPhone 기능 정합성](plans/active/CROSS_PLATFORM_PARITY_PLAN.md)
 - [캘린더 위젯 밀도](plans/active/CALENDAR_WIDGET_DENSITY_PLAN.md)
 - [잠금 화면 위젯](plans/active/LOCK_SCREEN_WIDGET_PLAN.md)
 - [Task 완료 전환 알림 보존](plans/active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md)
 
-이 문서들은 코드와 자동 검증은 완료됐지만 실기기 또는 출시 승인 확인 항목을
-보존한다. 남은 수동 항목이 끝나면 `plans/completed/`로 옮긴다.
+이 문서들은 구현이 진행 중이거나 코드 완료 후 실기기·출시 승인 확인이 남은 작업을
+보존한다. 모든 구현과 검증 항목이 끝나면 `plans/completed/`로 옮긴다.
 
 ## 완료된 설계·구현 기록
 

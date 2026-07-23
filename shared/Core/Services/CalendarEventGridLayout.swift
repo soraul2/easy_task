@@ -209,7 +209,7 @@ public enum CalendarEventGridLayout {
         return lhs.renderID.uuidString < rhs.renderID.uuidString
     }
 
-    private static func representativeItems(
+    public static func representativeItems(
         from items: [CalendarEventGridLayoutItem]
     ) -> [CalendarEventGridLayoutItem] {
         Dictionary(grouping: items, by: \.eventID).values.compactMap { candidates in

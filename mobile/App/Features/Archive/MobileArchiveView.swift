@@ -13,6 +13,7 @@ struct MobileArchiveView: View {
     @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
     @State private var querySession: ArchiveQuerySession?
+    @StateObject private var backupCoordinator = MobileBackupCoordinator()
 
     private var hasActiveFilterOptions: Bool {
         filter.period != .all || filter.scope != .all
@@ -130,6 +131,35 @@ struct MobileArchiveView: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel(hasActiveFilterOptions ? "적용된 기록 필터 변경" : "기록 필터")
+
+                    Menu {
+                        Button {
+                            backupCoordinator.requestExport(context: modelContext)
+                        } label: {
+                            Label("백업 내보내기", systemImage: "square.and.arrow.up")
+                        }
+
+                        Button {
+                            backupCoordinator.requestImport()
+                        } label: {
+                            Label("백업 가져오기", systemImage: "square.and.arrow.down")
+                        }
+                    } label: {
+                        Group {
+                            if backupCoordinator.isBusy {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "ellipsis.circle")
+                                    .foregroundStyle(AppTheme.primaryText)
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .disabled(backupCoordinator.isBusy)
+                    .accessibilityLabel(
+                        backupCoordinator.isBusy ? "백업 처리 중" : "기록 및 백업 메뉴"
+                    )
                 }
             }
             .sheet(isPresented: $showingFilter) {
@@ -157,6 +187,24 @@ struct MobileArchiveView: View {
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             querySession?.refreshPreservingDepth()
+        }
+        .sheet(item: $backupCoordinator.pickerRequest) { request in
+            MobileBackupDocumentPicker(request: request) { result in
+                backupCoordinator.handlePickerResult(
+                    result,
+                    for: request,
+                    context: modelContext
+                )
+            }
+        }
+        .alert(item: $backupCoordinator.notice) { notice in
+            Alert(
+                title: Text(
+                    notice.kind == .success ? "백업 완료" : "백업 실패"
+                ),
+                message: Text(notice.message),
+                dismissButton: .default(Text("확인"))
+            )
         }
     }
 

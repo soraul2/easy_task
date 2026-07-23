@@ -43,6 +43,15 @@ func appThemePresetsMeetTextContrastTarget() {
 }
 
 @Test
+func appleSystemLightThemeUsesWhiteBackground() {
+    let colors = AppThemePreset.preset(for: "appleSystem").colorSet(for: .light)
+    let white = ThemeColorToken(hex: "#FFFFFF")
+
+    #expect(colors.backgroundTop == white)
+    #expect(colors.backgroundBottom == white)
+}
+
+@Test
 func roseLilacThemeUsesRequestedSoftPalette() {
     let preset = AppThemePreset.preset(for: "roseLilac")
 

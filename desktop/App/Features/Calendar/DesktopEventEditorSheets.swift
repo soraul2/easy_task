@@ -6,6 +6,7 @@ struct AddEventSheet: View {
     @Binding var startDate: Date
     @Binding var endDate: Date
     @Binding var color: String
+    @Binding var note: String
     var onAdd: () -> String?
     @Environment(\.dismiss) private var dismiss
     @State private var message: String?
@@ -39,6 +40,8 @@ struct AddEventSheet: View {
                     .foregroundStyle(AppTheme.primaryText)
                 EventColorSelector(selection: $color)
             }
+
+            EventNoteEditor(text: $note)
 
             if let message {
                 Label(message, systemImage: "exclamationmark.circle")
@@ -80,6 +83,7 @@ struct EventEditorSheet: View {
     @State private var draftStartDate: Date
     @State private var draftEndDate: Date
     @State private var draftColor: String
+    @State private var draftNote: String
     @State private var message: String?
 
     init(
@@ -92,6 +96,7 @@ struct EventEditorSheet: View {
         _draftStartDate = State(initialValue: event.startAt)
         _draftEndDate = State(initialValue: event.endAt)
         _draftColor = State(initialValue: event.color ?? CalendarEventPalette.defaultColor)
+        _draftNote = State(initialValue: event.note ?? "")
     }
 
     private var canSave: Bool {
@@ -123,6 +128,8 @@ struct EventEditorSheet: View {
                     .foregroundStyle(AppTheme.primaryText)
                 EventColorSelector(selection: $draftColor)
             }
+
+            EventNoteEditor(text: $draftNote)
 
             if let message {
                 Label(message, systemImage: "exclamationmark.circle")
@@ -169,7 +176,7 @@ struct EventEditorSheet: View {
                     title: draftTitle,
                     startAt: draftStartDate,
                     endAt: draftEndDate,
-                    note: event.note,
+                    note: draftNote,
                     color: draftColor
                 )
             }
@@ -180,6 +187,31 @@ struct EventEditorSheet: View {
             dismiss()
         } catch {
             message = "이벤트를 저장하지 못했어요."
+        }
+    }
+}
+
+private struct EventNoteEditor: View {
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("메모")
+                .font(.headline)
+                .foregroundStyle(AppTheme.primaryText)
+
+            TextEditor(text: $text)
+                .font(.system(size: 14))
+                .foregroundStyle(AppTheme.primaryText)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 84)
+                .padding(8)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+                .accessibilityLabel("이벤트 메모")
         }
     }
 }
@@ -344,4 +376,3 @@ struct EventColorSelector: View {
         }
     }
 }
-

@@ -196,6 +196,7 @@ struct MobileMonthDayCell: View {
     var isPlacementSelected: Bool
     var events: [CalendarEvent]
     var templatePlacements: [TemplatePlacement]
+    var hiddenEventCount: Int
     var specialDays: [SpecialDay]
     var showsTrailingDivider: Bool
     var showsBottomDivider: Bool
@@ -248,6 +249,7 @@ struct MobileMonthDayCell: View {
         if isPlacementSelected { parts.append("배치 선택됨") }
         if let specialDay = specialDays.first { parts.append(specialDay.name) }
         if !events.isEmpty { parts.append("이벤트 \(events.count)개") }
+        if hiddenEventCount > 0 { parts.append("숨겨진 이벤트 \(hiddenEventCount)개") }
         if !templatePlacements.isEmpty { parts.append("템플릿 배치 \(templatePlacements.count)개") }
         return parts.joined(separator: ", ")
     }
@@ -317,6 +319,22 @@ struct MobileMonthDayCell: View {
             if isPlacementSelected || isSelected {
                 Rectangle()
                     .strokeBorder(AppTheme.event, lineWidth: isPlacementSelected ? 2 : 1.5)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if hiddenEventCount > 0 {
+                Text("+\(hiddenEventCount)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(AppTheme.input, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(AppTheme.border, lineWidth: 0.5)
+                    }
+                    .padding(3)
+                    .allowsHitTesting(false)
             }
         }
         .contentShape(Rectangle())

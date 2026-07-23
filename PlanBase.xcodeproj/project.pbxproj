@@ -10,6 +10,7 @@
 		A30000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */; };
 		A30000000000000000000012 /* mobile/App/Infrastructure/MobileUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* mobile/App/Infrastructure/MobileUIComponents.swift */; };
 		AD3000000000000000000001 /* mobile/App/Infrastructure/MobileImageSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2000000000000000000001 /* mobile/App/Infrastructure/MobileImageSupport.swift */; };
+		AI3000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */; };
 		A30000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift */; };
 		A30000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift */; };
 		A30000000000000000000019 /* mobile/App/Features/Board/MobileTaskDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* mobile/App/Features/Board/MobileTaskDetailSheet.swift */; };
@@ -61,11 +62,13 @@
 		D3000000000000000000000B /* desktop/App/Features/Board/DesktopKanbanComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000B /* desktop/App/Features/Board/DesktopKanbanComponents.swift */; };
 		D3000000000000000000000C /* desktop/App/Features/Calendar/DesktopCalendarGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000C /* desktop/App/Features/Calendar/DesktopCalendarGrid.swift */; };
 		D3000000000000000000000D /* desktop/App/Features/Calendar/DesktopEventEditorSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000D /* desktop/App/Features/Calendar/DesktopEventEditorSheets.swift */; };
+		DH3000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DH2000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift */; };
 		D3000000000000000000000E /* desktop/App/Features/Board/DesktopTemplatePlacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000E /* desktop/App/Features/Board/DesktopTemplatePlacementSheet.swift */; };
 		D3000000000000000000000F /* desktop/App/Features/Memo/MemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000000000000000000000F /* desktop/App/Features/Memo/MemoView.swift */; };
 		F30000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */; };
 		AA3000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift */; };
 		AC3000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift */; };
+		AJ3000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */; };
 		AA3000000000000000000002 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA6000000000000000000001 /* PlanBaseCore */; };
 /* End PBXBuildFile section */
 
@@ -116,6 +119,7 @@
 		A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/PlanBaseMobileApp.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000012 /* mobile/App/Infrastructure/MobileUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/MobileUIComponents.swift; sourceTree = SOURCE_ROOT; };
 		AD2000000000000000000001 /* mobile/App/Infrastructure/MobileImageSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/MobileImageSupport.swift; sourceTree = SOURCE_ROOT; };
+		AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/MobileBackupService.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Board/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Board/MobileBoardComponents.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000019 /* mobile/App/Features/Board/MobileTaskDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Board/MobileTaskDetailSheet.swift; sourceTree = SOURCE_ROOT; };
@@ -162,6 +166,7 @@
 		D2000000000000000000000B /* desktop/App/Features/Board/DesktopKanbanComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Board/DesktopKanbanComponents.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000C /* desktop/App/Features/Calendar/DesktopCalendarGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Calendar/DesktopCalendarGrid.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000D /* desktop/App/Features/Calendar/DesktopEventEditorSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Calendar/DesktopEventEditorSheets.swift; sourceTree = SOURCE_ROOT; };
+		DH2000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000E /* desktop/App/Features/Board/DesktopTemplatePlacementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Board/DesktopTemplatePlacementSheet.swift; sourceTree = SOURCE_ROOT; };
 		D2000000000000000000000F /* desktop/App/Features/Memo/MemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Memo/MemoView.swift; sourceTree = SOURCE_ROOT; };
 		E20000000000000000000001 /* mobile/Configuration/PlanBase-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "mobile/Configuration/PlanBase-iOS.entitlements"; sourceTree = SOURCE_ROOT; };
@@ -176,6 +181,7 @@
 		F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/PlanBaseLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
 		AA2000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/TaskNotificationSchedulerTests.swift; sourceTree = SOURCE_ROOT; };
 		AC2000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift; sourceTree = SOURCE_ROOT; };
+		AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/MobileBackupServiceTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -329,6 +335,7 @@
 			children = (
 				A20000000000000000000012 /* mobile/App/Infrastructure/MobileUIComponents.swift */,
 				AD2000000000000000000001 /* mobile/App/Infrastructure/MobileImageSupport.swift */,
+				AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */,
 				A20000000000000000000017 /* mobile/App/Infrastructure/TaskNotificationScheduler.swift */,
 				910000000000000000000013 /* mobile/App/Infrastructure/CalendarWidgetSnapshotPublisher.swift */,
 			);
@@ -368,6 +375,7 @@
 				F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */,
 				AA2000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift */,
 				AC2000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift */,
+				AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */,
 			);
 			name = Tests;
 			sourceTree = "<group>";
@@ -421,6 +429,7 @@
 				D20000000000000000000007 /* desktop/App/Features/Calendar/CalendarView.swift */,
 				D2000000000000000000000C /* desktop/App/Features/Calendar/DesktopCalendarGrid.swift */,
 				D2000000000000000000000D /* desktop/App/Features/Calendar/DesktopEventEditorSheets.swift */,
+				DH2000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift */,
 			);
 			name = Calendar;
 			sourceTree = "<group>";
@@ -723,6 +732,7 @@
 				A30000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift in Sources */,
 				A30000000000000000000012 /* mobile/App/Infrastructure/MobileUIComponents.swift in Sources */,
 				AD3000000000000000000001 /* mobile/App/Infrastructure/MobileImageSupport.swift in Sources */,
+				AI3000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift in Sources */,
 				A30000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift in Sources */,
 				A30000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift in Sources */,
 				A30000000000000000000019 /* mobile/App/Features/Board/MobileTaskDetailSheet.swift in Sources */,
@@ -766,6 +776,7 @@
 				D3000000000000000000000B /* desktop/App/Features/Board/DesktopKanbanComponents.swift in Sources */,
 				D3000000000000000000000C /* desktop/App/Features/Calendar/DesktopCalendarGrid.swift in Sources */,
 				D3000000000000000000000D /* desktop/App/Features/Calendar/DesktopEventEditorSheets.swift in Sources */,
+				DH3000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift in Sources */,
 				D3000000000000000000000E /* desktop/App/Features/Board/DesktopTemplatePlacementSheet.swift in Sources */,
 				D3000000000000000000000F /* desktop/App/Features/Memo/MemoView.swift in Sources */,
 			);
@@ -785,6 +796,7 @@
 			files = (
 				AA3000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift in Sources */,
 				AC3000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift in Sources */,
+				AJ3000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

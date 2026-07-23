@@ -55,7 +55,7 @@ struct MobileBoardView: View {
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
         )
         _carryoverTaskRows = Query(
-            BoundedQueryService.carryoverTasksDescriptor(before: dayKey)
+            BoundedQueryService.carryoverTasksDescriptor(before: DayKey.today)
         )
         _overlappingEventRows = Query(
             BoundedQueryService.eventsDescriptor(
@@ -88,7 +88,7 @@ struct MobileBoardView: View {
     }
 
     private var carryoverTasks: [TodoTask] {
-        TaskRules.carryoverTasks(carryoverTaskRows, before: selectedDayKey)
+        TaskRules.carryoverTasks(carryoverTaskRows, before: DayKey.today)
     }
 
     var body: some View {
