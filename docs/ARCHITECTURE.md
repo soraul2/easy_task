@@ -18,10 +18,10 @@ desktop/
   App/                      # macOS 앱 구현
   Configuration/            # macOS Info.plist, entitlements, export 설정
 shared/
-  Core/                     # 공통 모델, 서비스, 테마
+  Core/                     # 공통 모델, 서비스, 공유 SwiftUI 조각과 테마
   Resources/                # 양 플랫폼 공용 에셋과 마이그레이션 리소스
   Tests/                    # 공통 로직 단위 테스트
-docs/                       # 아키텍처, 동기화, 리팩터링 문서
+docs/                       # 운영 문서와 plans 아래 작업 기록
 scripts/                    # 빌드와 CloudKit 검증 스크립트
 .local/
   backups/                  # Git에서 제외되는 로컬 저장소 안전 백업
@@ -29,9 +29,11 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 
 ## 공통 코어
 
-`PlanBaseCore`는 플랫폼 UI에 의존하지 않는 공개 패키지 제품이다. 배포된
-SwiftData 모델의 모듈 정체성을 유지하기 위해 실제 모델 소스는 내부 호환 타깃
-`EasyTaskCore`에서 컴파일하고, `PlanBaseCore`가 이를 다시 노출한다.
+`PlanBaseCore`는 앱 타겟이 사용하는 공개 패키지 제품이다. 실제 모델·서비스와
+양 플랫폼에서 재사용하는 소수의 SwiftUI 조각·테마는 내부 호환 타깃
+`EasyTaskCore`에서 컴파일한다. AppKit, UIKit, WidgetKit 같은 플랫폼 프레임워크는
+코어에 두지 않는다. 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위해
+`PlanBaseCore`가 `EasyTaskCore`를 다시 노출한다.
 
 - SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`
 - 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V5`, 현재 `EasyTaskSchemaV6`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
@@ -47,7 +49,7 @@ SwiftData 모델의 모듈 정체성을 유지하기 위해 실제 모델 소스
 - 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlanBaseDeepLink`
 - 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·메모를 포함하는 V5 `BackupPackageCodec`(V2~V5 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
-- 한국 특일 JSON: `SpecialDays.kr.json`
+- 한국 특일: 코드 내 기본 목록을 사용하고, 번들에 `SpecialDays.kr.json`이 있으면 이를 우선 사용
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
 
 ## 플랫폼 경계
@@ -72,7 +74,7 @@ iPhone 앱은 `mobile/App`에 둔다.
 
 iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 
-- 소형은 오늘 이벤트, 중형은 월간 42일 그리드와 이벤트 표시점, 대형은 날짜별 이벤트 제목을 제공한다.
+- 소형은 오늘 이벤트, 중형은 월에 따라 5주 또는 6주인 적응형 그리드와 이벤트 표시점, 대형은 날짜별 이벤트 제목을 제공한다.
 - 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공한다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
 - 스냅샷 v4에는 선택 테마, 캘린더 범위와 별도로 오늘부터 8일간의 최소 Task/Event 요약을 포함한다.
@@ -121,7 +123,7 @@ iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 11. `Task.reminderAt`이 알림 원본이자 설정 기록이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
     저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
-12. 보드와 캘린더는 선택 날짜 또는 42일 월 그리드 범위만 live query하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다.
+12. 보드와 캘린더는 선택 날짜 또는 월별 5/6주 그리드 범위(최대 42일)만 live query하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다.
 13. iPhone 앱은 이벤트 변경·앱 활성화 때 App Group 위젯 스냅샷을 갱신하고, 내용이 달라졌을 때만 WidgetKit 타임라인을 다시 요청한다.
 
 ## 저장과 동기화 런타임
@@ -199,7 +201,7 @@ iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
 - 기본 내보내기는 이미지 원본, Task 알림·체크리스트·메모를 포함한 백업 V5이며 패키지 V2~V4와 JSON V1은 가져오기 호환 경로로 유지한다.
 - Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
-- Calendar는 표시 월의 42일 범위 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
+- Calendar는 표시 월의 적응형 5/6주 범위(최대 42일) 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
 - 메모 검색은 기록과 분리하고 제목·본문 전체를 대상으로 40개씩 조회한다. 편집은 600ms debounce로 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
@@ -217,4 +219,4 @@ iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
 개발 컨테이너 발급과 검증 절차는 [`CLOUDKIT_SYNC.md`](CLOUDKIT_SYNC.md)를 따른다.
 Task 1회성 알림의 V4 스키마, iOS 예약 수명주기와 검증 순서는
-[`TASK_REMINDER_PLAN.md`](TASK_REMINDER_PLAN.md)를 따른다.
+[`Task 알림 완료 기록`](plans/completed/TASK_REMINDER_PLAN.md)을 따른다.

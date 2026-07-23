@@ -46,8 +46,8 @@
 
 관련 코드:
 
-- `mobile/App/MobileCalendarView.swift`
-- `mobile/App/MobileCalendarGrid.swift`
+- `mobile/App/Features/Calendar/MobileCalendarView.swift`
+- `mobile/App/Features/Calendar/MobileCalendarGrid.swift`
 
 ### 현재 홈 화면 위젯
 
@@ -63,7 +63,7 @@
 관련 코드:
 
 - `mobile/Widget/PlanBaseCalendarWidget.swift`
-- `mobile/App/CalendarWidgetSnapshotPublisher.swift`
+- `mobile/App/Infrastructure/CalendarWidgetSnapshotPublisher.swift`
 - `shared/Core/Services/CalendarWidgetSnapshot.swift`
 - `shared/Tests/CalendarWidgetSnapshotTests.swift`
 
@@ -325,11 +325,11 @@ unsupportedNewerSchema
   - 필요하면 위젯 coverage helper 추가
 - `shared/Tests/CalendarWidgetSnapshotTests.swift`
   - cap, legacy, count, 복구 테스트
-- `mobile/App/CalendarWidgetSnapshotPublisher.swift`
+- `mobile/App/Infrastructure/CalendarWidgetSnapshotPublisher.swift`
   - bounded fetch, 갱신 신호, coalescing 연결
-- `mobile/App/MobileCalendarView.swift`
+- `mobile/App/Features/Calendar/MobileCalendarView.swift`
   - 기존 private lane 계산을 공통 엔진 호출로 교체
-- `mobile/App/MobileCalendarGrid.swift`
+- `mobile/App/Features/Calendar/MobileCalendarGrid.swift`
   - 공통 segment 결과 타입에 맞춘 표시 연결
 - `mobile/Widget/PlanBaseCalendarWidget.swift`
   - 소형 4개와 헤더 `+N`

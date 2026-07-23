@@ -1,7 +1,7 @@
 # PlanBase Task 알림 구현 계획
 
 > 완료 상태 전환 시 알림 시각을 삭제하지 않고 보존하는 후속 정책은
-> [`TASK_REMINDER_COMPLETION_RETENTION_PLAN.md`](TASK_REMINDER_COMPLETION_RETENTION_PLAN.md)를 따른다.
+> [`TASK_REMINDER_COMPLETION_RETENTION_PLAN.md`](../active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md)를 따른다.
 
 ## 목표
 

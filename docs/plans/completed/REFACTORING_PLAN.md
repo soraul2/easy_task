@@ -1,5 +1,9 @@
 # PlanBase UI Refactoring Plan
 
+> 완료 기록: 아래 줄 수는 각 단계 완료 당시의 스냅샷이다. 이후 기능 추가로 현재
+> 파일 크기는 달라졌으며, 현재 정리 작업은
+> [`STRUCTURE_CLEANUP_CHECKLIST.md`](../../STRUCTURE_CLEANUP_CHECKLIST.md)에서 추적한다.
+
 ## 목표
 
 - 사용자 동작과 SwiftData 스키마를 변경하지 않고 대형 SwiftUI 파일의 책임을 분리한다.

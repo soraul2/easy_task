@@ -82,12 +82,14 @@ PlanBase/
 │   └── Tests/                        # Swift Package 단위·통합 테스트
 ├── desktop/
 │   ├── App/PlanBaseDesktopApp.swift  # macOS @main, container 개방·복구
-│   ├── App/Views/                    # macOS 탭과 기능별 화면
+│   ├── App/AppRootView.swift         # macOS 탭 루트
+│   ├── App/Features/                 # Board/Calendar/Archive/Memo 화면
 │   ├── App/Services/                 # macOS 파일 패널·이미지/백업 어댑터
 │   └── Configuration/                # Info.plist, entitlements, export options
 ├── mobile/
 │   ├── App/PlanBaseMobileApp.swift   # iOS @main, container 개방·복구, 탭 루트
-│   ├── App/                          # iPhone 기능 화면과 플랫폼 어댑터
+│   ├── App/Features/                 # Board/Calendar/Templates/Archive/Review/Memo 화면
+│   ├── App/Infrastructure/           # 알림, 위젯 발행, 이미지·공용 UI 어댑터
 │   ├── Widget/                       # WidgetKit 캘린더 위젯 타겟
 │   ├── Tests/                        # iPhone launch UI test
 │   └── Configuration/                # iOS/Widget plist, entitlements, export options
@@ -243,12 +245,14 @@ PLANBASE_XCODE_DEVICE_ID=<xcode-udid> \
 ## 10. 상세 문서 안내
 
 - [`README.md`](README.md): 프로젝트 요약, 시작법, 기본 검증
+- [`docs/README.md`](docs/README.md): 운영 문서와 진행/완료 계획 분류
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): 런타임, 데이터 무결성, 백업, 이미지, 플랫폼 경계의 상세 설명
 - [`docs/DATA_FOUNDATION_PLAN.md`](docs/DATA_FOUNDATION_PLAN.md): 데이터 안전 작업 순서와 Git 운영 규칙
 - [`docs/CLOUDKIT_SYNC.md`](docs/CLOUDKIT_SYNC.md): entitlement, schema 배포, 실기기 수렴 검증
-- [`docs/TASK_REMINDER_PLAN.md`](docs/TASK_REMINDER_PLAN.md): Task 1회성 알림 설계와 수명주기
-- [`docs/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md`](docs/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md): 완료 전환 경고와 알림 기록 보존 정책
-- [`docs/REFACTORING_PLAN.md`](docs/REFACTORING_PLAN.md): 구조 개선 이력과 후속 계획
+- [`docs/STRUCTURE_CLEANUP_CHECKLIST.md`](docs/STRUCTURE_CLEANUP_CHECKLIST.md): 디렉터리·파일 정리 순서와 검증 상태
+- [`docs/plans/completed/TASK_REMINDER_PLAN.md`](docs/plans/completed/TASK_REMINDER_PLAN.md): Task 1회성 알림 설계와 수명주기
+- [`docs/plans/active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md`](docs/plans/active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md): 완료 전환 경고와 알림 기록 보존 정책
+- [`docs/plans/completed/REFACTORING_PLAN.md`](docs/plans/completed/REFACTORING_PLAN.md): 완료된 UI 구조 개선 기록
 
 ## 11. 에이전트 시작 순서
 
