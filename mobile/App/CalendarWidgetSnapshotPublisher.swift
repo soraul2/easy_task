@@ -13,6 +13,7 @@ struct CalendarWidgetSnapshotPublisher: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
     @State private var publicationTask: Swift.Task<Void, Never>?
     @State private var needsPublication = false
+    @State private var hasCompletedInitialPublication = false
 
     init(referenceDate: Date = Date()) {
         let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
@@ -156,7 +157,9 @@ struct CalendarWidgetSnapshotPublisher: View {
             let didWrite = try await Swift.Task.detached(priority: .utility) {
                 try CalendarWidgetSnapshotStore.writeIfChanged(snapshot)
             }.value
-            if didWrite {
+            let shouldReloadTimelines = didWrite || !hasCompletedInitialPublication
+            hasCompletedInitialPublication = true
+            if shouldReloadTimelines {
                 WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
                 WidgetCenter.shared.reloadTimelines(
                     ofKind: CalendarWidgetConstants.lockScreenKind

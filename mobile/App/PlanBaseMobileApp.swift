@@ -362,6 +362,11 @@ private struct MobileAppRootView: View {
     }
 
     private func start() {
+        defer {
+            // Widget publication is best-effort and must not remain disabled when
+            // an unrelated startup reconciliation or migration fails.
+            isWidgetSnapshotPublisherReady = true
+        }
         let migratedThemeID = AppTheme.migrateStoredDefaultIfNeeded(selectedThemeID)
         if migratedThemeID != selectedThemeID {
             selectedThemeID = migratedThemeID
@@ -375,7 +380,6 @@ private struct MobileAppRootView: View {
                     saveChanges: false
                 )
             }
-            isWidgetSnapshotPublisherReady = true
             let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
                 context: modelContext,
                 appSupportFolder: MobileImageStorage.appSupportFolder
