@@ -402,8 +402,9 @@ private struct MobileTaskRow: View {
                     Text(task.title)
                         .font(.headline)
                         .lineLimit(2)
-                        .strikethrough(status == .done, color: AppTheme.cardMutedText)
-                        .foregroundStyle(AppTheme.cardText)
+                        .foregroundStyle(status == .done
+                            ? AppTheme.cardMutedText
+                            : AppTheme.cardText)
                     if let note = task.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(note)
                             .font(.subheadline)
@@ -490,13 +491,6 @@ private struct MobileTaskRow: View {
         .background {
             RoundedRectangle(cornerRadius: 16)
                 .fill(cardColor.opacity(cardFillOpacity))
-        }
-        .overlay(alignment: .leading) {
-            Capsule()
-                .fill(accentColor)
-                .frame(width: 4)
-                .padding(.vertical, 18)
-                .accessibilityHidden(true)
         }
         .overlay {
             RoundedRectangle(cornerRadius: 16)
@@ -733,12 +727,6 @@ private struct MobileTaskStatusSlider: View {
                 }
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 12)
-                    .onEnded { value in
-                        updateStatus(status(at: value.location.x, width: width))
-                    }
-            )
         }
         .frame(height: 48)
         .accessibilityElement(children: .contain)
@@ -748,13 +736,6 @@ private struct MobileTaskStatusSlider: View {
     private func updateStatus(_ nextStatus: TaskStatus) {
         guard nextStatus != status else { return }
         onChange(nextStatus)
-    }
-
-    private func status(at x: CGFloat, width: CGFloat) -> TaskStatus {
-        guard width > 0 else { return status }
-        let segmentWidth = width / CGFloat(max(statuses.count, 1))
-        let index = min(max(Int(x / segmentWidth), 0), statuses.count - 1)
-        return statuses[index]
     }
 
 }

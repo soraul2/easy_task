@@ -56,6 +56,37 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testVerticalScrollStartingOnTaskStatusDoesNotChangeStatus() {
+        let app = launchReminderFixtureApp()
+        let taskTitle = "알림 완료 테스트: 알림 없음"
+        let doingButton = app.buttons["\(taskTitle) 진행 중 상태"]
+
+        XCTAssertTrue(scrollToHittable(doingButton, in: app))
+
+        let start = doingButton.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        )
+        start.press(
+            forDuration: 0.05,
+            thenDragTo: start.withOffset(CGVector(dx: 0, dy: -220))
+        )
+
+        let doingFilter = app.buttons["board-status-filter-doing"]
+        XCTAssertTrue(doingFilter.waitForExistence(timeout: 5))
+        doingFilter.tap()
+        XCTAssertTrue(waitForSelected(doingFilter))
+        XCTAssertFalse(app.staticTexts[taskTitle].waitForExistence(timeout: 1))
+
+        let todoFilter = app.buttons["board-status-filter-todo"]
+        todoFilter.tap()
+        XCTAssertTrue(waitForSelected(todoFilter))
+
+        let currentTodoButton = app.buttons["\(taskTitle) 할 일 상태"]
+        XCTAssertTrue(scrollToHittable(currentTodoButton, in: app))
+        XCTAssertTrue(waitForSelected(currentTodoButton))
+    }
+
+    @MainActor
     func testArchiveTasksStayCollapsedAndBoardNavigationWorks() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]

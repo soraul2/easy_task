@@ -181,8 +181,9 @@ struct TaskCard: View {
                     TextField("작업", text: $draftTitle)
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, weight: .semibold))
-                        .strikethrough(status == .done, color: AppTheme.cardMutedText)
-                        .foregroundStyle(AppTheme.cardText)
+                        .foregroundStyle(status == .done
+                            ? AppTheme.cardMutedText
+                            : AppTheme.cardText)
                         .focused($isTitleFocused)
                         .onSubmit(commitTitle)
                         .onChange(of: isTitleFocused) { _, isFocused in
@@ -321,13 +322,6 @@ struct TaskCard: View {
         .padding(14)
         .background {
             LightweightTaskCardBackground(baseColor: background, isLifted: isLifted)
-        }
-        .overlay(alignment: .leading) {
-            Capsule()
-                .fill(cardAccent)
-                .frame(width: 4)
-                .padding(.vertical, 14)
-                .accessibilityHidden(true)
         }
         .overlay {
             RoundedRectangle(cornerRadius: 8)
