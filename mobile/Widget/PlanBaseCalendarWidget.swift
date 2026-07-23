@@ -363,7 +363,7 @@ private struct MonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .compact)
-                .frame(height: 13)
+                .frame(height: 9)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -400,7 +400,7 @@ private struct LargeMonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .expanded)
-                .frame(height: 15)
+                .frame(height: 14)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -511,41 +511,44 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
     }
 
     var dayFontSize: CGFloat {
-        11
+        switch self {
+        case .compact: 8
+        case .expanded: 9
+        }
     }
 
     var dayBadgeSize: CGFloat {
         switch self {
-        case .compact: 14
-        case .expanded: 16
+        case .compact: 10
+        case .expanded: 15
         }
     }
 
     var eventTopInset: CGFloat {
         switch self {
-        case .compact: 15
-        case .expanded: 17
+        case .compact: 10
+        case .expanded: 16
         }
     }
 
     var laneHeight: CGFloat {
         switch self {
         case .compact: 3
-        case .expanded: 14
+        case .expanded: 11
         }
     }
 
     var barHeight: CGFloat {
         switch self {
         case .compact: 2
-        case .expanded: 13
+        case .expanded: 10
         }
     }
 
     var maximumLaneLimit: Int {
         switch self {
         case .compact: 3
-        case .expanded: 3
+        case .expanded: 4
         }
     }
 }
@@ -558,7 +561,10 @@ private struct CalendarWidgetWeekdayHeader: View {
         HStack(spacing: 0) {
             ForEach(Array(DayKey.weekdaySymbols().enumerated()), id: \.offset) { index, symbol in
                 Text(symbol)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(
+                        size: style == .compact ? 7 : 9,
+                        weight: .semibold
+                    ))
                     .foregroundStyle(index == 0 ? theme.sundayText : theme.secondaryText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(theme.panel.opacity(0.55))
@@ -719,7 +725,10 @@ private struct CalendarWidgetMonthDayCell: View {
 
                 if hiddenEventCount > 0 {
                     Text("+\(hiddenEventCount)")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(
+                            size: style == .compact ? 6 : 7,
+                            weight: .bold
+                        ))
                         .foregroundStyle(theme.secondaryText)
                         .lineLimit(1)
                 }
@@ -791,10 +800,10 @@ private struct CalendarWidgetEventBar: View {
                     .fill(theme.eventColor(event.colorID))
             case .expanded:
                 Text(event.title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(theme.eventForeground(event.colorID))
                     .lineLimit(1)
-                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.75)
                     .padding(.horizontal, 3)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background(

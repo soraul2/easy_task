@@ -24,6 +24,8 @@ struct MobileMemoView: View {
                 .searchable(text: $searchText, prompt: "메모 검색")
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        MobileCloudKitSyncStatusButton()
+
                         MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
                         Button {

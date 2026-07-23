@@ -213,10 +213,7 @@ private struct MobileAppRootView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            MobileBoardView(
-                selectedDate: $selectedBoardDate,
-                onShowTheme: { showingThemePicker = true }
-            )
+            MobileBoardView(selectedDate: $selectedBoardDate)
                 .tabItem {
                     Image(systemName: MobileTab.board.symbol)
                         .accessibilityLabel(MobileTab.board.title)
@@ -566,8 +563,10 @@ struct MobileCloudKitSyncStatusButton: View {
                 isPresented = true
             } label: {
                 Image(systemName: monitor.systemImage)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .accessibilityLabel(monitor.title)
+            .accessibilityIdentifier("cloud-sync-status-button")
             .sheet(isPresented: $isPresented) {
                 MobileCloudKitSyncStatusSheet(monitor: monitor)
             }

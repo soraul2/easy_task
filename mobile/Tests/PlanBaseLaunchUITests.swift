@@ -121,8 +121,18 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.launchArguments = ["--ui-testing"]
         app.launch()
 
+        let carryoverButton = app.buttons["carryover-button"]
+        XCTAssertTrue(carryoverButton.waitForExistence(timeout: 15))
+        XCTAssertTrue(carryoverButton.isHittable)
+
+        let templateButton = app.buttons["template-library-button"]
+        XCTAssertTrue(templateButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(templateButton.isHittable)
+
+        XCTAssertFalse(app.buttons["테마 선택"].exists)
+
         let reviewButton = app.buttons["review-compose-button"]
-        XCTAssertTrue(reviewButton.waitForExistence(timeout: 15))
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 5))
         XCTAssertTrue(reviewButton.isHittable)
         reviewButton.tap()
 
@@ -324,10 +334,9 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     func testCarryoverCompletionReportsFutureReminderCount() {
         let app = launchReminderFixtureApp()
-        let boardMenu = app.buttons["보드 작업"]
-        XCTAssertTrue(boardMenu.waitForExistence(timeout: 15))
-        boardMenu.tap()
-        app.buttons["이월함"].tap()
+        let carryoverButton = app.buttons["carryover-button"]
+        XCTAssertTrue(carryoverButton.waitForExistence(timeout: 15))
+        carryoverButton.tap()
 
         let completeAll = app.buttons["원래 날짜에 모두 완료"]
         XCTAssertTrue(completeAll.waitForExistence(timeout: 5))
@@ -347,8 +356,12 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.launchArguments = ["--ui-testing"]
         app.launch()
 
+        let memoTab = app.tabBars.firstMatch.buttons["메모"]
+        XCTAssertTrue(memoTab.waitForExistence(timeout: 15))
+        memoTab.tap()
+
         let themeButton = app.buttons["테마 선택"].firstMatch
-        XCTAssertTrue(themeButton.waitForExistence(timeout: 15))
+        XCTAssertTrue(themeButton.waitForExistence(timeout: 5))
         themeButton.tap()
 
         XCTAssertTrue(app.navigationBars["테마"].waitForExistence(timeout: 5))

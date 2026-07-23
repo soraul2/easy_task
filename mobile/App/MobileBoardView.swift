@@ -30,7 +30,6 @@ private struct PendingMobileTaskCompletion {
 
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
-    var onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Query private var selectedDayTaskRows: [TodoTask]
     @Query private var carryoverTaskRows: [TodoTask]
@@ -48,12 +47,8 @@ struct MobileBoardView: View {
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var isTodayBoard: Bool { selectedDayKey == DayKey.today }
 
-    init(
-        selectedDate: Binding<Date>,
-        onShowTheme: @escaping () -> Void = {}
-    ) {
+    init(selectedDate: Binding<Date>) {
         _selectedDate = selectedDate
-        self.onShowTheme = onShowTheme
 
         let dayKey = DayKey.key(for: selectedDate.wrappedValue)
         _selectedDayTaskRows = Query(
@@ -132,27 +127,26 @@ struct MobileBoardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    MobileCloudKitSyncStatusButton()
+                    Button { presentedSheet = .carryover } label: {
+                        Image(systemName: "tray")
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("이월함")
+                    .accessibilityIdentifier("carryover-button")
 
-                    MobileThemeButton(action: onShowTheme)
+                    Button { presentedSheet = .templates } label: {
+                        Image(systemName: "square.on.square")
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("템플릿")
+                    .accessibilityIdentifier("template-library-button")
 
                     Button { presentedSheet = .review } label: {
                         Image(systemName: "book.closed")
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .accessibilityLabel("회고 작성")
                     .accessibilityIdentifier("review-compose-button")
-
-                    Menu {
-                        Button { presentedSheet = .carryover } label: {
-                            Label("이월함", systemImage: "tray")
-                        }
-                        Button { presentedSheet = .templates } label: {
-                            Label("템플릿 적용", systemImage: "square.on.square")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("보드 작업")
                 }
             }
             .sheet(item: $presentedSheet) { sheet in
