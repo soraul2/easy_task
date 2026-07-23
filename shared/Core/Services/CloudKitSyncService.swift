@@ -124,8 +124,10 @@ public final class CloudKitSyncMonitor {
     public func refreshAccountStatus() async {
         accountAvailability = .checking
         do {
-            let container = CKContainer(identifier: containerIdentifier)
-            accountAvailability = Self.availability(for: try await container.accountStatus())
+            let status = try await Self.fetchAccountStatus(
+                containerIdentifier: containerIdentifier
+            )
+            accountAvailability = Self.availability(for: status)
             accountStatusErrorDescription = nil
             refreshSyncErrorDescription()
         } catch {
@@ -134,6 +136,17 @@ public final class CloudKitSyncMonitor {
             accountStatusErrorDescription = description
             refreshSyncErrorDescription()
         }
+    }
+
+    private nonisolated static func fetchAccountStatus(
+        containerIdentifier: String
+    ) async throws -> CKAccountStatus {
+        // CKContainer initialization can synchronously enter CloudKit. Keep it
+        // off the main actor to avoid a launch-time lock inversion with SwiftUI.
+        try await Swift.Task.detached(priority: .utility) {
+            let container = CKContainer(identifier: containerIdentifier)
+            return try await container.accountStatus()
+        }.value
     }
 
     public func record(
