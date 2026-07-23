@@ -252,10 +252,6 @@ private struct MonthCalendarWidget: View {
                     .foregroundStyle(theme.primaryText)
 
                 Spacer(minLength: 0)
-
-                Text("PlanBase")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(theme.secondaryText)
             }
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .compact)
@@ -295,10 +291,6 @@ private struct LargeMonthCalendarWidget: View {
                     .foregroundStyle(theme.primaryText)
 
                 Spacer(minLength: 0)
-
-                Text("PlanBase")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(theme.secondaryText)
             }
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .expanded)
