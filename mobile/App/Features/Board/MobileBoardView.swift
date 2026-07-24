@@ -127,6 +127,8 @@ struct MobileBoardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    MobileCloudKitSyncStatusButton()
+
                     Button { presentedSheet = .carryover } label: {
                         Image(systemName: "tray")
                             .frame(minWidth: 44, minHeight: 44)

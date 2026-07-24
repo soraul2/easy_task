@@ -110,6 +110,11 @@ private struct TodayCalendarWidget: View {
 
                 Spacer(minLength: 0)
 
+                CalendarWidgetCloudRefreshButton(
+                    theme: theme,
+                    controlSize: 22
+                )
+
                 if hiddenEventCount > 0 {
                     Text("+\(hiddenEventCount)")
                         .font(.caption2.weight(.bold))
@@ -253,6 +258,11 @@ private struct CalendarWidgetMonthHeader: View {
 
             Spacer(minLength: 4)
 
+            CalendarWidgetCloudRefreshButton(
+                theme: theme,
+                controlSize: style.monthControlWidth
+            )
+
             monthButton(
                 systemName: "chevron.left",
                 label: "이전 달",
@@ -294,6 +304,24 @@ private struct CalendarWidgetMonthHeader: View {
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .accessibilityLabel(label)
+    }
+}
+
+private struct CalendarWidgetCloudRefreshButton: View {
+    let theme: CalendarWidgetTheme
+    let controlSize: CGFloat
+
+    var body: some View {
+        Button(intent: RefreshCalendarWidgetIntent()) {
+            Image(systemName: "icloud.and.arrow.down")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(theme.accent)
+                .frame(width: controlSize, height: controlSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("iCloud 일정 갱신")
+        .accessibilityHint("PlanBase를 열어 위젯 일정을 다시 불러옵니다")
     }
 }
 

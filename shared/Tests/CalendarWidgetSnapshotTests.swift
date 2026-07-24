@@ -325,6 +325,46 @@ func calendarWidgetSnapshotStoreReplacesMalformedPayload() throws {
 }
 
 @Test
+func calendarWidgetSnapshotStoreForceWriteReplacesUnreadablePayload() throws {
+    let directoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+    let fileURL = directoryURL.appendingPathComponent(
+        CalendarWidgetConstants.snapshotFileName
+    )
+    try Data("stale-cache".utf8).write(to: fileURL)
+    try FileManager.default.setAttributes(
+        [.posixPermissions: 0o000],
+        ofItemAtPath: fileURL.path
+    )
+    defer {
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: fileURL.path
+        )
+    }
+    let event = CalendarWidgetEventSnapshot(
+        id: UUID(),
+        title: "복구된 일정",
+        startDayKey: "2026-07-24",
+        endDayKey: "2026-07-24",
+        colorID: CalendarEventColor.blue.rawValue
+    )
+    let snapshot = CalendarWidgetSnapshot(
+        generatedAt: Date(timeIntervalSince1970: 100),
+        events: [event]
+    )
+
+    #expect(try CalendarWidgetSnapshotStore.writeIfChanged(
+        snapshot,
+        directoryURL: directoryURL,
+        forceWrite: true
+    ))
+    #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL) == snapshot)
+}
+
+@Test
 func calendarWidgetSnapshotStoreDoesNotOverwriteFutureSchema() throws {
     let directoryURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

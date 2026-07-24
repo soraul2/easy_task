@@ -571,6 +571,7 @@ public enum CalendarWidgetSnapshotStore {
             withIntermediateDirectories: true
         )
 
+        var shouldRemoveUnreadablePayload = false
         do {
             if let existing = try read(
                 directoryURL: directoryURL,
@@ -580,10 +581,12 @@ public enum CalendarWidgetSnapshotStore {
                existing.hasSameContent(as: snapshot) {
                 return false
             }
-        } catch let error as StoreError {
-            throw error
-        } catch is DecodingError {
-            // A malformed payload is recoverable because this writer owns the file.
+        } catch StoreError.unsupportedSchemaVersion(let version) {
+            throw StoreError.unsupportedSchemaVersion(version)
+        } catch {
+            // Malformed or otherwise unreadable payloads are recoverable because
+            // this writer owns the cache. App Group resolution already succeeded.
+            shouldRemoveUnreadablePayload = true
         }
 
         let encoder = JSONEncoder()
@@ -593,6 +596,10 @@ public enum CalendarWidgetSnapshotStore {
         let fileURL = directoryURL.appendingPathComponent(
             CalendarWidgetConstants.snapshotFileName
         )
+        if shouldRemoveUnreadablePayload,
+           fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+        }
         try data.write(
             to: fileURL,
             options: snapshotWritingOptions

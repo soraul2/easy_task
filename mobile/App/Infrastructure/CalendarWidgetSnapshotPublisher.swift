@@ -12,7 +12,8 @@ enum CalendarWidgetSnapshotPublicationService {
         themeID: String,
         forceWrite: Bool = false,
         forceTimelineReload: Bool = false,
-        referenceDate: Date = Date()
+        referenceDate: Date = Date(),
+        directoryURL: URL? = nil
     ) async throws -> Bool {
         let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
         let events = try context.fetch(
@@ -21,22 +22,29 @@ enum CalendarWidgetSnapshotPublicationService {
                 endDayKey: coverage.endDayKey
             )
         )
-        let lockScreenCoverage = LockScreenWidgetRules.coverageDayKeys(
-            for: referenceDate
-        )
-        let plannedTasks = try context.fetch(
-            BoundedQueryService.widgetPlannedTasksDescriptor(
-                from: lockScreenCoverage.startDayKey,
-                through: lockScreenCoverage.endDayKey
+        let tasks: [PlanBaseCore.Task]?
+        do {
+            let lockScreenCoverage = LockScreenWidgetRules.coverageDayKeys(
+                for: referenceDate
             )
-        )
-        let completedTasks = try context.fetch(
-            BoundedQueryService.widgetCompletedTasksDescriptor(
-                from: lockScreenCoverage.startDayKey,
-                through: lockScreenCoverage.endDayKey
+            let plannedTasks = try context.fetch(
+                BoundedQueryService.widgetPlannedTasksDescriptor(
+                    from: lockScreenCoverage.startDayKey,
+                    through: lockScreenCoverage.endDayKey
+                )
             )
-        )
-        let tasks = mergedTasks(plannedTasks, completedTasks)
+            let completedTasks = try context.fetch(
+                BoundedQueryService.widgetCompletedTasksDescriptor(
+                    from: lockScreenCoverage.startDayKey,
+                    through: lockScreenCoverage.endDayKey
+                )
+            )
+            tasks = mergedTasks(plannedTasks, completedTasks)
+        } catch {
+            // Keep publishing home-screen calendar events even when the
+            // auxiliary lock-screen task query is temporarily unavailable.
+            tasks = nil
+        }
         let snapshot = CalendarWidgetSnapshot.make(
             events: events,
             tasks: tasks,
@@ -46,6 +54,7 @@ enum CalendarWidgetSnapshotPublicationService {
         let didWrite = try await Swift.Task.detached(priority: .utility) {
             try CalendarWidgetSnapshotStore.writeIfChanged(
                 snapshot,
+                directoryURL: directoryURL,
                 forceWrite: forceWrite
             )
         }.value

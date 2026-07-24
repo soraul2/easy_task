@@ -411,10 +411,16 @@ private struct MobileAppRootView: View {
         }
     }
 
-    private func refreshWidgetSnapshot(forceWrite: Bool) {
+    private func refreshWidgetSnapshot(
+        forceWrite: Bool,
+        delay: Duration? = nil
+    ) {
         let themeID = selectedThemeID
         Swift.Task { @MainActor in
             do {
+                if let delay {
+                    try await Swift.Task.sleep(for: delay)
+                }
                 _ = try await CalendarWidgetSnapshotPublicationService.publish(
                     context: modelContext,
                     themeID: themeID,
@@ -510,6 +516,7 @@ private struct MobileAppRootView: View {
         guard let summary = CloudKitSyncService.summary(from: notification) else { return }
         syncMonitor.record(summary)
 
+        let shouldRefreshWidget = CloudKitSyncService.shouldReconcile(after: summary)
         do {
             try CloudKitSyncService.reconcileIfNeeded(
                 after: summary,
@@ -517,6 +524,11 @@ private struct MobileAppRootView: View {
             )
         } catch {
             syncMonitor.recordReconciliationFailure(error)
+        }
+        if shouldRefreshWidget {
+            // Imports can finish after startup published an empty local cache.
+            // Republish even if reconciliation failed so imported events appear.
+            refreshWidgetSnapshot(forceWrite: true, delay: .milliseconds(250))
         }
     }
 

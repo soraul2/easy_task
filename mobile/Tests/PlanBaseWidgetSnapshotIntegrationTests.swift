@@ -1,6 +1,8 @@
 import Foundation
 import PlanBaseCore
+import SwiftData
 import XCTest
+@testable import PlanBase
 
 final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
     func testSnapshotStoreRoundTripsV4PayloadUsingAtomicProtectedFile() throws {
@@ -53,5 +55,42 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
 #else
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
 #endif
+    }
+
+    @MainActor
+    func testPublisherWritesCalendarEventsFetchedFromAppContext() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let container = try PlanBaseContainerFactory.makeInMemory()
+        let context = container.mainContext
+        let referenceDate = try XCTUnwrap(DayKey.date(from: "2026-07-24"))
+        let event = try XCTUnwrap(CalendarEventRules.makeEvent(
+            title: "위젯 통합 일정",
+            startAt: referenceDate,
+            endAt: referenceDate,
+            color: CalendarEventColor.blue.rawValue,
+            now: referenceDate
+        ))
+        context.insert(event)
+        try context.save()
+
+        let didWrite = try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: AppThemePreset.defaultID,
+            forceWrite: true,
+            referenceDate: referenceDate,
+            directoryURL: directoryURL
+        )
+        XCTAssertTrue(didWrite)
+
+        let snapshot = try XCTUnwrap(
+            CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)
+        )
+        XCTAssertEqual(snapshot.events.map(\.title), ["위젯 통합 일정"])
+        XCTAssertEqual(
+            snapshot.events(onDayKey: "2026-07-24").map(\.title),
+            ["위젯 통합 일정"]
+        )
     }
 }
