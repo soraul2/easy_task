@@ -61,13 +61,17 @@ struct PlanBaseCalendarProvider: TimelineProvider {
                     availability: .missing
                 )
             }
-            let availability: PlanBaseWidgetSnapshotAvailability = snapshot.covers(
-                dayKey: DayKey.key(for: date)
-            ) ? .available : .staleCoverage
+            guard snapshot.covers(dayKey: DayKey.key(for: date)) else {
+                return makeEntry(
+                    date: date,
+                    snapshot: .empty(at: date, themeID: snapshot.themeID),
+                    availability: .staleCoverage
+                )
+            }
             return makeEntry(
                 date: date,
                 snapshot: snapshot,
-                availability: availability
+                availability: .available
             )
         } catch CalendarWidgetSnapshotStore.StoreError.unsupportedSchemaVersion {
             return makeEntry(

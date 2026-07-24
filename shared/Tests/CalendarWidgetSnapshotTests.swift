@@ -91,6 +91,36 @@ func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent() throws {
 }
 
 @Test
+func calendarWidgetSnapshotStoreForceWriteRefreshesEquivalentCache() throws {
+    let directoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+    let first = CalendarWidgetSnapshot(
+        generatedAt: Date(timeIntervalSince1970: 100),
+        events: []
+    )
+    let refreshed = CalendarWidgetSnapshot(
+        generatedAt: Date(timeIntervalSince1970: 200),
+        events: []
+    )
+
+    #expect(try CalendarWidgetSnapshotStore.writeIfChanged(
+        first,
+        directoryURL: directoryURL
+    ))
+    #expect(try CalendarWidgetSnapshotStore.writeIfChanged(
+        refreshed,
+        directoryURL: directoryURL,
+        forceWrite: true
+    ))
+    #expect(
+        try CalendarWidgetSnapshotStore
+            .read(directoryURL: directoryURL)?
+            .generatedAt == refreshed.generatedAt
+    )
+}
+
+@Test
 func calendarWidgetSnapshotDecodesLegacyThemeLessPayload() throws {
     let data = Data(
         #"{"schemaVersion":1,"generatedAt":"2026-07-16T00:00:00Z","events":[]}"#.utf8
@@ -309,6 +339,13 @@ func calendarWidgetSnapshotStoreDoesNotOverwriteFutureSchema() throws {
         try CalendarWidgetSnapshotStore.writeIfChanged(
             snapshot,
             directoryURL: directoryURL
+        )
+    }
+    #expect(throws: CalendarWidgetSnapshotStore.StoreError.unsupportedSchemaVersion(999)) {
+        try CalendarWidgetSnapshotStore.writeIfChanged(
+            snapshot,
+            directoryURL: directoryURL,
+            forceWrite: true
         )
     }
     #expect(try Data(contentsOf: fileURL) == futurePayload)

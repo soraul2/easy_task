@@ -58,10 +58,13 @@ struct CalendarWidgetTheme {
 }
 
 extension CalendarWidgetSnapshot {
-    static func empty(at date: Date) -> CalendarWidgetSnapshot {
+    static func empty(
+        at date: Date,
+        themeID: String? = AppThemePreset.defaultID
+    ) -> CalendarWidgetSnapshot {
         CalendarWidgetSnapshot(
             generatedAt: date,
-            themeID: AppThemePreset.defaultID,
+            themeID: themeID,
             events: []
         )
     }

@@ -21,18 +21,11 @@ struct PlanBaseCalendarWidgetView: View {
     }
 
     var body: some View {
-        Group {
-            if entry.availability == .available {
-                switch family {
-                case .systemLarge:
-                    LargeMonthCalendarWidget(entry: entry, theme: theme)
-                case .systemMedium:
-                    MonthCalendarWidget(entry: entry, theme: theme)
-                default:
-                    TodayCalendarWidget(entry: entry, theme: theme)
-                }
-            } else {
-                CalendarWidgetUnavailableView(entry: entry, theme: theme)
+        ZStack(alignment: .bottomLeading) {
+            calendarContent
+
+            if entry.availability != .available {
+                CalendarWidgetRefreshBadge(entry: entry, theme: theme)
             }
         }
         .padding(contentPadding)
@@ -41,26 +34,43 @@ struct PlanBaseCalendarWidgetView: View {
         }
         .environment(\.locale, Locale(identifier: "ko_KR"))
     }
+
+    @ViewBuilder
+    private var calendarContent: some View {
+        switch family {
+        case .systemLarge:
+            LargeMonthCalendarWidget(entry: entry, theme: theme)
+        case .systemMedium:
+            MonthCalendarWidget(entry: entry, theme: theme)
+        default:
+            TodayCalendarWidget(entry: entry, theme: theme)
+        }
+    }
 }
 
-private struct CalendarWidgetUnavailableView: View {
+private struct CalendarWidgetRefreshBadge: View {
     let entry: PlanBaseCalendarEntry
     let theme: CalendarWidgetTheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 5) {
             Image(systemName: "calendar.badge.exclamationmark")
-                .font(.title2.weight(.semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(theme.accent)
 
             Text(entry.availability.calendarMessage)
-                .font(.caption.weight(.semibold))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(theme.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
+                .lineLimit(2)
         }
-        .widgetURL(PlanBaseDeepLink.calendarURL(dayKey: DayKey.key(for: entry.date)))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(theme.panel.opacity(0.96), in: RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(theme.border, lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(entry.availability.calendarMessage)
     }

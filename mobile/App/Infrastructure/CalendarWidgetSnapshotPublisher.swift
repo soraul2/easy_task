@@ -4,6 +4,72 @@ import SwiftData
 import SwiftUI
 import WidgetKit
 
+@MainActor
+enum CalendarWidgetSnapshotPublicationService {
+    @discardableResult
+    static func publish(
+        context: ModelContext,
+        themeID: String,
+        forceWrite: Bool = false,
+        forceTimelineReload: Bool = false,
+        referenceDate: Date = Date()
+    ) async throws -> Bool {
+        let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
+        let events = try context.fetch(
+            BoundedQueryService.eventsDescriptor(
+                overlappingStartDayKey: coverage.startDayKey,
+                endDayKey: coverage.endDayKey
+            )
+        )
+        let lockScreenCoverage = LockScreenWidgetRules.coverageDayKeys(
+            for: referenceDate
+        )
+        let plannedTasks = try context.fetch(
+            BoundedQueryService.widgetPlannedTasksDescriptor(
+                from: lockScreenCoverage.startDayKey,
+                through: lockScreenCoverage.endDayKey
+            )
+        )
+        let completedTasks = try context.fetch(
+            BoundedQueryService.widgetCompletedTasksDescriptor(
+                from: lockScreenCoverage.startDayKey,
+                through: lockScreenCoverage.endDayKey
+            )
+        )
+        let tasks = mergedTasks(plannedTasks, completedTasks)
+        let snapshot = CalendarWidgetSnapshot.make(
+            events: events,
+            tasks: tasks,
+            referenceDate: referenceDate,
+            themeID: themeID
+        )
+        let didWrite = try await Swift.Task.detached(priority: .utility) {
+            try CalendarWidgetSnapshotStore.writeIfChanged(
+                snapshot,
+                forceWrite: forceWrite
+            )
+        }.value
+
+        if didWrite || forceTimelineReload {
+            WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
+            WidgetCenter.shared.reloadTimelines(
+                ofKind: CalendarWidgetConstants.lockScreenKind
+            )
+        }
+        return didWrite
+    }
+
+    private static func mergedTasks(
+        _ plannedTasks: [PlanBaseCore.Task],
+        _ completedTasks: [PlanBaseCore.Task]
+    ) -> [PlanBaseCore.Task] {
+        var seenInstanceIDs: Set<UUID> = []
+        return (plannedTasks + completedTasks).filter {
+            seenInstanceIDs.insert($0.instanceID).inserted
+        }
+    }
+}
+
 struct CalendarWidgetSnapshotPublisher: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -124,60 +190,16 @@ struct CalendarWidgetSnapshotPublisher: View {
     @MainActor
     private func publishSnapshot() async {
         do {
-            let referenceDate = Date()
-            let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
-            let events = try modelContext.fetch(
-                BoundedQueryService.eventsDescriptor(
-                    overlappingStartDayKey: coverage.startDayKey,
-                    endDayKey: coverage.endDayKey
-                )
+            let isInitialPublication = !hasCompletedInitialPublication
+            _ = try await CalendarWidgetSnapshotPublicationService.publish(
+                context: modelContext,
+                themeID: selectedThemeID,
+                forceWrite: isInitialPublication,
+                forceTimelineReload: isInitialPublication
             )
-            let lockScreenCoverage = LockScreenWidgetRules.coverageDayKeys(
-                for: referenceDate
-            )
-            let plannedTasks = try modelContext.fetch(
-                BoundedQueryService.widgetPlannedTasksDescriptor(
-                    from: lockScreenCoverage.startDayKey,
-                    through: lockScreenCoverage.endDayKey
-                )
-            )
-            let completedTasks = try modelContext.fetch(
-                BoundedQueryService.widgetCompletedTasksDescriptor(
-                    from: lockScreenCoverage.startDayKey,
-                    through: lockScreenCoverage.endDayKey
-                )
-            )
-            let tasks = mergedTasks(plannedTasks, completedTasks)
-            let snapshot = CalendarWidgetSnapshot.make(
-                events: events,
-                tasks: tasks,
-                referenceDate: referenceDate,
-                themeID: selectedThemeID
-            )
-            let didWrite = try await Swift.Task.detached(priority: .utility) {
-                try CalendarWidgetSnapshotStore.writeIfChanged(snapshot)
-            }.value
-            let shouldReloadTimelines = didWrite || !hasCompletedInitialPublication
             hasCompletedInitialPublication = true
-            if shouldReloadTimelines {
-                WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
-                WidgetCenter.shared.reloadTimelines(
-                    ofKind: CalendarWidgetConstants.lockScreenKind
-                )
-            }
         } catch {
             print("캘린더 위젯 데이터를 갱신하지 못했습니다: \(error.localizedDescription)")
-        }
-    }
-
-    @MainActor
-    private func mergedTasks(
-        _ plannedTasks: [PlanBaseCore.Task],
-        _ completedTasks: [PlanBaseCore.Task]
-    ) -> [PlanBaseCore.Task] {
-        var seenInstanceIDs: Set<UUID> = []
-        return (plannedTasks + completedTasks).filter {
-            seenInstanceIDs.insert($0.instanceID).inserted
         }
     }
 }

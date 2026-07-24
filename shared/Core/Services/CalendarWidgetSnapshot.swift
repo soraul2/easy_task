@@ -559,7 +559,8 @@ public enum CalendarWidgetSnapshotStore {
     public static func writeIfChanged(
         _ snapshot: CalendarWidgetSnapshot,
         directoryURL: URL? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        forceWrite: Bool = false
     ) throws -> Bool {
         let directoryURL = try resolvedDirectoryURL(
             directoryURL,
@@ -571,7 +572,11 @@ public enum CalendarWidgetSnapshotStore {
         )
 
         do {
-            if let existing = try read(directoryURL: directoryURL, fileManager: fileManager),
+            if let existing = try read(
+                directoryURL: directoryURL,
+                fileManager: fileManager
+            ),
+               !forceWrite,
                existing.hasSameContent(as: snapshot) {
                 return false
             }

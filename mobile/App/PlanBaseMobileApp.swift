@@ -287,6 +287,7 @@ private struct MobileAppRootView: View {
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
             refreshCurrentDay()
+            refreshWidgetSnapshot(forceWrite: true)
             Swift.Task {
                 if cloudKitEnabled {
                     await syncMonitor.refreshAccountStatus()
@@ -371,6 +372,7 @@ private struct MobileAppRootView: View {
             // Widget publication is best-effort and must not remain disabled when
             // an unrelated startup reconciliation or migration fails.
             isWidgetSnapshotPublisherReady = true
+            refreshWidgetSnapshot(forceWrite: true)
         }
         let migratedThemeID = AppTheme.migrateStoredDefaultIfNeeded(selectedThemeID)
         if migratedThemeID != selectedThemeID {
@@ -406,6 +408,25 @@ private struct MobileAppRootView: View {
             }
         } catch {
             syncMonitor.recordStartupFailure(error)
+        }
+    }
+
+    private func refreshWidgetSnapshot(forceWrite: Bool) {
+        let themeID = selectedThemeID
+        Swift.Task { @MainActor in
+            do {
+                _ = try await CalendarWidgetSnapshotPublicationService.publish(
+                    context: modelContext,
+                    themeID: themeID,
+                    forceWrite: forceWrite,
+                    forceTimelineReload: true
+                )
+            } catch {
+                print(
+                    "앱 활성화 위젯 데이터 갱신 실패: " +
+                        error.localizedDescription
+                )
+            }
         }
     }
 
