@@ -399,6 +399,25 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testCloudSyncStatusButtonAppearsOnlyInMemoToolbar() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["cloud-sync-status-button"].exists)
+
+        let memoTab = tabBar.buttons["메모"]
+        XCTAssertTrue(memoTab.waitForExistence(timeout: 5))
+        memoTab.tap()
+
+        let syncButton = app.buttons["cloud-sync-status-button"]
+        XCTAssertTrue(syncButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(syncButton.isHittable)
+    }
+
+    @MainActor
     private func launchReminderFixtureApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reminder-fixtures"]

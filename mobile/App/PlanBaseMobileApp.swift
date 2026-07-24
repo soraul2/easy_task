@@ -432,6 +432,12 @@ private struct MobileAppRootView: View {
                     "앱 활성화 위젯 데이터 갱신 실패: " +
                         error.localizedDescription
                 )
+                if error as? CalendarWidgetSnapshotStore.StoreError
+                    == .appGroupContainerUnavailable {
+                    syncMonitor.recordIssue(
+                        "위젯 일정 공유 권한을 사용할 수 없습니다. 앱 빌드 권한을 확인해 주세요."
+                    )
+                }
             }
         }
     }
@@ -590,19 +596,30 @@ struct MobileCloudKitSyncStatusButton: View {
     @Environment(CloudKitSyncMonitor.self) private var monitor
     @State private var isPresented = false
 
+    private var hasRequiredRuntimeEntitlements: Bool {
+        PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
+    }
+
     var body: some View {
-        if PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit {
-            Button {
-                isPresented = true
-            } label: {
-                Image(systemName: monitor.systemImage)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .accessibilityLabel(monitor.title)
-            .accessibilityIdentifier("cloud-sync-status-button")
-            .sheet(isPresented: $isPresented) {
-                MobileCloudKitSyncStatusSheet(monitor: monitor)
-            }
+        Button {
+            isPresented = true
+        } label: {
+            Image(systemName: hasRequiredRuntimeEntitlements
+                ? monitor.systemImage
+                : "exclamationmark.icloud")
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel(hasRequiredRuntimeEntitlements
+            ? monitor.title
+            : "iCloud 권한 확인 필요")
+        .accessibilityIdentifier("cloud-sync-status-button")
+        .sheet(isPresented: $isPresented) {
+            MobileCloudKitSyncStatusSheet(
+                monitor: monitor,
+                configurationIssue: hasRequiredRuntimeEntitlements
+                    ? nil
+                    : "이 앱 빌드에 iCloud와 위젯 공유 권한이 없습니다. 새 빌드로 업데이트해 주세요."
+            )
         }
     }
 }
@@ -613,6 +630,7 @@ private enum MobileCloudKitSyncUI {
 
 private struct MobileCloudKitSyncStatusSheet: View {
     let monitor: CloudKitSyncMonitor
+    var configurationIssue: String?
     @Environment(\.dismiss) private var dismiss
     @AppStorage(MobileCloudKitSyncUI.showsWarningBannerKey)
     private var showsWarningBanner = true
@@ -621,7 +639,14 @@ private struct MobileCloudKitSyncStatusSheet: View {
         NavigationStack {
             Form {
                 Section("상태") {
-                    Label(monitor.title, systemImage: monitor.systemImage)
+                    if configurationIssue == nil {
+                        Label(monitor.title, systemImage: monitor.systemImage)
+                    } else {
+                        Label(
+                            "iCloud 권한 확인 필요",
+                            systemImage: "exclamationmark.icloud"
+                        )
+                    }
                     if let lastSuccessfulSyncAt = monitor.lastSuccessfulSyncAt {
                         LabeledContent(
                             "마지막 성공",
@@ -632,6 +657,14 @@ private struct MobileCloudKitSyncStatusSheet: View {
                     }
                 }
                 .listRowBackground(AppTheme.panel)
+
+                if let configurationIssue {
+                    Section("빌드 권한") {
+                        Text(configurationIssue)
+                            .foregroundStyle(.red)
+                    }
+                    .listRowBackground(AppTheme.panel)
+                }
 
                 if let advisoryDescription = monitor.syncAdvisoryDescription {
                     Section("안내") {

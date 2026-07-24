@@ -141,7 +141,23 @@ Development 대비 미배포 스키마 변경 0건을 CloudKit Console에서 확
 - 이미지 추가, 삭제, 재설치 통과
 - iCloud 로그아웃과 재로그인 통과
 - Debug/Release 서명 빌드 통과
+- iOS archive 업로드 전 앱과 위젯의 App Group/CloudKit 서명 권한 검증 통과
 - CloudKit Console의 Production 로그와 private database 전송 상태 점검
 - 체크리스트 생성·체크·정렬·삭제의 macOS ↔ iPhone 양방향 수렴 확인
+
+TestFlight용 iOS archive는 서명되지 않은 상태로 내보내면 안 된다.
+`CODE_SIGN_IDENTITY=''` 또는 `CODE_SIGNING_ALLOWED=NO`로 만든 archive는 export 단계가
+성공하더라도 앱과 위젯의 요청 entitlement가 최종 서명에서 누락될 수 있다. 업로드 전에
+반드시 다음 명령으로 archive 자체의 서명과 공유 권한을 확인한다.
+
+```bash
+./scripts/verify-ios-archive-entitlements.sh \
+  /path/to/PlanBase-iOS.xcarchive
+```
+
+검증 대상은 앱과 위젯의 `group.com.soraul2.easytask` App Group, 앱의
+`iCloud.com.soraul2.easytask` CloudKit container다. 로컬 Apple Distribution 개인 키가
+없다면 Apple Development로 서명된 archive를 만든 뒤 App Store Connect 자동 서명으로
+재서명해 업로드한다. 이 경우에도 위 검증을 통과한 archive만 export한다.
 
 스키마 변경은 Development에서 초기화·검증한 뒤 Production에 추가 배포한다.

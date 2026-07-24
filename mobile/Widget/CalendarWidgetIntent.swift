@@ -81,20 +81,3 @@ struct ResetCalendarWidgetMonthIntent: AppIntent {
         return .result()
     }
 }
-
-struct RefreshCalendarWidgetIntent: AppIntent {
-    static let title: LocalizedStringResource = "캘린더 일정 갱신"
-    static let description = IntentDescription(
-        "PlanBase를 열어 iCloud 일정과 캘린더 위젯을 갱신합니다."
-    )
-    static let isDiscoverable = false
-    static let openAppWhenRun = true
-
-    func perform() async throws -> some IntentResult {
-        WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
-        WidgetCenter.shared.reloadTimelines(
-            ofKind: CalendarWidgetConstants.lockScreenKind
-        )
-        return .result()
-    }
-}
