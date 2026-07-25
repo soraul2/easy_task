@@ -9,6 +9,26 @@ struct MobileArchiveFilterSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("날짜 기준") {
+                    ViewThatFits(in: .horizontal) {
+                        Picker("날짜 기준", selection: $filter.dateBasis) {
+                            ForEach(TaskHistoryDateBasis.allCases) { basis in
+                                Text(basis.title).tag(basis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Picker("날짜 기준", selection: $filter.dateBasis) {
+                            ForEach(TaskHistoryDateBasis.allCases) { basis in
+                                Text(basis.title).tag(basis)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .accessibilityIdentifier("archive-date-basis-picker")
+                }
+                .listRowBackground(AppTheme.panel)
+
                 Section("기간") {
                     Picker("조회 기간", selection: $filter.period) {
                         ForEach(ArchivePeriod.allCases) { period in

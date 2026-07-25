@@ -256,9 +256,13 @@ struct DiaryView: View {
 
     private var taskSummarySection: some View {
         DisclosureGroup(isExpanded: $isTaskSummaryExpanded) {
-            VStack(alignment: .leading, spacing: 12) {
-                if taskSummary.isEmpty {
-                    Text("이 날짜에 등록된 작업이 없습니다")
+            VStack(alignment: .leading, spacing: 14) {
+                Text("그날 계획한 일")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.secondaryText)
+
+                if taskSummary.totalCount == 0 {
+                    Text("이 날짜에 계획한 작업이 없습니다")
                         .font(.callout)
                         .foregroundStyle(AppTheme.secondaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -281,6 +285,27 @@ struct DiaryView: View {
                         systemImage: "circle",
                         color: AppTheme.todo,
                         items: taskSummary.pending
+                    )
+                }
+
+                Divider()
+                    .overlay(AppTheme.border)
+
+                Text("그날 실제 완료한 일")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.secondaryText)
+
+                if taskSummary.actualCompleted.isEmpty {
+                    Text("이 날짜에 완료한 작업이 없습니다")
+                        .font(.callout)
+                        .foregroundStyle(AppTheme.secondaryText)
+                } else {
+                    taskGroup(
+                        title: "완료",
+                        systemImage: "checkmark.circle.fill",
+                        color: AppTheme.done,
+                        items: taskSummary.actualCompleted,
+                        showsPlannedDate: true
                     )
                 }
             }
@@ -306,6 +331,11 @@ struct DiaryView: View {
                         title: "할 일",
                         count: taskSummary.pending.count,
                         color: AppTheme.todo
+                    )
+                    summaryCountChip(
+                        title: "실제 완료",
+                        count: taskSummary.actualCompleted.count,
+                        color: AppTheme.done
                     )
                 }
             }
@@ -339,7 +369,8 @@ struct DiaryView: View {
         title: String,
         systemImage: String,
         color: Color,
-        items: [DailyReviewTaskSummaryItem]
+        items: [DailyReviewTaskSummaryItem],
+        showsPlannedDate: Bool = false
     ) -> some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
@@ -361,8 +392,11 @@ struct DiaryView: View {
 
                         Spacer(minLength: 8)
 
-                        if let carryoverText = carryoverText(for: item) {
-                            Text(carryoverText)
+                        if let detailText = taskDetailText(
+                            for: item,
+                            showsPlannedDate: showsPlannedDate
+                        ) {
+                            Text(detailText)
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText)
                         }
@@ -661,8 +695,9 @@ struct DiaryView: View {
             reviews = try modelContext.fetch(
                 BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
             )
-            selectedDayTasks = try modelContext.fetch(
-                BoundedQueryService.boardTasksDescriptor(selectedDayKey: selectedDayKey)
+            selectedDayTasks = try BoundedQueryService.dailyReviewTasks(
+                dayKey: selectedDayKey,
+                in: modelContext
             )
             carryoverTasks = selectedDayKey == DayKey.today
                 ? try modelContext.fetch(
@@ -929,6 +964,23 @@ struct DiaryView: View {
         let components = Calendar.current.dateComponents([.month, .day], from: date)
         guard let month = components.month, let day = components.day else { return nil }
         return "\(month)월 \(day)일에서 이월"
+    }
+
+    private func taskDetailText(
+        for item: DailyReviewTaskSummaryItem,
+        showsPlannedDate: Bool
+    ) -> String? {
+        if showsPlannedDate, item.plannedDayKey != selectedDayKey {
+            guard let date = DayKey.date(from: item.plannedDayKey) else {
+                return "계획 \(item.plannedDayKey)"
+            }
+            let components = DayKey.calendar.dateComponents([.month, .day], from: date)
+            guard let month = components.month, let day = components.day else {
+                return "계획 \(item.plannedDayKey)"
+            }
+            return "계획 \(month)월 \(day)일"
+        }
+        return carryoverText(for: item)
     }
 
     private func normalizedFileName(_ fileName: String?) -> String? {

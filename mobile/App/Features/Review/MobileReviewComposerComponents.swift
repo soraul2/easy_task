@@ -154,32 +154,62 @@ struct ReviewComposerTaskSummary: View {
             }
 
             if isExpanded {
-                if summary.isEmpty {
-                    Text("이 날짜에 등록된 작업이 없습니다")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 4)
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("그날 계획한 일")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(AppTheme.secondaryText)
+
+                        if summary.totalCount == 0 {
+                            Text("이 날짜에 계획한 작업이 없습니다")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
                         ReviewSummaryGroup(
                             title: "완료",
                             systemImage: "checkmark.circle.fill",
                             color: AppTheme.done,
-                            items: summary.completed
+                            items: summary.completed,
+                            selectedDayKey: DayKey.key(for: selectedDate)
                         )
                         ReviewSummaryGroup(
                             title: "진행 중",
                             systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
                             color: AppTheme.doing,
-                            items: summary.inProgress
+                            items: summary.inProgress,
+                            selectedDayKey: DayKey.key(for: selectedDate)
                         )
                         ReviewSummaryGroup(
                             title: "할 일",
                             systemImage: "circle",
                             color: AppTheme.todo,
-                            items: summary.pending
+                            items: summary.pending,
+                            selectedDayKey: DayKey.key(for: selectedDate)
                         )
+                    }
+
+                    Divider()
+                        .overlay(AppTheme.border)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("그날 실제 완료한 일")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(AppTheme.secondaryText)
+
+                        if summary.actualCompleted.isEmpty {
+                            Text("이 날짜에 완료한 작업이 없습니다")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        } else {
+                            ReviewSummaryGroup(
+                                title: "완료",
+                                systemImage: "checkmark.circle.fill",
+                                color: AppTheme.done,
+                                items: summary.actualCompleted,
+                                selectedDayKey: DayKey.key(for: selectedDate),
+                                showsPlannedDate: true
+                            )
+                        }
                     }
                 }
             }
@@ -209,6 +239,11 @@ struct ReviewComposerTaskSummary: View {
             title: "할 일",
             count: summary.pending.count,
             color: AppTheme.todo
+        )
+        ReviewSummaryCount(
+            title: "실제 완료",
+            count: summary.actualCompleted.count,
+            color: AppTheme.done
         )
     }
 
@@ -247,6 +282,8 @@ private struct ReviewSummaryGroup: View {
     var systemImage: String
     var color: Color
     var items: [DailyReviewTaskSummaryItem]
+    var selectedDayKey: String
+    var showsPlannedDate: Bool = false
 
     var body: some View {
         if !items.isEmpty {
@@ -265,8 +302,8 @@ private struct ReviewSummaryGroup: View {
                                 .foregroundStyle(AppTheme.primaryText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                            if item.isCarryover {
-                                Text(carryoverLabel(item.plannedDayKey))
+                            if let detailText = detailText(for: item) {
+                                Text(detailText)
                                     .font(.caption2.weight(.semibold))
                                     .foregroundStyle(AppTheme.secondaryText)
                             }
@@ -280,8 +317,8 @@ private struct ReviewSummaryGroup: View {
                                     .font(.subheadline)
                                     .foregroundStyle(AppTheme.primaryText)
 
-                                if item.isCarryover {
-                                    Text(carryoverLabel(item.plannedDayKey))
+                                if let detailText = detailText(for: item) {
+                                    Text(detailText)
                                         .font(.caption2.weight(.semibold))
                                         .foregroundStyle(AppTheme.secondaryText)
                                 }
@@ -305,6 +342,17 @@ private struct ReviewSummaryGroup: View {
         guard let date = DayKey.date(from: dayKey) else { return "이월" }
         let components = DayKey.calendar.dateComponents([.month, .day], from: date)
         return "\(components.month ?? 0)월 \(components.day ?? 0)일에서 이월"
+    }
+
+    private func detailText(for item: DailyReviewTaskSummaryItem) -> String? {
+        if showsPlannedDate, item.plannedDayKey != selectedDayKey {
+            guard let date = DayKey.date(from: item.plannedDayKey) else {
+                return "계획 \(item.plannedDayKey)"
+            }
+            let components = DayKey.calendar.dateComponents([.month, .day], from: date)
+            return "계획 \(components.month ?? 0)월 \(components.day ?? 0)일"
+        }
+        return item.isCarryover ? carryoverLabel(item.plannedDayKey) : nil
     }
 }
 

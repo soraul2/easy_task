@@ -25,6 +25,8 @@ struct MobileReviewComposerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [DailyReview]
     @Query private var selectedDayTaskRows: [TodoTask]
+    @Query private var completedAtTaskRows: [TodoTask]
+    @Query private var archivedFallbackTaskRows: [TodoTask]
     @Query private var carryoverTaskRows: [TodoTask]
     @State private var title = ""
     @State private var content = ""
@@ -50,6 +52,12 @@ struct MobileReviewComposerSheet: View {
         _reviews = Query(BoundedQueryService.dailyReviewsDescriptor(dayKey: dayKey))
         _selectedDayTaskRows = Query(
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
+        )
+        _completedAtTaskRows = Query(
+            BoundedQueryService.dailyReviewCompletedAtTasksDescriptor(dayKey: dayKey)
+        )
+        _archivedFallbackTaskRows = Query(
+            BoundedQueryService.dailyReviewArchivedFallbackTasksDescriptor(dayKey: dayKey)
         )
         _carryoverTaskRows = Query(
             BoundedQueryService.carryoverTasksDescriptor(before: dayKey)
@@ -88,6 +96,8 @@ struct MobileReviewComposerSheet: View {
 
     private var taskSummary: DailyReviewTaskSummary {
         var rows = selectedDayTaskRows
+        rows.append(contentsOf: completedAtTaskRows)
+        rows.append(contentsOf: archivedFallbackTaskRows)
         if dayKey == DayKey.today {
             rows.append(contentsOf: carryoverTaskRows)
         }

@@ -6,6 +6,7 @@ import SwiftUI
 
 struct ArchiveDayGroupView: View {
     var group: ArchiveDayRecord
+    var dateBasis: TaskHistoryDateBasis
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
@@ -149,7 +150,7 @@ struct ArchiveDayGroupView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Label("그날 한 일", systemImage: "checkmark.circle")
+                    Label(dateBasis.taskSectionTitle, systemImage: "checkmark.circle")
                     Text("\(group.tasks.count)")
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
@@ -170,7 +171,11 @@ struct ArchiveDayGroupView: View {
                 }
             }
             .buttonStyle(.plain)
-            .help(isTaskListExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
+            .help(
+                isTaskListExpanded
+                    ? "\(dateBasis.taskSectionTitle) 접기"
+                    : "\(dateBasis.taskSectionTitle) 펼치기"
+            )
 
             if isTaskListExpanded {
                 VStack(spacing: 0) {
@@ -423,6 +428,10 @@ private struct ArchiveTaskRow: View {
         checklistItems.filter { matchedChecklistItemIDs.contains($0.id) }
     }
 
+    private var datePresentation: TaskHistoryDatePresentation {
+        TaskHistoryDatePresentation(task: task)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "checkmark")
@@ -471,7 +480,10 @@ private struct ArchiveTaskRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    Text(task.completedDayKey ?? task.archivedDayKey ?? task.plannedDayKey)
+                    Text(datePresentation.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(datePresentation.accessibilityLabel)
+                        .accessibilityHint(datePresentation.bestEffortExplanation ?? "")
                     if let estimatedMinutes = task.estimatedMinutes {
                         Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
                     }

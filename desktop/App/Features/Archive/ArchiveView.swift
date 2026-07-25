@@ -11,6 +11,7 @@ struct ArchiveView: View {
     @State private var filter = ArchiveFilter()
     @State private var message: String?
     @State private var querySession: ArchiveQuerySession?
+    @State private var statisticsSession: TaskHistoryStatisticsSession?
     @State private var showingFilter = false
     @FocusState private var searchFocused: Bool
 
@@ -33,6 +34,7 @@ struct ArchiveView: View {
                 text: $filter.searchText,
                 period: $filter.period,
                 scope: $filter.scope,
+                dateBasis: $filter.dateBasis,
                 startDate: $filter.customStartDate,
                 endDate: $filter.customEndDate,
                 showingFilter: $showingFilter,
@@ -45,6 +47,14 @@ struct ArchiveView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    if let statisticsSession {
+                        ArchiveStatisticsOverview(
+                            statistics: statisticsSession.statistics,
+                            presentation: TaskHistoryStatisticsPresentation(filter: filter),
+                            isLoading: statisticsSession.isLoading
+                        )
+                    }
+
                     if let message {
                         ArchiveMessageView(message: message)
                     }
@@ -59,6 +69,7 @@ struct ArchiveView: View {
                         ForEach(archiveGroups) { group in
                             ArchiveDayGroupView(
                                 group: group,
+                                dateBasis: filter.dateBasis,
                                 attachments: group.review.map {
                                     attachmentIndex.activeAttachments(for: $0.id)
                                 } ?? [],
@@ -108,8 +119,11 @@ struct ArchiveView: View {
         .task {
             guard querySession == nil else { return }
             let session = ArchiveQuerySession(context: modelContext)
+            let statistics = TaskHistoryStatisticsSession(context: modelContext)
             querySession = session
+            statisticsSession = statistics
             session.apply(filter, debounceSearch: false)
+            statistics.apply(filter)
         }
         .onChange(of: filter) { oldFilter, newFilter in
             querySession?.apply(
@@ -119,6 +133,9 @@ struct ArchiveView: View {
                     to: newFilter
                 )
             )
+            if shouldRefreshStatistics(from: oldFilter, to: newFilter) {
+                statisticsSession?.apply(newFilter)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
@@ -126,6 +143,7 @@ struct ArchiveView: View {
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             querySession?.refreshPreservingDepth()
+            statisticsSession?.apply(filter)
         }
         .background {
             Button("") {
@@ -144,7 +162,7 @@ struct ArchiveView: View {
                 Text("기록")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(AppTheme.primaryText)
-                Text("날짜별 회고와 그날 한 일을 함께 봅니다.")
+                Text("날짜별 회고와 \(filter.dateBasis.taskSectionTitle)을 함께 봅니다.")
                     .font(.callout)
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -183,7 +201,9 @@ struct ArchiveView: View {
             Text(filter.hasActiveCriteria ? "검색 결과 없음" : "보관된 기록 없음")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
-            Text(filter.hasActiveCriteria ? "기간, 키워드, 검색 대상을 조정해보세요." : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
+            Text(filter.hasActiveCriteria
+                ? "\(filter.dateBasis.title), 기간, 키워드, 검색 대상을 조정해보세요."
+                : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
                 .font(.callout)
                 .foregroundStyle(AppTheme.secondaryText)
                 .multilineTextAlignment(.center)
@@ -203,8 +223,18 @@ struct ArchiveView: View {
         oldFilter.searchText != newFilter.searchText &&
             oldFilter.period == newFilter.period &&
             oldFilter.scope == newFilter.scope &&
+            oldFilter.dateBasis == newFilter.dateBasis &&
             oldFilter.customStartDate == newFilter.customStartDate &&
             oldFilter.customEndDate == newFilter.customEndDate
+    }
+
+    private func shouldRefreshStatistics(
+        from oldFilter: ArchiveFilter,
+        to newFilter: ArchiveFilter
+    ) -> Bool {
+        oldFilter.period != newFilter.period ||
+            oldFilter.customStartDate != newFilter.customStartDate ||
+            oldFilter.customEndDate != newFilter.customEndDate
     }
 
     private func exportBackup() {
@@ -231,6 +261,96 @@ struct ArchiveView: View {
             }
         } catch {
             message = "가져오기 실패: \(error.localizedDescription)"
+        }
+    }
+}
+
+private struct ArchiveStatisticsOverview: View {
+    var statistics: TaskHistoryStatistics
+    var presentation: TaskHistoryStatisticsPresentation
+    var isLoading: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("선택 기간 작업 요약")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text(presentation.populationTitle)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                }
+                Spacer()
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("작업 통계 계산 중")
+                }
+            }
+
+            Text(presentation.meaningDescription)
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+
+            Divider()
+
+            HStack(spacing: 18) {
+                statisticValue("계획 작업", statistics.plannedTaskCount)
+                statisticValue("완료 작업", statistics.completedTaskCount)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("계획 대비 완료율")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    if let rate = statistics.plannedCompletionRate {
+                        Text(rate, format: .percent.precision(.fractionLength(0)))
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(AppTheme.primaryText)
+                    } else {
+                        Text("—")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                }
+
+                Spacer()
+
+                Text(
+                    "계획일 내 \(statistics.completedOnOrBeforePlannedDayCount) · " +
+                        "지연 완료 \(statistics.delayedCompletionCount) · " +
+                        "미완료 \(statistics.incompleteCount)"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .padding(14)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(presentation.populationTitle). \(presentation.meaningDescription) " +
+                "계획 작업 \(statistics.plannedTaskCount)개, " +
+                "완료 작업 \(statistics.completedTaskCount)개, " +
+                "계획일 내 완료 \(statistics.completedOnOrBeforePlannedDayCount)개, " +
+                "지연 완료 \(statistics.delayedCompletionCount)개, " +
+                "미완료 \(statistics.incompleteCount)개."
+        )
+        .accessibilityIdentifier("archive-overview")
+    }
+
+    private func statisticValue(_ title: String, _ value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+            Text(value, format: .number)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(AppTheme.primaryText)
         }
     }
 }

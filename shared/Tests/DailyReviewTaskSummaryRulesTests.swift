@@ -22,11 +22,13 @@ func dailyReviewSummaryIncludesTodayCarryoverAndUsesCompletionDay() throws {
         todayKey: todayKey
     )
 
-    #expect(summary.completed.map(\.title) == ["오늘 완료"])
+    #expect(summary.completed.isEmpty)
+    #expect(summary.actualCompleted.map(\.title) == ["오늘 완료"])
     #expect(summary.inProgress.map(\.title) == ["오늘 진행"])
     #expect(summary.pending.map(\.title) == ["어제 미완료"])
     #expect(summary.pending.first?.isCarryover == true)
-    #expect(summary.totalCount == 3)
+    #expect(summary.totalCount == 2)
+    #expect(summary.actualCompleted.count == 1)
 }
 
 @Test
@@ -46,7 +48,8 @@ func dailyReviewSummaryUsesHistoricalBoardRulesWithoutCarryover() throws {
         todayKey: todayKey
     )
 
-    #expect(summary.completed.map(\.title) == ["과거 완료"])
+    #expect(summary.completed.isEmpty)
+    #expect(summary.actualCompleted.map(\.title) == ["과거 완료"])
     #expect(summary.pending.map(\.title) == ["과거 미완료"])
     #expect(summary.pending.first?.isCarryover == false)
 }
@@ -98,4 +101,69 @@ func dailyReviewSummaryExcludesArchivedOpenTasks() throws {
     )
 
     #expect(summary.isEmpty)
+}
+
+@Test
+func dailyReviewSummarySeparatesPlannedAndActualCompletionAxes() throws {
+    let delayed = try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    let sameDay = try EventReuseTaskHistoryFixtures.sameDayCompleted()
+
+    let thursday = DailyReviewTaskSummaryRules.summary(
+        from: [delayed, sameDay],
+        selectedDayKey: "2026-07-23",
+        todayKey: "2026-07-25",
+        includeCarryoverOnToday: false
+    )
+    let saturday = DailyReviewTaskSummaryRules.summary(
+        from: [delayed, sameDay],
+        selectedDayKey: "2026-07-25",
+        todayKey: "2026-07-25",
+        includeCarryoverOnToday: false
+    )
+
+    #expect(thursday.completed.map(\.id) == [delayed.id])
+    #expect(thursday.actualCompleted.isEmpty)
+    #expect(Set(saturday.completed.map(\.id)) == [sameDay.id])
+    #expect(Set(saturday.actualCompleted.map(\.id)) == [delayed.id, sameDay.id])
+    #expect(saturday.actualCompleted.first { $0.id == delayed.id }?.plannedDayKey == "2026-07-23")
+}
+
+@Test
+func dailyReviewSummaryUsesFallbackAndConvergesDuplicatesOnBothAxes() throws {
+    let legacy = try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    let logicalID = UUID()
+    let saturday = try #require(DayKey.date(from: "2026-07-25"))
+    let older = Task(
+        id: logicalID,
+        instanceID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+        title: "이전 중복",
+        status: .done,
+        plannedAt: saturday,
+        order: 100,
+        updatedAt: Date(timeIntervalSince1970: 100)
+    )
+    older.completedAt = saturday
+    older.completedDayKey = "2026-07-25"
+    let newer = Task(
+        id: logicalID,
+        instanceID: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+        title: "최신 중복",
+        status: .done,
+        plannedAt: saturday,
+        order: 100,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    newer.completedAt = saturday
+    newer.completedDayKey = "2026-07-25"
+
+    let summary = DailyReviewTaskSummaryRules.summary(
+        from: [older, legacy, newer],
+        selectedDayKey: "2026-07-25",
+        todayKey: "2026-07-25",
+        includeCarryoverOnToday: false
+    )
+
+    #expect(summary.actualCompleted.contains { $0.id == legacy.id })
+    #expect(summary.actualCompleted.filter { $0.id == logicalID }.map(\.title) == ["최신 중복"])
+    #expect(summary.completed.filter { $0.id == logicalID }.map(\.title) == ["최신 중복"])
 }

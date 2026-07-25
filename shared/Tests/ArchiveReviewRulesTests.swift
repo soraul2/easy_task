@@ -148,6 +148,81 @@ func archivePresentationUsesStableFallbackTitles() {
 }
 
 @Test
+func taskHistoryDateRulesUseDocumentedFallbackOrder() throws {
+    let task = try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    let completedAtKey = DayKey.key(for: try #require(task.completedAt))
+
+    #expect(TaskHistoryDateRules.completionDate(for: task) == TaskHistoryCompletionDate(
+        dayKey: completedAtKey,
+        source: .completedAt
+    ))
+
+    task.archivedDayKey = "2026-07-24"
+    task.completedDayKey = "2026-07-23"
+    #expect(TaskHistoryDateRules.completionDate(for: task).source == .completedDayKey)
+    #expect(TaskHistoryDateRules.completionDate(for: task).dayKey == "2026-07-23")
+
+    task.completedDayKey = nil
+    task.completedAt = nil
+    #expect(TaskHistoryDateRules.completionDate(for: task).source == .archivedDayKey)
+    #expect(TaskHistoryDateRules.completionDate(for: task).dayKey == "2026-07-24")
+
+    task.archivedDayKey = nil
+    #expect(TaskHistoryDateRules.completionDate(for: task).source == .plannedDayKey)
+    #expect(TaskHistoryDateRules.completionDate(for: task).dayKey == task.plannedDayKey)
+}
+
+@Test
+func completedAtFallbackIsBestEffortInTheCurrentTimeZone() throws {
+    let task = try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    task.completedAt = Date(timeIntervalSince1970: 1_774_397_400)
+
+    var seoul = Calendar(identifier: .gregorian)
+    seoul.timeZone = try #require(TimeZone(identifier: "Asia/Seoul"))
+    var losAngeles = Calendar(identifier: .gregorian)
+    losAngeles.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+
+    let seoulValue = TaskHistoryDateRules.completionDate(
+        for: task,
+        calendar: seoul
+    )
+    let losAngelesValue = TaskHistoryDateRules.completionDate(
+        for: task,
+        calendar: losAngeles
+    )
+
+    #expect(seoulValue.source == .completedAt)
+    #expect(losAngelesValue.source == .completedAt)
+    #expect(seoulValue.dayKey != losAngelesValue.dayKey)
+    #expect(TaskHistoryDateRules.completedAtFallbackExplanation.contains("현재 시간대"))
+}
+
+@Test
+func taskHistoryDatePresentationShowsBothMeaningsWithoutCallingArchiveACompletion() throws {
+    let delayed = TaskHistoryDatePresentation(
+        task: try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    )
+    let sameDay = TaskHistoryDatePresentation(
+        task: try EventReuseTaskHistoryFixtures.sameDayCompleted()
+    )
+    let archivedOnly = TaskHistoryDatePresentation(
+        task: try EventReuseTaskHistoryFixtures.archivedOnlyLegacyTask()
+    )
+    let completedAtOnly = TaskHistoryDatePresentation(
+        task: try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    )
+
+    #expect(delayed.text == "계획 7월 23일 · 완료 7월 25일")
+    #expect(delayed.accessibilityLabel == "계획일 7월 23일, 완료일 7월 25일")
+    #expect(sameDay.text == "계획·완료 7월 25일")
+    #expect(sameDay.accessibilityLabel == "계획일 7월 25일, 완료일 7월 25일")
+    #expect(archivedOnly.text == "계획 7월 23일 · 완료일 기록 없음")
+    #expect(archivedOnly.text.contains("7월 25일") == false)
+    #expect(completedAtOnly.bestEffortExplanation ==
+        TaskHistoryDateRules.completedAtFallbackExplanation)
+}
+
+@Test
 func archiveQueryRulesNormalizeReversedCustomPeriod() throws {
     let july1 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)))
     let july2 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 2)))
@@ -174,6 +249,88 @@ func archiveQueryRulesNormalizeReversedCustomPeriod() throws {
     )
 
     #expect(records.map(\.dayKey) == ["2026-07-05"])
+}
+
+@Test
+func archiveFilterDefaultsAndResetIncludeTheDateBasis() throws {
+    let referenceDate = try #require(DayKey.date(from: "2026-07-25"))
+    var filter = ArchiveFilter()
+
+    #expect(filter.dateBasis == .completed)
+    #expect(filter.hasActiveCriteria == false)
+
+    filter.dateBasis = .planned
+    #expect(filter.hasActiveCriteria)
+
+    filter.reset(referenceDate: referenceDate)
+    #expect(filter.dateBasis == .completed)
+    #expect(filter.hasActiveCriteria == false)
+}
+
+@Test
+func archiveQueryRulesGroupTasksBySelectedDateBasisAndKeepReviewsFixed() throws {
+    let delayed = try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    let review = DailyReview(
+        dayKey: EventReuseTaskHistoryFixtures.saturdayKey,
+        content: "토요일 회고"
+    )
+    let referenceDate = try #require(DayKey.date(from: "2026-07-25"))
+
+    let completedRecords = ArchiveQueryRules.records(
+        tasks: [delayed],
+        reviews: [review],
+        filter: ArchiveFilter(dateBasis: .completed),
+        referenceDate: referenceDate
+    )
+    let plannedRecords = ArchiveQueryRules.records(
+        tasks: [delayed],
+        reviews: [review],
+        filter: ArchiveFilter(dateBasis: .planned),
+        referenceDate: referenceDate
+    )
+
+    #expect(completedRecords.map(\.dayKey) == ["2026-07-25"])
+    #expect(completedRecords.first?.tasks.map(\.id) == [delayed.id])
+    #expect(completedRecords.first?.review?.id == review.id)
+    #expect(plannedRecords.map(\.dayKey) == ["2026-07-25", "2026-07-23"])
+    #expect(plannedRecords.first?.review?.id == review.id)
+    #expect(plannedRecords.last?.tasks.map(\.id) == [delayed.id])
+}
+
+@Test
+func archiveQueryRulesCombineSearchPeriodScopeAndDateBasis() throws {
+    let delayed = try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    let thursday = try #require(DayKey.date(from: "2026-07-23"))
+    let saturday = try #require(DayKey.date(from: "2026-07-25"))
+    let plannedFilter = ArchiveFilter(
+        searchText: "토요일 완료",
+        period: .custom,
+        scope: .tasks,
+        dateBasis: .planned,
+        customStartDate: thursday,
+        customEndDate: thursday
+    )
+    let completedFilter = ArchiveFilter(
+        searchText: "토요일 완료",
+        period: .custom,
+        scope: .tasks,
+        dateBasis: .completed,
+        customStartDate: saturday,
+        customEndDate: saturday
+    )
+
+    #expect(ArchiveQueryRules.records(
+        tasks: [delayed],
+        reviews: [],
+        filter: plannedFilter,
+        referenceDate: saturday
+    ).map(\.dayKey) == ["2026-07-23"])
+    #expect(ArchiveQueryRules.records(
+        tasks: [delayed],
+        reviews: [],
+        filter: completedFilter,
+        referenceDate: saturday
+    ).map(\.dayKey) == ["2026-07-25"])
 }
 
 @Test

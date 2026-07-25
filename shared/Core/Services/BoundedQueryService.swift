@@ -25,6 +25,8 @@ public struct ArchiveQueryPage {
 
 public enum BoundedQueryService {
     public static let archivePageSize = 30
+    public static let taskHistoryStatisticsBatchSize = 200
+    public static let eventRecommendationScanLimit = 200
     private static let archiveScanWindowDays = 30
 
     public static func boardTasksDescriptor(
@@ -43,6 +45,53 @@ public enum BoundedQueryService {
                 SortDescriptor(\Task.title)
             ]
         )
+    }
+
+    public static func dailyReviewCompletedAtTasksDescriptor(
+        dayKey: String
+    ) -> FetchDescriptor<Task> {
+        let startDate = DayKey.date(from: dayKey) ?? .distantPast
+        let endExclusive = DayKey.addingDays(1, to: startDate)
+        let distantPast = Date.distantPast
+        return FetchDescriptor(
+            predicate: #Predicate<Task> { task in
+                (task.completedAt ?? distantPast) >= startDate &&
+                    (task.completedAt ?? distantPast) < endExclusive
+            },
+            sortBy: [
+                SortDescriptor(\Task.completedAt, order: .reverse),
+                SortDescriptor(\Task.instanceID)
+            ]
+        )
+    }
+
+    public static func dailyReviewArchivedFallbackTasksDescriptor(
+        dayKey: String
+    ) -> FetchDescriptor<Task> {
+        FetchDescriptor(
+            predicate: #Predicate<Task> { task in
+                task.archivedDayKey == dayKey
+            },
+            sortBy: [
+                SortDescriptor(\Task.archivedAt, order: .reverse),
+                SortDescriptor(\Task.instanceID)
+            ]
+        )
+    }
+
+    @MainActor
+    public static func dailyReviewTasks(
+        dayKey: String,
+        in context: ModelContext
+    ) throws -> [Task] {
+        let rows = try context.fetch(boardTasksDescriptor(
+            selectedDayKey: dayKey
+        )) + context.fetch(dailyReviewCompletedAtTasksDescriptor(
+            dayKey: dayKey
+        )) + context.fetch(dailyReviewArchivedFallbackTasksDescriptor(
+            dayKey: dayKey
+        ))
+        return deduplicated(rows, by: \.instanceID)
     }
 
     public static func carryoverTasksDescriptor(
@@ -82,6 +131,21 @@ public enum BoundedQueryService {
                 SortDescriptor(\CalendarEvent.title)
             ]
         )
+    }
+
+    public static func recentCalendarEventsDescriptor()
+        -> FetchDescriptor<CalendarEvent> {
+        var descriptor = FetchDescriptor<CalendarEvent>(
+            predicate: #Predicate<CalendarEvent> { event in
+                event.supersededAt == nil
+            },
+            sortBy: [
+                SortDescriptor(\CalendarEvent.updatedAt, order: .reverse),
+                SortDescriptor(\CalendarEvent.instanceID, order: .reverse)
+            ]
+        )
+        descriptor.fetchLimit = eventRecommendationScanLimit
+        return descriptor
     }
 
     public static func calendarTasksDescriptor(
@@ -339,6 +403,109 @@ public enum BoundedQueryService {
         ))
     }
 
+    @MainActor
+    public static func taskHistoryStatisticsCandidates(
+        from startDayKey: String,
+        through endDayKey: String,
+        in context: ModelContext,
+        isCancelled: () -> Bool = { false }
+    ) throws -> [Task] {
+        let lowerBound = min(startDayKey, endDayKey)
+        let upperBound = max(startDayKey, endDayKey)
+        guard let startDate = DayKey.date(from: lowerBound),
+              let endDate = DayKey.date(from: upperBound) else {
+            return []
+        }
+        let endExclusive = DayKey.addingDays(1, to: endDate)
+        let distantPast = Date.distantPast
+
+        let plannedDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { task in
+                task.plannedDayKey >= lowerBound &&
+                    task.plannedDayKey <= upperBound
+            },
+            sortBy: [SortDescriptor(\Task.instanceID)]
+        )
+        let completedDayDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { task in
+                (task.completedDayKey ?? "") >= lowerBound &&
+                    (task.completedDayKey ?? "") <= upperBound
+            },
+            sortBy: [SortDescriptor(\Task.instanceID)]
+        )
+        let completedAtDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { task in
+                (task.completedAt ?? distantPast) >= startDate &&
+                    (task.completedAt ?? distantPast) < endExclusive
+            },
+            sortBy: [SortDescriptor(\Task.instanceID)]
+        )
+        let archivedDayDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { task in
+                (task.archivedDayKey ?? "") >= lowerBound &&
+                    (task.archivedDayKey ?? "") <= upperBound
+            },
+            sortBy: [SortDescriptor(\Task.instanceID)]
+        )
+
+        var candidates = try fetchInBatches(
+            plannedDescriptor,
+            in: context,
+            isCancelled: isCancelled
+        ).filter { $0.supersededAt == nil }
+        candidates += try fetchInBatches(
+            completedDayDescriptor,
+            in: context,
+            isCancelled: isCancelled
+        ).filter {
+            $0.supersededAt == nil &&
+                $0.status == TaskStatus.done.rawValue &&
+                $0.completedDayKey != nil
+        }
+        candidates += try fetchInBatches(
+            completedAtDescriptor,
+            in: context,
+            isCancelled: isCancelled
+        ).filter {
+            $0.supersededAt == nil &&
+                $0.status == TaskStatus.done.rawValue &&
+                $0.completedDayKey == nil &&
+                $0.completedAt != nil
+        }
+        candidates += try fetchInBatches(
+            archivedDayDescriptor,
+            in: context,
+            isCancelled: isCancelled
+        ).filter {
+            $0.supersededAt == nil &&
+                $0.status == TaskStatus.done.rawValue &&
+                $0.completedDayKey == nil &&
+                $0.completedAt == nil &&
+                $0.archivedDayKey != nil
+        }
+
+        let candidateIDs = Array(Set(candidates.map(\.id)))
+        var activeVersions: [Task] = []
+        for startIndex in stride(
+            from: 0,
+            to: candidateIDs.count,
+            by: taskHistoryStatisticsBatchSize
+        ) {
+            if isCancelled() { throw CancellationError() }
+            let endIndex = min(
+                startIndex + taskHistoryStatisticsBatchSize,
+                candidateIDs.count
+            )
+            let ids = Array(candidateIDs[startIndex..<endIndex])
+            activeVersions += try context.fetch(FetchDescriptor(
+                predicate: #Predicate<Task> { task in
+                    task.supersededAt == nil && ids.contains(task.id)
+                }
+            ))
+        }
+        return deduplicated(activeVersions, by: \.instanceID)
+    }
+
 
     @MainActor
     public static func archivePage(
@@ -351,7 +518,10 @@ public enum BoundedQueryService {
             for: filter,
             referenceDate: referenceDate
         )
-        let storeExtent = try archiveDayKeyExtent(in: context)
+        let storeExtent = try archiveDayKeyExtent(
+            basis: filter.dateBasis,
+            in: context
+        )
         let effectiveLowerBound = periodRange.lowerBound ?? storeExtent?.lowerBound
 
         var effectiveUpperBound = periodRange.upperBound
@@ -396,6 +566,7 @@ public enum BoundedQueryService {
             let tasks = try archiveTasks(
                 from: scanLowerKey,
                 through: scanUpperKey,
+                basis: filter.dateBasis,
                 in: context
             )
             let checklistItems = try archiveChecklistItems(
@@ -484,18 +655,113 @@ private extension BoundedQueryService {
     static func archiveTasks(
         from startDayKey: String,
         through endDayKey: String,
+        basis: TaskHistoryDateBasis,
         in context: ModelContext
     ) throws -> [Task] {
         let doneStatus = TaskStatus.done.rawValue
-        let descriptor = FetchDescriptor<Task>(
+        let candidates: [Task]
+        switch basis {
+        case .planned:
+            candidates = try context.fetch(FetchDescriptor<Task>(
+                predicate: #Predicate<Task> { task in
+                    task.supersededAt == nil &&
+                        task.status == doneStatus &&
+                        task.plannedDayKey >= startDayKey &&
+                        task.plannedDayKey <= endDayKey
+                }
+            ))
+        case .completed:
+            guard let startDate = DayKey.date(from: startDayKey),
+                  let endDate = DayKey.date(from: endDayKey) else {
+                return []
+            }
+            let endExclusive = DayKey.addingDays(1, to: endDate)
+            let completedDayPredicate = #Predicate<Task> { task in
+                task.supersededAt == nil &&
+                    task.status == doneStatus &&
+                    (task.completedDayKey ?? "") != "" &&
+                    (task.completedDayKey ?? "") >= startDayKey &&
+                    (task.completedDayKey ?? "") <= endDayKey
+            }
+            let completedDayDescriptor = FetchDescriptor<Task>(
+                predicate: completedDayPredicate
+            )
+            let completedDayTasks: [Task] = try context.fetch(completedDayDescriptor)
+            let distantPast = Date.distantPast
+            let completedAtPredicate = #Predicate<Task> { task in
+                task.supersededAt == nil &&
+                    task.status == doneStatus &&
+                    task.completedDayKey == nil &&
+                    (task.completedAt ?? distantPast) >= startDate &&
+                    (task.completedAt ?? distantPast) < endExclusive
+            }
+            let completedAtDescriptor = FetchDescriptor<Task>(
+                predicate: completedAtPredicate
+            )
+            let completedAtTasks: [Task] = try context.fetch(completedAtDescriptor)
+
+            let archivedDayPredicate = #Predicate<Task> { task in
+                (task.archivedDayKey ?? "") >= startDayKey &&
+                    (task.archivedDayKey ?? "") <= endDayKey
+            }
+            let archivedDayDescriptor = FetchDescriptor<Task>(
+                predicate: archivedDayPredicate
+            )
+            let archivedDayTasks: [Task] = try context.fetch(archivedDayDescriptor)
+                .filter {
+                    $0.supersededAt == nil &&
+                        $0.status == doneStatus &&
+                        $0.completedDayKey == nil &&
+                        $0.completedAt == nil &&
+                        $0.archivedDayKey != nil
+                }
+
+            let plannedDayPredicate = #Predicate<Task> { task in
+                task.plannedDayKey >= startDayKey &&
+                    task.plannedDayKey <= endDayKey
+            }
+            let plannedDayDescriptor = FetchDescriptor<Task>(
+                predicate: plannedDayPredicate
+            )
+            let plannedDayTasks: [Task] = try context.fetch(plannedDayDescriptor)
+                .filter {
+                    $0.supersededAt == nil &&
+                        $0.status == doneStatus &&
+                        $0.completedDayKey == nil &&
+                        $0.completedAt == nil &&
+                        $0.archivedDayKey == nil
+                }
+            candidates = completedDayTasks +
+                completedAtTasks +
+                archivedDayTasks +
+                plannedDayTasks
+        }
+
+        let candidateIDs = Array(Set(candidates.map(\.id)))
+        guard !candidateIDs.isEmpty else { return [] }
+        let activeVersions = try context.fetch(FetchDescriptor<Task>(
             predicate: #Predicate<Task> { task in
                 task.supersededAt == nil &&
                     task.status == doneStatus &&
-                    (task.completedDayKey ?? task.archivedDayKey ?? task.plannedDayKey) >= startDayKey &&
-                    (task.completedDayKey ?? task.archivedDayKey ?? task.plannedDayKey) <= endDayKey
+                    candidateIDs.contains(task.id)
             }
-        )
-        return try context.fetch(descriptor)
+        ))
+        var representatives: [UUID: Task] = [:]
+        for task in activeVersions {
+            guard let existing = representatives[task.id] else {
+                representatives[task.id] = task
+                continue
+            }
+            if task.updatedAt > existing.updatedAt ||
+                (task.updatedAt == existing.updatedAt &&
+                    task.instanceID.uuidString > existing.instanceID.uuidString) {
+                representatives[task.id] = task
+            }
+        }
+        return Array(representatives.values).filter {
+            let key = TaskHistoryDateRules.dayKey(for: $0, basis: basis)
+            return startDayKey <= key && key <= endDayKey
+        }
     }
 
     @MainActor
@@ -551,6 +817,7 @@ private extension BoundedQueryService {
 
     @MainActor
     static func archiveDayKeyExtent(
+        basis: TaskHistoryDateBasis,
         in context: ModelContext
     ) throws -> ArchiveDayKeyExtent? {
         let doneStatus = TaskStatus.done.rawValue
@@ -566,23 +833,37 @@ private extension BoundedQueryService {
         var completedDescending = completedAscending
         completedDescending.sortBy = [SortDescriptor(\Task.completedDayKey, order: .reverse)]
 
+        let completedAtExtentPredicate = #Predicate<Task> { task in
+            task.supersededAt == nil &&
+                task.status == doneStatus &&
+                task.completedAt != nil
+        }
+        var completedAtAscending = FetchDescriptor<Task>(
+            predicate: completedAtExtentPredicate,
+            sortBy: [SortDescriptor(\Task.completedAt)]
+        )
+        completedAtAscending.fetchLimit = 1
+        var completedAtDescending = completedAtAscending
+        completedAtDescending.sortBy = [SortDescriptor(\Task.completedAt, order: .reverse)]
+
+        let archivedExtentPredicate = #Predicate<Task> { task in
+            task.supersededAt == nil &&
+                task.status == doneStatus &&
+                task.archivedDayKey != nil
+        }
         var archivedAscending = FetchDescriptor<Task>(
-            predicate: #Predicate<Task> { task in
-                task.supersededAt == nil &&
-                    task.status == doneStatus &&
-                    task.archivedDayKey != nil
-            },
+            predicate: archivedExtentPredicate,
             sortBy: [SortDescriptor(\Task.archivedDayKey)]
         )
         archivedAscending.fetchLimit = 1
         var archivedDescending = archivedAscending
         archivedDescending.sortBy = [SortDescriptor(\Task.archivedDayKey, order: .reverse)]
 
+        let plannedPredicate = #Predicate<Task> { task in
+            task.supersededAt == nil && task.status == doneStatus
+        }
         var plannedAscending = FetchDescriptor<Task>(
-            predicate: #Predicate<Task> { task in
-                task.supersededAt == nil &&
-                    task.status == doneStatus
-            },
+            predicate: plannedPredicate,
             sortBy: [SortDescriptor(\Task.plannedDayKey)]
         )
         plannedAscending.fetchLimit = 1
@@ -599,16 +880,43 @@ private extension BoundedQueryService {
         var reviewsDescending = reviewsAscending
         reviewsDescending.sortBy = [SortDescriptor(\DailyReview.dayKey, order: .reverse)]
 
-        let keys = [
-            try context.fetch(completedAscending).first?.completedDayKey,
-            try context.fetch(completedDescending).first?.completedDayKey,
-            try context.fetch(archivedAscending).first?.archivedDayKey,
-            try context.fetch(archivedDescending).first?.archivedDayKey,
-            try context.fetch(plannedAscending).first?.plannedDayKey,
-            try context.fetch(plannedDescending).first?.plannedDayKey,
+        let earliestPlanned = try context.fetch(plannedAscending).first?.plannedDayKey
+        let latestPlanned = try context.fetch(plannedDescending).first?.plannedDayKey
+        var taskKeys: [String?]
+        switch basis {
+        case .planned:
+            taskKeys = [earliestPlanned, latestPlanned]
+        case .completed:
+            let earliestCompletedAtTasks: [Task] = try context.fetch(
+                completedAtAscending
+            )
+            let latestCompletedAtTasks: [Task] = try context.fetch(
+                completedAtDescending
+            )
+            let earliestArchivedTasks: [Task] = try context.fetch(
+                archivedAscending
+            )
+            let latestArchivedTasks: [Task] = try context.fetch(
+                archivedDescending
+            )
+            let earliestCompletedAt = earliestCompletedAtTasks.first?.completedAt
+            let latestCompletedAt = latestCompletedAtTasks.first?.completedAt
+            taskKeys = [
+                try context.fetch(completedAscending).first?.completedDayKey,
+                try context.fetch(completedDescending).first?.completedDayKey,
+                earliestCompletedAt.map(DayKey.key(for:)),
+                latestCompletedAt.map(DayKey.key(for:)),
+                earliestArchivedTasks.first?.archivedDayKey,
+                latestArchivedTasks.first?.archivedDayKey,
+                earliestPlanned,
+                latestPlanned
+            ]
+        }
+        let reviewKeys: [String?] = [
             try context.fetch(reviewsAscending).first?.dayKey,
             try context.fetch(reviewsDescending).first?.dayKey
-        ].compactMap { $0 }.filter {
+        ]
+        let keys = (taskKeys + reviewKeys).compactMap { $0 }.filter {
             DayKey.date(from: $0) != nil
         }
         guard let lowerBound = keys.min(), let upperBound = keys.max() else {
@@ -626,5 +934,27 @@ private extension BoundedQueryService {
     ) -> [Model] {
         var seen: Set<Key> = []
         return models.filter { seen.insert($0[keyPath: keyPath]).inserted }
+    }
+
+    @MainActor
+    static func fetchInBatches<Model: PersistentModel>(
+        _ sourceDescriptor: FetchDescriptor<Model>,
+        in context: ModelContext,
+        isCancelled: () -> Bool
+    ) throws -> [Model] {
+        var offset = 0
+        var results: [Model] = []
+
+        while true {
+            if isCancelled() { throw CancellationError() }
+            var descriptor = sourceDescriptor
+            descriptor.fetchOffset = offset
+            descriptor.fetchLimit = taskHistoryStatisticsBatchSize
+            let batch = try context.fetch(descriptor)
+            results.append(contentsOf: batch)
+            guard batch.count == taskHistoryStatisticsBatchSize else { break }
+            offset += batch.count
+        }
+        return results
     }
 }

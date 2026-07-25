@@ -1,5 +1,110 @@
 import Foundation
 
+public enum TaskHistoryDateBasis: String, CaseIterable, Identifiable, Sendable {
+    case completed
+    case planned
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .completed: "완료일 기준"
+        case .planned: "계획일 기준"
+        }
+    }
+
+    public var taskSectionTitle: String {
+        switch self {
+        case .completed: "그날 완료한 일"
+        case .planned: "그날 계획한 일"
+        }
+    }
+}
+
+public enum TaskHistoryCompletionDateSource: String, Equatable, Sendable {
+    case completedDayKey
+    case completedAt
+    case archivedDayKey
+    case plannedDayKey
+}
+
+public struct TaskHistoryCompletionDate: Equatable, Sendable {
+    public var dayKey: String
+    public var source: TaskHistoryCompletionDateSource
+
+    public init(dayKey: String, source: TaskHistoryCompletionDateSource) {
+        self.dayKey = dayKey
+        self.source = source
+    }
+
+    public var isRecordedCompletionDate: Bool {
+        source == .completedDayKey || source == .completedAt
+    }
+
+    public var isBestEffort: Bool {
+        source == .completedAt
+    }
+}
+
+public enum TaskHistoryDateRules {
+    public static let completedAtFallbackExplanation =
+        "저장된 완료일이 없는 이전 작업은 현재 시간대 기준으로 완료 처리 시각을 해석한 날짜입니다."
+
+    public static func completionDate(
+        for task: Task,
+        calendar: Calendar = DayKey.calendar
+    ) -> TaskHistoryCompletionDate {
+        if let completedDayKey = nonEmpty(task.completedDayKey) {
+            return TaskHistoryCompletionDate(
+                dayKey: completedDayKey,
+                source: .completedDayKey
+            )
+        }
+        if let completedAt = task.completedAt {
+            return TaskHistoryCompletionDate(
+                dayKey: DayKey.key(for: completedAt, calendar: calendar),
+                source: .completedAt
+            )
+        }
+        if let archivedDayKey = nonEmpty(task.archivedDayKey) {
+            return TaskHistoryCompletionDate(
+                dayKey: archivedDayKey,
+                source: .archivedDayKey
+            )
+        }
+        return TaskHistoryCompletionDate(
+            dayKey: task.plannedDayKey,
+            source: .plannedDayKey
+        )
+    }
+
+    public static func dayKey(
+        for task: Task,
+        basis: TaskHistoryDateBasis,
+        calendar: Calendar = DayKey.calendar
+    ) -> String {
+        switch basis {
+        case .completed:
+            completionDate(for: task, calendar: calendar).dayKey
+        case .planned:
+            task.plannedDayKey
+        }
+    }
+
+    public static func recordedCompletionDayKey(
+        for task: Task,
+        calendar: Calendar = DayKey.calendar
+    ) -> String? {
+        let value = completionDate(for: task, calendar: calendar)
+        return value.isRecordedCompletionDate ? value.dayKey : nil
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+}
+
 public enum ArchivePeriod: String, CaseIterable, Identifiable {
     case all
     case last7Days
@@ -46,6 +151,7 @@ public struct ArchiveFilter: Equatable {
     public var searchText: String
     public var period: ArchivePeriod
     public var scope: ArchiveScope
+    public var dateBasis: TaskHistoryDateBasis
     public var customStartDate: Date
     public var customEndDate: Date
 
@@ -53,24 +159,30 @@ public struct ArchiveFilter: Equatable {
         searchText: String = "",
         period: ArchivePeriod = .all,
         scope: ArchiveScope = .all,
+        dateBasis: TaskHistoryDateBasis = .completed,
         customStartDate: Date = DayKey.addingDays(-30, to: DayKey.startOfDay(for: Date())),
         customEndDate: Date = DayKey.startOfDay(for: Date())
     ) {
         self.searchText = searchText
         self.period = period
         self.scope = scope
+        self.dateBasis = dateBasis
         self.customStartDate = customStartDate
         self.customEndDate = customEndDate
     }
 
     public var hasActiveCriteria: Bool {
-        !normalizedSearchText.isEmpty || period != .all || scope != .all
+        !normalizedSearchText.isEmpty ||
+            period != .all ||
+            scope != .all ||
+            dateBasis != .completed
     }
 
     public mutating func reset(referenceDate: Date = Date()) {
         searchText = ""
         period = .all
         scope = .all
+        dateBasis = .completed
         customStartDate = DayKey.addingDays(-30, to: DayKey.startOfDay(for: referenceDate))
         customEndDate = DayKey.startOfDay(for: referenceDate)
     }
@@ -179,9 +291,15 @@ public enum ArchiveQueryRules {
         reviewIDsWithContent: Set<UUID> = [],
         referenceDate: Date = Date()
     ) -> [ArchiveDayRecord] {
-        let completedTasks = tasks
-            .filter { $0.supersededAt == nil && $0.status == TaskStatus.done.rawValue }
-            .filter { matchesPeriod(dayKey(for: $0), filter: filter, referenceDate: referenceDate) }
+        let completedTasks = representativeTasks(tasks)
+            .filter { $0.status == TaskStatus.done.rawValue }
+            .filter {
+                matchesPeriod(
+                    dayKey(for: $0, basis: filter.dateBasis),
+                    filter: filter,
+                    referenceDate: referenceDate
+                )
+            }
         let nonEmptyReviews = reviews
             .filter { $0.supersededAt == nil }
             .filter {
@@ -189,7 +307,9 @@ public enum ArchiveQueryRules {
             }
             .filter { matchesPeriod($0.dayKey, filter: filter, referenceDate: referenceDate) }
 
-        let tasksByDay = Dictionary(grouping: completedTasks, by: dayKey)
+        let tasksByDay = Dictionary(grouping: completedTasks) {
+            dayKey(for: $0, basis: filter.dateBasis)
+        }
         let reviewsByDay = Dictionary(grouping: nonEmptyReviews, by: \DailyReview.dayKey)
             .compactMapValues { records in
                 records.max {
@@ -234,7 +354,9 @@ public enum ArchiveQueryRules {
             let reviewKeys = filter.scope.includesReviews ? Set(reviewsByDay.keys) : Set<String>()
             dayKeys = taskKeys.union(reviewKeys)
         } else {
-            let taskKeys = matchingTasks.map(dayKey)
+            let taskKeys = matchingTasks.map {
+                dayKey(for: $0, basis: filter.dateBasis)
+            }
             let reviewKeys = reviewsByDay.values
                 .filter { matchingReviewIDs.contains($0.id) }
                 .map(\.dayKey)
@@ -296,7 +418,14 @@ public enum ArchiveQueryRules {
     }
 
     public static func dayKey(for task: Task) -> String {
-        task.completedDayKey ?? task.archivedDayKey ?? task.plannedDayKey
+        dayKey(for: task, basis: .completed)
+    }
+
+    public static func dayKey(
+        for task: Task,
+        basis: TaskHistoryDateBasis
+    ) -> String {
+        TaskHistoryDateRules.dayKey(for: task, basis: basis)
     }
 
     private static func matchesPeriod(
@@ -362,5 +491,21 @@ public enum ArchiveQueryRules {
             return lhs.order < rhs.order
         }
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
+    }
+
+    private static func representativeTasks(_ tasks: [Task]) -> [Task] {
+        var representatives: [UUID: Task] = [:]
+        for task in tasks where task.supersededAt == nil {
+            guard let existing = representatives[task.id] else {
+                representatives[task.id] = task
+                continue
+            }
+            if task.updatedAt > existing.updatedAt ||
+                (task.updatedAt == existing.updatedAt &&
+                    task.instanceID.uuidString > existing.instanceID.uuidString) {
+                representatives[task.id] = task
+            }
+        }
+        return Array(representatives.values)
     }
 }

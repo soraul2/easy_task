@@ -5,13 +5,14 @@ struct ArchiveSearchToolbar: View {
     @Binding var text: String
     @Binding var period: ArchivePeriod
     @Binding var scope: ArchiveScope
+    @Binding var dateBasis: TaskHistoryDateBasis
     @Binding var startDate: Date
     @Binding var endDate: Date
     @Binding var showingFilter: Bool
     @FocusState.Binding var searchFocused: Bool
 
     private var hasActiveFilterOptions: Bool {
-        period != .all || scope != .all
+        period != .all || scope != .all || dateBasis != .completed
     }
 
     var body: some View {
@@ -38,6 +39,7 @@ struct ArchiveSearchToolbar: View {
                     ArchiveFilterPopover(
                         period: $period,
                         scope: $scope,
+                        dateBasis: $dateBasis,
                         startDate: $startDate,
                         endDate: $endDate
                     )
@@ -56,9 +58,15 @@ struct ArchiveSearchToolbar: View {
                             scope = .all
                         }
                     }
+                    if dateBasis != .completed {
+                        ArchiveFilterChip(title: dateBasis.title) {
+                            dateBasis = .completed
+                        }
+                    }
                     Button("모두 지우기") {
                         period = .all
                         scope = .all
+                        dateBasis = .completed
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
@@ -73,6 +81,7 @@ struct ArchiveSearchToolbar: View {
 private struct ArchiveFilterPopover: View {
     @Binding var period: ArchivePeriod
     @Binding var scope: ArchiveScope
+    @Binding var dateBasis: TaskHistoryDateBasis
     @Binding var startDate: Date
     @Binding var endDate: Date
 
@@ -83,15 +92,26 @@ private struct ArchiveFilterPopover: View {
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
-                if period != .all || scope != .all {
+                if period != .all || scope != .all || dateBasis != .completed {
                     Button("초기화") {
                         period = .all
                         scope = .all
+                        dateBasis = .completed
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
                 }
+            }
+
+            FilterPicker(title: "날짜 기준") {
+                Picker("날짜 기준", selection: $dateBasis) {
+                    ForEach(TaskHistoryDateBasis.allCases) { basis in
+                        Text(basis.title).tag(basis)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 230)
             }
 
             FilterPicker(title: "기간") {

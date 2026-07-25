@@ -71,3 +71,20 @@ func archiveSessionRefreshPreservesLoadedPageDepth() throws {
     #expect(session.records.count == 35)
     #expect(Set(session.records.map(\.dayKey)).count == 35)
 }
+
+@Test
+@MainActor
+func archiveSessionAppliesDateBasisImmediatelyWithoutSearchDebounce() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let delayed = try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    context.insert(delayed)
+    try context.save()
+
+    let session = ArchiveQuerySession(context: context)
+    session.apply(ArchiveFilter(dateBasis: .completed), debounceSearch: false)
+    #expect(session.records.map(\.dayKey) == ["2026-07-25"])
+
+    session.apply(ArchiveFilter(dateBasis: .planned), debounceSearch: false)
+    #expect(session.records.map(\.dayKey) == ["2026-07-23"])
+}

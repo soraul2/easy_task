@@ -56,3 +56,24 @@ func completionDayCanFollowBoardDateInsteadOfActualCompletionDate() throws {
     #expect(BoardQueryRules.tasks(july4Board, matching: .done).map(\.title) == ["7월 4일 보드 완료"])
     #expect(BoardQueryRules.tasks(july7Board, matching: .done).map(\.title) == ["7월 7일로 이월 후 완료"])
 }
+
+@Test
+func movingAndBringingTaskForwardReplaceTheLastPlannedDay() throws {
+    let thursday = try #require(DayKey.date(from: "2026-07-23"))
+    let friday = try #require(DayKey.date(from: "2026-07-24"))
+    let saturday = try #require(DayKey.date(from: "2026-07-25"))
+    let moved = Task(title: "금요일로 이동", plannedAt: thursday, order: 100)
+    let broughtForward = Task(
+        title: "토요일로 가져오기",
+        status: .doing,
+        plannedAt: thursday,
+        order: 200
+    )
+
+    TaskRules.move(moved, to: friday)
+    TaskRules.bringToToday(broughtForward, now: saturday)
+
+    #expect(moved.plannedDayKey == "2026-07-24")
+    #expect(broughtForward.plannedDayKey == "2026-07-25")
+    #expect(broughtForward.status == TaskStatus.todo.rawValue)
+}

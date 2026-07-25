@@ -6,6 +6,7 @@ import SwiftUI
 
 struct MobileArchiveRecordCard: View {
     var record: ArchiveDayRecord
+    var dateBasis: TaskHistoryDateBasis
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
@@ -120,7 +121,7 @@ struct MobileArchiveRecordCard: View {
                 tasksExpanded.toggle()
             } label: {
                 HStack(spacing: 8) {
-                    Label("그날 한 일", systemImage: "checkmark.circle")
+                    Label(dateBasis.taskSectionTitle, systemImage: "checkmark.circle")
                     Text("\(record.tasks.count)")
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
@@ -142,7 +143,11 @@ struct MobileArchiveRecordCard: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(tasksExpanded ? "그날 한 일 접기" : "그날 한 일 펼치기")
+            .accessibilityLabel(
+                tasksExpanded
+                    ? "\(dateBasis.taskSectionTitle) 접기"
+                    : "\(dateBasis.taskSectionTitle) 펼치기"
+            )
 
             if tasksExpanded {
                 VStack(spacing: 0) {
@@ -457,10 +462,8 @@ private struct MobileArchiveTaskRow: View {
         checklistItems.filter { matchedChecklistItemIDs.contains($0.id) }
     }
 
-    private var displayDate: String {
-        let key = ArchiveQueryRules.dayKey(for: task)
-        guard let date = DayKey.date(from: key) else { return key }
-        return DayKey.display(date)
+    private var datePresentation: TaskHistoryDatePresentation {
+        TaskHistoryDatePresentation(task: task)
     }
 
     var body: some View {
@@ -511,7 +514,10 @@ private struct MobileArchiveTaskRow: View {
                 }
 
                 HStack(spacing: 10) {
-                    Text(displayDate)
+                    Text(datePresentation.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(datePresentation.accessibilityLabel)
+                        .accessibilityHint(datePresentation.bestEffortExplanation ?? "")
                     if let estimatedMinutes = task.estimatedMinutes {
                         Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
                     }

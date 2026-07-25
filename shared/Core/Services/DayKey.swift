@@ -9,6 +9,10 @@ public enum DayKey {
     }
 
     public static func key(for date: Date) -> String {
+        key(for: date, calendar: calendar)
+    }
+
+    public static func key(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         guard let year = components.year,
               let month = components.month,

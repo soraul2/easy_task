@@ -267,6 +267,179 @@ func archivePageSearchIncludesChecklistMatches() throws {
 
 @Test
 @MainActor
+func boundedArchiveDateBasisUsesAllCompletionFallbackDescriptors() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let saturday = try #require(DayKey.date(from: "2026-07-25"))
+    let delayed = try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    let sameDay = try EventReuseTaskHistoryFixtures.sameDayCompleted()
+    let archivedOnly = try EventReuseTaskHistoryFixtures.archivedOnlyLegacyTask()
+    let completedAtOnly = try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    [delayed, sameDay, archivedOnly, completedAtOnly].forEach(context.insert)
+    try context.save()
+
+    let completedFilter = ArchiveFilter(
+        period: .custom,
+        dateBasis: .completed,
+        customStartDate: saturday,
+        customEndDate: saturday
+    )
+    let plannedFilter = ArchiveFilter(
+        period: .custom,
+        dateBasis: .planned,
+        customStartDate: try #require(DayKey.date(from: "2026-07-23")),
+        customEndDate: try #require(DayKey.date(from: "2026-07-23"))
+    )
+    let completedPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: completedFilter,
+        referenceDate: saturday
+    )
+    let plannedPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: plannedFilter,
+        referenceDate: saturday
+    )
+
+    #expect(Set(completedPage.records.flatMap(\.tasks).map(\.id)) == Set([
+        delayed.id,
+        sameDay.id,
+        archivedOnly.id,
+        completedAtOnly.id
+    ]))
+    #expect(Set(plannedPage.records.flatMap(\.tasks).map(\.id)) == Set([
+        delayed.id,
+        archivedOnly.id,
+        completedAtOnly.id
+    ]))
+}
+
+@Test
+@MainActor
+func boundedArchiveCompletedAtExtentAndChecklistSearchUseSelectedBasis() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let task = try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    let checklist = TaskChecklistItem(
+        taskId: task.id,
+        title: "fallback 검색 항목",
+        order: 100
+    )
+    context.insert(task)
+    context.insert(checklist)
+    try context.save()
+
+    var completedFilter = ArchiveFilter(dateBasis: .completed)
+    completedFilter.searchText = "fallback"
+    completedFilter.scope = .tasks
+    let completedPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: completedFilter,
+        referenceDate: try #require(DayKey.date(from: "2026-07-25"))
+    )
+
+    #expect(completedPage.records.map(\.dayKey) == ["2026-07-25"])
+    #expect(completedPage.records.first?.matchedChecklistItemIDs == [checklist.id])
+
+    var plannedFilter = completedFilter
+    plannedFilter.dateBasis = .planned
+    let plannedPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: plannedFilter,
+        referenceDate: try #require(DayKey.date(from: "2026-07-25"))
+    )
+    #expect(plannedPage.records.map(\.dayKey) == ["2026-07-23"])
+    #expect(plannedPage.records.first?.matchedChecklistItemIDs == [checklist.id])
+}
+
+@Test
+@MainActor
+func archivePaginationKeepsDelayedCompletionExactlyOnceAtPageBoundary() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let referenceDate = try #require(DayKey.date(from: "2026-07-31"))
+
+    for offset in 0...30 {
+        let completedDate = DayKey.addingDays(-offset, to: referenceDate)
+        let task = Task(
+            title: "완료 기록 \(offset)",
+            status: .done,
+            plannedAt: completedDate,
+            order: Double(offset)
+        )
+        task.completedAt = completedDate
+        task.completedDayKey = DayKey.key(for: completedDate)
+        context.insert(task)
+    }
+    let boundaryCompletionDate = DayKey.addingDays(-29, to: referenceDate)
+    let delayed = Task(
+        title: "페이지 경계 지연 완료",
+        status: .done,
+        plannedAt: DayKey.addingDays(-90, to: referenceDate),
+        order: 1_000
+    )
+    delayed.completedAt = boundaryCompletionDate
+    delayed.completedDayKey = DayKey.key(for: boundaryCompletionDate)
+    context.insert(delayed)
+    try context.save()
+
+    let filter = ArchiveFilter(dateBasis: .completed)
+    let firstPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: filter,
+        referenceDate: referenceDate
+    )
+    let secondPage = try BoundedQueryService.archivePage(
+        in: context,
+        filter: filter,
+        beforeDayKey: firstPage.nextBeforeDayKey,
+        referenceDate: referenceDate
+    )
+    let allTasks = (firstPage.records + secondPage.records).flatMap(\.tasks)
+
+    #expect(firstPage.records.count == BoundedQueryService.archivePageSize)
+    #expect(secondPage.records.count == 1)
+    #expect(allTasks.filter { $0.id == delayed.id }.count == 1)
+    #expect(firstPage.records.last?.tasks.contains { $0.id == delayed.id } == true)
+    #expect(!secondPage.records.flatMap(\.tasks).contains { $0.id == delayed.id })
+}
+
+@Test
+@MainActor
+func boundedDailyReviewTasksIncludePlannedAndEveryCompletionFallback() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let delayed = try EventReuseTaskHistoryFixtures.thursdayPlannedSaturdayCompleted()
+    let completedAtOnly = try EventReuseTaskHistoryFixtures.completedAtOnlyLegacyTask()
+    let archivedOnly = try EventReuseTaskHistoryFixtures.archivedOnlyLegacyTask()
+    [delayed, completedAtOnly, archivedOnly].forEach(context.insert)
+    try context.save()
+
+    let thursdayRows = try BoundedQueryService.dailyReviewTasks(
+        dayKey: "2026-07-23",
+        in: context
+    )
+    let saturdayRows = try BoundedQueryService.dailyReviewTasks(
+        dayKey: "2026-07-25",
+        in: context
+    )
+
+    #expect(Set(thursdayRows.map(\.id)) == Set([
+        delayed.id,
+        completedAtOnly.id,
+        archivedOnly.id
+    ]))
+    #expect(Set(saturdayRows.map(\.id)) == Set([
+        delayed.id,
+        completedAtOnly.id,
+        archivedOnly.id
+    ]))
+    #expect(thursdayRows.count == 3)
+    #expect(saturdayRows.count == 3)
+}
+
+@Test
+@MainActor
 func boundedReviewMediaAndArchiveCandidateDescriptorsUseExactOwners() throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
@@ -332,4 +505,40 @@ func boundedReviewMediaAndArchiveCandidateDescriptorsUseExactOwners() throws {
     #expect(try context.fetch(
         BoundedQueryService.tasksNeedingArchiveDescriptor(before: "2026-07-12")
     ).map(\.id) == [archivedCandidate.id])
+}
+
+@Test
+@MainActor
+func recentCalendarEventRecommendationsUseNewestFixedScanWindow() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-25"))
+
+    for index in 0..<205 {
+        context.insert(CalendarEvent(
+            title: "최근 일정 \(index)",
+            startAt: day,
+            endAt: day,
+            updatedAt: Date(timeIntervalSince1970: Double(index))
+        ))
+    }
+    let superseded = CalendarEvent(
+        title: "제외된 최신 일정",
+        startAt: day,
+        endAt: day,
+        updatedAt: Date(timeIntervalSince1970: 1_000),
+        supersededAt: Date(timeIntervalSince1970: 1_001)
+    )
+    context.insert(superseded)
+    try context.save()
+
+    let events = try context.fetch(
+        BoundedQueryService.recentCalendarEventsDescriptor()
+    )
+
+    #expect(BoundedQueryService.eventRecommendationScanLimit == 200)
+    #expect(events.count == 200)
+    #expect(events.first?.title == "최근 일정 204")
+    #expect(events.last?.title == "최근 일정 5")
+    #expect(!events.contains { $0.id == superseded.id })
 }
