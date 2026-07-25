@@ -701,7 +701,7 @@ Task의 최초 계획일과 재계획 이력도 현재 필드만으로는 복원
 - [ ] 실제 CloudKit 환경에서 transient 중복이 추천 목록에 중복 노출되지 않는지 확인한다.
 - [x] 새 일정 저장 후 iOS 위젯에 일정이 정상 반영되는지 확인한다.
 - [x] schema, migration, backup format, 호환 식별자에 의도하지 않은 diff가 없는지 확인한다.
-- [ ] 기능별 작은 커밋으로 정리한 뒤 최종 병합·push·TestFlight 순서로 진행한다.
+- [x] 기능별 작은 커밋으로 정리한 뒤 최종 병합·push·TestFlight 순서로 진행한다.
 
 완료 조건:
 
