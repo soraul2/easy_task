@@ -2,6 +2,20 @@ import SwiftData
 import SwiftUI
 import PlanBaseCore
 
+#if DEBUG
+enum PlanBaseDesktopLaunchEnvironment {
+    static var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    static var usesEventHistoryFixtures: Bool {
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-event-history-fixtures"
+        )
+    }
+}
+#endif
+
 @main
 @MainActor
 struct PlanBaseDesktopApp: App {
@@ -58,6 +72,9 @@ struct PlanBaseDesktopApp: App {
     private static func openPersistentStore() -> PersistenceState {
         do {
 #if DEBUG
+            if PlanBaseDesktopLaunchEnvironment.isUITesting {
+                return .ready(try PlanBaseContainerFactory.makeInMemory())
+            }
             _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
             let modelContainer = try PlanBaseContainerFactory.makeAppPersistent()

@@ -29,6 +29,16 @@ enum PlanBaseLaunchEnvironment {
         false
 #endif
     }
+
+    static var usesEventHistoryFixtures: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-event-history-fixtures"
+        )
+#else
+        false
+#endif
+    }
 }
 
 @main
@@ -404,6 +414,7 @@ private struct MobileAppRootView: View {
             try PersistenceCommandService.perform(in: modelContext) {
                 try seedDemoDataIfNeeded()
                 try seedReminderCompletionFixturesIfNeeded()
+                try seedEventHistoryFixturesIfNeeded()
                 try archiveTasksIfNeeded()
             }
         } catch {
@@ -507,6 +518,96 @@ private struct MobileAppRootView: View {
             plannedAt: yesterday,
             order: 1_200,
             reminderAt: futureReminder
+        ))
+#endif
+    }
+
+    private func seedEventHistoryFixturesIfNeeded() throws {
+#if DEBUG
+        guard PlanBaseLaunchEnvironment.usesEventHistoryFixtures else { return }
+        let fixturePrefix = "UI 검증:"
+        let existingTasks = try modelContext.fetch(FetchDescriptor<TodoTask>())
+        guard !existingTasks.contains(where: {
+            $0.title.hasPrefix(fixturePrefix)
+        }) else {
+            return
+        }
+
+        let now = Date()
+        let today = DayKey.startOfDay(for: now)
+        let plannedDay = DayKey.addingDays(-2, to: today)
+        let delayed = TodoTask(
+            title: "\(fixturePrefix) 지연 완료",
+            plannedAt: plannedDay,
+            order: 2_000
+        )
+        TaskRules.applyStatus(
+            .done,
+            to: delayed,
+            now: now,
+            completionDayKey: DayKey.key(for: today)
+        )
+        modelContext.insert(delayed)
+
+        let sameDay = TodoTask(
+            title: "\(fixturePrefix) 같은 날 완료",
+            plannedAt: today,
+            order: 2_100
+        )
+        TaskRules.applyStatus(
+            .done,
+            to: sameDay,
+            now: now,
+            completionDayKey: DayKey.key(for: today)
+        )
+        modelContext.insert(sameDay)
+
+        let baseUpdatedAt = now.addingTimeInterval(-600)
+        let eventDrafts: [(String, Int, CalendarEventColor, String?)] = [
+            ("공장", 3, .red, "설비 점검 메모"),
+            ("공장 정기 점검", 2, .green, "정기 점검 메모"),
+            ("공장", 1, .blue, nil),
+            ("공장 야간", 4, .purple, "야간 작업 메모"),
+            ("공장 출하", 5, .orange, "출하 메모")
+        ]
+        for (index, eventDraft) in eventDrafts.enumerated() {
+            modelContext.insert(CalendarEvent(
+                title: eventDraft.0,
+                startAt: today,
+                endAt: DayKey.addingDays(eventDraft.1 - 1, to: today),
+                note: eventDraft.3,
+                color: eventDraft.2.rawValue,
+                createdAt: baseUpdatedAt,
+                updatedAt: baseUpdatedAt.addingTimeInterval(Double(index))
+            ))
+        }
+
+        let transientID = UUID()
+        modelContext.insert(CalendarEvent(
+            id: transientID,
+            instanceID: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000001"
+            )!,
+            title: "공장 임시 중복",
+            startAt: today,
+            endAt: today,
+            note: "이전 중복",
+            color: CalendarEventColor.blue.rawValue,
+            createdAt: baseUpdatedAt,
+            updatedAt: baseUpdatedAt.addingTimeInterval(10)
+        ))
+        modelContext.insert(CalendarEvent(
+            id: transientID,
+            instanceID: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000002"
+            )!,
+            title: "공장 최신 중복",
+            startAt: today,
+            endAt: DayKey.addingDays(1, to: today),
+            note: "최신 중복",
+            color: CalendarEventColor.teal.rawValue,
+            createdAt: baseUpdatedAt,
+            updatedAt: baseUpdatedAt.addingTimeInterval(20)
         ))
 #endif
     }

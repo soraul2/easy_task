@@ -96,7 +96,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(archiveTab.waitForExistence(timeout: 15))
         archiveTab.tap()
 
-        let disclosure = app.buttons["그날 한 일 펼치기"].firstMatch
+        let disclosure = app.buttons["그날 완료한 일 펼치기"].firstMatch
         XCTAssertTrue(disclosure.waitForExistence(timeout: 10))
         let completedTaskTitle = app.staticTexts["완료 영역 접힘 확인"]
         XCTAssertFalse(completedTaskTitle.exists)
@@ -418,6 +418,163 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testEventHistoryVisualReferenceScreens() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-event-history-fixtures"
+        ]
+        app.launch()
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 15))
+
+        let archiveTab = tabBar.buttons["기록"]
+        archiveTab.tap()
+        XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["archive-overview"]
+                .waitForExistence(timeout: 10)
+        )
+        addReferenceScreenshot(named: "event-history-archive")
+
+        let boardTab = tabBar.buttons["칸반"]
+        boardTab.tap()
+        let reviewButton = app.buttons["review-compose-button"]
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 10))
+        reviewButton.tap()
+        XCTAssertTrue(app.navigationBars["회고 작성"].waitForExistence(timeout: 10))
+        app.buttons["작업 요약"].tap()
+        XCTAssertTrue(app.staticTexts["그날 실제 완료한 일"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "event-history-review")
+        app.buttons["취소"].tap()
+
+        let calendarTab = tabBar.buttons["캘린더"]
+        calendarTab.tap()
+        let addEventButton = app.buttons["이벤트 추가"]
+        XCTAssertTrue(addEventButton.waitForExistence(timeout: 10))
+        addEventButton.tap()
+        XCTAssertTrue(app.navigationBars["이벤트 추가"].waitForExistence(timeout: 10))
+        let eventTitleField = app.textFields["event-title-field"]
+        eventTitleField.tap()
+        eventTitleField.typeText("공")
+        XCTAssertTrue(
+            recommendationButtons(in: app).firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        addReferenceScreenshot(named: "event-history-event-editor")
+    }
+
+    @MainActor
+    func testEventHistoryDateBasisAndReviewAxes() {
+        let app = launchEventHistoryFixtureApp()
+        let tabBar = app.tabBars.firstMatch
+
+        tabBar.buttons["기록"].tap()
+        let overview = app.descendants(matching: .any)["archive-overview"]
+        XCTAssertTrue(overview.waitForExistence(timeout: 10))
+        XCTAssertTrue(overview.label.contains("계획 작업"))
+        XCTAssertTrue(overview.label.contains("완료 작업"))
+        XCTAssertTrue(overview.label.contains("완료일 기준"))
+
+        let disclosure = app.buttons["그날 완료한 일 펼치기"].firstMatch
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 10))
+        disclosure.tap()
+        XCTAssertTrue(app.staticTexts["UI 검증: 지연 완료"].waitForExistence(timeout: 5))
+        let dateMeaning = app.staticTexts.matching(
+            NSPredicate(
+                format: "label CONTAINS %@ AND label CONTAINS %@",
+                "계획일",
+                "완료일"
+            )
+        ).firstMatch
+        XCTAssertTrue(dateMeaning.waitForExistence(timeout: 5))
+
+        app.buttons["기록 필터"].tap()
+        XCTAssertTrue(app.navigationBars["검색 필터"].waitForExistence(timeout: 5))
+        let dateBasisPicker = app.descendants(matching: .any)[
+            "archive-date-basis-picker"
+        ]
+        XCTAssertTrue(dateBasisPicker.waitForExistence(timeout: 5))
+        let plannedBasis = app.buttons["계획일 기준"].firstMatch
+        XCTAssertTrue(plannedBasis.waitForExistence(timeout: 5))
+        plannedBasis.tap()
+        app.navigationBars["검색 필터"].buttons["완료"].tap()
+        XCTAssertTrue(
+            app.buttons["그날 계획한 일 펼치기"].firstMatch
+                .waitForExistence(timeout: 10)
+        )
+
+        tabBar.buttons["칸반"].tap()
+        let reviewButton = app.buttons["review-compose-button"]
+        XCTAssertTrue(reviewButton.waitForExistence(timeout: 10))
+        reviewButton.tap()
+        XCTAssertTrue(app.navigationBars["회고 작성"].waitForExistence(timeout: 10))
+        app.buttons["작업 요약"].tap()
+        XCTAssertTrue(app.staticTexts["그날 계획한 일"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["그날 실제 완료한 일"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["UI 검증: 지연 완료"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testCalendarRecommendationAndIndependentDuplicateFlow() {
+        let app = launchEventHistoryFixtureApp()
+        let tabBar = app.tabBars.firstMatch
+        tabBar.buttons["캘린더"].tap()
+
+        let addEventButton = app.buttons["이벤트 추가"]
+        XCTAssertTrue(addEventButton.waitForExistence(timeout: 10))
+        addEventButton.tap()
+        XCTAssertTrue(app.navigationBars["이벤트 추가"].waitForExistence(timeout: 5))
+
+        let titleField = app.textFields["event-title-field"]
+        titleField.tap()
+        titleField.typeText("공")
+        let recommendations = recommendationButtons(in: app)
+        XCTAssertTrue(recommendations.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(recommendations.count, 5)
+        recommendations.firstMatch.tap()
+        XCTAssertTrue(
+            app.staticTexts["이전 일정의 기간·색상·메모를 적용했어요"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(titleField.value as? String, "공")
+        app.navigationBars["이벤트 추가"].buttons["취소"].tap()
+
+        let todayCell = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label BEGINSWITH %@",
+                koreanDayDisplay(Date())
+            )
+        ).firstMatch
+        XCTAssertTrue(todayCell.waitForExistence(timeout: 10))
+        todayCell.tap()
+
+        let eventMenu = app.buttons["공장 출하 일정 메뉴"].firstMatch
+        XCTAssertTrue(eventMenu.waitForExistence(timeout: 10))
+        eventMenu.tap()
+        let duplicateAction = app.buttons["일정 복제"]
+        XCTAssertTrue(duplicateAction.waitForExistence(timeout: 5))
+        duplicateAction.tap()
+
+        let duplicateNavigation = app.navigationBars["이벤트 복제"]
+        XCTAssertTrue(duplicateNavigation.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["복제한 일정"].waitForExistence(timeout: 5))
+        XCTAssertEqual(
+            app.textFields["event-title-field"].value as? String,
+            "공장 출하"
+        )
+        duplicateNavigation.buttons["추가"].tap()
+        let confirmation = app.alerts["이벤트를 추가할까요?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["추가"].tap()
+        XCTAssertTrue(
+            app.staticTexts["독립된 복제 일정을 추가했어요"]
+                .waitForExistence(timeout: 8)
+        )
+    }
+
+    @MainActor
     private func launchReminderFixtureApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reminder-fixtures"]
@@ -427,6 +584,39 @@ final class PlanBaseLaunchUITests: XCTestCase {
                 .waitForExistence(timeout: 15)
         )
         return app
+    }
+
+    @MainActor
+    private func launchEventHistoryFixtureApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-event-history-fixtures"
+        ]
+        app.launch()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))
+        return app
+    }
+
+    @MainActor
+    private func recommendationButtons(
+        in app: XCUIApplication
+    ) -> XCUIElementQuery {
+        app.buttons.matching(
+            NSPredicate(
+                format: "label BEGINSWITH %@",
+                "최근 일정 적용."
+            )
+        )
+    }
+
+    private func koreanDayDisplay(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy.MM.dd E"
+        return formatter.string(from: date)
     }
 
     @MainActor
@@ -466,5 +656,13 @@ final class PlanBaseLaunchUITests: XCTestCase {
             object: element
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func addReferenceScreenshot(named name: String) {
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = name
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 }

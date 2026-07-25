@@ -146,6 +146,7 @@ struct AppRootView: View {
             }
             try PersistenceCommandService.perform(in: modelContext) {
                 try seedDemoDataIfNeeded()
+                try seedEventHistoryFixturesIfNeeded()
                 try archiveTasksIfNeeded()
             }
         } catch {
@@ -154,8 +155,14 @@ struct AppRootView: View {
     }
 
     private func seedDemoDataIfNeeded() throws {
+#if DEBUG
+        let demoCloudKitEnabled =
+            cloudKitEnabled && !PlanBaseDesktopLaunchEnvironment.isUITesting
+#else
+        let demoCloudKitEnabled = cloudKitEnabled
+#endif
         let policy = SeedPolicy.appStartup(
-            cloudKitEnabled: cloudKitEnabled
+            cloudKitEnabled: demoCloudKitEnabled
         )
         guard case .demo = policy else { return }
 
@@ -171,6 +178,98 @@ struct AppRootView: View {
             reviews: reviews,
             policy: policy
         )
+    }
+
+    private func seedEventHistoryFixturesIfNeeded() throws {
+#if DEBUG
+        guard PlanBaseDesktopLaunchEnvironment.usesEventHistoryFixtures else {
+            return
+        }
+        let fixturePrefix = "UI 검증:"
+        let existingTasks = try modelContext.fetch(FetchDescriptor<Task>())
+        guard !existingTasks.contains(where: {
+            $0.title.hasPrefix(fixturePrefix)
+        }) else {
+            return
+        }
+
+        let now = Date()
+        let today = DayKey.startOfDay(for: now)
+        let plannedDay = DayKey.addingDays(-2, to: today)
+        let delayed = Task(
+            title: "\(fixturePrefix) 지연 완료",
+            plannedAt: plannedDay,
+            order: 2_000
+        )
+        TaskRules.applyStatus(
+            .done,
+            to: delayed,
+            now: now,
+            completionDayKey: DayKey.key(for: today)
+        )
+        modelContext.insert(delayed)
+
+        let sameDay = Task(
+            title: "\(fixturePrefix) 같은 날 완료",
+            plannedAt: today,
+            order: 2_100
+        )
+        TaskRules.applyStatus(
+            .done,
+            to: sameDay,
+            now: now,
+            completionDayKey: DayKey.key(for: today)
+        )
+        modelContext.insert(sameDay)
+
+        let baseUpdatedAt = now.addingTimeInterval(-600)
+        let eventDrafts: [(String, Int, CalendarEventColor, String?)] = [
+            ("공장", 3, .red, "설비 점검 메모"),
+            ("공장 정기 점검", 2, .green, "정기 점검 메모"),
+            ("공장", 1, .blue, nil),
+            ("공장 야간", 4, .purple, "야간 작업 메모"),
+            ("공장 출하", 5, .orange, "출하 메모")
+        ]
+        for (index, eventDraft) in eventDrafts.enumerated() {
+            modelContext.insert(CalendarEvent(
+                title: eventDraft.0,
+                startAt: today,
+                endAt: DayKey.addingDays(eventDraft.1 - 1, to: today),
+                note: eventDraft.3,
+                color: eventDraft.2.rawValue,
+                createdAt: baseUpdatedAt,
+                updatedAt: baseUpdatedAt.addingTimeInterval(Double(index))
+            ))
+        }
+
+        let transientID = UUID()
+        modelContext.insert(CalendarEvent(
+            id: transientID,
+            instanceID: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000001"
+            )!,
+            title: "공장 임시 중복",
+            startAt: today,
+            endAt: today,
+            note: "이전 중복",
+            color: CalendarEventColor.blue.rawValue,
+            createdAt: baseUpdatedAt,
+            updatedAt: baseUpdatedAt.addingTimeInterval(10)
+        ))
+        modelContext.insert(CalendarEvent(
+            id: transientID,
+            instanceID: UUID(
+                uuidString: "00000000-0000-0000-0000-000000000002"
+            )!,
+            title: "공장 최신 중복",
+            startAt: today,
+            endAt: DayKey.addingDays(1, to: today),
+            note: "최신 중복",
+            color: CalendarEventColor.teal.rawValue,
+            createdAt: baseUpdatedAt,
+            updatedAt: baseUpdatedAt.addingTimeInterval(20)
+        ))
+#endif
     }
 
     private func archiveTasksIfNeeded(todayKey: String = DayKey.today) throws {
