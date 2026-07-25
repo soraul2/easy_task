@@ -10,6 +10,7 @@ struct CalendarEventSegmentButton: View {
     var xOffset: CGFloat
     var yOffset: CGFloat
     var onEdit: (CalendarEvent) -> Void
+    var onDuplicate: (CalendarEvent) -> Void
     var onDelete: (CalendarEvent) -> Void
 
     var body: some View {
@@ -23,6 +24,11 @@ struct CalendarEventSegmentButton: View {
         .frame(width: width, height: height)
         .offset(x: xOffset, y: yOffset)
         .contextMenu {
+            Button {
+                onDuplicate(event)
+            } label: {
+                Label("일정 복제", systemImage: "doc.on.doc")
+            }
             Button(role: .destructive) {
                 onDelete(event)
             } label: {

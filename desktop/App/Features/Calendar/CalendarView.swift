@@ -4,6 +4,7 @@ import PlanBaseCore
 
 private enum CalendarSheet: Identifiable {
     case addEvent
+    case duplicateEvent(UUID)
     case templatePlacement
     case editEvent(UUID)
     case day(Date)
@@ -11,6 +12,7 @@ private enum CalendarSheet: Identifiable {
     var id: String {
         switch self {
         case .addEvent: "addEvent"
+        case .duplicateEvent(let id): "duplicateEvent-\(id.uuidString)"
         case .templatePlacement: "templatePlacement"
         case .editEvent(let id): "editEvent-\(id.uuidString)"
         case .day(let date): "day-\(DayKey.key(for: date))"
@@ -131,6 +133,19 @@ struct CalendarView: View {
                     endDate: $endDate,
                     color: $selectedEventColor,
                     note: $note,
+                    onAdd: addEvent
+                )
+            case .duplicateEvent(let eventInstanceID):
+                AddEventSheet(
+                    title: $title,
+                    startDate: $startDate,
+                    endDate: $endDate,
+                    color: $selectedEventColor,
+                    note: $note,
+                    isDuplicate: true,
+                    excludingEventID: events.first {
+                        $0.instanceID == eventInstanceID
+                    }?.id,
                     onAdd: addEvent
                 )
             case .templatePlacement:
@@ -467,6 +482,9 @@ struct CalendarView: View {
                             onEdit: { event in
                                 presentedSheet = .editEvent(event.instanceID)
                             },
+                            onDuplicate: { event in
+                                prepareDuplicateEvent(event)
+                            },
                             onDelete: { event in
                                 if let failureMessage = removeEvent(event) {
                                     calendarMessage = failureMessage
@@ -486,12 +504,15 @@ struct CalendarView: View {
     }
 
     private func addEvent() -> String? {
-        guard let event = CalendarEventRules.makeEvent(
+        let draft = CalendarEventReuseDraft(
             title: title,
             startAt: startDate,
             endAt: endDate,
             note: note,
             color: selectedEventColor
+        )
+        guard let event = CalendarEventReuseRules.makeIndependentEvent(
+            from: draft
         ) else {
             return "이벤트 정보를 확인해 주세요."
         }
@@ -523,6 +544,19 @@ struct CalendarView: View {
         endDate = normalizedDate
         selectedEventColor = CalendarEventPalette.defaultColor
         presentedSheet = .addEvent
+    }
+
+    private func prepareDuplicateEvent(_ event: CalendarEvent) {
+        let draft = CalendarEventReuseRules.duplicateDraft(
+            from: event,
+            targetStartAt: selectedDate
+        )
+        title = draft.title
+        note = draft.note ?? ""
+        startDate = draft.startAt
+        endDate = draft.endAt
+        selectedEventColor = draft.color ?? CalendarEventPalette.defaultColor
+        presentedSheet = .duplicateEvent(event.instanceID)
     }
 
     private func openDayDetails(for date: Date) {

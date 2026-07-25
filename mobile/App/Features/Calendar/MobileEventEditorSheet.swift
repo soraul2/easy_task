@@ -6,11 +6,14 @@ import SwiftUI
 enum MobileEventEditorRoute: Identifiable {
     case add(Date)
     case edit(CalendarEvent)
+    case duplicate(CalendarEvent, Date)
 
     var id: String {
         switch self {
         case .add(let date): "add-\(DayKey.key(for: date))"
         case .edit(let event): "edit-\(event.id.uuidString)"
+        case .duplicate(let event, let date):
+            "duplicate-\(event.instanceID.uuidString)-\(DayKey.key(for: date))"
         }
     }
 }
@@ -29,6 +32,8 @@ struct MobileEventEditorSheet: View {
     var initialDate: Date
     var event: CalendarEvent?
     var onComplete: ((String) -> Void)?
+    private let isDuplicating: Bool
+    private let excludedRecommendationEventID: UUID?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -40,6 +45,8 @@ struct MobileEventEditorSheet: View {
     @State private var showingAddConfirmation = false
     @State private var showingDeleteConfirmation = false
     @State private var linkedTaskCount = 0
+    @State private var recommendationSession: CalendarEventRecommendationSession?
+    @State private var recommendationFeedback: String?
 
     private var isEditing: Bool {
         event != nil
@@ -60,16 +67,27 @@ struct MobileEventEditorSheet: View {
     init(
         initialDate: Date,
         event: CalendarEvent? = nil,
+        duplicateDraft: CalendarEventReuseDraft? = nil,
         onComplete: ((String) -> Void)? = nil
     ) {
         self.initialDate = initialDate
         self.event = event
         self.onComplete = onComplete
-        _title = State(initialValue: event?.title ?? "")
-        _note = State(initialValue: event?.note ?? "")
-        _startDate = State(initialValue: event?.startAt ?? initialDate)
-        _endDate = State(initialValue: event?.endAt ?? initialDate)
-        _color = State(initialValue: event?.color ?? CalendarEventPalette.defaultColor)
+        isDuplicating = duplicateDraft != nil
+        excludedRecommendationEventID = event?.id ?? duplicateDraft?.sourceEventID
+        _title = State(initialValue: duplicateDraft?.title ?? event?.title ?? "")
+        _note = State(initialValue: duplicateDraft?.note ?? event?.note ?? "")
+        _startDate = State(
+            initialValue: duplicateDraft?.startAt ?? event?.startAt ?? initialDate
+        )
+        _endDate = State(
+            initialValue: duplicateDraft?.endAt ?? event?.endAt ?? initialDate
+        )
+        _color = State(
+            initialValue: duplicateDraft?.color
+                ?? event?.color
+                ?? CalendarEventPalette.defaultColor
+        )
     }
 
     var body: some View {
@@ -84,7 +102,45 @@ struct MobileEventEditorSheet: View {
                     .listRowBackground(AppTheme.panel)
                 }
                 Section("일정") {
+                    if isDuplicating {
+                        Label("복제한 일정", systemImage: "doc.on.doc")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
+                    }
                     TextField("큰 일정 또는 작업 맥락", text: $title)
+                        .accessibilityIdentifier("event-title-field")
+                    if let recommendations = recommendationSession?.recommendations,
+                       !recommendations.isEmpty {
+                        ForEach(recommendations) { recommendation in
+                            Button {
+                                applyRecommendation(recommendation)
+                            } label: {
+                                Text(recommendation.summary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.primaryText)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier(
+                                "event-recommendation-\(recommendation.instanceID.uuidString)"
+                            )
+                            .accessibilityLabel(
+                                "최근 일정 적용. \(recommendation.summary)"
+                            )
+                            .accessibilityHint(
+                                "현재 시작일은 유지하고 기간, 색상, 메모를 적용합니다"
+                            )
+                        }
+                    }
+                    if let recommendationFeedback {
+                        Text(recommendationFeedback)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .accessibilityLabel(recommendationFeedback)
+                    }
                 }
                 .listRowBackground(AppTheme.panel)
                 Section("기간") {
@@ -115,7 +171,9 @@ struct MobileEventEditorSheet: View {
             .background(AppTheme.background)
             .foregroundStyle(AppTheme.primaryText)
             .tint(AppTheme.event)
-            .navigationTitle(isEditing ? "이벤트 편집" : "이벤트 추가")
+            .navigationTitle(
+                isEditing ? "이벤트 편집" : (isDuplicating ? "이벤트 복제" : "이벤트 추가")
+            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") { dismiss() }
@@ -141,7 +199,11 @@ struct MobileEventEditorSheet: View {
                     }
                 }
             } message: {
-                Text("\"\(trimmedTitle)\" 이벤트를 \(DayKey.display(normalizedStartDate))부터 \(DayKey.display(normalizedEndDate))까지 추가합니다.")
+                Text(
+                    "\"\(trimmedTitle)\" 이벤트를 \(DayKey.display(normalizedStartDate))부터 " +
+                        "\(DayKey.display(normalizedEndDate))까지 " +
+                        (isDuplicating ? "원본과 독립된 일정으로 추가합니다." : "추가합니다.")
+                )
             }
             .alert("이벤트를 삭제할까요?", isPresented: $showingDeleteConfirmation) {
                 Button("취소", role: .cancel) {}
@@ -159,6 +221,22 @@ struct MobileEventEditorSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.background)
+        .task {
+            guard recommendationSession == nil else { return }
+            let session = CalendarEventRecommendationSession(context: modelContext)
+            recommendationSession = session
+            session.update(
+                title: title,
+                excludingEventID: excludedRecommendationEventID
+            )
+        }
+        .onChange(of: title) {
+            recommendationFeedback = nil
+            recommendationSession?.update(
+                title: title,
+                excludingEventID: excludedRecommendationEventID
+            )
+        }
     }
 
     @discardableResult
@@ -176,12 +254,15 @@ struct MobileEventEditorSheet: View {
                         color: color
                     )
                 }
-                guard let event = CalendarEventRules.makeEvent(
+                let draft = CalendarEventReuseDraft(
                     title: trimmedTitle,
                     startAt: startDate,
                     endAt: endDate,
                     note: note,
                     color: color
+                )
+                guard let event = CalendarEventReuseRules.makeIndependentEvent(
+                    from: draft
                 ) else {
                     return false
                 }
@@ -193,10 +274,20 @@ struct MobileEventEditorSheet: View {
                 return false
             }
 
-            onComplete?(isEditing ? "이벤트를 저장했어요" : "이벤트를 추가했어요")
+            onComplete?(
+                isEditing
+                    ? "이벤트를 저장했어요"
+                    : (isDuplicating
+                        ? "독립된 복제 일정을 추가했어요"
+                        : "이벤트를 추가했어요")
+            )
             return true
         } catch {
-            message = isEditing ? "이벤트를 저장하지 못했어요" : "이벤트를 추가하지 못했어요"
+            message = isEditing
+                ? "이벤트를 저장하지 못했어요"
+                : (isDuplicating
+                    ? "복제 일정을 추가하지 못했어요"
+                    : "이벤트를 추가하지 못했어요")
             return false
         }
     }
@@ -236,6 +327,29 @@ struct MobileEventEditorSheet: View {
         } catch {
             message = "이벤트 정보를 불러오지 못했어요"
         }
+    }
+
+    private func applyRecommendation(
+        _ recommendation: CalendarEventRecommendation
+    ) {
+        let current = CalendarEventReuseDraft(
+            title: title,
+            startAt: startDate,
+            endAt: endDate,
+            note: note,
+            color: color,
+            sourceEventID: excludedRecommendationEventID
+        )
+        let applied = CalendarEventReuseRules.applying(
+            recommendation,
+            to: current
+        )
+        startDate = applied.startAt
+        endDate = applied.endAt
+        note = applied.note ?? ""
+        color = applied.color ?? CalendarEventPalette.defaultColor
+        recommendationFeedback = "이전 일정의 기간·색상·메모를 적용했어요"
+        recommendationSession?.dismissRecommendations()
     }
 }
 

@@ -37,6 +37,7 @@ struct DesktopCalendarDayQueryHost: View {
 private enum DesktopDayEventSheet: Identifiable {
     case add
     case edit(UUID)
+    case duplicate(UUID)
 
     var id: String {
         switch self {
@@ -44,6 +45,8 @@ private enum DesktopDayEventSheet: Identifiable {
             "add"
         case .edit(let instanceID):
             "edit-\(instanceID.uuidString)"
+        case .duplicate(let instanceID):
+            "duplicate-\(instanceID.uuidString)"
         }
     }
 }
@@ -63,6 +66,7 @@ private struct DesktopCalendarDayInspector: View {
     @State private var eventEndDate: Date
     @State private var eventColor = CalendarEventPalette.defaultColor
     @State private var eventNote = ""
+    @State private var eventIsDuplicate = false
     @State private var pendingDeleteEvent: CalendarEvent?
     @State private var pendingDeleteEventLinkedTaskCount = 0
     @State private var pendingDeletePlacement: TemplatePlacement?
@@ -167,6 +171,19 @@ private struct DesktopCalendarDayInspector: View {
                     endDate: $eventEndDate,
                     color: $eventColor,
                     note: $eventNote,
+                    onAdd: addEvent
+                )
+            case .duplicate(let eventInstanceID):
+                AddEventSheet(
+                    title: $eventTitle,
+                    startDate: $eventStartDate,
+                    endDate: $eventEndDate,
+                    color: $eventColor,
+                    note: $eventNote,
+                    isDuplicate: true,
+                    excludingEventID: events.first {
+                        $0.instanceID == eventInstanceID
+                    }?.id,
                     onAdd: addEvent
                 )
             case .edit(let eventInstanceID):
@@ -276,6 +293,18 @@ private struct DesktopCalendarDayInspector: View {
                     .overlay {
                         RoundedRectangle(cornerRadius: 9)
                             .stroke(AppTheme.border, lineWidth: 1)
+                    }
+                    .contextMenu {
+                        Button {
+                            prepareDuplicateEvent(event)
+                        } label: {
+                            Label("일정 복제", systemImage: "doc.on.doc")
+                        }
+                        Button(role: .destructive) {
+                            requestEventDeletion(event)
+                        } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -387,16 +416,34 @@ private struct DesktopCalendarDayInspector: View {
         eventStartDate = DayKey.startOfDay(for: date)
         eventEndDate = DayKey.startOfDay(for: date)
         eventColor = CalendarEventPalette.defaultColor
+        eventIsDuplicate = false
         eventSheet = .add
     }
 
+    private func prepareDuplicateEvent(_ event: CalendarEvent) {
+        let draft = CalendarEventReuseRules.duplicateDraft(
+            from: event,
+            targetStartAt: date
+        )
+        eventTitle = draft.title
+        eventNote = draft.note ?? ""
+        eventStartDate = draft.startAt
+        eventEndDate = draft.endAt
+        eventColor = draft.color ?? CalendarEventPalette.defaultColor
+        eventIsDuplicate = true
+        eventSheet = .duplicate(event.instanceID)
+    }
+
     private func addEvent() -> String? {
-        guard let event = CalendarEventRules.makeEvent(
+        let draft = CalendarEventReuseDraft(
             title: eventTitle,
             startAt: eventStartDate,
             endAt: eventEndDate,
             note: eventNote,
             color: eventColor
+        )
+        guard let event = CalendarEventReuseRules.makeIndependentEvent(
+            from: draft
         ) else {
             return "이벤트 정보를 확인해 주세요."
         }
@@ -405,7 +452,10 @@ private struct DesktopCalendarDayInspector: View {
             try PersistenceCommandService.perform(in: modelContext) {
                 modelContext.insert(event)
             }
-            notice = "이벤트를 추가했어요."
+            notice = eventIsDuplicate
+                ? "독립된 복제 일정을 추가했어요."
+                : "이벤트를 추가했어요."
+            eventIsDuplicate = false
             return nil
         } catch {
             return "이벤트를 추가하지 못했어요."

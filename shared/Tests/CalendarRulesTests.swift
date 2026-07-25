@@ -79,6 +79,283 @@ func calendarEventRulesNormalizeDraftAndUpdateEvent() throws {
 }
 
 @Test
+func calendarEventReuseBuildsSingleAndCrossMonthDrafts() throws {
+    let singleDay = try #require(DayKey.date(from: "2026-07-25"))
+    let crossMonthStart = try #require(DayKey.date(from: "2026-01-30"))
+    let crossMonthEnd = try #require(DayKey.date(from: "2026-02-02"))
+    let target = try #require(DayKey.date(from: "2026-02-27"))
+    let single = CalendarEvent(
+        title: "하루 공장",
+        startAt: singleDay,
+        endAt: singleDay,
+        note: "설비 점검",
+        color: CalendarEventColor.red.rawValue
+    )
+    let crossMonth = CalendarEvent(
+        title: "월 경계 공장",
+        startAt: crossMonthStart,
+        endAt: crossMonthEnd,
+        note: "4일 일정",
+        color: CalendarEventColor.blue.rawValue
+    )
+
+    let singleDraft = CalendarEventReuseRules.duplicateDraft(
+        from: single,
+        targetStartAt: target
+    )
+    let crossMonthDraft = CalendarEventReuseRules.duplicateDraft(
+        from: crossMonth,
+        targetStartAt: target
+    )
+
+    #expect(singleDraft.includedDayCount == 1)
+    #expect(singleDraft.startAt == singleDraft.endAt)
+    #expect(crossMonthDraft.title == "월 경계 공장")
+    #expect(crossMonthDraft.note == "4일 일정")
+    #expect(crossMonthDraft.color == CalendarEventColor.blue.rawValue)
+    #expect(crossMonthDraft.sourceEventID == crossMonth.id)
+    #expect(crossMonthDraft.includedDayCount == 4)
+    #expect(DayKey.key(for: crossMonthDraft.startAt) == "2026-02-27")
+    #expect(DayKey.key(for: crossMonthDraft.endAt) == "2026-03-02")
+}
+
+@Test
+func calendarEventReusePreservesDayCountAcrossDST() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+    let sourceStart = try #require(calendar.date(from: DateComponents(
+        year: 2026,
+        month: 3,
+        day: 7
+    )))
+    let sourceEnd = try #require(calendar.date(from: DateComponents(
+        year: 2026,
+        month: 3,
+        day: 9
+    )))
+    let targetStart = try #require(calendar.date(from: DateComponents(
+        year: 2026,
+        month: 10,
+        day: 31
+    )))
+    let source = CalendarEvent(
+        title: "DST 경계 일정",
+        startAt: sourceStart,
+        endAt: sourceEnd
+    )
+
+    let draft = CalendarEventReuseRules.duplicateDraft(
+        from: source,
+        targetStartAt: targetStart,
+        calendar: calendar
+    )
+
+    #expect(CalendarEventReuseRules.includedDayCount(
+        from: sourceStart,
+        through: sourceEnd,
+        calendar: calendar
+    ) == 3)
+    #expect(CalendarEventReuseRules.includedDayCount(
+        from: draft.startAt,
+        through: draft.endAt,
+        calendar: calendar
+    ) == 3)
+    #expect(DayKey.key(for: draft.startAt, calendar: calendar) == "2026-10-31")
+    #expect(DayKey.key(for: draft.endAt, calendar: calendar) == "2026-11-02")
+}
+
+@Test
+func calendarEventReuseMakesIndependentIdentifiersAndKeepsTaskLinkOnSource() throws {
+    let day = try #require(DayKey.date(from: "2026-07-25"))
+    let target = try #require(DayKey.date(from: "2026-08-03"))
+    let now = Date(timeIntervalSince1970: 1_000)
+    let source = CalendarEvent(
+        title: "공장",
+        startAt: day,
+        endAt: DayKey.addingDays(2, to: day),
+        note: "원본 메모",
+        color: CalendarEventColor.red.rawValue
+    )
+    let linkedTask = Task(
+        title: "원본 연결 작업",
+        plannedAt: day,
+        order: 100,
+        eventId: source.id
+    )
+    let draft = CalendarEventReuseRules.duplicateDraft(
+        from: source,
+        targetStartAt: target
+    )
+    let duplicate = try #require(
+        CalendarEventReuseRules.makeIndependentEvent(
+            from: draft,
+            now: now
+        )
+    )
+
+    #expect(duplicate.id != source.id)
+    #expect(duplicate.instanceID != source.instanceID)
+    #expect(duplicate.title == source.title)
+    #expect(duplicate.note == source.note)
+    #expect(duplicate.color == source.color)
+    #expect(duplicate.createdAt == now)
+    #expect(duplicate.updatedAt == now)
+    #expect(linkedTask.eventId == source.id)
+    #expect(linkedTask.eventId != duplicate.id)
+}
+
+@Test
+func calendarEventRecommendationsPrioritizeExactThenRecentPrefixMatches() throws {
+    let day = try #require(DayKey.date(from: "2026-07-25"))
+    let exact = CalendarEvent(
+        title: "Factory",
+        startAt: day,
+        endAt: day,
+        color: CalendarEventColor.blue.rawValue,
+        updatedAt: Date(timeIntervalSince1970: 100)
+    )
+    let newerPrefix = CalendarEvent(
+        title: "Factory audit",
+        startAt: day,
+        endAt: DayKey.addingDays(1, to: day),
+        note: "점검",
+        color: CalendarEventColor.red.rawValue,
+        updatedAt: Date(timeIntervalSince1970: 300)
+    )
+    let olderPrefix = CalendarEvent(
+        title: "FACTORY setup",
+        startAt: day,
+        endAt: DayKey.addingDays(2, to: day),
+        color: CalendarEventColor.green.rawValue,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+
+    let recommendations = CalendarEventReuseRules.recommendations(
+        for: "  fAcToRy  ",
+        from: [newerPrefix, olderPrefix, exact]
+    )
+
+    #expect(recommendations.map(\.title) == [
+        "Factory",
+        "Factory audit",
+        "FACTORY setup"
+    ])
+    #expect(recommendations[1].summary == "Factory audit · 2일 · 빨강 · 메모 있음")
+}
+
+@Test
+func calendarEventRecommendationsConvergeLogicalAndSettingsDuplicates() throws {
+    let transientDuplicates = try EventReuseTaskHistoryFixtures.transientDuplicateEvents()
+    let day = try #require(DayKey.date(from: "2026-07-20"))
+    let sameSettings = CalendarEvent(
+        title: "공장 최신 중복",
+        startAt: day,
+        endAt: DayKey.addingDays(1, to: day),
+        note: "최신",
+        color: CalendarEventColor.red.rawValue,
+        updatedAt: Date(timeIntervalSince1970: 150)
+    )
+    let superseded = CalendarEvent(
+        title: "공장 폐기",
+        startAt: day,
+        endAt: day,
+        updatedAt: Date(timeIntervalSince1970: 400),
+        supersededAt: Date(timeIntervalSince1970: 500)
+    )
+
+    let recommendations = CalendarEventReuseRules.recommendations(
+        for: "공",
+        from: transientDuplicates + [sameSettings, superseded]
+    )
+
+    #expect(recommendations.count == 1)
+    #expect(recommendations.first?.title == "공장 최신 중복")
+    #expect(recommendations.first?.instanceID == transientDuplicates[1].instanceID)
+}
+
+@Test
+func calendarEventRecommendationsLimitExcludeAndApplyOnlyReusableSettings() throws {
+    let day = try #require(DayKey.date(from: "2026-07-25"))
+    let events = (0..<7).map { index in
+        CalendarEvent(
+            title: "공장 \(index)",
+            startAt: day,
+            endAt: DayKey.addingDays(index, to: day),
+            note: index.isMultiple(of: 2) ? "메모 \(index)" : nil,
+            color: CalendarEventColor.allCases[
+                index % CalendarEventColor.allCases.count
+            ].rawValue,
+            updatedAt: Date(timeIntervalSince1970: Double(100 + index))
+        )
+    }
+
+    let recommendations = CalendarEventReuseRules.recommendations(
+        for: "공장",
+        from: events,
+        excludingEventID: events[6].id
+    )
+    let inputStart = try #require(DayKey.date(from: "2026-08-10"))
+    let currentDraft = CalendarEventReuseDraft(
+        title: "공장 새 입력",
+        startAt: inputStart,
+        endAt: inputStart,
+        note: "사용자 메모",
+        color: CalendarEventColor.teal.rawValue,
+        sourceEventID: events[6].id
+    )
+    let applied = CalendarEventReuseRules.applying(
+        try #require(recommendations.first),
+        to: currentDraft
+    )
+
+    #expect(recommendations.count == CalendarEventReuseRules.recommendationLimit)
+    #expect(!recommendations.contains { $0.eventID == events[6].id })
+    #expect(applied.title == currentDraft.title)
+    #expect(applied.startAt == currentDraft.startAt)
+    #expect(applied.includedDayCount == recommendations[0].includedDayCount)
+    #expect(applied.note == recommendations[0].note)
+    #expect(applied.color == recommendations[0].color)
+    #expect(applied.sourceEventID == currentDraft.sourceEventID)
+    #expect(CalendarEventReuseRules.recommendations(
+        for: "   ",
+        from: events
+    ).isEmpty)
+}
+
+@Test
+@MainActor
+func calendarEventRecommendationSessionCancelsOlderTitleQuery() async throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = try #require(DayKey.date(from: "2026-07-25"))
+    context.insert(CalendarEvent(
+        title: "이전 제목",
+        startAt: day,
+        endAt: day,
+        updatedAt: Date(timeIntervalSince1970: 100)
+    ))
+    context.insert(CalendarEvent(
+        title: "최신 제목",
+        startAt: day,
+        endAt: day,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    ))
+    try context.save()
+
+    let session = CalendarEventRecommendationSession(context: context)
+    session.update(title: "이전", debounce: .milliseconds(20))
+    session.update(title: "최신", debounce: .milliseconds(20))
+    for _ in 0..<100 where session.isLoading {
+        try await Swift.Task.sleep(for: .milliseconds(20))
+    }
+
+    #expect(!session.isLoading)
+    #expect(session.recommendations.map(\.title) == ["최신 제목"])
+    session.dismissRecommendations()
+    #expect(session.recommendations.isEmpty)
+}
+
+@Test
 func calendarEventRulesQueryEventsByDayAndRangeInStableOrder() throws {
     let july6 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 6)))
     let july7 = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 7)))

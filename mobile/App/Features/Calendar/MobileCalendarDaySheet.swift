@@ -99,15 +99,36 @@ private struct MobileCalendarDaySheet: View {
                             .buttonStyle(.borderless)
                             .accessibilityLabel("이벤트 편집")
 
-                            Button(role: .destructive) {
-                                requestEventDeletion(event)
+                            Menu {
+                                Button {
+                                    duplicateEvent(event)
+                                } label: {
+                                    Label("일정 복제", systemImage: "doc.on.doc")
+                                }
+                                Button(role: .destructive) {
+                                    requestEventDeletion(event)
+                                } label: {
+                                    Label("삭제", systemImage: "trash")
+                                }
                             } label: {
-                                Image(systemName: "trash")
+                                Image(systemName: "ellipsis")
                                     .frame(width: 44, height: 44)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderless)
-                            .accessibilityLabel("이벤트 삭제")
+                            .accessibilityLabel("\(event.title) 일정 메뉴")
+                        }
+                        .contextMenu {
+                            Button {
+                                duplicateEvent(event)
+                            } label: {
+                                Label("일정 복제", systemImage: "doc.on.doc")
+                            }
+                            Button(role: .destructive) {
+                                requestEventDeletion(event)
+                            } label: {
+                                Label("삭제", systemImage: "trash")
+                            }
                         }
                     }
                 }
@@ -224,6 +245,15 @@ private struct MobileCalendarDaySheet: View {
                     event: event,
                     onComplete: showDayNotice
                 )
+            case .duplicate(let event, let targetDate):
+                MobileEventEditorSheet(
+                    initialDate: targetDate,
+                    duplicateDraft: CalendarEventReuseRules.duplicateDraft(
+                        from: event,
+                        targetStartAt: targetDate
+                    ),
+                    onComplete: showDayNotice
+                )
             }
         }
     }
@@ -249,6 +279,13 @@ private struct MobileCalendarDaySheet: View {
         } catch {
             showDayNotice("이벤트 정보를 불러오지 못했어요")
         }
+    }
+
+    private func duplicateEvent(_ event: CalendarEvent) {
+        eventEditorRoute = .duplicate(
+            event,
+            DayKey.startOfDay(for: date)
+        )
     }
 
     private func requestPlacementDeletion(_ placement: TemplatePlacement) {

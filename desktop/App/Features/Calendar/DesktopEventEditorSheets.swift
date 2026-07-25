@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import PlanBaseCore
 
@@ -7,9 +8,15 @@ struct AddEventSheet: View {
     @Binding var endDate: Date
     @Binding var color: String
     @Binding var note: String
+    var isDuplicate = false
+    var excludingEventID: UUID? = nil
     var onAdd: () -> String?
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var message: String?
+    @State private var recommendationSession: CalendarEventRecommendationSession?
+    @State private var selectedRecommendationIndex: Int?
+    @State private var recommendationFeedback: String?
 
     private var canAdd: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -17,20 +24,28 @@ struct AddEventSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("이벤트 추가")
+            Text(isDuplicate ? "이벤트 복제" : "이벤트 추가")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(AppTheme.primaryText)
 
-            TextField("큰 일정 또는 작업 맥락", text: $title)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(10)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
+            if isDuplicate {
+                Label("복제한 일정", systemImage: "doc.on.doc")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
+            }
+
+            DesktopEventTitleEditor(
+                title: $title,
+                recommendations: recommendationSession?.recommendations ?? [],
+                selectedIndex: $selectedRecommendationIndex,
+                feedback: recommendationFeedback,
+                onSelect: applyRecommendation,
+                onDismiss: {
+                    recommendationSession?.dismissRecommendations()
+                    selectedRecommendationIndex = nil
                 }
+            )
 
             EventDateRangeEditor(startDate: $startDate, endDate: $endDate)
 
@@ -61,7 +76,10 @@ struct AddEventSheet: View {
                         dismiss()
                     }
                 } label: {
-                    Label("추가", systemImage: "plus")
+                    Label(
+                        isDuplicate ? "복제 추가" : "추가",
+                        systemImage: isDuplicate ? "doc.on.doc" : "plus"
+                    )
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canAdd)
@@ -70,6 +88,46 @@ struct AddEventSheet: View {
         .padding(22)
         .frame(width: 380)
         .background(AppTheme.panel)
+        .task {
+            guard recommendationSession == nil else { return }
+            let session = CalendarEventRecommendationSession(context: modelContext)
+            recommendationSession = session
+            session.update(
+                title: title,
+                excludingEventID: excludingEventID
+            )
+        }
+        .onChange(of: title) {
+            recommendationFeedback = nil
+            selectedRecommendationIndex = nil
+            recommendationSession?.update(
+                title: title,
+                excludingEventID: excludingEventID
+            )
+        }
+    }
+
+    private func applyRecommendation(
+        _ recommendation: CalendarEventRecommendation
+    ) {
+        let applied = CalendarEventReuseRules.applying(
+            recommendation,
+            to: CalendarEventReuseDraft(
+                title: title,
+                startAt: startDate,
+                endAt: endDate,
+                note: note,
+                color: color,
+                sourceEventID: excludingEventID
+            )
+        )
+        startDate = applied.startAt
+        endDate = applied.endAt
+        note = applied.note ?? ""
+        color = applied.color ?? CalendarEventPalette.defaultColor
+        recommendationFeedback = "이전 일정의 기간·색상·메모를 적용했어요"
+        selectedRecommendationIndex = nil
+        recommendationSession?.dismissRecommendations()
     }
 }
 
@@ -85,6 +143,9 @@ struct EventEditorSheet: View {
     @State private var draftColor: String
     @State private var draftNote: String
     @State private var message: String?
+    @State private var recommendationSession: CalendarEventRecommendationSession?
+    @State private var selectedRecommendationIndex: Int?
+    @State private var recommendationFeedback: String?
 
     init(
         event: CalendarEvent,
@@ -109,16 +170,17 @@ struct EventEditorSheet: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(AppTheme.primaryText)
 
-            TextField("큰 일정 또는 작업 맥락", text: $draftTitle)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(10)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
+            DesktopEventTitleEditor(
+                title: $draftTitle,
+                recommendations: recommendationSession?.recommendations ?? [],
+                selectedIndex: $selectedRecommendationIndex,
+                feedback: recommendationFeedback,
+                onSelect: applyRecommendation,
+                onDismiss: {
+                    recommendationSession?.dismissRecommendations()
+                    selectedRecommendationIndex = nil
                 }
+            )
 
             EventDateRangeEditor(startDate: $draftStartDate, endDate: $draftEndDate)
 
@@ -166,6 +228,23 @@ struct EventEditorSheet: View {
         .padding(22)
         .frame(width: 400)
         .background(AppTheme.panel)
+        .task {
+            guard recommendationSession == nil else { return }
+            let session = CalendarEventRecommendationSession(context: modelContext)
+            recommendationSession = session
+            session.update(
+                title: draftTitle,
+                excludingEventID: event.id
+            )
+        }
+        .onChange(of: draftTitle) {
+            recommendationFeedback = nil
+            selectedRecommendationIndex = nil
+            recommendationSession?.update(
+                title: draftTitle,
+                excludingEventID: event.id
+            )
+        }
     }
 
     private func save() {
@@ -187,6 +266,218 @@ struct EventEditorSheet: View {
             dismiss()
         } catch {
             message = "이벤트를 저장하지 못했어요."
+        }
+    }
+
+    private func applyRecommendation(
+        _ recommendation: CalendarEventRecommendation
+    ) {
+        let applied = CalendarEventReuseRules.applying(
+            recommendation,
+            to: CalendarEventReuseDraft(
+                title: draftTitle,
+                startAt: draftStartDate,
+                endAt: draftEndDate,
+                note: draftNote,
+                color: draftColor,
+                sourceEventID: event.id
+            )
+        )
+        draftStartDate = applied.startAt
+        draftEndDate = applied.endAt
+        draftNote = applied.note ?? ""
+        draftColor = applied.color ?? CalendarEventPalette.defaultColor
+        recommendationFeedback = "이전 일정의 기간·색상·메모를 적용했어요"
+        selectedRecommendationIndex = nil
+        recommendationSession?.dismissRecommendations()
+    }
+}
+
+private struct DesktopEventTitleEditor: View {
+    @Binding var title: String
+    var recommendations: [CalendarEventRecommendation]
+    @Binding var selectedIndex: Int?
+    var feedback: String?
+    var onSelect: (CalendarEventRecommendation) -> Void
+    var onDismiss: () -> Void
+    @FocusState private var isTitleFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("큰 일정 또는 작업 맥락", text: $title)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.primaryText)
+                .padding(10)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+                .focused($isTitleFocused)
+                .background {
+                    DesktopEventTitleKeyMonitor(
+                        isEnabled: isTitleFocused,
+                        onMove: moveSelection,
+                        onSubmit: selectCurrentRecommendation,
+                        onCancel: {
+                            guard !recommendations.isEmpty else { return false }
+                            onDismiss()
+                            return true
+                        }
+                    )
+                    .frame(width: 0, height: 0)
+                }
+
+            if !recommendations.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(
+                        Array(recommendations.enumerated()),
+                        id: \.element.id
+                    ) { index, recommendation in
+                        if index > 0 {
+                            Divider()
+                        }
+                        Button {
+                            selectedIndex = index
+                            onSelect(recommendation)
+                        } label: {
+                            Text(recommendation.summary)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.primaryText)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(
+                                    selectedIndex == index
+                                        ? AppTheme.selectedTab
+                                        : Color.clear
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            "최근 일정 적용. \(recommendation.summary)"
+                        )
+                        .accessibilityHint(
+                            "현재 시작일은 유지하고 기간, 색상, 메모를 적용합니다"
+                        )
+                    }
+                }
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+                .padding(.top, 6)
+            }
+
+            if let feedback {
+                Text(feedback)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .padding(.top, 6)
+                    .accessibilityLabel(feedback)
+            }
+        }
+        .onChange(of: recommendations) {
+            guard let selectedIndex else { return }
+            if recommendations.isEmpty {
+                self.selectedIndex = nil
+            } else if selectedIndex >= recommendations.count {
+                self.selectedIndex = recommendations.count - 1
+            }
+        }
+    }
+
+    private func moveSelection(by offset: Int) -> Bool {
+        guard !recommendations.isEmpty else { return false }
+        if let selectedIndex {
+            self.selectedIndex = min(
+                max(selectedIndex + offset, 0),
+                recommendations.count - 1
+            )
+        } else {
+            selectedIndex = offset > 0 ? 0 : recommendations.count - 1
+        }
+        return true
+    }
+
+    private func selectCurrentRecommendation() -> Bool {
+        guard let selectedIndex,
+              recommendations.indices.contains(selectedIndex) else {
+            return false
+        }
+        onSelect(recommendations[selectedIndex])
+        return true
+    }
+}
+
+private struct DesktopEventTitleKeyMonitor: NSViewRepresentable {
+    var isEnabled: Bool
+    var onMove: (Int) -> Bool
+    var onSubmit: () -> Bool
+    var onCancel: () -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        context.coordinator.startMonitoring()
+        return NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    static func dismantleNSView(
+        _ view: NSView,
+        coordinator: Coordinator
+    ) {
+        coordinator.stopMonitoring()
+    }
+
+    @MainActor
+    final class Coordinator {
+        var parent: DesktopEventTitleKeyMonitor
+        private var keyMonitor: Any?
+
+        init(parent: DesktopEventTitleKeyMonitor) {
+            self.parent = parent
+        }
+
+        func startMonitoring() {
+            guard keyMonitor == nil else { return }
+            keyMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: .keyDown
+            ) { [weak self] event in
+                guard let self, self.parent.isEnabled else {
+                    return event
+                }
+
+                let handled: Bool
+                switch event.keyCode {
+                case 125:
+                    handled = self.parent.onMove(1)
+                case 126:
+                    handled = self.parent.onMove(-1)
+                case 36, 76:
+                    handled = self.parent.onSubmit()
+                case 53:
+                    handled = self.parent.onCancel()
+                default:
+                    handled = false
+                }
+                return handled ? nil : event
+            }
+        }
+
+        func stopMonitoring() {
+            guard let keyMonitor else { return }
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
         }
     }
 }
