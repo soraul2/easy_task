@@ -67,16 +67,9 @@ struct MobileBoardView: View {
     }
 
     private var boardTasks: [TodoTask] {
-        var rows = selectedDayTaskRows
-        if isTodayBoard {
-            let selectedTaskIDs = Set(rows.map(\.id))
-            rows.append(contentsOf: carryoverTaskRows.filter { !selectedTaskIDs.contains($0.id) })
-        }
-
         return BoardQueryRules.tasksForBoard(
-            rows,
-            selectedDayKey: selectedDayKey,
-            includeCarryoverOnToday: true
+            selectedDayTaskRows,
+            selectedDayKey: selectedDayKey
         )
     }
 

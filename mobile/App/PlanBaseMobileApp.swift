@@ -540,7 +540,7 @@ private struct MobileAppRootView: View {
         ))
         modelContext.insert(TodoTask(
             title: "\(fixturePrefix) 이월 미래 알림",
-            status: .todo,
+            status: .doing,
             plannedAt: yesterday,
             order: 1_200,
             reminderAt: futureReminder

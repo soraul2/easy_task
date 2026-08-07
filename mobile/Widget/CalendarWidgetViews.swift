@@ -17,7 +17,14 @@ struct PlanBaseCalendarWidgetView: View {
     }
 
     private var contentPadding: CGFloat {
-        family == .systemSmall ? 14 : 12
+        switch family {
+        case .systemSmall:
+            14
+        case .systemExtraLarge:
+            10
+        default:
+            12
+        }
     }
 
     var body: some View {
@@ -38,6 +45,8 @@ struct PlanBaseCalendarWidgetView: View {
     @ViewBuilder
     private var calendarContent: some View {
         switch family {
+        case .systemExtraLarge:
+            ExtraLargeMonthCalendarWidget(entry: entry, theme: theme)
         case .systemLarge:
             LargeMonthCalendarWidget(entry: entry, theme: theme)
         case .systemMedium:
@@ -235,6 +244,43 @@ private struct LargeMonthCalendarWidget: View {
     }
 }
 
+private struct ExtraLargeMonthCalendarWidget: View {
+    let entry: PlanBaseCalendarEntry
+    let theme: CalendarWidgetTheme
+
+    private var month: Date {
+        entry.monthSelection.month
+    }
+
+    private var dates: [Date] {
+        DayKey.adaptiveMonthGridDates(for: month)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            CalendarWidgetMonthHeader(
+                monthSelection: entry.monthSelection,
+                theme: theme,
+                style: .extraLarge
+            )
+
+            CalendarWidgetWeekdayHeader(theme: theme, style: .extraLarge)
+                .frame(height: 18)
+
+            GeometryReader { proxy in
+                CalendarWidgetMonthGrid(
+                    snapshot: entry.snapshot,
+                    month: month,
+                    dates: dates,
+                    theme: theme,
+                    style: .extraLarge,
+                    size: proxy.size
+                )
+            }
+        }
+    }
+}
+
 private struct CalendarWidgetMonthHeader: View {
     let monthSelection: CalendarWidgetMonthSelection
     let theme: CalendarWidgetTheme
@@ -300,11 +346,13 @@ private struct CalendarWidgetMonthHeader: View {
 private enum CalendarWidgetMonthGridStyle: Equatable {
     case compact
     case expanded
+    case extraLarge
 
     var monthHeaderFontSize: CGFloat {
         switch self {
         case .compact: 11
         case .expanded: 12
+        case .extraLarge: 15
         }
     }
 
@@ -312,6 +360,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 14
         case .expanded: 16
+        case .extraLarge: 22
         }
     }
 
@@ -319,6 +368,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 9
         case .expanded: 10
+        case .extraLarge: 12
         }
     }
 
@@ -326,6 +376,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 22
         case .expanded: 24
+        case .extraLarge: 30
         }
     }
 
@@ -333,6 +384,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 8
         case .expanded: 9
+        case .extraLarge: 11
         }
     }
 
@@ -340,6 +392,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 10
         case .expanded: 14
+        case .extraLarge: 18
         }
     }
 
@@ -347,6 +400,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 10
         case .expanded: 15
+        case .extraLarge: 19
         }
     }
 
@@ -354,6 +408,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 3
         case .expanded: 8.5
+        case .extraLarge: 10
         }
     }
 
@@ -361,6 +416,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 2
         case .expanded: 8
+        case .extraLarge: 9
         }
     }
 
@@ -368,8 +424,34 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
         switch self {
         case .compact: 3
         case .expanded: 5
+        case .extraLarge: 4
         }
     }
+
+    var weekdayFontSize: CGFloat {
+        switch self {
+        case .compact: 7
+        case .expanded: 9
+        case .extraLarge: 11
+        }
+    }
+
+    var hiddenEventFontSize: CGFloat {
+        switch self {
+        case .compact: 6
+        case .expanded: 7
+        case .extraLarge: 8
+        }
+    }
+
+    var cellHorizontalPadding: CGFloat {
+        switch self {
+        case .compact: 1
+        case .expanded: 2
+        case .extraLarge: 3
+        }
+    }
+
 }
 
 private struct CalendarWidgetWeekdayHeader: View {
@@ -381,7 +463,7 @@ private struct CalendarWidgetWeekdayHeader: View {
             ForEach(Array(DayKey.weekdaySymbols().enumerated()), id: \.offset) { index, symbol in
                 Text(symbol)
                     .font(.system(
-                        size: style == .compact ? 7 : 9,
+                        size: style.weekdayFontSize,
                         weight: .semibold
                     ))
                     .foregroundStyle(index == 0 ? theme.sundayText : theme.secondaryText)
@@ -545,7 +627,7 @@ private struct CalendarWidgetMonthDayCell: View {
                 if hiddenEventCount > 0 {
                     Text("+\(hiddenEventCount)")
                         .font(.system(
-                            size: style == .compact ? 6 : 7,
+                            size: style.hiddenEventFontSize,
                             weight: .bold
                         ))
                         .foregroundStyle(theme.secondaryText)
@@ -555,7 +637,7 @@ private struct CalendarWidgetMonthDayCell: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, style == .compact ? 1 : 2)
+        .padding(.horizontal, style.cellHorizontalPadding)
         .padding(.top, 1)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(cellBackground)
@@ -617,9 +699,12 @@ private struct CalendarWidgetEventBar: View {
             case .compact:
                 Capsule()
                     .fill(theme.eventColor(event.colorID))
-            case .expanded:
+            case .expanded, .extraLarge:
                 Text(event.title)
-                    .font(.system(size: 7, weight: .semibold))
+                    .font(.system(
+                        size: style == .extraLarge ? 8 : 7,
+                        weight: .semibold
+                    ))
                     .foregroundStyle(theme.eventForeground(event.colorID))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

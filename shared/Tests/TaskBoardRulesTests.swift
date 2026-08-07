@@ -146,34 +146,36 @@ func completingAllTasksUsesSharedStatusRule() throws {
 }
 
 @Test
-func boardQueryRulesPreserveDesktopAndMobileCarryoverPolicies() throws {
+func boardQueryRulesKeepCarryoverOutOfPlatformBoards() throws {
     let yesterday = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 5)))
     let today = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 6)))
     let todayKey = DayKey.key(for: today)
     let completionTime = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 11)))
 
     let todayTask = Task(title: "오늘 작업", plannedAt: today, order: 100)
-    let carryoverTask = Task(title: "이월 작업", plannedAt: yesterday, order: 100)
+    let carryoverTask = Task(
+        title: "진행 중 이월 작업",
+        status: .doing,
+        plannedAt: yesterday,
+        order: 100
+    )
     let doneToday = Task(title: "오늘 완료", plannedAt: yesterday, order: 200)
     TaskRules.applyStatus(.done, to: doneToday, now: completionTime)
 
     let tasks = [carryoverTask, doneToday, todayTask]
-    let desktopBoard = BoardQueryRules.tasksForBoard(
+    let board = BoardQueryRules.tasksForBoard(
         tasks,
         selectedDayKey: todayKey,
         todayKey: todayKey
     )
-    let mobileBoard = BoardQueryRules.tasksForBoard(
-        tasks,
-        selectedDayKey: todayKey,
-        todayKey: todayKey,
-        includeCarryoverOnToday: true
-    )
 
-    #expect(Set(desktopBoard.map(\.title)) == Set(["오늘 완료", "오늘 작업"]))
-    #expect(Set(mobileBoard.map(\.title)) == Set(["오늘 완료", "이월 작업", "오늘 작업"]))
-    #expect(BoardQueryRules.tasks(mobileBoard, matching: .todo).map(\.title) == ["이월 작업", "오늘 작업"])
-    #expect(BoardQueryRules.tasks(mobileBoard, matching: .done).map(\.title) == ["오늘 완료"])
+    #expect(Set(board.map(\.title)) == Set(["오늘 완료", "오늘 작업"]))
+    #expect(BoardQueryRules.tasks(board, matching: .doing).isEmpty)
+    #expect(BoardQueryRules.tasks(board, matching: .done).map(\.title) == ["오늘 완료"])
+    #expect(
+        TaskRules.carryoverTasks(tasks, before: todayKey).map(\.title) ==
+            ["진행 중 이월 작업"]
+    )
 }
 
 @Test

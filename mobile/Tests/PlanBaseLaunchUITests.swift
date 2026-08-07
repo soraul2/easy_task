@@ -460,6 +460,25 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testPastDoingTaskAppearsOnlyInCarryover() {
+        let app = launchReminderFixtureApp()
+        let taskTitle = "알림 완료 테스트: 이월 미래 알림"
+
+        let doingFilter = app.buttons["board-status-filter-doing"]
+        XCTAssertTrue(doingFilter.waitForExistence(timeout: 5))
+        doingFilter.tap()
+        XCTAssertTrue(waitForSelected(doingFilter))
+        XCTAssertFalse(app.staticTexts[taskTitle].waitForExistence(timeout: 1))
+
+        let carryoverButton = app.buttons["carryover-button"]
+        XCTAssertTrue(carryoverButton.waitForExistence(timeout: 5))
+        carryoverButton.tap()
+
+        XCTAssertTrue(app.navigationBars["이월함"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[taskTitle].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testThemePickerExposesCurrentAppearanceAndEveryPreset() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
