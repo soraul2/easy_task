@@ -31,6 +31,7 @@ private struct PendingMobileTaskCompletion {
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var selectedDayTaskRows: [TodoTask]
     @Query private var carryoverTaskRows: [TodoTask]
     @Query private var overlappingEventRows: [CalendarEvent]
@@ -93,26 +94,7 @@ struct MobileBoardView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                BoardHeader(
-                    selectedDate: $selectedDate,
-                    isTodayBoard: isTodayBoard,
-                    selectedDayKey: selectedDayKey
-                )
-                BoardEventStrip(events: dayEvents)
-                BoardQuickAdd(title: $quickTitle, onAdd: addQuickTask)
-                BoardStatusPicker(
-                    selectedStatus: $selectedStatus,
-                    taskCount: taskCount
-                )
-                BoardTaskList(
-                    tasks: statusTasks,
-                    selectedStatus: selectedStatus,
-                    onEdit: { presentedSheet = .task($0) },
-                    onDelete: deleteTask,
-                    onStatusChange: requestTaskStatusChange
-                )
-            }
+            boardLayout
             .background(AppTheme.background.ignoresSafeArea())
             .overlay(alignment: .bottom) {
                 if let statusNotice {
@@ -197,6 +179,50 @@ struct MobileBoardView: View {
                 )
             }
         }
+    }
+
+    @ViewBuilder
+    private var boardLayout: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    boardControls
+                    taskList(isEmbeddedInScrollView: true)
+                }
+            }
+            .accessibilityIdentifier("board-accessibility-scroll")
+        } else {
+            VStack(spacing: 0) {
+                boardControls
+                taskList(isEmbeddedInScrollView: false)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var boardControls: some View {
+        BoardHeader(
+            selectedDate: $selectedDate,
+            isTodayBoard: isTodayBoard,
+            selectedDayKey: selectedDayKey
+        )
+        BoardEventStrip(events: dayEvents)
+        BoardQuickAdd(title: $quickTitle, onAdd: addQuickTask)
+        BoardStatusPicker(
+            selectedStatus: $selectedStatus,
+            taskCount: taskCount
+        )
+    }
+
+    private func taskList(isEmbeddedInScrollView: Bool) -> some View {
+        BoardTaskList(
+            tasks: statusTasks,
+            selectedStatus: selectedStatus,
+            isEmbeddedInScrollView: isEmbeddedInScrollView,
+            onEdit: { presentedSheet = .task($0) },
+            onDelete: deleteTask,
+            onStatusChange: requestTaskStatusChange
+        )
     }
 
     private func addQuickTask() {

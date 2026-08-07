@@ -8,43 +8,76 @@ struct BoardHeader: View {
     @Binding var selectedDate: Date
     var isTodayBoard: Bool
     var selectedDayKey: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                selectedDate = DayKey.addingDays(-1, to: selectedDate)
-            } label: {
-                Image(systemName: "chevron.left")
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    dateSummary
+                    HStack(spacing: 12) {
+                        previousDayButton
+                        Spacer(minLength: 8)
+                        todayButton
+                        Spacer(minLength: 8)
+                        nextDayButton
+                    }
+                }
+            } else {
+                HStack(spacing: 10) {
+                    previousDayButton
+                    dateSummary
+                    Spacer()
+                    todayButton
+                    nextDayButton
+                }
             }
-            .accessibilityLabel("이전 날짜")
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(DayKey.display(selectedDate))
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Text(isTodayBoard ? "오늘 보드" : selectedDayKey)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button("오늘") {
-                selectedDate = DayKey.startOfDay(for: Date())
-            }
-            .buttonStyle(.bordered)
-
-            Button {
-                selectedDate = DayKey.addingDays(1, to: selectedDate)
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .accessibilityLabel("다음 날짜")
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
+    }
+
+    private var dateSummary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(DayKey.display(selectedDate))
+                .font(.headline)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.85)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("board-date-title")
+            Text(isTodayBoard ? "오늘 보드" : selectedDayKey)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    private var previousDayButton: some View {
+        Button {
+            selectedDate = DayKey.addingDays(-1, to: selectedDate)
+        } label: {
+            Image(systemName: "chevron.left")
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel("이전 날짜")
+    }
+
+    private var todayButton: some View {
+        Button("오늘") {
+            selectedDate = DayKey.startOfDay(for: Date())
+        }
+        .buttonStyle(.bordered)
+        .frame(minHeight: 44)
+    }
+
+    private var nextDayButton: some View {
+        Button {
+            selectedDate = DayKey.addingDays(1, to: selectedDate)
+        } label: {
+            Image(systemName: "chevron.right")
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel("다음 날짜")
     }
 }
 
@@ -74,6 +107,7 @@ struct BoardEventStrip: View {
 struct BoardQuickAdd: View {
     @Binding var title: String
     var onAdd: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var isTitleFocused: Bool
 
     private var canAdd: Bool {
@@ -81,23 +115,46 @@ struct BoardQuickAdd: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            TextField("해당 날짜에 할 일 입력", text: $title)
-                .textFieldStyle(.plain)
-                .focused($isTitleFocused)
-                .submitLabel(.done)
-                .onSubmit(submit)
-            Button(action: submit) {
-                Image(systemName: "plus")
-                    .font(.headline)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    titleField
+                    Button(action: submit) {
+                        Label("작업 추가", systemImage: "plus")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canAdd)
+                    .accessibilityLabel("작업 추가")
+                }
+            } else {
+                HStack(spacing: 8) {
+                    titleField
+                    Button(action: submit) {
+                        Image(systemName: "plus")
+                            .font(.headline)
+                    }
+                    .disabled(!canAdd)
+                    .accessibilityLabel("작업 추가")
+                }
             }
-            .disabled(!canAdd)
-            .accessibilityLabel("작업 추가")
         }
         .padding(12)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 16)
         .padding(.top, 12)
+    }
+
+    private var titleField: some View {
+        TextField(
+            dynamicTypeSize.isAccessibilitySize ? "할 일 입력" : "해당 날짜에 할 일 입력",
+            text: $title
+        )
+        .textFieldStyle(.plain)
+        .focused($isTitleFocused)
+        .submitLabel(.done)
+        .onSubmit(submit)
+        .accessibilityLabel("해당 날짜에 할 일 입력")
     }
 
     private func submit() {
@@ -117,9 +174,7 @@ struct BoardStatusPicker: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 8) {
-                    statusButtons
-                }
+                accessibilityStatusMenu
             } else {
                 HStack(spacing: 8) {
                     statusButtons
@@ -132,14 +187,53 @@ struct BoardStatusPicker: View {
         .accessibilityLabel("보드 상태 필터")
     }
 
+    private var accessibilityStatusMenu: some View {
+        Menu {
+            ForEach(TaskStatus.allCases) { status in
+                Button {
+                    selectedStatus = status
+                } label: {
+                    Label(
+                        "\(status.title), \(taskCount(status))개",
+                        systemImage: status.systemImage
+                    )
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: selectedStatus.systemImage)
+                Text(selectedStatus.title)
+                    .font(.headline)
+                Spacer(minLength: 8)
+                Text("\(taskCount(selectedStatus))개")
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 14))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(AppTheme.border.opacity(0.55), lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .accessibilityIdentifier("board-status-filter-menu")
+        .accessibilityLabel("보드 상태 필터")
+        .accessibilityValue("\(selectedStatus.title), \(taskCount(selectedStatus))개")
+        .accessibilityHint("두 번 탭하여 표시할 작업 상태 선택")
+    }
+
     @ViewBuilder
     private var statusButtons: some View {
         ForEach(TaskStatus.allCases) { status in
             BoardStatusFilterButton(
                 status: status,
                 count: taskCount(status),
-                isSelected: status == selectedStatus,
-                usesAccessibilityLayout: dynamicTypeSize.isAccessibilitySize
+                isSelected: status == selectedStatus
             ) {
                 selectedStatus = status
             }
@@ -152,41 +246,24 @@ private struct BoardStatusFilterButton: View {
     var status: TaskStatus
     var count: Int
     var isSelected: Bool
-    var usesAccessibilityLayout: Bool
     var onSelect: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
-            Group {
-                if usesAccessibilityLayout {
-                    HStack(spacing: 10) {
-                        Image(systemName: status.systemImage)
-                            .font(.headline)
-                        Text(status.title)
-                            .font(.headline)
-                        Spacer(minLength: 8)
-                        countLabel
-                        selectionIndicator
-                    }
-                    .padding(.horizontal, 14)
-                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                } else {
-                    VStack(alignment: .leading, spacing: 7) {
-                        HStack(spacing: 6) {
-                            Image(systemName: status.systemImage)
-                                .font(.subheadline.weight(.semibold))
-                            Spacer(minLength: 4)
-                            countLabel
-                            selectionIndicator
-                        }
-                        Text(status.title)
-                            .font(.subheadline.weight(.bold))
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 11)
-                    .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Image(systemName: status.systemImage)
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 4)
+                    countLabel
+                    selectionIndicator
                 }
+                Text(status.title)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
             }
+            .padding(.horizontal, 11)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
             .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText)
             .background(
                 isSelected ? AppTheme.panel : AppTheme.input.opacity(0.72),
@@ -246,43 +323,32 @@ private struct BoardStatusFilterButton: View {
 struct BoardTaskList: View {
     var tasks: [TodoTask]
     var selectedStatus: TaskStatus
+    var isEmbeddedInScrollView = false
     var onEdit: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
     @State private var expandedTaskID: UUID?
 
     var body: some View {
-        List {
-            if tasks.isEmpty {
-                ContentUnavailableView(
-                    selectedStatus.emptyStateTitle,
-                    systemImage: selectedStatus.systemImage,
-                    description: Text(selectedStatus.emptyStateDescription)
-                )
-                .listRowBackground(Color.clear)
-                .accessibilityIdentifier("board-empty-\(selectedStatus.rawValue)")
+        Group {
+            if isEmbeddedInScrollView {
+                LazyVStack(spacing: 12) {
+                    taskRows
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, MobileLayout.bottomTabClearance)
+                .accessibilityIdentifier("board-task-list")
             } else {
-                ForEach(tasks) { task in
-                    MobileTaskRow(
-                        task: task,
-                        isChecklistExpanded: expandedTaskID == task.id,
-                        onChecklistExpansionChange: { shouldExpand in
-                            expandedTaskID = shouldExpand ? task.id : nil
-                        },
-                        onEdit: { onEdit(task) },
-                        onDelete: { onDelete(task) },
-                        onStatusChange: { onStatusChange(task, $0) }
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                List {
+                    taskRows
+                }
+                .listStyle(.plain)
+                .accessibilityIdentifier("board-task-list")
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear
+                        .frame(height: MobileLayout.bottomTabClearance)
                 }
             }
-        }
-        .listStyle(.plain)
-        .accessibilityIdentifier("board-task-list")
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: MobileLayout.bottomTabClearance)
         }
         .onChange(of: selectedStatus) { _, status in
             if status != .doing {
@@ -295,10 +361,39 @@ struct BoardTaskList: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var taskRows: some View {
+        if tasks.isEmpty {
+            ContentUnavailableView(
+                selectedStatus.emptyStateTitle,
+                systemImage: selectedStatus.systemImage,
+                description: Text(selectedStatus.emptyStateDescription)
+            )
+            .listRowBackground(Color.clear)
+            .accessibilityIdentifier("board-empty-\(selectedStatus.rawValue)")
+        } else {
+            ForEach(tasks) { task in
+                MobileTaskRow(
+                    task: task,
+                    isChecklistExpanded: expandedTaskID == task.id,
+                    onChecklistExpansionChange: { shouldExpand in
+                        expandedTaskID = shouldExpand ? task.id : nil
+                    },
+                    onEdit: { onEdit(task) },
+                    onDelete: { onDelete(task) },
+                    onStatusChange: { onStatusChange(task, $0) }
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+        }
+    }
 }
 
 private struct MobileTaskRow: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var task: TodoTask
     var isChecklistExpanded: Bool
     var onChecklistExpansionChange: (Bool) -> Void
@@ -395,45 +490,21 @@ private struct MobileTaskRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(task.title)
-                        .font(.headline)
-                        .lineLimit(2)
-                        .foregroundStyle(status == .done
-                            ? AppTheme.cardMutedText
-                            : AppTheme.cardText)
-                    if let note = task.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(note)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.cardMutedText)
-                            .lineLimit(2)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 10) {
+                        taskText
+                        HStack(spacing: 8) {
+                            Spacer(minLength: 0)
+                            taskActionButtons
+                        }
+                    }
+                } else {
+                    HStack(alignment: .top) {
+                        taskText
+                        taskActionButtons
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack(spacing: 8) {
-                    Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                            .background(AppTheme.panel.opacity(0.78), in: Circle())
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("\(task.title) 작업 편집")
-                    .accessibilityLabel("\(task.title) 작업 편집")
-
-                    Button(role: .destructive, action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                            .background(AppTheme.panel.opacity(0.78), in: Circle())
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("\(task.title) 작업 삭제")
-                    .accessibilityLabel("\(task.title) 작업 삭제")
-                }
-                .foregroundStyle(.secondary)
             }
 
             if hasDetailChips {
@@ -496,6 +567,52 @@ private struct MobileTaskRow: View {
         }
         .shadow(color: accentColor.opacity(shadowOpacity), radius: status == .doing ? 18 : 12, x: 0, y: 8)
         .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
+    }
+
+    private var taskText: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(task.title)
+                .font(.headline)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(status == .done
+                    ? AppTheme.cardMutedText
+                    : AppTheme.cardText)
+            if let note = task.note,
+               !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(note)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.cardMutedText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var taskActionButtons: some View {
+        HStack(spacing: 8) {
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .background(AppTheme.panel.opacity(0.78), in: Circle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("\(task.title) 작업 편집")
+            .accessibilityLabel("\(task.title) 작업 편집")
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .background(AppTheme.panel.opacity(0.78), in: Circle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("\(task.title) 작업 삭제")
+            .accessibilityLabel("\(task.title) 작업 삭제")
+        }
+        .foregroundStyle(.secondary)
     }
 
     private var checklistSection: some View {
@@ -638,6 +755,7 @@ struct MobileStatusNotice: View {
 
 private struct MobileTaskStatusSlider: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var taskTitle: String
     var status: TaskStatus
     var accentColor: Color
@@ -652,6 +770,60 @@ private struct MobileTaskStatusSlider: View {
     }
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityStatusMenu
+            } else {
+                compactStatusSlider
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(taskTitle) 상태 변경")
+    }
+
+    private var accessibilityStatusMenu: some View {
+        Menu {
+            ForEach(statuses) { nextStatus in
+                Button {
+                    updateStatus(nextStatus)
+                } label: {
+                    Label(nextStatus.title, systemImage: nextStatus.systemImage)
+                }
+                .disabled(nextStatus == status)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: status.systemImage)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("작업 상태")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.cardMutedText)
+                    Text(status.title)
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.cardText)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.cardMutedText)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(AppTheme.input.opacity(0.82), in: RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(accentColor.opacity(0.48), lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .accessibilityIdentifier("\(taskTitle)-status-menu")
+        .accessibilityLabel("\(taskTitle) 작업 상태")
+        .accessibilityValue(status.title)
+        .accessibilityHint("두 번 탭하여 작업 상태 선택")
+    }
+
+    private var compactStatusSlider: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let segmentWidth = width / CGFloat(max(statuses.count, 1))
@@ -707,8 +879,6 @@ private struct MobileTaskStatusSlider: View {
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .frame(height: 48)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(taskTitle) 상태 변경")
     }
 
     private func updateStatus(_ nextStatus: TaskStatus) {

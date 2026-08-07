@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 final class PlanBaseLaunchUITests: XCTestCase {
@@ -53,6 +54,114 @@ final class PlanBaseLaunchUITests: XCTestCase {
             app.textFields["해당 날짜에 할 일 입력"]
                 .waitForExistence(timeout: 10)
         )
+    }
+
+    @MainActor
+    func testIPadUsesNativeWindowInPortraitAndLandscape() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("iPad 전용 전체 화면 회귀 테스트")
+        }
+
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 15))
+        XCTAssertGreaterThan(window.frame.width, 700)
+        XCTAssertGreaterThan(window.frame.height, 1_000)
+
+        for title in ["칸반", "캘린더", "기록", "메모"] {
+            XCTAssertTrue(
+                app.buttons[title].firstMatch.waitForExistence(timeout: 5)
+            )
+        }
+        addReferenceScreenshot(named: "iPad-Board-Portrait")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let landscapeExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { object, _ in
+                guard let element = object as? XCUIElement else { return false }
+                return element.frame.width > element.frame.height
+            },
+            object: window
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [landscapeExpectation], timeout: 10),
+            .completed
+        )
+        XCTAssertGreaterThan(window.frame.width, 1_000)
+        XCTAssertGreaterThan(window.frame.height, 700)
+
+        app.buttons["캘린더"].firstMatch.tap()
+        let addEventButton = app.buttons["이벤트 추가"]
+        XCTAssertTrue(addEventButton.waitForExistence(timeout: 10))
+        addEventButton.tap()
+        let addEventNavigationBar = app.navigationBars["이벤트 추가"]
+        XCTAssertTrue(addEventNavigationBar.waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.textFields["event-title-field"].waitForExistence(timeout: 5)
+        )
+        addEventNavigationBar.buttons["취소"].tap()
+
+        app.buttons["기록"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
+
+        app.buttons["메모"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["새 메모"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "iPad-Memo-Landscape")
+    }
+
+    @MainActor
+    func testAccessibilityTextSizeKeepsBoardActionsReachable() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone else {
+            throw XCTSkip("iPhone 접근성 글자 크기 회귀 테스트")
+        }
+
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-accessibility-text-size"
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.scrollViews["board-accessibility-scroll"]
+                .waitForExistence(timeout: 15)
+        )
+        XCTAssertTrue(
+            app.staticTexts["board-date-title"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.buttons["board-status-filter-menu"].waitForExistence(timeout: 5)
+        )
+
+        let taskTitle = "오늘 처리할 작업 빠르게 추가해보기"
+        let editButton = app.buttons["\(taskTitle) 작업 편집"]
+        XCTAssertTrue(scrollToHittable(editButton, in: app))
+
+        let statusMenu = app.buttons["\(taskTitle)-status-menu"]
+        XCTAssertTrue(scrollToHittable(statusMenu, in: app))
+        XCTAssertTrue(statusMenu.isHittable)
+        addReferenceScreenshot(named: "iPhone-Board-Accessibility-Text")
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
+
+        tabBar.buttons["캘린더"].tap()
+        XCTAssertTrue(app.buttons["이벤트 추가"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "iPhone-Calendar-Accessibility-Text")
+
+        tabBar.buttons["기록"].tap()
+        XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "iPhone-Archive-Accessibility-Text")
+
+        tabBar.buttons["메모"].tap()
+        XCTAssertTrue(app.buttons["새 메모"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "iPhone-Memo-Accessibility-Text")
     }
 
     @MainActor

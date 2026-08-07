@@ -109,6 +109,7 @@ struct CalendarWeekdayHeader: View {
 
                 Text(symbol)
                     .font(.caption2.weight(.semibold))
+                    .dynamicTypeSize(.xSmall ... .xxxLarge)
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: .infinity)
                     .foregroundStyle(index == 0 ? Color(red: 0.98, green: 0.40, blue: 0.42) : AppTheme.secondaryText)
@@ -259,6 +260,7 @@ struct MobileMonthDayCell: View {
             HStack(alignment: .top, spacing: 3) {
                 Text(DayKey.dayNumber(date))
                     .font(.caption2.weight(isToday ? .bold : .semibold))
+                    .dynamicTypeSize(.xSmall ... .xxxLarge)
                     .foregroundStyle(dayForeground)
                     .frame(width: dayBadgeSize, height: dayBadgeSize)
                     .background(dayBackground, in: Circle())

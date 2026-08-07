@@ -39,6 +39,16 @@ enum PlanBaseLaunchEnvironment {
         false
 #endif
     }
+
+    static var usesAccessibilityTextSizeFixture: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-accessibility-text-size"
+        )
+#else
+        false
+#endif
+    }
 }
 
 @main
@@ -65,6 +75,7 @@ struct PlanBaseMobileApp: App {
                     MobileAppRootView()
 #endif
                 }
+                .planBaseAccessibilityTextSizeFixture()
                 .modelContainer(modelContainer)
             case .failed(let details):
                 PersistenceRecoveryView(details: details) {
@@ -127,6 +138,21 @@ struct PlanBaseMobileApp: App {
         }
     }
 #endif
+}
+
+private extension View {
+    @ViewBuilder
+    func planBaseAccessibilityTextSizeFixture() -> some View {
+#if DEBUG
+        if PlanBaseLaunchEnvironment.usesAccessibilityTextSizeFixture {
+            dynamicTypeSize(.accessibility5)
+        } else {
+            self
+        }
+#else
+        self
+#endif
+    }
 }
 
 private enum PersistenceState {
