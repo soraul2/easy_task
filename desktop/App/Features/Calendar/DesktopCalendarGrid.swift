@@ -126,18 +126,19 @@ struct MonthDayCell: View {
                     onAddEvent()
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .foregroundStyle(AppTheme.eventText)
-                        .background(AppTheme.event, in: RoundedRectangle(cornerRadius: 6))
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 26, height: 26)
+                        .foregroundStyle(AppTheme.primaryText)
+                        .background(AppTheme.selectedTab, in: RoundedRectangle(cornerRadius: 7))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: 7)
                                 .stroke(AppTheme.border, lineWidth: 1)
                         }
                 }
                 .buttonStyle(.plain)
                 .padding(7)
-                .help("이 날짜에 이벤트 추가")
+                .accessibilityLabel("\(DayKey.display(date)) 이벤트 추가")
+                .help("\(DayKey.display(date))에 이벤트 추가")
                 .transition(.opacity)
             }
 

@@ -72,6 +72,7 @@ struct CalendarView: View {
     @State private var selectedEventColor = CalendarEventPalette.defaultColor
     @State private var note = ""
     @State private var presentedSheet: CalendarSheet?
+    @State private var pendingAddDateAfterSheetDismissal: Date?
     @State private var placementTemplate: TaskTemplate?
     @State private var placementDayKeys: Set<String> = []
     @State private var calendarMessage: String?
@@ -124,7 +125,10 @@ struct CalendarView: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, 24)
         }
-        .sheet(item: $presentedSheet) { sheet in
+        .sheet(
+            item: $presentedSheet,
+            onDismiss: presentPendingAddEvent
+        ) { sheet in
             switch sheet {
             case .addEvent:
                 AddEventSheet(
@@ -186,6 +190,10 @@ struct CalendarView: View {
                     ),
                     onOpenBoard: {
                         onOpenBoardDate(date)
+                    },
+                    onAddEvent: {
+                        pendingAddDateAfterSheetDismissal = date
+                        presentedSheet = nil
                     }
                 )
             }
@@ -226,7 +234,7 @@ struct CalendarView: View {
 
             dayDetailsButton(compact: false)
             templatePlacementButton(compact: false)
-            addEventButton
+            addEventButton(compact: false)
         }
     }
 
@@ -248,7 +256,7 @@ struct CalendarView: View {
                 Spacer()
                 dayDetailsButton(compact: true)
                 templatePlacementButton(compact: true)
-                addEventButton
+                addEventButton(compact: true)
             }
         }
     }
@@ -256,7 +264,7 @@ struct CalendarView: View {
     private var monthNavigation: some View {
         HStack(spacing: 8) {
             Button {
-                visibleMonth = DayKey.addingMonths(-1, to: visibleMonth)
+                moveVisibleMonth(by: -1)
             } label: {
                 Image(systemName: "chevron.left")
                     .frame(width: 28, height: 28)
@@ -273,7 +281,7 @@ struct CalendarView: View {
             .buttonStyle(.bordered)
 
             Button {
-                visibleMonth = DayKey.addingMonths(1, to: visibleMonth)
+                moveVisibleMonth(by: 1)
             } label: {
                 Image(systemName: "chevron.right")
                     .frame(width: 28, height: 28)
@@ -333,17 +341,26 @@ struct CalendarView: View {
         .keyboardShortcut(.return, modifiers: .command)
     }
 
-    private var addEventButton: some View {
+    private func addEventButton(compact: Bool) -> some View {
         Button {
             prepareAddEvent(for: selectedDate)
         } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 16, weight: .bold))
-                .frame(width: 42, height: 34)
-                .calendarToolbarButtonBackground(isPrimary: true)
+            if compact {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 42, height: 34)
+                    .calendarToolbarButtonBackground(isPrimary: true)
+            } else {
+                Label("이벤트 추가", systemImage: "plus")
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .calendarToolbarButtonBackground(isPrimary: true)
+            }
         }
         .buttonStyle(.plain)
-        .help("이벤트 추가")
+        .accessibilityLabel("\(DayKey.display(selectedDate)) 이벤트 추가")
+        .help("\(DayKey.display(selectedDate))에 이벤트 추가")
     }
 
     private var placementToolbar: some View {
@@ -544,6 +561,21 @@ struct CalendarView: View {
         endDate = normalizedDate
         selectedEventColor = CalendarEventPalette.defaultColor
         presentedSheet = .addEvent
+    }
+
+    private func presentPendingAddEvent() {
+        guard let date = pendingAddDateAfterSheetDismissal else { return }
+        pendingAddDateAfterSheetDismissal = nil
+        prepareAddEvent(for: date)
+    }
+
+    private func moveVisibleMonth(by offset: Int) {
+        let nextMonth = DayKey.addingMonths(offset, to: visibleMonth)
+        let today = DayKey.startOfDay(for: Date())
+        visibleMonth = nextMonth
+        selectedDate = DayKey.isSameMonth(today, nextMonth)
+            ? today
+            : DayKey.startOfMonth(for: nextMonth)
     }
 
     private func prepareDuplicateEvent(_ event: CalendarEvent) {

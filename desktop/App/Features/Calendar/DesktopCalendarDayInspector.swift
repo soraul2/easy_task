@@ -7,6 +7,7 @@ struct DesktopCalendarDayQueryHost: View {
     private let events: [CalendarEvent]
     private let templatePlacements: [TemplatePlacement]
     private let onOpenBoard: () -> Void
+    private let onAddEvent: () -> Void
     @Query private var tasks: [Task]
 
     init(
@@ -14,12 +15,14 @@ struct DesktopCalendarDayQueryHost: View {
         date: Date,
         events: [CalendarEvent],
         templatePlacements: [TemplatePlacement],
-        onOpenBoard: @escaping () -> Void
+        onOpenBoard: @escaping () -> Void,
+        onAddEvent: @escaping () -> Void
     ) {
         self.date = date
         self.events = events
         self.templatePlacements = templatePlacements
         self.onOpenBoard = onOpenBoard
+        self.onAddEvent = onAddEvent
         _tasks = Query(BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey))
     }
 
@@ -29,20 +32,18 @@ struct DesktopCalendarDayQueryHost: View {
             events: events,
             templatePlacements: templatePlacements,
             tasks: tasks,
-            onOpenBoard: onOpenBoard
+            onOpenBoard: onOpenBoard,
+            onAddEvent: onAddEvent
         )
     }
 }
 
 private enum DesktopDayEventSheet: Identifiable {
-    case add
     case edit(UUID)
     case duplicate(UUID)
 
     var id: String {
         switch self {
-        case .add:
-            "add"
         case .edit(let instanceID):
             "edit-\(instanceID.uuidString)"
         case .duplicate(let instanceID):
@@ -57,6 +58,7 @@ private struct DesktopCalendarDayInspector: View {
     var templatePlacements: [TemplatePlacement]
     var tasks: [Task]
     var onOpenBoard: () -> Void
+    var onAddEvent: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -66,7 +68,6 @@ private struct DesktopCalendarDayInspector: View {
     @State private var eventEndDate: Date
     @State private var eventColor = CalendarEventPalette.defaultColor
     @State private var eventNote = ""
-    @State private var eventIsDuplicate = false
     @State private var pendingDeleteEvent: CalendarEvent?
     @State private var pendingDeleteEventLinkedTaskCount = 0
     @State private var pendingDeletePlacement: TemplatePlacement?
@@ -80,13 +81,15 @@ private struct DesktopCalendarDayInspector: View {
         events: [CalendarEvent],
         templatePlacements: [TemplatePlacement],
         tasks: [Task],
-        onOpenBoard: @escaping () -> Void
+        onOpenBoard: @escaping () -> Void,
+        onAddEvent: @escaping () -> Void
     ) {
         self.date = date
         self.events = events
         self.templatePlacements = templatePlacements
         self.tasks = tasks
         self.onOpenBoard = onOpenBoard
+        self.onAddEvent = onAddEvent
         let normalizedDate = DayKey.startOfDay(for: date)
         _eventStartDate = State(initialValue: normalizedDate)
         _eventEndDate = State(initialValue: normalizedDate)
@@ -164,15 +167,6 @@ private struct DesktopCalendarDayInspector: View {
         }
         .sheet(item: $eventSheet) { route in
             switch route {
-            case .add:
-                AddEventSheet(
-                    title: $eventTitle,
-                    startDate: $eventStartDate,
-                    endDate: $eventEndDate,
-                    color: $eventColor,
-                    note: $eventNote,
-                    onAdd: addEvent
-                )
             case .duplicate(let eventInstanceID):
                 AddEventSheet(
                     title: $eventTitle,
@@ -184,7 +178,7 @@ private struct DesktopCalendarDayInspector: View {
                     excludingEventID: events.first {
                         $0.instanceID == eventInstanceID
                     }?.id,
-                    onAdd: addEvent
+                    onAdd: addDuplicatedEvent
                 )
             case .edit(let eventInstanceID):
                 if let event = events.first(where: {
@@ -221,7 +215,7 @@ private struct DesktopCalendarDayInspector: View {
             Spacer()
 
             Button {
-                prepareAddEvent()
+                onAddEvent()
             } label: {
                 Label("이벤트 추가", systemImage: "plus")
             }
@@ -410,16 +404,6 @@ private struct DesktopCalendarDayInspector: View {
             .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 9))
     }
 
-    private func prepareAddEvent() {
-        eventTitle = ""
-        eventNote = ""
-        eventStartDate = DayKey.startOfDay(for: date)
-        eventEndDate = DayKey.startOfDay(for: date)
-        eventColor = CalendarEventPalette.defaultColor
-        eventIsDuplicate = false
-        eventSheet = .add
-    }
-
     private func prepareDuplicateEvent(_ event: CalendarEvent) {
         let draft = CalendarEventReuseRules.duplicateDraft(
             from: event,
@@ -430,11 +414,10 @@ private struct DesktopCalendarDayInspector: View {
         eventStartDate = draft.startAt
         eventEndDate = draft.endAt
         eventColor = draft.color ?? CalendarEventPalette.defaultColor
-        eventIsDuplicate = true
         eventSheet = .duplicate(event.instanceID)
     }
 
-    private func addEvent() -> String? {
+    private func addDuplicatedEvent() -> String? {
         let draft = CalendarEventReuseDraft(
             title: eventTitle,
             startAt: eventStartDate,
@@ -452,10 +435,7 @@ private struct DesktopCalendarDayInspector: View {
             try PersistenceCommandService.perform(in: modelContext) {
                 modelContext.insert(event)
             }
-            notice = eventIsDuplicate
-                ? "독립된 복제 일정을 추가했어요."
-                : "이벤트를 추가했어요."
-            eventIsDuplicate = false
+            notice = "독립된 복제 일정을 추가했어요."
             return nil
         } catch {
             return "이벤트를 추가하지 못했어요."

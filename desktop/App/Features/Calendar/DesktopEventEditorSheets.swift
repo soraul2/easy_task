@@ -24,9 +24,21 @@ struct AddEventSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isDuplicate ? "이벤트 복제" : "이벤트 추가")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(AppTheme.primaryText)
+            HStack(spacing: 12) {
+                Text(isDuplicate ? "이벤트 복제" : "이벤트 추가")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Spacer()
+
+                Label(DayKey.display(startDate), systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(AppTheme.input, in: Capsule())
+                    .accessibilityLabel("시작일 \(DayKey.display(startDate))")
+            }
 
             if isDuplicate {
                 Label("복제한 일정", systemImage: "doc.on.doc")
@@ -50,7 +62,7 @@ struct AddEventSheet: View {
             EventDateRangeEditor(startDate: $startDate, endDate: $endDate)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("띠 색상")
+                Text("일정 색상")
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
                 EventColorSelector(selection: $color)
@@ -69,6 +81,7 @@ struct AddEventSheet: View {
                 Button("취소") {
                     dismiss()
                 }
+                .keyboardShortcut(.cancelAction)
                 Button {
                     if let failureMessage = onAdd() {
                         message = failureMessage
@@ -83,11 +96,13 @@ struct AddEventSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canAdd)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(22)
-        .frame(width: 380)
+        .frame(width: 440)
         .background(AppTheme.panel)
+        .environment(\.locale, Locale(identifier: "ko_KR"))
         .task {
             guard recommendationSession == nil else { return }
             let session = CalendarEventRecommendationSession(context: modelContext)
@@ -166,9 +181,21 @@ struct EventEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("이벤트 편집")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(AppTheme.primaryText)
+            HStack(spacing: 12) {
+                Text("이벤트 편집")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+
+                Spacer()
+
+                Label(DayKey.display(draftStartDate), systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(AppTheme.input, in: Capsule())
+                    .accessibilityLabel("시작일 \(DayKey.display(draftStartDate))")
+            }
 
             DesktopEventTitleEditor(
                 title: $draftTitle,
@@ -185,7 +212,7 @@ struct EventEditorSheet: View {
             EventDateRangeEditor(startDate: $draftStartDate, endDate: $draftEndDate)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("띠 색상")
+                Text("일정 색상")
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
                 EventColorSelector(selection: $draftColor)
@@ -215,6 +242,7 @@ struct EventEditorSheet: View {
                 Button("취소") {
                     dismiss()
                 }
+                .keyboardShortcut(.cancelAction)
 
                 Button {
                     save()
@@ -223,11 +251,13 @@ struct EventEditorSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canSave)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(22)
-        .frame(width: 400)
+        .frame(width: 440)
         .background(AppTheme.panel)
+        .environment(\.locale, Locale(identifier: "ko_KR"))
         .task {
             guard recommendationSession == nil else { return }
             let session = CalendarEventRecommendationSession(context: modelContext)
@@ -304,7 +334,7 @@ private struct DesktopEventTitleEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("큰 일정 또는 작업 맥락", text: $title)
+            TextField("이벤트 제목", text: $title)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(AppTheme.primaryText)
