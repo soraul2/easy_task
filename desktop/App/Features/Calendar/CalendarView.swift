@@ -60,6 +60,7 @@ private struct DesktopCalendarMonthQueryHost<Content: View>: View {
 struct CalendarView: View {
     private static let specialDayStore = SpecialDayStore.load()
 
+    @Binding var navigationDate: Date?
     @Environment(\.modelContext) private var modelContext
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
@@ -79,7 +80,11 @@ struct CalendarView: View {
 
     private let onOpenBoardDate: (Date) -> Void
 
-    init(onOpenBoardDate: @escaping (Date) -> Void = { _ in }) {
+    init(
+        navigationDate: Binding<Date?> = .constant(nil),
+        onOpenBoardDate: @escaping (Date) -> Void = { _ in }
+    ) {
+        _navigationDate = navigationDate
         self.onOpenBoardDate = onOpenBoardDate
     }
 
@@ -100,6 +105,12 @@ struct CalendarView: View {
             )
         }
         .id(queryRange)
+        .onAppear {
+            consumeNavigationDateIfNeeded()
+        }
+        .onChange(of: navigationDate) {
+            consumeNavigationDateIfNeeded()
+        }
     }
 
     private func calendarContent(
@@ -599,6 +610,19 @@ struct CalendarView: View {
             visibleMonth = DayKey.startOfMonth(for: normalizedDate)
         }
         presentedSheet = .day(normalizedDate)
+    }
+
+    private func consumeNavigationDateIfNeeded() {
+        guard let navigationDate else { return }
+        let date = DayKey.startOfDay(for: navigationDate)
+        if isPlacementMode {
+            cancelPlacement()
+        }
+        pendingAddDateAfterSheetDismissal = nil
+        visibleMonth = DayKey.startOfMonth(for: date)
+        selectedDate = date
+        presentedSheet = .day(date)
+        self.navigationDate = nil
     }
 
     private func removeEvent(_ event: CalendarEvent) -> String? {

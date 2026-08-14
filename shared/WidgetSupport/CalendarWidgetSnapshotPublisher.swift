@@ -1,11 +1,44 @@
-#if os(iOS)
 import PlanBaseCore
 import SwiftData
 import SwiftUI
 import WidgetKit
 
+actor CalendarWidgetSnapshotWriteCoordinator {
+    static let shared = CalendarWidgetSnapshotWriteCoordinator()
+
+    private var latestAcceptedSequenceByDestination: [String: UInt64] = [:]
+
+    @discardableResult
+    func write(
+        _ snapshot: CalendarWidgetSnapshot,
+        sequence: UInt64,
+        directoryURL: URL? = nil,
+        forceWrite: Bool = false
+    ) throws -> Bool {
+        let destinationKey = destinationKey(for: directoryURL)
+        let latestAcceptedSequence = latestAcceptedSequenceByDestination[destinationKey] ?? 0
+        guard sequence > latestAcceptedSequence else { return false }
+
+        // Reserve the newest request before touching the file. If this write
+        // fails, an older request must not replace the last known snapshot.
+        latestAcceptedSequenceByDestination[destinationKey] = sequence
+        return try CalendarWidgetSnapshotStore.writeIfChanged(
+            snapshot,
+            directoryURL: directoryURL,
+            forceWrite: forceWrite
+        )
+    }
+
+    private func destinationKey(for directoryURL: URL?) -> String {
+        directoryURL?.standardizedFileURL.path
+            ?? "app-group:\(CalendarWidgetConstants.appGroupIdentifier)"
+    }
+}
+
 @MainActor
 enum CalendarWidgetSnapshotPublicationService {
+    private static var nextPublicationSequence: UInt64 = 0
+
     @discardableResult
     static func publish(
         context: ModelContext,
@@ -15,6 +48,8 @@ enum CalendarWidgetSnapshotPublicationService {
         referenceDate: Date = Date(),
         directoryURL: URL? = nil
     ) async throws -> Bool {
+        nextPublicationSequence += 1
+        let publicationSequence = nextPublicationSequence
         let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
         let events = try context.fetch(
             BoundedQueryService.eventsDescriptor(
@@ -41,8 +76,8 @@ enum CalendarWidgetSnapshotPublicationService {
             )
             tasks = mergedTasks(plannedTasks, completedTasks)
         } catch {
-            // Keep publishing home-screen calendar events even when the
-            // auxiliary lock-screen task query is temporarily unavailable.
+            // Keep publishing calendar events even when the auxiliary
+            // lock-screen task query is temporarily unavailable.
             tasks = nil
         }
         let snapshot = CalendarWidgetSnapshot.make(
@@ -51,19 +86,20 @@ enum CalendarWidgetSnapshotPublicationService {
             referenceDate: referenceDate,
             themeID: themeID
         )
-        let didWrite = try await Swift.Task.detached(priority: .utility) {
-            try CalendarWidgetSnapshotStore.writeIfChanged(
-                snapshot,
-                directoryURL: directoryURL,
-                forceWrite: forceWrite
-            )
-        }.value
+        let didWrite = try await CalendarWidgetSnapshotWriteCoordinator.shared.write(
+            snapshot,
+            sequence: publicationSequence,
+            directoryURL: directoryURL,
+            forceWrite: forceWrite
+        )
 
         if didWrite || forceTimelineReload {
             WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
+#if os(iOS)
             WidgetCenter.shared.reloadTimelines(
                 ofKind: CalendarWidgetConstants.lockScreenKind
             )
+#endif
         }
         return didWrite
     }
@@ -212,4 +248,3 @@ struct CalendarWidgetSnapshotPublisher: View {
         }
     }
 }
-#endif

@@ -406,7 +406,13 @@ struct TaskDetailSheet: View {
                 }
 
                 if oldStatus != status {
-                    TaskRules.applyStatus(status, to: activeTask, completionDayKey: newDayKey)
+                    try TaskLifecycleService.applyStatus(
+                        status,
+                        to: activeTask,
+                        in: modelContext,
+                        now: now,
+                        completionDayKey: newDayKey
+                    )
                 }
 
                 if oldDayKey != newDayKey || nextOrder != nil {

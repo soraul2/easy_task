@@ -87,8 +87,10 @@ public enum SeedService {
             order: 100,
             estimatedMinutes: 15
         )
-        TaskRules.applyStatus(.done, to: doneTask)
+        doneTask.completedAt = today
+        doneTask.completedDayKey = DayKey.key(for: today)
         context.insert(doneTask)
+        insertActivityFixture(for: doneTask, occurredAt: today, context: context)
 
         context.insert(CalendarEvent(
             title: "다음 릴리즈 아이디어 정리",
@@ -232,6 +234,27 @@ public enum SeedService {
         task.archivedAt = now
         task.archivedDayKey = DayKey.today
         context.insert(task)
+        insertActivityFixture(for: task, occurredAt: day, context: context)
+    }
+
+    private static func insertActivityFixture(
+        for task: Task,
+        occurredAt: Date,
+        context: ModelContext
+    ) {
+        let dayKey = DayKey.key(for: occurredAt)
+        context.insert(TaskCompletionActivity(
+            id: TaskActivityRules.logicalID(
+                taskID: task.id,
+                activityDayKey: dayKey
+            ),
+            taskId: task.id,
+            activityDayKey: dayKey,
+            occurredAt: occurredAt,
+            origin: .captured,
+            createdAt: occurredAt,
+            updatedAt: occurredAt
+        ))
     }
 
     private static func applySampleEstimatedMinutes(to tasks: [Task]) {

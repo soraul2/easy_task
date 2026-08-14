@@ -239,7 +239,7 @@ func integrityReconcilesChecklistDuplicatesOrphansBlanksAndCompletionMetadata() 
 
 @Test
 @MainActor
-func backupV5RoundTripPreservesChecklistAndIsIdempotent() throws {
+func backupV6RoundTripPreservesChecklistAndIsIdempotent() throws {
     let source = try PlanBaseContainerFactory.makeInMemory()
     let day = try #require(DayKey.date(from: "2026-07-14"))
     let task = Task(title: "백업", plannedAt: day, order: 100)
@@ -264,7 +264,7 @@ func backupV5RoundTripPreservesChecklistAndIsIdempotent() throws {
     try source.mainContext.save()
 
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(contents.manifest.formatVersion == 5)
+    #expect(contents.manifest.formatVersion == 6)
     #expect(contents.records.payload.taskChecklistItems?.count == 1)
     #expect(contents.records.payload.taskTemplateItems.first?.checklistTitles == ["검증", "배포"])
 

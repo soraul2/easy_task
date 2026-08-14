@@ -403,4 +403,19 @@ func calendarWidgetDeepLinkValidatesAndRoundTripsDayKeys() throws {
     )
     #expect(PlanBaseDeepLink.calendarURL(dayKey: "2026-02-31") == nil)
     #expect(PlanBaseDeepLink.calendarDayKey(from: URL(string: "https://example.com")!) == nil)
+    #expect(
+        PlanBaseDeepLink.calendarDayKey(
+            from: URL(string: "planbase://calendar?date=2026-07-16&date=2026-07-17")!
+        ) == nil
+    )
+    #expect(
+        PlanBaseDeepLink.calendarDayKey(
+            from: URL(string: "planbase://calendar")!
+        ) == nil
+    )
+    #expect(
+        PlanBaseDeepLink.calendarDayKey(
+            from: URL(string: "planbase://calendar?date=")!
+        ) == nil
+    )
 }

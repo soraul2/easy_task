@@ -34,3 +34,4 @@ extension EasyTaskSchemaV5.DailyReview: IntegrityRecord {}
 extension EasyTaskSchemaV5.DiaryBlock: IntegrityRecord {}
 extension EasyTaskSchemaV5.DiaryAttachment: IntegrityRecord {}
 extension EasyTaskSchemaV6.Memo: IntegrityRecord {}
+extension EasyTaskSchemaV7.TaskCompletionActivity: IntegrityRecord {}

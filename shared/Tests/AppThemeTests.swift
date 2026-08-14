@@ -43,6 +43,32 @@ func appThemePresetsMeetTextContrastTarget() {
 }
 
 @Test
+func widgetSemanticForegroundsRemainReadableAcrossEveryTheme() {
+    for preset in AppThemePreset.all {
+        for appearance in AppThemeAppearance.allCases {
+            let colors = preset.colorSet(for: appearance)
+            let sundayRed = colors.eventPalette[CalendarEventColor.red.paletteIndex]
+
+            for surface in [colors.panel, colors.input] {
+                let foreground = colors.resolvedSemanticForeground(
+                    sundayRed,
+                    on: surface
+                )
+                #expect(foreground.contrastRatio(to: surface) >= 4.5)
+            }
+        }
+    }
+}
+
+@Test
+func unknownThemeIdentifierFallsBackToDefaultPreset() {
+    #expect(
+        AppThemePreset.preset(for: "unknown-widget-theme").id
+            == AppThemePreset.defaultID
+    )
+}
+
+@Test
 func appleSystemLightThemeUsesWhiteBackground() {
     let colors = AppThemePreset.preset(for: "appleSystem").colorSet(for: .light)
     let white = ThemeColorToken(hex: "#FFFFFF")

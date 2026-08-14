@@ -16,6 +16,17 @@ extension BackupPackageCodec {
         memo.content == dto.content && memo.isPinned == dto.isPinned
     }
 
+    static func sameTaskCompletionActivity(
+        _ dto: TaskCompletionActivityDTO,
+        _ activity: TaskCompletionActivity
+    ) -> Bool {
+        activity.taskId == dto.taskId &&
+            activity.activityDayKey == dto.activityDayKey &&
+            activity.occurredAt == dto.occurredAt &&
+            activity.originRawValue == dto.originRawValue &&
+            activity.createdAt == dto.createdAt
+    }
+
     static func uniqueByInstanceID<Record>(
         _ records: [Record],
         recordType: String,

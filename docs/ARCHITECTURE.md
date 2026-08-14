@@ -11,15 +11,16 @@ PlanBase.xcodeproj          # iPhone/macOS 앱 번들 타겟과 공유 scheme
 Package.swift               # SwiftPM 기반 공통 코어/테스트 구성
 mobile/
   App/                      # iPhone 앱 구현
-  Widget/                   # iPhone 홈 화면 캘린더·잠금 화면 오늘 위젯
+  Widget/                   # iOS/macOS 캘린더·iPhone 잠금 화면 위젯 소스
   Configuration/            # iOS/Widget Info.plist, entitlements, export 설정
   Tests/                    # iPhone scheduler 단위 테스트와 UI 테스트
 desktop/
   App/                      # macOS 앱 구현
-  Configuration/            # macOS Info.plist, entitlements, export 설정
+  Configuration/            # macOS 앱·위젯 Info.plist, entitlements, export 설정
 shared/
   Core/                     # 공통 모델, 서비스, 공유 SwiftUI 조각과 테마
   Resources/                # 양 플랫폼 공용 에셋과 마이그레이션 리소스
+  WidgetSupport/            # 양 앱 target이 공유하는 snapshot publisher
   Tests/                    # 공통 로직 단위 테스트
 docs/                       # 운영 문서와 plans 아래 작업 기록
 scripts/                    # 빌드와 CloudKit 검증 스크립트
@@ -59,6 +60,8 @@ macOS 앱은 `desktop/App`에 둔다.
 - 데스크톱 칸반 보드, 캘린더, 기록, 목록·편집기 분할형 메모 UI
 - AppKit 기반 파일 패널 wrapper
 - 데스크톱 전용 드래그/호버 UX
+- `CalendarWidgetSnapshotPublisher`로 캘린더와 8일 Task 요약을 App Group에 발행
+- 위젯의 캘린더 날짜와 오늘 보드 deep link를 네이티브 화면으로 연결
 - Xcode `PlanBase-macOS` 타겟에서 `PlanBaseCore` 패키지 제품에 의존한다.
 
 iPhone 앱은 `mobile/App`에 둔다.
@@ -72,10 +75,11 @@ iPhone 앱은 `mobile/App`에 둔다.
 - `TaskNotificationScheduler`: iPhone 로컬 알림 예약·즉시 취소·전체 수렴
 - Xcode `PlanBase-iOS` 타겟과 같은 이름의 공유 scheme을 사용한다.
 
-iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
+iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
-- 소형은 오늘 이벤트, 중형은 월에 따라 5주 또는 6주인 적응형 그리드와 이벤트 표시점, 대형은 날짜별 이벤트 제목을 제공한다.
-- 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공한다.
+- 캘린더 위젯은 소형의 오늘 이벤트, 중형의 월별 적응형 그리드와 이벤트 표시점, 대형·초대형의 날짜별 이벤트 제목을 iOS/iPadOS와 macOS에서 공유한다.
+- macOS 앱은 같은 extension을 네이티브 바탕화면·알림 센터 위젯으로 embed한다.
+- iPhone 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공하며 macOS 빌드에서는 등록·컴파일하지 않는다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
 - 스냅샷 v4에는 선택 테마, 캘린더 범위와 별도로 오늘부터 8일간의 최소 Task/Event 요약을 포함한다.
   대표 제목 하나만 저장하고 잠금 화면에서는 `privacySensitive()`로 보호한다.
@@ -83,7 +87,7 @@ iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 - 잠금 화면 탭은 처리 시점의 오늘을 해석하는 `planbase://board?scope=today`로 보드를 연다.
   명시적 보드 날짜는 `planbase://board?date=yyyy-MM-dd`를 사용한다.
   기존 위젯과 링크를 위해 `easytask://`도 계속 수신한다.
-- Xcode `PlanBaseWidgetExtension` 타겟에서 `PlanBaseCore` 패키지 제품에 의존하고 `PlanBase.app`에 내장된다.
+- Xcode `PlanBaseWidgetExtension` 타겟은 `PlanBaseCore` 패키지 제품에 의존하고 각 플랫폼의 `PlanBase.app`에 내장된다.
 
 두 앱 타겟은 공통 코어 소스를 직접 컴파일하지 않고 로컬 Swift Package의
 `PlanBaseCore` 제품을 링크한다.
@@ -124,7 +128,7 @@ iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
     저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
 12. 보드와 캘린더는 선택 날짜 또는 월별 5/6주 그리드 범위(최대 42일)만 live query하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다.
-13. iPhone 앱은 이벤트 변경·앱 활성화 때 App Group 위젯 스냅샷을 갱신하고, 내용이 달라졌을 때만 WidgetKit 타임라인을 다시 요청한다.
+13. iPhone과 macOS 앱은 이벤트 변경·앱 활성화·CloudKit import 뒤 각 기기의 App Group 위젯 스냅샷을 갱신하고, 내용이 달라졌을 때만 WidgetKit 타임라인을 다시 요청한다.
 
 ## 저장과 동기화 런타임
 
@@ -205,7 +209,7 @@ iPhone 홈 화면·잠금 화면 위젯은 `mobile/Widget`에 둔다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
 - 메모 검색은 기록과 분리하고 제목·본문 전체를 대상으로 40개씩 조회한다. 편집은 600ms debounce로 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
-- iOS 홈 화면 캘린더 위젯은 소형·중형·대형을 지원하며 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트를 사용한다.
+- iOS/iPadOS와 macOS 캘린더 위젯은 소형·중형·대형·초대형을 지원하며 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트를 사용한다. 실제 노출 family는 플랫폼과 배치 위치의 WidgetKit 정책을 따른다.
 - iOS 잠금 화면 오늘 위젯은 세 accessory family를 지원한다. 앱이 무결성 수렴을 마친 뒤 bounded query로 8일 요약을 발행하며 두 widget kind를 함께 reload한다.
 
 ## 다음 단계

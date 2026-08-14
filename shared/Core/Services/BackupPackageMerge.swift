@@ -64,6 +64,17 @@ public extension BackupPackageCodec {
                 preserveLegacyImages: true
             )
             try mergeMemos(payload.memos ?? [], context: context, report: &report)
+            try mergeTaskCompletionActivities(
+                payload.taskCompletionActivities ?? [],
+                context: context,
+                report: &report
+            )
+            if payload.taskCompletionActivities == nil {
+                _ = try TaskActivityBackfillService.backfillLegacyCompletions(
+                    in: context,
+                    createdAt: payload.exportedAt
+                )
+            }
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
             try validateFinalAttachmentCounts(context: context)
             try context.save()
@@ -114,6 +125,17 @@ extension BackupPackageCodec {
             try mergeReviews(payload.dailyReviews ?? [], context: context, report: &report)
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
             try mergeMemos(payload.memos ?? [], context: context, report: &report)
+            try mergeTaskCompletionActivities(
+                payload.taskCompletionActivities ?? [],
+                context: context,
+                report: &report
+            )
+            if payload.taskCompletionActivities == nil {
+                _ = try TaskActivityBackfillService.backfillLegacyCompletions(
+                    in: context,
+                    createdAt: payload.exportedAt
+                )
+            }
             try mergeAttachments(contents, context: context, report: &report)
             _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
             try validateImportedAttachmentRelativeOrder(contents, context: context)

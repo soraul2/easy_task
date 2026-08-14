@@ -300,6 +300,33 @@ func onlySuccessfulCompletedImportsTriggerReconciliation(
 ) {
     let expected = summary.kind == .import && summary.isCompleted && summary.succeeded
     #expect(CloudKitSyncService.shouldReconcile(after: summary) == expected)
+    #expect(
+        CloudKitSyncService.shouldScheduleActivityReconciliation(after: summary) == expected
+    )
+}
+
+@Test
+@MainActor
+func immediateCloudKitReconciliationDoesNotRunDelayedActivityBackfill() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let completedAt = Date(timeIntervalSince1970: 1_786_752_000)
+    let task = Task(title: "원격 완료", status: .done, plannedAt: completedAt, order: 100)
+    task.completedAt = completedAt
+    task.completedDayKey = "2026-08-14"
+    context.insert(task)
+    try context.save()
+
+    try CloudKitSyncService.reconcileIfNeeded(
+        after: CloudKitSyncEventSummary(
+            kind: .import,
+            isCompleted: true,
+            succeeded: true
+        ),
+        context: context
+    )
+
+    #expect(try context.fetchCount(FetchDescriptor<TaskCompletionActivity>()) == 0)
 }
 
 @Test

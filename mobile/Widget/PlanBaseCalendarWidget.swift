@@ -11,7 +11,7 @@ struct PlanBaseCalendarWidget: Widget {
             PlanBaseCalendarWidgetView(entry: entry)
         }
         .configurationDisplayName("PlanBase 캘린더")
-        .description("오늘의 이벤트와 월간 일정을 앱 테마로 홈 화면에서 확인합니다.")
+        .description(widgetDescription)
         .supportedFamilies([
             .systemSmall,
             .systemMedium,
@@ -19,6 +19,14 @@ struct PlanBaseCalendarWidget: Widget {
             .systemExtraLarge
         ])
         .contentMarginsDisabled()
+    }
+
+    private var widgetDescription: String {
+#if os(macOS)
+        "오늘의 이벤트와 월간 일정을 앱 테마로 바탕화면에서 확인합니다."
+#else
+        "오늘의 이벤트와 월간 일정을 앱 테마로 홈 화면에서 확인합니다."
+#endif
     }
 }
 
@@ -37,7 +45,7 @@ private struct PlanBaseCalendarWidgetPreviews: PreviewProvider {
                 .previewDisplayName("Large · 월간 제목")
             PlanBaseCalendarWidgetView(entry: availableEntry)
                 .previewContext(WidgetPreviewContext(family: .systemExtraLarge))
-                .previewDisplayName("Extra Large · iPad 월간 전체")
+                .previewDisplayName("Extra Large · 월간 전체")
             PlanBaseCalendarWidgetView(entry: refreshEntry)
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
                 .previewDisplayName("Small · 갱신 필요")

@@ -3,17 +3,20 @@ import SwiftData
 
 public enum DataIntegrityService {
     public struct Report: Equatable, Sendable {
+        public internal(set) var insertedRecords: Int
         public internal(set) var mergedRecords: Int
         public internal(set) var normalizedFields: Int
         public internal(set) var rewiredReferences: Int
         public internal(set) var supersededRecords: Int
 
         public init(
+            insertedRecords: Int = 0,
             mergedRecords: Int = 0,
             normalizedFields: Int = 0,
             rewiredReferences: Int = 0,
             supersededRecords: Int = 0
         ) {
+            self.insertedRecords = insertedRecords
             self.mergedRecords = mergedRecords
             self.normalizedFields = normalizedFields
             self.rewiredReferences = rewiredReferences
@@ -23,7 +26,8 @@ public enum DataIntegrityService {
         public static let noChanges = Report()
 
         public var hasChanges: Bool {
-            mergedRecords > 0 ||
+            insertedRecords > 0 ||
+                mergedRecords > 0 ||
                 normalizedFields > 0 ||
                 rewiredReferences > 0 ||
                 supersededRecords > 0
@@ -34,7 +38,8 @@ public enum DataIntegrityService {
     @discardableResult
     public static func reconcile(
         context: ModelContext,
-        saveChanges: Bool = true
+        saveChanges: Bool = true,
+        backfillLegacyTaskActivity: Bool = true
     ) throws -> Report {
         let events = try context.fetch(FetchDescriptor<CalendarEvent>())
         let templates = try context.fetch(FetchDescriptor<TaskTemplate>())
@@ -169,6 +174,18 @@ public enum DataIntegrityService {
             items: checklistItems,
             report: &report
         )
+
+        if backfillLegacyTaskActivity {
+            let backfillReport = try TaskActivityBackfillService
+                .backfillLegacyCompletions(in: context)
+            report.insertedRecords += backfillReport.insertedActivities
+        }
+        let activityReport = try TaskActivityIntegrityService.reconcile(
+            in: context
+        )
+        report.mergedRecords += activityReport.mergedRecords
+        report.normalizedFields += activityReport.normalizedFields
+        report.supersededRecords += activityReport.supersededRecords
 
         if report.hasChanges && saveChanges {
             try context.save()

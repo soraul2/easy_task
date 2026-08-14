@@ -17,6 +17,7 @@ public enum CloudKitProbeKind: String, Codable, Sendable {
     case media
     case conflict
     case checklist
+    case activity
 }
 
 public enum CloudKitConflictVariant: String, Codable, CaseIterable, Sendable {
@@ -113,6 +114,37 @@ public struct CloudKitChecklistProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+public struct CloudKitActivityProbeSnapshot: Codable, Equatable, Sendable {
+    public var token: UUID
+    public var totalActivityCount: Int
+    public var activeActivityCount: Int
+    public var matchingActivityCount: Int
+    public var activityDayKey: String?
+    public var originRawValue: String?
+    public var expectation: CloudKitProbeExpectation
+    public var passed: Bool
+
+    public init(
+        token: UUID,
+        totalActivityCount: Int,
+        activeActivityCount: Int,
+        matchingActivityCount: Int,
+        activityDayKey: String?,
+        originRawValue: String?,
+        expectation: CloudKitProbeExpectation,
+        passed: Bool
+    ) {
+        self.token = token
+        self.totalActivityCount = totalActivityCount
+        self.activeActivityCount = activeActivityCount
+        self.matchingActivityCount = matchingActivityCount
+        self.activityDayKey = activityDayKey
+        self.originRawValue = originRawValue
+        self.expectation = expectation
+        self.passed = passed
+    }
+}
+
 public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
@@ -122,6 +154,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var mediaSnapshot: CloudKitMediaProbeSnapshot?
     public var conflictSnapshot: CloudKitConflictProbeSnapshot?
     public var checklistSnapshot: CloudKitChecklistProbeSnapshot?
+    public var activitySnapshot: CloudKitActivityProbeSnapshot?
     public var error: String?
 
     public init(
@@ -133,6 +166,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
         mediaSnapshot: CloudKitMediaProbeSnapshot? = nil,
         conflictSnapshot: CloudKitConflictProbeSnapshot? = nil,
         checklistSnapshot: CloudKitChecklistProbeSnapshot? = nil,
+        activitySnapshot: CloudKitActivityProbeSnapshot? = nil,
         error: String? = nil
     ) {
         self.kind = kind
@@ -143,6 +177,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
         self.mediaSnapshot = mediaSnapshot
         self.conflictSnapshot = conflictSnapshot
         self.checklistSnapshot = checklistSnapshot
+        self.activitySnapshot = activitySnapshot
         self.error = error
     }
 }
@@ -265,6 +300,11 @@ public enum CloudKitConvergenceProbe {
                 result = try await runChecklistProbe(
                     configuration: configuration,
                     sourceBundleIdentifier: sourceBundleIdentifier,
+                    context: context
+                )
+            case .activity:
+                result = try await runActivityProbe(
+                    configuration: configuration,
                     context: context
                 )
             }

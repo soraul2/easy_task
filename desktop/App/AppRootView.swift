@@ -38,10 +38,12 @@ struct AppRootView: View {
 
     @State private var selectedTab: AppTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
+    @State private var calendarNavigationDate: Date?
     @State private var themeRevision = 0
     @State private var activeDayKey = DayKey.today
     @State private var selectedBoardDayKey = DayKey.today
     @State private var isFollowingToday = true
+    @State private var isWidgetSnapshotPublisherReady = false
     @State private var syncMonitor = CloudKitSyncMonitor()
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
@@ -57,6 +59,10 @@ struct AppRootView: View {
                     Color.clear.frame(height: bottomContentInset)
                 }
                 .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
+
+            if isWidgetSnapshotPublisherReady {
+                CalendarWidgetSnapshotPublisher()
+            }
 
             HStack(spacing: 14) {
                 FloatingTabBar(selectedTab: $selectedTab)
@@ -86,6 +92,7 @@ struct AppRootView: View {
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
             refreshCurrentDay()
+            refreshWidgetSnapshot(forceWrite: true)
             if cloudKitEnabled {
                 Swift.Task { await syncMonitor.refreshAccountStatus() }
             }
@@ -109,6 +116,7 @@ struct AppRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             refreshCurrentDay()
         }
+        .onOpenURL(perform: handleDeepLink)
     }
 
     private var bottomContentInset: CGFloat {
@@ -116,6 +124,12 @@ struct AppRootView: View {
     }
 
     private func start() {
+        defer {
+            // Widget publication is best-effort and must stay available even if
+            // an unrelated startup reconciliation or migration fails.
+            isWidgetSnapshotPublisherReady = true
+            refreshWidgetSnapshot(forceWrite: true)
+        }
         let migratedThemeID = AppTheme.migrateStoredDefaultIfNeeded(selectedThemeID)
         if migratedThemeID != selectedThemeID {
             selectedThemeID = migratedThemeID
@@ -279,10 +293,42 @@ struct AppRootView: View {
         TaskRules.archiveIfNeeded(candidates, todayKey: todayKey)
     }
 
+    private func refreshWidgetSnapshot(
+        forceWrite: Bool,
+        delay: Duration? = nil
+    ) {
+        let themeID = selectedThemeID
+        Swift.Task { @MainActor in
+            do {
+                if let delay {
+                    try await Swift.Task.sleep(for: delay)
+                }
+                _ = try await CalendarWidgetSnapshotPublicationService.publish(
+                    context: modelContext,
+                    themeID: themeID,
+                    forceWrite: forceWrite,
+                    forceTimelineReload: true
+                )
+            } catch {
+                print(
+                    "macOS 위젯 데이터 갱신 실패: " +
+                        error.localizedDescription
+                )
+                if error as? CalendarWidgetSnapshotStore.StoreError
+                    == .appGroupContainerUnavailable {
+                    syncMonitor.recordIssue(
+                        "위젯 일정 공유 권한을 사용할 수 없습니다. 앱 빌드 권한을 확인해 주세요."
+                    )
+                }
+            }
+        }
+    }
+
     private func handleCloudKitEvent(_ notification: Notification) {
         guard let summary = CloudKitSyncService.summary(from: notification) else { return }
         syncMonitor.record(summary)
 
+        let shouldRefreshWidget = CloudKitSyncService.shouldReconcile(after: summary)
         do {
             try CloudKitSyncService.reconcileIfNeeded(
                 after: summary,
@@ -290,6 +336,10 @@ struct AppRootView: View {
             )
         } catch {
             syncMonitor.recordReconciliationFailure(error)
+        }
+        if shouldRefreshWidget {
+            // Imports can finish after startup published an empty local cache.
+            refreshWidgetSnapshot(forceWrite: true, delay: .milliseconds(250))
         }
     }
 
@@ -321,7 +371,7 @@ struct AppRootView: View {
         case .board:
             BoardView(selectedDate: $selectedBoardDate)
         case .calendar:
-            CalendarView { date in
+            CalendarView(navigationDate: $calendarNavigationDate) { date in
                 selectedBoardDate = date
                 selectedTab = .board
             }
@@ -332,6 +382,20 @@ struct AppRootView: View {
             }
         case .memo:
             MemoView()
+        }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        if let dayKey = PlanBaseDeepLink.calendarDayKey(from: url),
+           let date = DayKey.date(from: dayKey) {
+            calendarNavigationDate = date
+            selectedTab = .calendar
+            return
+        }
+        if let route = PlanBaseDeepLink.boardRoute(from: url),
+           let date = DayKey.date(from: route.resolvedDayKey()) {
+            selectedBoardDate = date
+            selectedTab = .board
         }
     }
 }

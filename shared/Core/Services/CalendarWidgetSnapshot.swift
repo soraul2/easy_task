@@ -681,8 +681,12 @@ public enum PlanBaseDeepLink {
         guard let scheme = url.scheme?.lowercased(),
               CalendarWidgetConstants.supportedDeepLinkSchemes.contains(scheme),
               url.host?.lowercased() == "calendar",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let dayKey = components.queryItems?.first(where: { $0.name == "date" })?.value,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let dates = components.queryItems?.filter { $0.name == "date" } ?? []
+        guard dates.count == 1,
+              let dayKey = dates.first?.value,
               DayKey.date(from: dayKey) != nil else {
             return nil
         }

@@ -57,6 +57,43 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
 #endif
     }
 
+    func testWriteCoordinatorRejectsAnOlderSnapshotForTheSameDestination() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let newerSnapshot = CalendarWidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 200),
+            themeID: "roseLilac",
+            events: []
+        )
+        let olderSnapshot = CalendarWidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 100),
+            themeID: AppThemePreset.defaultID,
+            events: []
+        )
+        let coordinator = CalendarWidgetSnapshotWriteCoordinator()
+
+        let didWriteNewerSnapshot = try await coordinator.write(
+            newerSnapshot,
+            sequence: 2,
+            directoryURL: directoryURL,
+            forceWrite: true
+        )
+        let didWriteOlderSnapshot = try await coordinator.write(
+            olderSnapshot,
+            sequence: 1,
+            directoryURL: directoryURL,
+            forceWrite: true
+        )
+
+        XCTAssertTrue(didWriteNewerSnapshot)
+        XCTAssertFalse(didWriteOlderSnapshot)
+        XCTAssertEqual(
+            try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL),
+            newerSnapshot
+        )
+    }
+
     @MainActor
     func testPublisherWritesCalendarEventsFetchedFromAppContext() async throws {
         let directoryURL = FileManager.default.temporaryDirectory
@@ -91,6 +128,18 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
         XCTAssertEqual(
             snapshot.events(onDayKey: "2026-07-24").map(\.title),
             ["위젯 통합 일정"]
+        )
+
+        let changedThemeDidWrite = try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: "roseLilac",
+            referenceDate: referenceDate,
+            directoryURL: directoryURL
+        )
+        XCTAssertTrue(changedThemeDidWrite)
+        XCTAssertEqual(
+            try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID,
+            "roseLilac"
         )
     }
 }

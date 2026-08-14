@@ -154,7 +154,7 @@ func memoPinDeleteAndIntegrityConvergeOnNewestUpdate() throws {
 
 @Test
 @MainActor
-func backupV5RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
+func backupV6RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     let source = try PlanBaseContainerFactory.makeInMemory()
     let memo = Memo(
         content: "백업 메모\n본문",
@@ -166,7 +166,7 @@ func backupV5RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     try source.mainContext.save()
 
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(contents.manifest.formatVersion == 5)
+    #expect(contents.manifest.formatVersion == 6)
     #expect(contents.records.payload.memos?.count == 1)
 
     let destination = try PlanBaseContainerFactory.makeInMemory()

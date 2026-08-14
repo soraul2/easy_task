@@ -13,6 +13,7 @@ public struct BackupPayload: Codable {
     public var dailyReviews: [DailyReviewDTO]?
     public var diaryBlocks: [DiaryBlockDTO]?
     public var memos: [MemoDTO]? = nil
+    public var taskCompletionActivities: [TaskCompletionActivityDTO]? = nil
 }
 
 public struct TaskDTO: Codable {
@@ -134,6 +135,17 @@ public struct MemoDTO: Codable {
     public var createdAt: Date
     public var updatedAt: Date
     public var instanceID: UUID? = nil
+}
+
+public struct TaskCompletionActivityDTO: Codable {
+    public var id: UUID
+    public var instanceID: UUID
+    public var taskId: UUID
+    public var activityDayKey: String
+    public var occurredAt: Date
+    public var originRawValue: String
+    public var createdAt: Date
+    public var updatedAt: Date
 }
 
 public enum BackupServiceError: LocalizedError, Equatable {

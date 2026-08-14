@@ -12,6 +12,7 @@
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [활동 스트릭·히트맵 및 통계 보기](plans/active/ACTIVITY_STREAK_HEATMAP_PLAN.md)
 - [macOS·iPhone 기능 정합성](plans/active/CROSS_PLATFORM_PARITY_PLAN.md)
 - [캘린더 위젯 밀도](plans/active/CALENDAR_WIDGET_DENSITY_PLAN.md)
 - [잠금 화면 위젯](plans/active/LOCK_SCREEN_WIDGET_PLAN.md)

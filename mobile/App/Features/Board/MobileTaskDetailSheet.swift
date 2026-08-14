@@ -404,9 +404,10 @@ struct MobileTaskDetailSheet: View {
                 }
 
                 if oldStatus != status {
-                    TaskRules.applyStatus(
+                    try TaskLifecycleService.applyStatus(
                         status,
                         to: currentTask,
+                        in: modelContext,
                         now: now,
                         completionDayKey: newDayKey
                     )

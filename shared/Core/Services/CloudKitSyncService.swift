@@ -262,6 +262,12 @@ public enum CloudKitSyncService {
         summary.kind == .import && summary.isCompleted && summary.succeeded
     }
 
+    public static func shouldScheduleActivityReconciliation(
+        after summary: CloudKitSyncEventSummary
+    ) -> Bool {
+        shouldReconcile(after: summary)
+    }
+
     @MainActor
     public static func reconcileIfNeeded(
         after summary: CloudKitSyncEventSummary,
@@ -271,7 +277,8 @@ public enum CloudKitSyncService {
         try PersistenceCommandService.perform(in: context) {
             _ = try DataIntegrityService.reconcile(
                 context: context,
-                saveChanges: false
+                saveChanges: false,
+                backfillLegacyTaskActivity: false
             )
         }
     }

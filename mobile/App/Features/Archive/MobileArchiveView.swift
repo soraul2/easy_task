@@ -10,10 +10,15 @@ struct MobileArchiveView: View {
     var onShowTheme: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var filter = ArchiveFilter()
     @State private var showingFilter = false
     @State private var querySession: ArchiveQuerySession?
     @State private var statisticsSession: TaskHistoryStatisticsSession?
+    @State private var activitySession: ActivityOverviewSession?
+    @State private var selectedActivityDayKey: String?
+    @AppStorage(ArchiveOverviewMode.storageKey) private var overviewModeRaw =
+        ArchiveOverviewMode.activity.rawValue
     @StateObject private var backupCoordinator = MobileBackupCoordinator()
 
     private var hasActiveFilterOptions: Bool {
@@ -31,7 +36,26 @@ struct MobileArchiveView: View {
 
         NavigationStack {
             List {
-                if let statisticsSession {
+                Picker("기록 요약", selection: overviewModeBinding) {
+                    ForEach(ArchiveOverviewMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
+                .accessibilityIdentifier("archive-overview-mode")
+
+                if overviewMode == .activity, let activitySession {
+                    MobileArchiveActivityOverview(
+                        session: activitySession,
+                        selectedDayKey: $selectedActivityDayKey
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                } else if let statisticsSession {
                     MobileArchiveStatisticsOverview(
                         statistics: statisticsSession.statistics,
                         presentation: TaskHistoryStatisticsPresentation(filter: filter),
@@ -174,10 +198,19 @@ struct MobileArchiveView: View {
             guard querySession == nil else { return }
             let session = ArchiveQuerySession(context: modelContext)
             let statistics = TaskHistoryStatisticsSession(context: modelContext)
+            let activity = ActivityOverviewSession(context: modelContext)
             querySession = session
             statisticsSession = statistics
+            activitySession = activity
             session.apply(filter, debounceSearch: false)
-            statistics.apply(filter)
+            if let launchMode = uiTestingOverviewMode {
+                overviewModeRaw = launchMode.rawValue
+            }
+            if overviewMode == .activity {
+                activity.apply(weekCount: activityWeekCount)
+            } else {
+                statistics.apply(filter)
+            }
         }
         .onChange(of: filter) { oldFilter, newFilter in
             querySession?.apply(
@@ -187,9 +220,24 @@ struct MobileArchiveView: View {
                     to: newFilter
                 )
             )
-            if shouldRefreshStatistics(from: oldFilter, to: newFilter) {
+            if overviewMode == .statistics,
+               shouldRefreshStatistics(from: oldFilter, to: newFilter) {
                 statisticsSession?.apply(newFilter)
             }
+        }
+        .onChange(of: overviewModeRaw) { _, _ in
+            selectedActivityDayKey = nil
+            if overviewMode == .activity {
+                activitySession?.apply(weekCount: activityWeekCount)
+            } else {
+                activitySession?.cancel()
+                statisticsSession?.apply(filter)
+            }
+        }
+        .onChange(of: horizontalSizeClass) { _, _ in
+            guard overviewMode == .activity else { return }
+            selectedActivityDayKey = nil
+            activitySession?.apply(weekCount: activityWeekCount)
         }
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
@@ -197,7 +245,12 @@ struct MobileArchiveView: View {
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             querySession?.refreshPreservingDepth()
-            statisticsSession?.apply(filter)
+            if overviewMode == .statistics {
+                statisticsSession?.apply(filter)
+            }
+        }
+        .onDisappear {
+            activitySession?.cancel()
         }
         .sheet(item: $backupCoordinator.pickerRequest) { request in
             MobileBackupDocumentPicker(request: request) { result in
@@ -231,6 +284,33 @@ struct MobileArchiveView: View {
             oldFilter.customEndDate == newFilter.customEndDate
     }
 
+    private var overviewMode: ArchiveOverviewMode {
+        ArchiveOverviewMode(rawValue: overviewModeRaw) ?? .activity
+    }
+
+    private var overviewModeBinding: Binding<ArchiveOverviewMode> {
+        Binding(
+            get: { overviewMode },
+            set: { overviewModeRaw = $0.rawValue }
+        )
+    }
+
+    private var activityWeekCount: Int {
+        horizontalSizeClass == .regular
+            ? TaskActivityRules.regularWeekCount
+            : TaskActivityRules.compactWeekCount
+    }
+
+    private var uiTestingOverviewMode: ArchiveOverviewMode? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--ui-testing-archive-mode") else {
+            return nil
+        }
+        let valueIndex = arguments.index(after: index)
+        guard arguments.indices.contains(valueIndex) else { return nil }
+        return ArchiveOverviewMode(rawValue: arguments[valueIndex])
+    }
+
     private func shouldRefreshStatistics(
         from oldFilter: ArchiveFilter,
         to newFilter: ArchiveFilter
@@ -258,6 +338,111 @@ struct MobileArchiveView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 260)
+    }
+}
+
+private struct MobileArchiveActivityOverview: View {
+    @Bindable var session: ActivityOverviewSession
+    @Binding var selectedDayKey: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "flame.fill")
+                    .foregroundStyle(AppTheme.doneForeground)
+                    .padding(7)
+                    .background(AppTheme.done, in: Circle())
+                    .accessibilityHidden(true)
+                Text("\(session.overview.currentStreak)일 연속")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .contentTransition(.numericText())
+                Spacer()
+                if session.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("활동 기록 계산 중")
+                }
+            }
+
+            Text(session.overview.todayState.message)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.secondaryText)
+            Text("최근 1년 최고 \(session.overview.bestStreakInLastYear)일")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+
+            if session.overview.range != nil {
+                ActivityHeatmapView(
+                    overview: session.overview,
+                    palette: AppTheme.activityHeatmapPalette,
+                    selectedDayKey: selectedDayKey,
+                    onSelectDay: { selectedDayKey = $0 }
+                )
+                .frame(maxWidth: .infinity)
+
+                activityLegend
+
+                if let selectedDayKey,
+                   let day = session.overview.days.first(where: {
+                       $0.dayKey == selectedDayKey
+                   }) {
+                    Text(selectionSummary(day))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .accessibilityIdentifier("activity-selected-day-summary")
+                }
+            } else if !session.isLoading {
+                Text(session.errorMessage ?? "작업을 완료하면 활동 기록이 시작돼요")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 90, alignment: .center)
+            }
+
+            if session.errorMessage != nil {
+                Button("다시 시도") {
+                    session.retry()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityIdentifier("activity-overview")
+    }
+
+    private var activityLegend: some View {
+        HStack(spacing: 5) {
+            Text("적음")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.secondaryText)
+            ForEach(ActivityIntensityLevel.allCases, id: \.rawValue) { level in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(AppTheme.activityHeatmapPalette.fill(for: ActivityDaySummary(
+                        dayKey: "",
+                        completedTaskCount: level.rawValue,
+                        intensity: level,
+                        isFuture: false,
+                        isInCurrentStreak: false
+                    )))
+                    .frame(width: 11, height: 11)
+            }
+            Text("많음")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.secondaryText)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func selectionSummary(_ day: ActivityDaySummary) -> String {
+        let dateText = DayKey.date(from: day.dayKey).map(DayKey.display) ?? day.dayKey
+        return day.completedTaskCount == 0
+            ? "\(dateText) · 완료 작업 없음"
+            : "\(dateText) · 완료 작업 \(day.completedTaskCount)개"
     }
 }
 

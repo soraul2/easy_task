@@ -47,7 +47,12 @@ public enum BackupCodec {
                 .map(DiaryBlockDTO.init),
             memos: try context.fetch(FetchDescriptor<Memo>())
                 .filter { $0.supersededAt == nil }
-                .map(MemoDTO.init)
+                .map(MemoDTO.init),
+            taskCompletionActivities: try context.fetch(
+                FetchDescriptor<TaskCompletionActivity>()
+            )
+                .filter { $0.supersededAt == nil }
+                .map(TaskCompletionActivityDTO.init)
         )
         return try validatedPayload(payload)
     }
@@ -66,10 +71,12 @@ public enum BackupCodec {
         return try validatedPayload(payload)
     }
 
+    @MainActor
     public static func replaceAll(with payload: BackupPayload, in context: ModelContext) throws {
         try replaceAll(with: payload, in: context, beforeFinalSave: {})
     }
 
+    @MainActor
     static func replaceAll(
         with payload: BackupPayload,
         in context: ModelContext,
@@ -111,6 +118,9 @@ public enum BackupCodec {
             for memo in try context.fetch(FetchDescriptor<Memo>()) {
                 context.delete(memo)
             }
+            for activity in try context.fetch(FetchDescriptor<TaskCompletionActivity>()) {
+                context.delete(activity)
+            }
 
             for dto in payload.calendarEvents {
                 context.insert(CalendarEvent(dto: dto))
@@ -139,6 +149,20 @@ public enum BackupCodec {
             for dto in payload.memos ?? [] {
                 context.insert(Memo(dto: dto))
             }
+            for dto in payload.taskCompletionActivities ?? [] {
+                context.insert(TaskCompletionActivity(dto: dto))
+            }
+
+            if payload.taskCompletionActivities == nil {
+                _ = try TaskActivityBackfillService.backfillLegacyCompletions(
+                    in: context,
+                    createdAt: payload.exportedAt
+                )
+            }
+            _ = try DataIntegrityService.reconcile(
+                context: context,
+                saveChanges: false
+            )
 
             try beforeFinalSave()
             try context.save()
@@ -174,6 +198,10 @@ private extension BackupCodec {
         let reviewIDs = try uniqueIDs(reviews.map(\.id), recordType: "DailyReview")
         _ = try uniqueIDs((payload.diaryBlocks ?? []).map(\.id), recordType: "DiaryBlock")
         _ = try uniqueIDs((payload.memos ?? []).map(\.id), recordType: "Memo")
+        _ = try uniqueIDs(
+            (payload.taskCompletionActivities ?? []).map(\.id),
+            recordType: "TaskCompletionActivity"
+        )
 
         try validateEvents(payload.calendarEvents)
         try validateTemplates(payload.taskTemplateItems, templateIDs: templateIDs)
@@ -259,6 +287,8 @@ private extension BackupCodec {
             }
         }
 
+        try validateTaskCompletionActivities(payload.taskCompletionActivities ?? [])
+
         return payload
     }
 
@@ -280,6 +310,43 @@ private extension BackupCodec {
                 throw BackupServiceError.invalidValue(
                     field: "\(field).endAt",
                     value: "before startAt"
+                )
+            }
+        }
+    }
+
+    static func validateTaskCompletionActivities(
+        _ activities: [TaskCompletionActivityDTO]
+    ) throws {
+        for (index, activity) in activities.enumerated() {
+            let field = "taskCompletionActivities[\(index)]"
+            try validateDayKey(
+                activity.activityDayKey,
+                field: "\(field).activityDayKey"
+            )
+            try validateDate(activity.occurredAt, field: "\(field).occurredAt")
+            try validateDate(activity.createdAt, field: "\(field).createdAt")
+            try validateDate(activity.updatedAt, field: "\(field).updatedAt")
+            guard TaskActivityRules.origin(for: activity.originRawValue) != nil else {
+                throw BackupServiceError.invalidEnum(
+                    field: "\(field).originRawValue",
+                    value: activity.originRawValue
+                )
+            }
+            let expectedID = TaskActivityRules.logicalID(
+                taskID: activity.taskId,
+                activityDayKey: activity.activityDayKey
+            )
+            guard activity.id == expectedID else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).id",
+                    value: activity.id.uuidString
+                )
+            }
+            guard activity.createdAt <= activity.updatedAt else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).updatedAt",
+                    value: "before createdAt"
                 )
             }
         }

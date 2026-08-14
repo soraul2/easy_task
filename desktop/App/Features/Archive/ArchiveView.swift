@@ -12,6 +12,10 @@ struct ArchiveView: View {
     @State private var message: String?
     @State private var querySession: ArchiveQuerySession?
     @State private var statisticsSession: TaskHistoryStatisticsSession?
+    @State private var activitySession: ActivityOverviewSession?
+    @State private var selectedActivityDayKey: String?
+    @AppStorage(ArchiveOverviewMode.storageKey) private var overviewModeRaw =
+        ArchiveOverviewMode.activity.rawValue
     @State private var showingFilter = false
     @FocusState private var searchFocused: Bool
 
@@ -47,7 +51,12 @@ struct ArchiveView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if let statisticsSession {
+                    if overviewMode == .activity, let activitySession {
+                        ArchiveActivityOverview(
+                            session: activitySession,
+                            selectedDayKey: $selectedActivityDayKey
+                        )
+                    } else if let statisticsSession {
                         ArchiveStatisticsOverview(
                             statistics: statisticsSession.statistics,
                             presentation: TaskHistoryStatisticsPresentation(filter: filter),
@@ -120,10 +129,19 @@ struct ArchiveView: View {
             guard querySession == nil else { return }
             let session = ArchiveQuerySession(context: modelContext)
             let statistics = TaskHistoryStatisticsSession(context: modelContext)
+            let activity = ActivityOverviewSession(context: modelContext)
             querySession = session
             statisticsSession = statistics
+            activitySession = activity
             session.apply(filter, debounceSearch: false)
-            statistics.apply(filter)
+            if let launchMode = uiTestingOverviewMode {
+                overviewModeRaw = launchMode.rawValue
+            }
+            if overviewMode == .activity {
+                activity.apply(weekCount: TaskActivityRules.regularWeekCount)
+            } else {
+                statistics.apply(filter)
+            }
         }
         .onChange(of: filter) { oldFilter, newFilter in
             querySession?.apply(
@@ -133,8 +151,18 @@ struct ArchiveView: View {
                     to: newFilter
                 )
             )
-            if shouldRefreshStatistics(from: oldFilter, to: newFilter) {
+            if overviewMode == .statistics,
+               shouldRefreshStatistics(from: oldFilter, to: newFilter) {
                 statisticsSession?.apply(newFilter)
+            }
+        }
+        .onChange(of: overviewModeRaw) { _, _ in
+            selectedActivityDayKey = nil
+            if overviewMode == .activity {
+                activitySession?.apply(weekCount: TaskActivityRules.regularWeekCount)
+            } else {
+                activitySession?.cancel()
+                statisticsSession?.apply(filter)
             }
         }
         .onReceive(NotificationCenter.default.publisher(
@@ -143,7 +171,12 @@ struct ArchiveView: View {
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             querySession?.refreshPreservingDepth()
-            statisticsSession?.apply(filter)
+            if overviewMode == .statistics {
+                statisticsSession?.apply(filter)
+            }
+        }
+        .onDisappear {
+            activitySession?.cancel()
         }
         .background {
             Button("") {
@@ -168,6 +201,16 @@ struct ArchiveView: View {
             }
 
             Spacer()
+
+            Picker("기록 요약", selection: overviewModeBinding) {
+                ForEach(ArchiveOverviewMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 150)
+            .accessibilityIdentifier("archive-overview-mode")
 
             Menu {
                 Button {
@@ -228,6 +271,27 @@ struct ArchiveView: View {
             oldFilter.customEndDate == newFilter.customEndDate
     }
 
+    private var overviewMode: ArchiveOverviewMode {
+        ArchiveOverviewMode(rawValue: overviewModeRaw) ?? .activity
+    }
+
+    private var overviewModeBinding: Binding<ArchiveOverviewMode> {
+        Binding(
+            get: { overviewMode },
+            set: { overviewModeRaw = $0.rawValue }
+        )
+    }
+
+    private var uiTestingOverviewMode: ArchiveOverviewMode? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "--ui-testing-archive-mode") else {
+            return nil
+        }
+        let valueIndex = arguments.index(after: index)
+        guard arguments.indices.contains(valueIndex) else { return nil }
+        return ArchiveOverviewMode(rawValue: arguments[valueIndex])
+    }
+
     private func shouldRefreshStatistics(
         from oldFilter: ArchiveFilter,
         to newFilter: ArchiveFilter
@@ -262,6 +326,111 @@ struct ArchiveView: View {
         } catch {
             message = "가져오기 실패: \(error.localizedDescription)"
         }
+    }
+}
+
+private struct ArchiveActivityOverview: View {
+    @Bindable var session: ActivityOverviewSession
+    @Binding var selectedDayKey: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "flame.fill")
+                    .foregroundStyle(AppTheme.doneForeground)
+                    .padding(6)
+                    .background(AppTheme.done, in: Circle())
+                    .accessibilityHidden(true)
+                Text("\(session.overview.currentStreak)일 연속")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .contentTransition(.numericText())
+                Spacer()
+                if session.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("활동 기록 계산 중")
+                }
+            }
+
+            Text(session.overview.todayState.message)
+                .font(.callout)
+                .foregroundStyle(AppTheme.secondaryText)
+            Text("최근 1년 최고 \(session.overview.bestStreakInLastYear)일")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+
+            if session.overview.range != nil {
+                ActivityHeatmapView(
+                    overview: session.overview,
+                    palette: AppTheme.activityHeatmapPalette,
+                    selectedDayKey: selectedDayKey,
+                    onSelectDay: { selectedDayKey = $0 }
+                )
+                .frame(maxWidth: .infinity)
+
+                activityLegend
+
+                if let selectedDayKey,
+                   let day = session.overview.days.first(where: {
+                       $0.dayKey == selectedDayKey
+                   }) {
+                    Text(selectionSummary(day))
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .accessibilityIdentifier("activity-selected-day-summary")
+                }
+            } else if !session.isLoading {
+                Text(session.errorMessage ?? "작업을 완료하면 활동 기록이 시작돼요")
+                    .font(.callout)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
+            }
+
+            if session.errorMessage != nil {
+                Button("다시 시도") {
+                    session.retry()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityIdentifier("activity-overview")
+    }
+
+    private var activityLegend: some View {
+        HStack(spacing: 5) {
+            Text("적음")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.secondaryText)
+            ForEach(ActivityIntensityLevel.allCases, id: \.rawValue) { level in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(AppTheme.activityHeatmapPalette.fill(for: ActivityDaySummary(
+                        dayKey: "",
+                        completedTaskCount: level.rawValue,
+                        intensity: level,
+                        isFuture: false,
+                        isInCurrentStreak: false
+                    )))
+                    .frame(width: 10, height: 10)
+            }
+            Text("많음")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.secondaryText)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func selectionSummary(_ day: ActivityDaySummary) -> String {
+        let dateText = DayKey.date(from: day.dayKey).map(DayKey.display) ?? day.dayKey
+        return day.completedTaskCount == 0
+            ? "\(dateText) · 완료 작업 없음"
+            : "\(dateText) · 완료 작업 \(day.completedTaskCount)개"
     }
 }
 

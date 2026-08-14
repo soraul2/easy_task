@@ -9,7 +9,10 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     func testPrimaryTabNavigation() {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-archive-mode", "activity"
+        ]
         app.launch()
 
         let tabBar = app.tabBars.firstMatch
@@ -48,6 +51,22 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
         archiveTab.tap()
         XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["activity-overview"]
+                .waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(
+            app.staticTexts.matching(
+                NSPredicate(format: "label BEGINSWITH %@", "최근 1년 최고")
+            ).firstMatch.waitForExistence(timeout: 5)
+        )
+
+        let statisticsSegment = app.segmentedControls.firstMatch.buttons["통계"]
+        XCTAssertTrue(statisticsSegment.waitForExistence(timeout: 5))
+        statisticsSegment.tap()
+        XCTAssertTrue(
+            app.staticTexts["선택 기간 작업 요약"].waitForExistence(timeout: 10)
+        )
 
         boardTab.tap()
         XCTAssertTrue(
@@ -66,7 +85,10 @@ final class PlanBaseLaunchUITests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
 
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-archive-mode", "activity"
+        ]
         app.launch()
 
         let window = app.windows.firstMatch
@@ -109,6 +131,11 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
         app.buttons["기록"].firstMatch.tap()
         XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["activity-overview"]
+                .waitForExistence(timeout: 10)
+        )
+        addReferenceScreenshot(named: "iPad-Activity-Landscape")
 
         app.buttons["메모"].firstMatch.tap()
         XCTAssertTrue(app.buttons["새 메모"].waitForExistence(timeout: 10))
@@ -124,7 +151,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
-            "--ui-testing-accessibility-text-size"
+            "--ui-testing-accessibility-text-size",
+            "--ui-testing-archive-mode", "activity"
         ]
         app.launch()
 
@@ -198,7 +226,10 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     func testArchiveTasksStayCollapsedAndBoardNavigationWorks() {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing"]
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-archive-mode", "activity"
+        ]
         app.launch()
 
         let archiveTab = app.tabBars.firstMatch.buttons["기록"]
@@ -550,7 +581,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
-            "--ui-testing-event-history-fixtures"
+            "--ui-testing-event-history-fixtures",
+            "--ui-testing-archive-mode", "statistics"
         ]
         app.launch()
 
@@ -595,7 +627,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
     @MainActor
     func testEventHistoryDateBasisAndReviewAxes() {
-        let app = launchEventHistoryFixtureApp()
+        let app = launchEventHistoryFixtureApp(archiveMode: "statistics")
         let tabBar = app.tabBars.firstMatch
 
         tabBar.buttons["기록"].tap()
@@ -715,11 +747,14 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchEventHistoryFixtureApp() -> XCUIApplication {
+    private func launchEventHistoryFixtureApp(
+        archiveMode: String = "activity"
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
-            "--ui-testing-event-history-fixtures"
+            "--ui-testing-event-history-fixtures",
+            "--ui-testing-archive-mode", archiveMode
         ]
         app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))

@@ -94,7 +94,7 @@ func schemaV5ContainsEveryFrozenPersistedModel() {
 }
 
 @Test
-func schemaV6ContainsEveryCurrentPersistedModel() {
+func schemaV6ContainsEveryFrozenPersistedModel() {
     let modelNames = Set(EasyTaskSchemaV6.models.map { String(reflecting: $0) })
     let expectedNames = Set([
         String(reflecting: Task.self),
@@ -110,6 +110,27 @@ func schemaV6ContainsEveryCurrentPersistedModel() {
     ])
 
     #expect(EasyTaskSchemaV6.versionIdentifier == Schema.Version(6, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV7ContainsEveryCurrentPersistedModel() {
+    let modelNames = Set(EasyTaskSchemaV7.models.map { String(reflecting: $0) })
+    let expectedNames = Set([
+        String(reflecting: Task.self),
+        String(reflecting: TaskChecklistItem.self),
+        String(reflecting: CalendarEvent.self),
+        String(reflecting: TaskTemplate.self),
+        String(reflecting: TaskTemplateItem.self),
+        String(reflecting: TemplatePlacement.self),
+        String(reflecting: DailyReview.self),
+        String(reflecting: DiaryBlock.self),
+        String(reflecting: DiaryAttachment.self),
+        String(reflecting: Memo.self),
+        String(reflecting: TaskCompletionActivity.self)
+    ])
+
+    #expect(EasyTaskSchemaV7.versionIdentifier == Schema.Version(7, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -374,7 +395,43 @@ func versionedV4StoreMigratesToV5WithEmptyChecklistDefaults() throws {
 
 @Test
 @MainActor
-func compatibleV5StoreWithUnknownMigrationChecksumMigratesToV6WithoutDataLoss() throws {
+func versionedV6StoreMigratesToV7WithEmptyActivities() throws {
+    try withTemporaryStore { storeURL in
+        let memoID = UUID()
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: EasyTaskSchemaV6.self)
+            let configuration = ModelConfiguration(
+                "PlanBaseV6",
+                schema: schema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            try writeFixture(to: container, title: "V6 활동 이관")
+            container.mainContext.insert(Memo(id: memoID, content: "V6 메모"))
+            try container.mainContext.save()
+        }
+
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
+        try expectFixture(in: migrated, title: "V6 활동 이관")
+        #expect(try migrated.mainContext.fetchCount(FetchDescriptor<Memo>()) == 1)
+        #expect(try migrated.mainContext.fetch(FetchDescriptor<Memo>()).first?.id == memoID)
+        #expect(try migrated.mainContext.fetchCount(
+            FetchDescriptor<TaskCompletionActivity>()
+        ) == 0)
+
+        let reopened = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
+        try expectFixture(in: reopened, title: "V6 활동 이관")
+        #expect(try reopened.mainContext.fetchCount(
+            FetchDescriptor<TaskCompletionActivity>()
+        ) == 0)
+    }
+}
+
+@Test
+@MainActor
+func compatibleV5StoreWithUnknownMigrationChecksumMigratesToCurrentWithoutDataLoss() throws {
     try withTemporaryStore { storeURL in
         let title = "compatible V5 fixture"
         try autoreleasepool {
@@ -409,6 +466,9 @@ func compatibleV5StoreWithUnknownMigrationChecksumMigratesToV6WithoutDataLoss() 
         )
         try expectFixture(in: reopened, title: title)
         #expect(try reopened.mainContext.fetchCount(FetchDescriptor<Memo>()) == 0)
+        #expect(try reopened.mainContext.fetchCount(
+            FetchDescriptor<TaskCompletionActivity>()
+        ) == 0)
     }
 }
 

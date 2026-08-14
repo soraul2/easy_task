@@ -36,11 +36,13 @@ enum BackupService {
             let report = try BackupPackageCodec.restoreMerging(contents, into: context)
             let imported = report.insertedRecords + report.updatedRecords
             let attachments = report.insertedAttachments + report.updatedAttachments
+            notifyDataChanged(context: context)
             return .completed("백업을 병합했습니다. 데이터 \(imported)건, 이미지 \(attachments)건 반영")
         }
 
         let payload = try BackupCodec.decode(Data(contentsOf: url))
         let report = try BackupPackageCodec.restoreLegacyJSONMerging(payload, into: context)
+        notifyDataChanged(context: context)
         let missingCount = report.referencedImageFileNames.filter {
             !FileManager.default.fileExists(atPath: DiaryImageStore.imageURL(for: $0).path)
         }.count
@@ -48,6 +50,13 @@ enum BackupService {
             return .completed("JSON V1을 가져왔습니다. 포함되지 않은 이미지 원본 \(missingCount)개를 확인하세요.")
         }
         return .completed("JSON V1 백업을 가져왔습니다.")
+    }
+
+    private static func notifyDataChanged(context: ModelContext) {
+        NotificationCenter.default.post(
+            name: PersistenceCommandService.dataChangedNotification,
+            object: context
+        )
     }
 
     private static let backupPackageType = UTType(

@@ -5,6 +5,8 @@ import WidgetKit
 struct PlanBaseWidgetBundle: WidgetBundle {
     var body: some Widget {
         PlanBaseCalendarWidget()
+#if os(iOS)
         PlanBaseLockScreenWidget()
+#endif
     }
 }

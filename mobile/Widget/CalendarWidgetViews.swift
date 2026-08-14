@@ -7,12 +7,14 @@ import WidgetKit
 struct PlanBaseCalendarWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let entry: PlanBaseCalendarEntry
 
     private var theme: CalendarWidgetTheme {
         CalendarWidgetTheme(
             themeID: entry.snapshot.themeID,
-            colorScheme: colorScheme
+            colorScheme: colorScheme,
+            renderingMode: renderingMode
         )
     }
 
@@ -66,6 +68,7 @@ private struct CalendarWidgetRefreshBadge: View {
             Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(theme.accent)
+                .widgetAccentable()
 
             Text(entry.availability.calendarMessage)
                 .font(.system(size: 9, weight: .semibold))
@@ -143,6 +146,7 @@ private struct TodayCalendarWidget: View {
                             Circle()
                                 .fill(theme.eventColor(event.colorID))
                                 .frame(width: 7, height: 7)
+                                .widgetAccentable()
 
                             Text(event.title)
                                 .font(.caption2.weight(.medium))
@@ -191,7 +195,7 @@ private struct MonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .compact)
-                .frame(height: 9)
+                .frame(height: CalendarWidgetMonthGridStyle.compact.weekdayHeaderHeight)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -228,7 +232,7 @@ private struct LargeMonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .expanded)
-                .frame(height: 14)
+                .frame(height: CalendarWidgetMonthGridStyle.expanded.weekdayHeaderHeight)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -265,7 +269,7 @@ private struct ExtraLargeMonthCalendarWidget: View {
             )
 
             CalendarWidgetWeekdayHeader(theme: theme, style: .extraLarge)
-                .frame(height: 18)
+                .frame(height: CalendarWidgetMonthGridStyle.extraLarge.weekdayHeaderHeight)
 
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
@@ -407,16 +411,36 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
     var laneHeight: CGFloat {
         switch self {
         case .compact: 3
-        case .expanded: 8.5
-        case .extraLarge: 10
+        case .expanded:
+#if os(macOS)
+            10.5
+#else
+            8.5
+#endif
+        case .extraLarge:
+#if os(macOS)
+            12
+#else
+            10
+#endif
         }
     }
 
     var barHeight: CGFloat {
         switch self {
         case .compact: 2
-        case .expanded: 8
-        case .extraLarge: 9
+        case .expanded:
+#if os(macOS)
+            10
+#else
+            8
+#endif
+        case .extraLarge:
+#if os(macOS)
+            11
+#else
+            9
+#endif
         }
     }
 
@@ -430,7 +454,12 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 
     var weekdayFontSize: CGFloat {
         switch self {
-        case .compact: 7
+        case .compact:
+#if os(macOS)
+            8
+#else
+            7
+#endif
         case .expanded: 9
         case .extraLarge: 11
         }
@@ -438,10 +467,59 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 
     var hiddenEventFontSize: CGFloat {
         switch self {
-        case .compact: 6
+        case .compact:
+#if os(macOS)
+            7
+#else
+            6
+#endif
         case .expanded: 7
         case .extraLarge: 8
         }
+    }
+
+    var weekdayHeaderHeight: CGFloat {
+        switch self {
+        case .compact:
+#if os(macOS)
+            11
+#else
+            9
+#endif
+        case .expanded:
+#if os(macOS)
+            15
+#else
+            14
+#endif
+        case .extraLarge: 18
+        }
+    }
+
+    var eventTitleFontSize: CGFloat {
+        switch self {
+        case .compact: 0
+        case .expanded:
+#if os(macOS)
+            8
+#else
+            7
+#endif
+        case .extraLarge:
+#if os(macOS)
+            9
+#else
+            8
+#endif
+        }
+    }
+
+    var eventTitleMinimumScaleFactor: CGFloat {
+#if os(macOS)
+        1
+#else
+        0.85
+#endif
     }
 
     var cellHorizontalPadding: CGFloat {
@@ -618,7 +696,9 @@ private struct CalendarWidgetMonthDayCell: View {
                     .frame(width: style.dayBadgeSize, height: style.dayBadgeSize)
                     .background {
                         if DayKey.isToday(date) {
-                            Circle().fill(theme.accent)
+                            Circle()
+                                .fill(theme.accent)
+                                .widgetAccentable()
                         }
                     }
 
@@ -699,22 +779,24 @@ private struct CalendarWidgetEventBar: View {
             case .compact:
                 Capsule()
                     .fill(theme.eventColor(event.colorID))
+                    .widgetAccentable()
             case .expanded, .extraLarge:
                 Text(event.title)
                     .font(.system(
-                        size: style == .extraLarge ? 8 : 7,
+                        size: style.eventTitleFontSize,
                         weight: .semibold
                     ))
                     .foregroundStyle(theme.eventForeground(event.colorID))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    .minimumScaleFactor(style.eventTitleMinimumScaleFactor)
                     .allowsTightening(true)
                     .padding(.horizontal, 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    .background(
-                        theme.eventColor(event.colorID),
-                        in: RoundedRectangle(cornerRadius: 2)
-                    )
+                    .background {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(theme.eventColor(event.colorID))
+                            .widgetAccentable()
+                    }
                     .privacySensitive()
             }
         }

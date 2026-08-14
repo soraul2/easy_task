@@ -133,7 +133,11 @@ struct MobileCarryoverSheet: View {
                 return
             }
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.completeOnPlannedDays(tasksToComplete)
+                try TaskLifecycleService.completeOnPlannedDays(
+                    tasksToComplete,
+                    in: modelContext,
+                    now: Date()
+                )
             }
             TaskNotificationScheduler.shared.cancelNotifications(
                 for: tasksToComplete.map(\.id)

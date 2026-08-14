@@ -139,6 +139,19 @@ extension MemoDTO {
     }
 }
 
+extension TaskCompletionActivityDTO {
+    init(activity: TaskCompletionActivity) {
+        id = activity.id
+        instanceID = activity.instanceID
+        taskId = activity.taskId
+        activityDayKey = activity.activityDayKey
+        occurredAt = activity.occurredAt
+        originRawValue = activity.originRawValue
+        createdAt = activity.createdAt
+        updatedAt = activity.updatedAt
+    }
+}
+
 extension CalendarEvent {
     convenience init(dto: CalendarEventDTO) {
         self.init(
@@ -292,6 +305,21 @@ extension Memo {
             instanceID: dto.instanceID ?? UUID(),
             content: dto.content,
             isPinned: dto.isPinned,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+extension TaskCompletionActivity {
+    convenience init(dto: TaskCompletionActivityDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID,
+            taskId: dto.taskId,
+            activityDayKey: dto.activityDayKey,
+            occurredAt: dto.occurredAt,
+            origin: TaskActivityRules.origin(for: dto.originRawValue) ?? .legacyBackfill,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

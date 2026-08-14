@@ -1,14 +1,21 @@
 import Foundation
 import PlanBaseCore
 import SwiftUI
+import WidgetKit
 
 struct CalendarWidgetTheme {
     let colors: AppThemeColorSet
+    let renderingMode: WidgetRenderingMode
 
-    init(themeID: String?, colorScheme: ColorScheme) {
+    init(
+        themeID: String?,
+        colorScheme: ColorScheme,
+        renderingMode: WidgetRenderingMode
+    ) {
         colors = AppThemePreset
             .preset(for: themeID)
             .colorSet(for: AppThemeAppearance(colorScheme: colorScheme))
+        self.renderingMode = renderingMode
     }
 
     var background: LinearGradient {
@@ -19,21 +26,55 @@ struct CalendarWidgetTheme {
         )
     }
 
-    var primaryText: Color { colors.primaryText.color }
-    var secondaryText: Color { colors.secondaryText.color }
-    var panel: Color { colors.panel.color }
-    var input: Color { colors.input.color }
-    var border: Color { colors.border.color }
-    var accent: Color { colors.event.color }
-    var accentForeground: Color { readableForeground(on: colors.event) }
-    var sundayText: Color { eventToken(CalendarEventColor.red.rawValue).color }
+    var primaryText: Color {
+        usesFullColorPalette ? colors.primaryText.color : .primary
+    }
+
+    var secondaryText: Color {
+        usesFullColorPalette ? colors.secondaryText.color : .secondary
+    }
+
+    var panel: Color {
+        usesFullColorPalette ? colors.panel.color : Color.primary.opacity(0.08)
+    }
+
+    var input: Color {
+        usesFullColorPalette ? colors.input.color : Color.primary.opacity(0.05)
+    }
+
+    var border: Color {
+        usesFullColorPalette ? colors.border.color : Color.primary.opacity(0.22)
+    }
+
+    var accent: Color {
+        usesFullColorPalette ? colors.event.color : .accentColor
+    }
+
+    var accentForeground: Color {
+        guard usesFullColorPalette else { return .primary }
+        return colors.resolvedEventForeground(on: colors.event).color
+    }
+
+    var sundayText: Color {
+        guard usesFullColorPalette else { return .primary }
+        return colors.resolvedSemanticForeground(
+            eventToken(CalendarEventColor.red.rawValue),
+            on: colors.panel
+        ).color
+    }
 
     func eventColor(_ colorID: String) -> Color {
-        eventToken(colorID).color
+        usesFullColorPalette ? eventToken(colorID).color : .accentColor
     }
 
     func eventForeground(_ colorID: String) -> Color {
-        readableForeground(on: eventToken(colorID))
+        guard usesFullColorPalette else { return .primary }
+        let background = eventToken(colorID)
+        return colors.resolvedEventForeground(on: background).color
+    }
+
+    private var usesFullColorPalette: Bool {
+        renderingMode == .fullColor
     }
 
     private func eventToken(_ colorID: String) -> ThemeColorToken {
@@ -42,18 +83,6 @@ struct CalendarWidgetTheme {
             return colors.event
         }
         return colors.eventPalette[index]
-    }
-
-    private func readableForeground(on background: ThemeColorToken) -> Color {
-        let black = ThemeColorToken(hex: "#000000")
-        let white = ThemeColorToken(hex: "#FFFFFF")
-        let candidates = [colors.eventText, colors.primaryText, black, white]
-        let token = candidates.first {
-            $0.contrastRatio(to: background) >= 4.5
-        } ?? candidates.max {
-            $0.contrastRatio(to: background) < $1.contrastRatio(to: background)
-        } ?? white
-        return token.color
     }
 }
 

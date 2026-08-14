@@ -526,12 +526,18 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "작업 상태를 변경하지 못했습니다."
         ) {
+            let now = Date()
             let nextOrder = try BoundedQueryService.nextOrder(
                 in: modelContext,
                 dayKey: task.plannedDayKey,
                 status: status
             )
-            TaskRules.applyStatus(status, to: task)
+            try TaskLifecycleService.applyStatus(
+                status,
+                to: task,
+                in: modelContext,
+                now: now
+            )
             task.order = nextOrder
         }
     }
@@ -573,7 +579,11 @@ struct BoardView: View {
             }
             guard !tasksToComplete.isEmpty else { return }
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.completeOnPlannedDays(tasksToComplete)
+                try TaskLifecycleService.completeOnPlannedDays(
+                    tasksToComplete,
+                    in: modelContext,
+                    now: Date()
+                )
             }
         } catch {
             persistenceFailureMessage = "이월 작업을 완료 처리하지 못했습니다."

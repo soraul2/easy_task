@@ -301,7 +301,13 @@ struct MobileBoardView: View {
         guard currentStatus != status else { return }
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                TaskRules.applyStatus(status, to: task, completionDayKey: completionDayKey)
+                try TaskLifecycleService.applyStatus(
+                    status,
+                    to: task,
+                    in: modelContext,
+                    now: Date(),
+                    completionDayKey: completionDayKey
+                )
             }
             if status == .done {
                 TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])

@@ -97,6 +97,16 @@ public struct AppThemeColorSet: Hashable, Sendable {
         )
     }
 
+    public func resolvedSemanticForeground(
+        _ preferred: ThemeColorToken,
+        on background: ThemeColorToken
+    ) -> ThemeColorToken {
+        resolvedForeground(
+            on: background,
+            preferred: [preferred, primaryText]
+        )
+    }
+
     private func resolvedForeground(
         on background: ThemeColorToken,
         preferred: [ThemeColorToken]

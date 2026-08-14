@@ -63,3 +63,34 @@ func backupCodecRoundTripsTemplatePlacementLinks() throws {
     #expect(restoredTask.templatePlacementId == restoredPlacement.id)
     #expect(TemplateService.tasks(for: restoredPlacement, in: [restoredTask]).map(\.id) == [restoredTask.id])
 }
+
+@Test
+@MainActor
+func jsonV1KeepsVersionAndBackfillsWhenActivityFieldIsAbsent() throws {
+    let source = try PlanBaseContainerFactory.makeInMemory()
+    let context = source.mainContext
+    let completedAt = Date(timeIntervalSince1970: 1_786_752_000)
+    let task = Task(title: "JSON V1 완료", status: .done, plannedAt: completedAt, order: 100)
+    task.completedAt = completedAt
+    task.completedDayKey = "2026-08-14"
+    context.insert(task)
+    try context.save()
+
+    var payload = try BackupCodec.makePayload(context: context)
+    payload.taskCompletionActivities = nil
+    let data = try BackupCodec.encode(payload)
+    let json = try #require(String(data: data, encoding: .utf8))
+    let decoded = try BackupCodec.decode(data)
+
+    #expect(BackupCodec.currentVersion == 1)
+    #expect(!json.contains("taskCompletionActivities"))
+    #expect(decoded.taskCompletionActivities == nil)
+
+    let destination = try PlanBaseContainerFactory.makeInMemory()
+    try BackupCodec.replaceAll(with: decoded, in: destination.mainContext)
+    let activity = try #require(destination.mainContext.fetch(
+        FetchDescriptor<TaskCompletionActivity>()
+    ).first)
+    #expect(activity.taskId == task.id)
+    #expect(activity.originRawValue == TaskCompletionActivityOrigin.legacyBackfill.rawValue)
+}

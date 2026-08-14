@@ -1,3 +1,4 @@
+#if os(iOS)
 import PlanBaseCore
 import SwiftUI
 import WidgetKit
@@ -448,4 +449,5 @@ private extension CalendarWidgetSnapshot {
         )
     }
 }
+#endif
 #endif

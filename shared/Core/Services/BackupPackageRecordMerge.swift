@@ -702,6 +702,57 @@ extension BackupPackageCodec {
     }
 
     @MainActor
+    static func mergeTaskCompletionActivities(
+        _ incoming: [TaskCompletionActivityDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<TaskCompletionActivity>()),
+            recordType: "TaskCompletionActivity",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            let instanceID = dto.instanceID
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "TaskCompletionActivity",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard sameTaskCompletionActivity(dto, current) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "TaskCompletionActivity",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.taskId = dto.taskId
+                current.activityDayKey = dto.activityDayKey
+                current.occurredAt = dto.occurredAt
+                current.originRawValue = dto.originRawValue
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let activity = TaskCompletionActivity(dto: dto)
+                context.insert(activity)
+                existing[instanceID] = activity
+                report.insertedRecords += 1
+            }
+        }
+    }
+
+    @MainActor
     static func mergeAttachments(
         _ contents: BackupPackageContents,
         context: ModelContext,

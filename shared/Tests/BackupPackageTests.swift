@@ -36,7 +36,7 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
 
 @Test
 @MainActor
-func backupPackageReadsV2AndWritesV5() throws {
+func backupPackageReadsV2AndWritesV6() throws {
     let source = try PlanBaseContainerFactory.makeInMemory()
     var legacyContents = try BackupPackageCodec.makeContents(context: source.mainContext)
     legacyContents.manifest.formatVersion = 2
@@ -45,8 +45,104 @@ func backupPackageReadsV2AndWritesV5() throws {
 
     try BackupPackageCodec.validate(legacyContents)
     let current = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(current.manifest.formatVersion == 5)
-    #expect(current.records.formatVersion == 5)
+    #expect(current.manifest.formatVersion == 6)
+    #expect(current.records.formatVersion == 6)
+    #expect(current.records.payload.taskCompletionActivities != nil)
+}
+
+@Test
+@MainActor
+func backupPackageV6RoundTripsOrphanActivityAndRepeatedMergeIsIdempotent() throws {
+    let source = try PlanBaseContainerFactory.makeInMemory()
+    let taskID = UUID()
+    let dayKey = "2026-08-14"
+    let activity = TaskCompletionActivity(
+        id: TaskActivityRules.logicalID(taskID: taskID, activityDayKey: dayKey),
+        instanceID: UUID(),
+        taskId: taskID,
+        activityDayKey: dayKey,
+        occurredAt: Date(timeIntervalSince1970: 1_786_752_000),
+        origin: .captured,
+        createdAt: Date(timeIntervalSince1970: 1_786_752_000),
+        updatedAt: Date(timeIntervalSince1970: 1_786_752_000)
+    )
+    source.mainContext.insert(activity)
+    try source.mainContext.save()
+
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let exported = try #require(contents.records.payload.taskCompletionActivities?.first)
+    #expect(exported.instanceID == activity.instanceID)
+    #expect(exported.taskId == taskID)
+
+    let destination = try PlanBaseContainerFactory.makeInMemory()
+    let first = try BackupPackageCodec.restoreMerging(
+        contents,
+        into: destination.mainContext
+    )
+    let second = try BackupPackageCodec.restoreMerging(
+        contents,
+        into: destination.mainContext
+    )
+    let restored = try destination.mainContext.fetch(
+        FetchDescriptor<TaskCompletionActivity>()
+    )
+
+    #expect(first.insertedRecords == 1)
+    #expect(second.preservedLocalRecords == 1)
+    #expect(restored.count == 1)
+    #expect(restored.first?.taskId == taskID)
+}
+
+@Test
+@MainActor
+func backupPackageV6RequiresExplicitActivityArray() throws {
+    let source = try PlanBaseContainerFactory.makeInMemory()
+    var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    contents.records.payload.taskCompletionActivities = nil
+    refreshRecordsMetadata(&contents)
+
+    #expect(throws: BackupPackageError.invalidRecordMetadata(
+        recordType: "TaskCompletionActivity",
+        id: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    )) {
+        try BackupPackageCodec.validate(contents)
+    }
+}
+
+@Test
+@MainActor
+func legacyV5PackageWithoutActivitiesBackfillsCompletedTasks() throws {
+    let source = try PlanBaseContainerFactory.makeInMemory()
+    let completedAt = Date(timeIntervalSince1970: 1_786_752_000)
+    let task = Task(
+        title: "이전 백업 완료 작업",
+        status: .done,
+        plannedAt: completedAt,
+        order: 100,
+        createdAt: completedAt.addingTimeInterval(-100),
+        updatedAt: completedAt
+    )
+    task.completedAt = completedAt
+    task.completedDayKey = "2026-08-14"
+    source.mainContext.insert(task)
+    try source.mainContext.save()
+
+    var contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    contents.manifest.formatVersion = 5
+    contents.records.formatVersion = 5
+    contents.records.payload.taskCompletionActivities = nil
+    refreshRecordsMetadata(&contents)
+    try BackupPackageCodec.validate(contents)
+
+    let destination = try PlanBaseContainerFactory.makeInMemory()
+    _ = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
+    let activity = try #require(destination.mainContext.fetch(
+        FetchDescriptor<TaskCompletionActivity>()
+    ).first { $0.supersededAt == nil })
+
+    #expect(activity.taskId == task.id)
+    #expect(activity.activityDayKey == TaskActivityRules.legacyDayKey(for: completedAt))
+    #expect(activity.originRawValue == TaskCompletionActivityOrigin.legacyBackfill.rawValue)
 }
 
 @Test
