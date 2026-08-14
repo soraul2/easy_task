@@ -5,8 +5,8 @@
 - CloudKit 컨테이너: `iCloud.com.soraul2.easytask`
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
-- 스키마: `EasyTaskSchemaV6`
-- 운영 스키마: V6 배포 완료 (2026-07-21)
+- 앱 스키마: `EasyTaskSchemaV7`
+- 운영 스키마: V6 배포 완료, V7의 `TaskCompletionActivity` Production 승격 대기
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
@@ -47,8 +47,9 @@ CloudKit 모드는 별도의 네트워크 전용 저장소가 아니라 로컬 S
 ```
 
 초기화 코드는 명시적인 인자가 있는 Debug 빌드에서만 실행된다. 완료 후 CloudKit
-Console의 Development 환경에서 모든 V6 record type, `Task.reminderAt`,
-`TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`가 생성됐는지 확인한다.
+Console의 Development 환경에서 모든 V7 record type, `Task.reminderAt`,
+`TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`,
+`TaskCompletionActivity`가 생성됐는지 확인한다.
 
 ## 검증 순서
 
@@ -85,6 +86,8 @@ PLANBASE_PROBE_KIND=event \
   시각이 더 큰 `newer` 후보로 양쪽이 수렴하는지 확인한다.
 - `checklist`: 2099-12-28의 진단 Task와 완료/미완료 체크 항목 두 개를 사용해
   부모·자식 참조, 완료 메타데이터와 그래프 삭제 전파를 양방향 확인한다.
+- `activity`: 2099-12-30의 익명 완료 활동을 사용해 활동일, 원본 종류, 생성과 삭제
+  전파를 양방향 확인한다.
 
 모든 writer와 cleanup은 로컬 저장만 확인하지 않고 해당 저장으로 시작된 CloudKit export의
 완료와 성공까지 기다린다. 진단 실행에서는 일반 앱 화면과 시작 시 전체 무결성 정리를
@@ -162,4 +165,7 @@ TestFlight용 iOS archive는 서명되지 않은 상태로 내보내면 안 된�
 프로젝트의 Release 앱과 위젯은 이 경로를 반복할 수 있도록 Automatic signing을
 사용하며, 특정 로컬 provisioning profile 이름을 project 설정에 고정하지 않는다.
 
-스키마 변경은 Development에서 초기화·검증한 뒤 Production에 추가 배포한다.
+V7 출시는 Development activity probe와 실기기 양방향 수렴을 먼저 통과한 뒤
+CloudKit Console에서 `TaskCompletionActivity`를 Production에 추가 배포한다. 이 record
+type이 Production에 없으면 TestFlight 앱의 활동 export가 실패하므로 해당 빌드를
+테스터에게 배포하거나 App Review에 제출하지 않는다.

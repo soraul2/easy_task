@@ -46,6 +46,9 @@ struct MobileArchiveRecordCard: View {
                 tasksExpanded = true
             }
         }
+        .onChange(of: dateBasis) {
+            tasksExpanded = presentation.shouldExpandTaskListForSearch
+        }
     }
 
     private var header: some View {

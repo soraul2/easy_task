@@ -45,6 +45,7 @@ struct AppRootView: View {
     @State private var isFollowingToday = true
     @State private var isWidgetSnapshotPublisherReady = false
     @State private var syncMonitor = CloudKitSyncMonitor()
+    @State private var activityImportCoordinator: TaskActivityImportCoordinator?
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     private var cloudKitEnabled: Bool {
@@ -124,6 +125,7 @@ struct AppRootView: View {
     }
 
     private func start() {
+        prepareActivityImportCoordinatorIfNeeded()
         defer {
             // Widget publication is best-effort and must stay available even if
             // an unrelated startup reconciliation or migration fails.
@@ -215,26 +217,28 @@ struct AppRootView: View {
             plannedAt: plannedDay,
             order: 2_000
         )
-        TaskRules.applyStatus(
+        modelContext.insert(delayed)
+        try TaskLifecycleService.applyStatus(
             .done,
             to: delayed,
+            in: modelContext,
             now: now,
             completionDayKey: DayKey.key(for: today)
         )
-        modelContext.insert(delayed)
 
         let sameDay = Task(
             title: "\(fixturePrefix) 같은 날 완료",
             plannedAt: today,
             order: 2_100
         )
-        TaskRules.applyStatus(
+        modelContext.insert(sameDay)
+        try TaskLifecycleService.applyStatus(
             .done,
             to: sameDay,
+            in: modelContext,
             now: now,
             completionDayKey: DayKey.key(for: today)
         )
-        modelContext.insert(sameDay)
 
         let baseUpdatedAt = now.addingTimeInterval(-600)
         let eventDrafts: [(String, Int, CalendarEventColor, String?)] = [
@@ -327,6 +331,7 @@ struct AppRootView: View {
     private func handleCloudKitEvent(_ notification: Notification) {
         guard let summary = CloudKitSyncService.summary(from: notification) else { return }
         syncMonitor.record(summary)
+        activityImportCoordinator?.schedule(after: summary)
 
         let shouldRefreshWidget = CloudKitSyncService.shouldReconcile(after: summary)
         do {
@@ -341,6 +346,16 @@ struct AppRootView: View {
             // Imports can finish after startup published an empty local cache.
             refreshWidgetSnapshot(forceWrite: true, delay: .milliseconds(250))
         }
+    }
+
+    private func prepareActivityImportCoordinatorIfNeeded() {
+        guard activityImportCoordinator == nil else { return }
+        activityImportCoordinator = TaskActivityImportCoordinator(
+            context: modelContext,
+            onFailure: { error in
+                syncMonitor.recordReconciliationFailure(error)
+            }
+        )
     }
 
     private func persistArchiveIfNeeded() {

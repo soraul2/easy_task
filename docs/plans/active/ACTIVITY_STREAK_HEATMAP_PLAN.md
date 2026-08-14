@@ -1,7 +1,7 @@
 # 활동 스트릭·히트맵 및 통계 보기 구현 계획
 
 기준일: 2026-08-14
-상태: 핵심 구현 및 로컬 검증 완료, 보호 파일 인계·실기기 출시 게이트 대기
+상태: 핵심 구현 및 로컬 검증 완료, 실기기·Production 출시 게이트 대기
 대상: macOS, iPhone, iPad의 `기록` 화면
 
 ## 구현 현황 (2026-08-14)
@@ -13,7 +13,7 @@
 - 완료 전환 lifecycle, 같은 날 중복 방지, 취소·삭제 시 활동 보존, legacy backfill,
   자연 키 및 cross-day CloudKit 중복 수렴
 - JSON V1 호환과 package V6 활동 백업·복원·병합·검증
-- 26/52주 bounded query, 범위 밖 현재 스트릭 pagination, 최근 365일 최고 기록,
+- 16/52주 bounded query, 범위 밖 현재 스트릭 pagination, 최근 365일 최고 기록,
   자정·시간대·request generation 갱신
 - 테마 계산 팔레트, 한 개 hit surface의 공용 Canvas 히트맵, future 비활성,
   VoiceOver action, macOS hover·방향키·Escape 조작
@@ -25,13 +25,8 @@
   회귀 테스트 추가
 - macOS Return/Space 선택과 hover 도움말, 이벤트 기록 UI fixture의 통계 모드 일치 보강
 
-인계 후 남은 항목:
+출시 전 남은 항목:
 
-- 위젯 세션이 소유한 AppRootView.swift와 PlanBaseMobileApp.swift에
-  TaskActivityImportCoordinator의 성공한 CloudKit import debounce 연결
-- 위 두 루트의 UI fixture 완료 경로를 TaskLifecycleService로 전환한 뒤
-  TaskRules 완료 API 가시성 축소
-- 위젯 세션 소유 검증 스크립트에 activity probe kind를 병합
 - iPad Split View·macOS 좁은 폭·접근성 옵션의 시각 QA와 실기기 CloudKit
   양방향 수렴/Production schema 출시 게이트
 
@@ -176,7 +171,7 @@
 
 - 모든 플랫폼에서 오늘을 포함한 최근 365일 안의 가장 긴 스트릭이다.
 - UI에는 항상 `최근 1년 최고`라고 표시한다.
-- iPhone의 26주, iPad/macOS의 52주는 히트맵 표시 범위일 뿐 최고 스트릭의
+- iPhone의 16주, iPad/macOS의 52주는 히트맵 표시 범위일 뿐 최고 스트릭의
   계산 범위를 바꾸지 않는다.
 - 전체 이력을 모두 읽는 `역대 최고`는 첫 배포에서 계산하지 않는다.
 
@@ -295,14 +290,14 @@
 - `ViewThatFits`, size class와 실제 컨테이너 폭으로 레이아웃을 선택한다.
 - 고정 기기 모델명이나 화면 픽셀을 조건으로 사용하지 않는다.
 - 주 시작일은 하드코딩하지 않고 `DayKey.calendar.firstWeekday`를 사용한다.
-- 컨테이너 폭이 compact/regular 경계를 오갈 때 26주/52주 요청을 교체하고 이전
+- 컨테이너 폭이 compact/regular 경계를 오갈 때 16주/52주 요청을 교체하고 이전
   요청을 취소한다. 선택 날짜가 새 범위 밖이면 선택을 해제한다.
 
 ### iPhone
 
 - `Picker`의 segmented style로 `활동 / 통계`를 전환한다.
 - 세로 순서는 `스트릭 → 히트맵 → 선택 날짜`로 고정한다.
-- compact width에서는 최근 26주를 표시하고 정확한 시작·종료 날짜를 접근성 값에
+- compact width에서는 최근 16주를 표시하고 정확한 시작·종료 날짜를 접근성 값에
   포함한다.
 - 히트맵을 별도의 가로 스크롤 안에 넣지 않는다. 폭에 맞춰 셀과 간격을 계산한다.
 - 텍스트가 접근성 크기일 때 스트릭 제목과 오늘 상태를 세로로 쌓는다.
@@ -313,7 +308,7 @@
 - portrait에서는 스트릭 요약 위, 히트맵 아래의 세로 배치를 기본으로 한다.
 - landscape와 넓은 Split View에서는 `ViewThatFits`로 요약과 히트맵의 좌우 배치를
   허용한다.
-- 좁은 Split View가 되면 iPhone compact 배치와 26주 범위로 자연스럽게 돌아간다.
+- 좁은 Split View가 되면 iPhone compact 배치와 16주 범위로 자연스럽게 돌아간다.
 - iPad pointer hover에는 날짜와 완료 수 tooltip을 제공한다.
 
 ### macOS
@@ -594,7 +589,7 @@ CloudKit: import 성공 → 기존 DataIntegrity 즉시 저장/notification → 
 
 공통 `@Observable` session을 추가한다.
 
-- iPhone compact: 최근 26주
+- iPhone compact: 최근 16주
 - iPad regular/macOS: 최근 52주
 - 활동 레코드를 `activityDayKey` 범위로 bounded fetch
 - 같은 날짜의 고유 `taskId` 수로 강도 계산
@@ -602,7 +597,7 @@ CloudKit: import 성공 → 기존 DataIntegrity 즉시 저장/notification → 
   읽고 첫 빈 날짜에서 중지한다.
 - 최고 스트릭은 히트맵 폭과 무관하게 최근 365일 고정 범위에서 계산한다.
 - `cancel()`을 공개하고 보기 전환, 폭 변경, 화면 이탈 시 pending request를 취소한다.
-- request generation을 비교해 오래된 26주/52주 결과가 새 상태를 덮어쓰지 못하게 한다.
+- request generation을 비교해 오래된 16주/52주 결과가 새 상태를 덮어쓰지 못하게 한다.
 - `PersistenceCommandService.dataChangedNotification`과 성공한 CloudKit import 후 갱신
 - 자정, 시스템 시간대 변경, 앱 foreground 복귀 때 데이터 변경이 없어도 기준 날짜와
   범위를 갱신한다.
@@ -892,7 +887,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 - [ ] 큰 활동 fixture로 metadata 10MB 제한을 검증한다.
 - [x] macOS import 성공 시 data-changed notification을 추가한다.
 - [x] activity CloudKit probe, enum과 cleanup을 구현한다.
-- [ ] 위젯 세션 소유 검증 스크립트에 activity probe 허용 kind를 병합한다.
+- [x] 검증 스크립트에 activity probe 허용 kind를 병합한다.
 - [x] Development schema 정의를 V7로 갱신하고 Production 배포는 보류한다.
 
 완료 조건:
@@ -905,7 +900,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 
 - [x] 날짜별 집계·강도·범위 밖 현재 스트릭·최근 365일 최고 규칙을 만든다.
 - [x] 오늘 pending, 자정, 윤년, 연말/연초, 시간대 고정 DayKey 테스트를 추가한다.
-- [x] locale 주 시작일, future unavailable 셀, compact 26주와 regular 52주를 검증한다.
+- [x] locale 주 시작일, future unavailable 셀, compact 16주와 regular 52주를 검증한다.
 - [x] `ActivityOverviewSession`의 bounded fetch, backward pagination, generation 기반
   cancellation, 자정/시간대/foreground refresh를 구현한다.
 - [x] MainActor fetch 뒤 Sendable snapshot만 순수 계산에 전달하는지 Swift 6 검사를 한다.
@@ -918,16 +913,16 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 
 ### Phase 4 — 공유 히트맵과 iPhone/iPad UI
 
-- [ ] 위젯 handoff를 받고 최신 `AppTheme`, project file과 검증 스크립트 변경을 먼저
+- [x] 위젯 handoff를 받고 최신 `AppTheme`, project file과 검증 스크립트 변경을 먼저
   검토한다.
-- [ ] `PlanBaseMobileApp`이 성공한 CloudKit import summary를 activity coordinator에
+- [x] `PlanBaseMobileApp`이 성공한 CloudKit import summary를 activity coordinator에
   예약하도록 연결한다.
 - [x] 계산 프로퍼티 기반 `ActivityHeatmapPalette`와 모든 테마 대비 테스트를 추가한다.
 - [x] 모델 비의존 `ActivityHeatmapView`를 구현한다.
 - [x] `활동 / 통계` segmented picker와 기본 `활동` 선택을 추가한다.
 - [x] `--ui-testing-archive-mode` override를 추가하고 각 UI test가 모드를 명시한다.
-- [x] iPhone compact 26주 레이아웃을 구현한다.
-- [x] iPad regular 52주와 size-class 기반 26/52주 전환을 구현한다.
+- [x] iPhone compact 16주 레이아웃을 구현한다.
+- [x] iPad regular 52주와 size-class 기반 16/52주 전환을 구현한다.
 - [ ] iPad 넓은 화면의 좌우 배치와 좁은 Split View 시각 QA를 완료한다.
 - [x] 기본 상태에는 세 줄과 히트맵만 보이게 한다.
 - [x] 날짜 선택 시 한 줄 상세만 점진적으로 노출한다.
@@ -946,7 +941,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 
 ### Phase 5 — macOS UI
 
-- [ ] `AppRootView`가 성공한 CloudKit import summary를 activity coordinator에
+- [x] `AppRootView`가 성공한 CloudKit import summary를 activity coordinator에
   예약하도록 연결한다.
 - [x] Archive 헤더에 native `활동 / 통계` 전환을 추가한다.
 - [x] 52주 히트맵과 hover/click/keyboard 상태를 구현한다.
@@ -962,7 +957,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 
 ### Phase 6 — 시각 QA와 전체 회귀
 
-- [ ] 위젯 handoff 뒤 현재 기록 화면을 iPhone, iPad portrait/landscape, macOS 기본
+- [x] 위젯 handoff 뒤 현재 기록 화면을 iPhone, iPad portrait/landscape, macOS 기본
   폭에서 캡처하고 변경 전후를 비교한다.
 - [ ] iPhone 작은 화면과 접근성 초대형 글자 UI 테스트를 추가한다.
 - [x] iPad portrait/landscape에서 활동 화면이 노출되는 UI 테스트를 추가한다.
@@ -972,7 +967,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 - [ ] 대표 4개 테마의 iPhone/iPad/macOS reference screenshot을 남긴다.
 - [ ] VoiceOver, Differentiate Without Color, Increase Contrast, Reduce Motion을 확인한다.
 - [x] 세션 전용 `--scratch-path`로 `swift test`와 `swift test -c release`를 실행한다.
-- [ ] 위젯 세션이 임시 DerivedData 수정을 완료한 최신
+- [x] 위젯 세션이 임시 DerivedData 수정을 완료한 최신
   `./scripts/verify-platform-builds.sh`를 실행한다.
 - [x] 개별 Xcode 명령도 세션 전용 `-derivedDataPath`를 사용한다.
 - [x] `PlanBaseMobileTests`와 iPhone/iPad `PlanBaseLaunchUITests`를 별도로 실행한다.
@@ -1044,7 +1039,7 @@ archive-statistics-retry
 
 1. 매일 스트릭이 주말 사용자에게 부담이 되는가?
 2. 휴식 요일 또는 단순 pause가 필요한가?
-3. 26주 iPhone 범위가 꾸준함을 판단하기에 충분한가?
+3. 16주 iPhone 범위가 꾸준함을 판단하기에 충분한가?
 4. 사용자가 히트맵 날짜에서 작업 제목까지 열기를 원하는가?
 5. 통계에서 이전 기간 비교가 실제 다음 계획에 도움이 되는가?
 6. 위젯에 `현재 스트릭 + 오늘 활동 여부`만 제공할 가치가 있는가?

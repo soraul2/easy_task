@@ -14,8 +14,8 @@ func activityThemePaletteUsesOrderedFixedBlendsForEveryPreset() {
                 colorDistance(palette.level3, palette.level4)
             ]
 
-            #expect(distances.allSatisfy { $0 > 0.01 }, "\(preset.id) \(appearance)")
-            #expect(palette.level4 == colors.done)
+            #expect(distances.allSatisfy { $0 > 0.04 }, "\(preset.id) \(appearance)")
+            #expect(palette.level4 != colors.done)
             #expect(palette.empty == colors.input)
             #expect(palette.todayStroke.contrastRatio(to: palette.empty) >= 4.5)
             #expect(palette.selectionStroke.contrastRatio(to: palette.empty) >= 4.5)

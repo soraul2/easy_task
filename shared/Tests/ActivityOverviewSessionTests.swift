@@ -78,8 +78,8 @@ func activityOverviewBuildsLocaleWeeksAndMarksFutureUnavailable() throws {
         hasEarlierActivity: true
     )
 
-    #expect(compact.weeks.count == 26)
-    #expect(compact.days.count == 182)
+    #expect(compact.weeks.count == 16)
+    #expect(compact.days.count == 112)
     #expect(compact.range?.endDayKey == "2026-08-16")
     #expect(compact.days.filter(\.isFuture).map(\.dayKey) == ["2026-08-15", "2026-08-16"])
     #expect(regular.weeks.count == 52)

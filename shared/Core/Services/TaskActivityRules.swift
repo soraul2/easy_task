@@ -120,7 +120,7 @@ public struct ActivityOverview: Equatable, Sendable {
 }
 
 public enum TaskActivityRules {
-    public static let compactWeekCount = 26
+    public static let compactWeekCount = 16
     public static let regularWeekCount = 52
     public static let bestStreakDayCount = 365
 

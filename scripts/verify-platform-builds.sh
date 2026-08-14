@@ -53,6 +53,22 @@ verify_embedded_widget() {
   fi
 }
 
+verify_privacy_manifest() {
+  local bundle_path="$1"
+  local bundle_contents="$bundle_path"
+
+  if [[ -d "$bundle_path/Contents" ]]; then
+    bundle_contents="$bundle_path/Contents/Resources"
+  fi
+
+  local manifest_path="$bundle_contents/PrivacyInfo.xcprivacy"
+  if [[ ! -f "$manifest_path" ]]; then
+    print -u2 "Missing privacy manifest: $manifest_path"
+    exit 1
+  fi
+  plutil -lint "$manifest_path" >/dev/null
+}
+
 trap cleanup EXIT
 
 cd "$repo_root"
@@ -73,6 +89,8 @@ for configuration in Debug Release; do
 
   ios_widget_path="$derived_root/iOS-$configuration/Build/Products/$configuration-iphonesimulator/PlanBase.app/PlugIns/PlanBaseWidgetExtension.appex"
   verify_embedded_widget "$ios_widget_path" "com.soraul2.easytask.widget"
+  verify_privacy_manifest "$derived_root/iOS-$configuration/Build/Products/$configuration-iphonesimulator/PlanBase.app"
+  verify_privacy_manifest "$ios_widget_path"
 
   xcodebuild -quiet \
     -project PlanBase.xcodeproj \
@@ -88,4 +106,6 @@ for configuration in Debug Release; do
     macos_widget_bundle_identifier="com.soraul2.easytask.macos.widget"
   fi
   verify_embedded_widget "$macos_widget_path" "$macos_widget_bundle_identifier"
+  verify_privacy_manifest "$derived_root/macOS-$configuration/Build/Products/$configuration/PlanBase.app"
+  verify_privacy_manifest "$macos_widget_path"
 done

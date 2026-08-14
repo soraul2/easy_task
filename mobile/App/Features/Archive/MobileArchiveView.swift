@@ -434,6 +434,12 @@ private struct MobileArchiveActivityOverview: View {
             Text("많음")
                 .font(.caption2)
                 .foregroundStyle(AppTheme.secondaryText)
+            Spacer(minLength: 8)
+            if let weekCount = session.overview.range?.weekCount {
+                Text("최근 \(weekCount)주")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
         }
         .accessibilityHidden(true)
     }

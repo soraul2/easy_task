@@ -60,6 +60,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
                 NSPredicate(format: "label BEGINSWITH %@", "최근 1년 최고")
             ).firstMatch.waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(app.staticTexts["최근 16주"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "iPhone-Activity-16-Weeks")
 
         let statisticsSegment = app.segmentedControls.firstMatch.buttons["통계"]
         XCTAssertTrue(statisticsSegment.waitForExistence(timeout: 5))
