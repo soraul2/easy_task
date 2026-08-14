@@ -190,7 +190,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - macOS Debug 빌드는 기존 개발 데이터와 병행 실행을 위해 `com.soraul2.easytask.macos`와 비샌드박스 설정을 유지한다.
 - Mac App Store/TestFlight용 Release 빌드는 iPhone과 같은 `com.soraul2.easytask`를 사용하며 App Sandbox, CloudKit, 사용자 선택 파일 읽기·쓰기를 활성화한다.
 - 첫 샌드박스 실행 때 `container-migration.plist`가 기존 `Application Support`의 SwiftData 저장소, 브리지 백업과 회고 이미지 폴더를 동일한 상대 경로로 컨테이너에 옮긴다.
-- Release 앱 이름은 `PlanBase`이고 최소 지원 버전은 macOS 26.0이다. 배포 프로파일과 export 설정은 `PlanBase macOS App Store`를 기준으로 한다.
+- Release 앱 이름은 `PlanBase`이고 최소 지원 버전은 macOS 26.0이다. archive는 Automatic signing으로 만들고 App Store Connect export에서 앱과 위젯을 배포 서명으로 재서명한다.
 
 ## 현재 MVP 범위
 

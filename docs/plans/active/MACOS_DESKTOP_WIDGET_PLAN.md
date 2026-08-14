@@ -1,7 +1,7 @@
 # PlanBase macOS 바탕화면 네이티브 위젯 구현 계획
 
 기준일: 2026-08-14
-상태: 구현 진행 중 — 자동 컴파일·테스트 통과, 서명 설치본 인수 검증 대기
+상태: 구현 및 서명 배포 산출물 검증 완료 — 실기기 위젯 인수·CloudKit 출시 게이트 대기
 대상: macOS 26 이상, 기존 iPhone/iPad 위젯 회귀 포함
 
 ## 1. 목표
@@ -251,15 +251,12 @@ Debug macOS 앱은 현재 비샌드박스 개발 정책을 유지한다. App Gro
 
 1. 기존 App Group `group.com.soraul2.easytask`에 macOS Release 앱 ID와 macOS widget
    extension App ID를 연결한다.
-2. `PlanBase macOS App Store` provisioning profile을 App Group capability 포함 상태로
-   다시 생성한다.
-3. macOS widget용 배포 profile을 만들고 이름을 예를 들어
-   `PlanBase macOS Widget App Store`로 고정한다.
-4. Release widget의 macOS 조건부 `PROVISIONING_PROFILE_SPECIFIER`에 해당 profile을
-   연결한다.
-5. Debug는 Automatic signing이 위 두 Debug bundle ID와 App Group을 생성·서명할 수
-   있는지 확인한다.
-6. archive 안의 앱과 extension에 실제로 포함된 entitlement를 `codesign`으로 확인한다.
+2. Debug와 Release archive는 Automatic signing으로 앱과 위젯의 개발 프로파일을
+   관리한다.
+3. App Store Connect export는 앱과 위젯을 Apple Distribution으로 재서명하고 Xcode가
+   관리하는 Store provisioning profile을 사용한다.
+4. archive와 export package 안의 앱·extension에 실제로 포함된 entitlement와 profile을
+   각각 `codesign`, `security cms`로 확인한다.
 
 프로파일 준비가 늦어져도 `CODE_SIGNING_ALLOWED=NO` 빌드와 공통 테스트는 진행할 수
 있지만, 실제 바탕화면 위젯 인수 검증은 서명된 설치본 없이는 완료로 표시하지 않는다.
@@ -527,7 +524,7 @@ xcodebuild -project PlanBase.xcodeproj \
 - [ ] 날짜/월 이동/딥 링크를 cold/warm launch에서 확인한다.
 - [ ] Console에 App Group denial, extension crash, future-schema overwrite 오류가
   없는지 확인한다.
-- [ ] Release archive의 앱과 extension entitlement, bundle ID, provisioning profile을
+- [x] Release archive의 앱과 extension entitlement, bundle ID, provisioning profile을
   검사한다.
 - [ ] TestFlight 또는 App Store Connect 배포 빌드에서 위젯 갤러리 등록을 최종 확인한다.
 

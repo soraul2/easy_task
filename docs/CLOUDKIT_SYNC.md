@@ -159,5 +159,7 @@ TestFlight용 iOS archive는 서명되지 않은 상태로 내보내면 안 된�
 `iCloud.com.soraul2.easytask` CloudKit container다. 로컬 Apple Distribution 개인 키가
 없다면 Apple Development로 서명된 archive를 만든 뒤 App Store Connect 자동 서명으로
 재서명해 업로드한다. 이 경우에도 위 검증을 통과한 archive만 export한다.
+프로젝트의 Release 앱과 위젯은 이 경로를 반복할 수 있도록 Automatic signing을
+사용하며, 특정 로컬 provisioning profile 이름을 project 설정에 고정하지 않는다.
 
 스키마 변경은 Development에서 초기화·검증한 뒤 Production에 추가 배포한다.
