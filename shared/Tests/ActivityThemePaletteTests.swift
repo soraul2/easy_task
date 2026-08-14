@@ -2,7 +2,7 @@ import Testing
 @testable import EasyTaskCore
 
 @Test
-func activityThemePaletteUsesOrderedFixedBlendsForEveryPreset() {
+func activityThemePaletteUsesOrderedThemeAccentBlendsForEveryPreset() {
     for preset in AppThemePreset.all {
         for appearance in AppThemeAppearance.allCases {
             let colors = preset.colorSet(for: appearance)
@@ -15,8 +15,19 @@ func activityThemePaletteUsesOrderedFixedBlendsForEveryPreset() {
             ]
 
             #expect(distances.allSatisfy { $0 > 0.04 }, "\(preset.id) \(appearance)")
-            #expect(palette.level4 != colors.done)
             #expect(palette.empty == colors.input)
+            let accentDistances = [
+                colorDistance(palette.level1, colors.event),
+                colorDistance(palette.level2, colors.event),
+                colorDistance(palette.level3, colors.event),
+                colorDistance(palette.level4, colors.event)
+            ]
+            #expect(
+                zip(accentDistances, accentDistances.dropFirst()).allSatisfy {
+                    $0.0 > $0.1
+                },
+                "\(preset.id) \(appearance) accent progression"
+            )
             #expect(palette.todayStroke.contrastRatio(to: palette.empty) >= 4.5)
             #expect(palette.selectionStroke.contrastRatio(to: palette.empty) >= 4.5)
             let fills = [
