@@ -6,7 +6,7 @@
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
 - 앱 스키마: `EasyTaskSchemaV7`
-- 운영 스키마: V6 배포 완료, V7의 `TaskCompletionActivity` Production 승격 대기
+- 운영 스키마: V7 배포 완료
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
@@ -137,6 +137,17 @@ Production CloudKit에 연결해 내보내며, iPhone TestFlight 앱은 완료�
 setup/import/export, iPhone 서명 빌드 및 설치를 확인했다. 2026-07-12에는 양방향
 create/delete 전파를 실기기에서 확인했다. 2026-07-21에는 Production V6 record type과
 Development 대비 미배포 스키마 변경 0건을 CloudKit Console에서 확인했다.
+2026-08-14에는 Development에서 `TaskCompletionActivity` create/delete 양방향 probe와
+진단 레코드 정리를 통과한 뒤 V7 record type, 28개 index와 security role 변경을
+Production에 배포했다. 이어 macOS TestFlight build 30을 재시작해 이전에 실패했던
+활동 72건이 모두 export되어 upload 대기가 0건이 되고, 앱의 iCloud 상태가 같은 시각의
+성공으로 갱신되는 것을 확인했다. iPhone 14 Pro에는 같은 build 30 코드의 Development
+서명본을 Production CloudKit entitlement로 검증 설치해 setup/import/export 성공과
+upload 대기 0건을 확인했다. macOS와 iPhone 저장소의 11개 엔터티별 행 수가 모두 같고,
+활동은 양쪽 모두 전체 177건·활성 논리 레코드 73건으로 수렴했다. 기록 화면도 양쪽에서
+2일 연속·최근 1년 최고 4일·오늘 완료 4건을 동일하게 표시했다. 진단 뒤에는 앱 삭제 없이
+TestFlight에서 iOS build 30을 다시 설치했다. beta 설치본의 setup/import/export가 22:35에
+다시 성공했고 upload 대기 0건과 같은 활동 수·기록 화면이 유지되는 것을 확인했다.
 
 ## 운영 회귀 조건
 
@@ -165,7 +176,8 @@ TestFlight용 iOS archive는 서명되지 않은 상태로 내보내면 안 된�
 프로젝트의 Release 앱과 위젯은 이 경로를 반복할 수 있도록 Automatic signing을
 사용하며, 특정 로컬 provisioning profile 이름을 project 설정에 고정하지 않는다.
 
-V7 출시는 Development activity probe와 실기기 양방향 수렴을 먼저 통과한 뒤
-CloudKit Console에서 `TaskCompletionActivity`를 Production에 추가 배포한다. 이 record
-type이 Production에 없으면 TestFlight 앱의 활동 export가 실패하므로 해당 빌드를
-테스터에게 배포하거나 App Review에 제출하지 않는다.
+V7 출시는 Development activity probe와 실기기 양방향 수렴을 통과한 뒤
+CloudKit Console에서 `TaskCompletionActivity`를 Production에 추가 배포했다. 이후
+macOS TestFlight 앱에서 기존 활동의 export 성공과 upload 대기 해소를 확인했다. 다음 스키마
+변경에서도 새 record type이 Production에 없으면 TestFlight 앱의 export가 실패하므로,
+같은 순서를 완료하기 전에는 해당 빌드를 테스터에게 배포하거나 App Review에 제출하지 않는다.
