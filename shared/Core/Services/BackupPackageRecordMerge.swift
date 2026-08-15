@@ -753,6 +753,57 @@ extension BackupPackageCodec {
     }
 
     @MainActor
+    static func mergeTaskProgressEvents(
+        _ incoming: [TaskProgressEventDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<TaskProgressEvent>()),
+            recordType: "TaskProgressEvent",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            let instanceID = dto.instanceID
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "TaskProgressEvent",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard sameTaskProgressEvent(dto, current) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "TaskProgressEvent",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.taskId = dto.taskId
+                current.kindRawValue = dto.kindRawValue
+                current.originRawValue = dto.originRawValue
+                current.occurredAt = dto.occurredAt
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let event = TaskProgressEvent(dto: dto)
+                context.insert(event)
+                existing[instanceID] = event
+                report.insertedRecords += 1
+            }
+        }
+    }
+
+    @MainActor
     static func mergeAttachments(
         _ contents: BackupPackageContents,
         context: ModelContext,

@@ -25,7 +25,6 @@ private struct PendingMobileTaskCompletion {
     var taskID: UUID
     var title: String
     var reminderAt: Date
-    var completionDayKey: String
 }
 
 struct MobileBoardView: View {
@@ -44,6 +43,7 @@ struct MobileBoardView: View {
     @State private var pendingTaskCompletion: PendingMobileTaskCompletion?
     @State private var statusNotice: String?
     @State private var statusNoticeToken = UUID()
+    @State private var progressSession: TaskProgressEventQuerySession?
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var isTodayBoard: Bool { selectedDayKey == DayKey.today }
@@ -75,6 +75,10 @@ struct MobileBoardView: View {
 
     private var statusTasks: [TodoTask] {
         BoardQueryRules.tasks(boardTasks, matching: selectedStatus)
+    }
+
+    private var displayedTaskIDs: Set<UUID> {
+        Set(boardTasks.map(\.id))
     }
 
     private var dayEvents: [CalendarEvent] {
@@ -171,6 +175,18 @@ struct MobileBoardView: View {
                         "알림이 중지됩니다. 알림 설정 기록은 계속 유지됩니다."
                 )
             }
+            .task {
+                if progressSession == nil {
+                    progressSession = TaskProgressEventQuerySession(context: modelContext)
+                }
+                progressSession?.apply(taskIDs: displayedTaskIDs)
+            }
+            .onChange(of: displayedTaskIDs) { _, taskIDs in
+                progressSession?.apply(taskIDs: taskIDs)
+            }
+            .onDisappear {
+                progressSession?.cancel()
+            }
         }
     }
 
@@ -214,7 +230,8 @@ struct MobileBoardView: View {
             isEmbeddedInScrollView: isEmbeddedInScrollView,
             onEdit: { presentedSheet = .task($0) },
             onDelete: deleteTask,
-            onStatusChange: requestTaskStatusChange
+            onStatusChange: requestTaskStatusChange,
+            progressText: progressText
         )
     }
 
@@ -264,13 +281,12 @@ struct MobileBoardView: View {
             pendingTaskCompletion = PendingMobileTaskCompletion(
                 taskID: task.id,
                 title: task.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                reminderAt: reminderAt,
-                completionDayKey: selectedDayKey
+                reminderAt: reminderAt
             )
             return
         }
 
-        changeTaskStatus(task: task, status: status, completionDayKey: selectedDayKey)
+        changeTaskStatus(task: task, status: status)
     }
 
     private func completePendingTask(_ pending: PendingMobileTaskCompletion) {
@@ -284,8 +300,7 @@ struct MobileBoardView: View {
             }
             changeTaskStatus(
                 task: task,
-                status: .done,
-                completionDayKey: pending.completionDayKey
+                status: .done
             )
         } catch {
             showBoardNotice("작업을 다시 불러오지 못했습니다")
@@ -294,8 +309,7 @@ struct MobileBoardView: View {
 
     private func changeTaskStatus(
         task: TodoTask,
-        status: TaskStatus,
-        completionDayKey: String
+        status: TaskStatus
     ) {
         let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard currentStatus != status else { return }
@@ -305,14 +319,17 @@ struct MobileBoardView: View {
                     status,
                     to: task,
                     in: modelContext,
-                    now: Date(),
-                    completionDayKey: completionDayKey
+                    now: Date()
                 )
             }
             if status == .done {
                 TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])
             }
-            UISelectionFeedbackGenerator().selectionChanged()
+            if status == .done {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } else {
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
             showStatusNotice(task: task, status: status)
         } catch {
             showBoardNotice("작업 상태를 변경하지 못했습니다")
@@ -324,7 +341,21 @@ struct MobileBoardView: View {
         let message = title.isEmpty
             ? status.transitionNotice
             : "\(title) · \(status.transitionNotice)"
-        showBoardNotice(message)
+        if status == .done, !isTodayBoard {
+            showBoardNotice("\(message) · 오늘 완료에서 확인")
+        } else {
+            showBoardNotice(message)
+        }
+    }
+
+    private func progressText(for task: TodoTask, at date: Date) -> String? {
+        guard let progressSession else { return nil }
+        return TaskProgressEventRules.detailText(
+            projection: progressSession.projection(for: task.id),
+            status: TaskStatus(rawValue: task.status) ?? .todo,
+            now: date,
+            completedAt: task.completedAt
+        )
     }
 
     private func taskCount(for status: TaskStatus) -> Int {

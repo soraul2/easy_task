@@ -410,8 +410,7 @@ struct TaskDetailSheet: View {
                         status,
                         to: activeTask,
                         in: modelContext,
-                        now: now,
-                        completionDayKey: newDayKey
+                        now: now
                     )
                 }
 

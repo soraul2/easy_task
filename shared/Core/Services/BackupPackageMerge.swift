@@ -69,6 +69,11 @@ public extension BackupPackageCodec {
                 context: context,
                 report: &report
             )
+            try mergeTaskProgressEvents(
+                payload.taskProgressEvents ?? [],
+                context: context,
+                report: &report
+            )
             if payload.taskCompletionActivities == nil {
                 _ = try TaskActivityBackfillService.backfillLegacyCompletions(
                     in: context,
@@ -127,6 +132,11 @@ extension BackupPackageCodec {
             try mergeMemos(payload.memos ?? [], context: context, report: &report)
             try mergeTaskCompletionActivities(
                 payload.taskCompletionActivities ?? [],
+                context: context,
+                report: &report
+            )
+            try mergeTaskProgressEvents(
+                payload.taskProgressEvents ?? [],
                 context: context,
                 report: &report
             )

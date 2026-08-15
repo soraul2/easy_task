@@ -11,7 +11,8 @@ public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
             EasyTaskSchemaV4.self,
             EasyTaskSchemaV5.self,
             EasyTaskSchemaV6.self,
-            EasyTaskSchemaV7.self
+            EasyTaskSchemaV7.self,
+            EasyTaskSchemaV8.self
         ]
     }
 
@@ -22,7 +23,8 @@ public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
             migrateV3ToV4,
             migrateV4ToV5,
             migrateV5ToV6,
-            migrateV6ToV7
+            migrateV6ToV7,
+            migrateV7ToV8
         ]
     }
 
@@ -93,6 +95,11 @@ public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
     public static let migrateV6ToV7 = MigrationStage.lightweight(
         fromVersion: EasyTaskSchemaV6.self,
         toVersion: EasyTaskSchemaV7.self
+    )
+
+    public static let migrateV7ToV8 = MigrationStage.lightweight(
+        fromVersion: EasyTaskSchemaV7.self,
+        toVersion: EasyTaskSchemaV8.self
     )
 }
 

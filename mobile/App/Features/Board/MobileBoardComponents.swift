@@ -141,6 +141,13 @@ struct BoardQuickAdd: View {
         }
         .padding(12)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    isTitleFocused ? AppTheme.event : AppTheme.border.opacity(0.78),
+                    lineWidth: isTitleFocused ? 2 : 1.25
+                )
+        }
         .padding(.horizontal, 16)
         .padding(.top, 12)
     }
@@ -327,26 +334,29 @@ struct BoardTaskList: View {
     var onEdit: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
+    var progressText: ((TodoTask, Date) -> String?)? = nil
     @State private var expandedTaskID: UUID?
 
     var body: some View {
-        Group {
-            if isEmbeddedInScrollView {
-                LazyVStack(spacing: 12) {
-                    taskRows
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, MobileLayout.bottomTabClearance)
-                .accessibilityIdentifier("board-task-list")
-            } else {
-                List {
-                    taskRows
-                }
-                .listStyle(.plain)
-                .accessibilityIdentifier("board-task-list")
-                .safeAreaInset(edge: .bottom) {
-                    Color.clear
-                        .frame(height: MobileLayout.bottomTabClearance)
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            Group {
+                if isEmbeddedInScrollView {
+                    LazyVStack(spacing: 12) {
+                        taskRows(at: timeline.date)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, MobileLayout.bottomTabClearance)
+                    .accessibilityIdentifier("board-task-list")
+                } else {
+                    List {
+                        taskRows(at: timeline.date)
+                    }
+                    .listStyle(.plain)
+                    .accessibilityIdentifier("board-task-list")
+                    .safeAreaInset(edge: .bottom) {
+                        Color.clear
+                            .frame(height: MobileLayout.bottomTabClearance)
+                    }
                 }
             }
         }
@@ -363,7 +373,7 @@ struct BoardTaskList: View {
     }
 
     @ViewBuilder
-    private var taskRows: some View {
+    private func taskRows(at date: Date) -> some View {
         if tasks.isEmpty {
             ContentUnavailableView(
                 selectedStatus.emptyStateTitle,
@@ -382,7 +392,8 @@ struct BoardTaskList: View {
                     },
                     onEdit: { onEdit(task) },
                     onDelete: { onDelete(task) },
-                    onStatusChange: { onStatusChange(task, $0) }
+                    onStatusChange: { onStatusChange(task, $0) },
+                    progressText: progressText?(task, date)
                 )
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -400,6 +411,7 @@ private struct MobileTaskRow: View {
     var onEdit: () -> Void
     var onDelete: () -> Void
     var onStatusChange: (TaskStatus) -> Void
+    var progressText: String?
     @Query private var checklistItems: [TaskChecklistItem]
     @State private var checklistSaveError: String?
 
@@ -409,7 +421,8 @@ private struct MobileTaskRow: View {
         onChecklistExpansionChange: @escaping (Bool) -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void,
-        onStatusChange: @escaping (TaskStatus) -> Void
+        onStatusChange: @escaping (TaskStatus) -> Void,
+        progressText: String? = nil
     ) {
         self.task = task
         self.isChecklistExpanded = isChecklistExpanded
@@ -417,6 +430,7 @@ private struct MobileTaskRow: View {
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.onStatusChange = onStatusChange
+        self.progressText = progressText
         _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
     }
 
@@ -541,6 +555,13 @@ private struct MobileTaskRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            if let progressText {
+                Label(progressText, systemImage: "clock.arrow.circlepath")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.cardMutedText)
+                    .accessibilityLabel("진행 시간 \(progressText)")
+            }
+
             if status == .doing, !checklistProgress.isEmpty {
                 checklistSection
             }
@@ -565,7 +586,12 @@ private struct MobileTaskRow: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(accentColor.opacity(status == .doing ? 0.42 : 0.24), lineWidth: 1)
         }
-        .shadow(color: accentColor.opacity(shadowOpacity), radius: status == .doing ? 18 : 12, x: 0, y: 8)
+        .shadow(
+            color: accentColor.opacity(shadowOpacity),
+            radius: status == .doing ? 18 : 12,
+            x: 0,
+            y: 8
+        )
         .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
     }
 
@@ -885,7 +911,6 @@ private struct MobileTaskStatusSlider: View {
         guard nextStatus != status else { return }
         onChange(nextStatus)
     }
-
 }
 
 private struct MobilePressFeedbackButtonStyle: ButtonStyle {

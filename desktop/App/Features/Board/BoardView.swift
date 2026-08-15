@@ -60,6 +60,8 @@ struct BoardView: View {
     @State private var templateName = ""
     @State private var persistenceFailureMessage: String?
     @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
+    @State private var progressSession: TaskProgressEventQuerySession?
+    @FocusState private var isQuickTitleFocused: Bool
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var todayKey: String { DayKey.today }
@@ -104,6 +106,10 @@ struct BoardView: View {
 
     private var doingTasks: [Task] {
         BoardQueryRules.tasks(boardTasks, matching: .doing)
+    }
+
+    private var displayedTaskIDs: Set<UUID> {
+        Set(boardTasks.map(\.id))
     }
 
     private var doneTasks: [Task] {
@@ -214,7 +220,9 @@ struct BoardView: View {
                     }
                 )
             case .taskDetail(let id):
-                if let task = selectedDayTaskRows.first(where: { $0.supersededAt == nil && $0.id == id }) {
+                if let task = (selectedDayTaskRows + carryoverTaskRows).first(where: {
+                    $0.supersededAt == nil && $0.id == id
+                }) {
                     TaskDetailSheet(task: task)
                 } else {
                     EmptySheetState(
@@ -254,6 +262,18 @@ struct BoardView: View {
             )
         }
         .persistenceFailureAlert(message: boardFailureMessage)
+        .task {
+            if progressSession == nil {
+                progressSession = TaskProgressEventQuerySession(context: modelContext)
+            }
+            progressSession?.apply(taskIDs: displayedTaskIDs)
+        }
+        .onChange(of: displayedTaskIDs) { _, taskIDs in
+            progressSession?.apply(taskIDs: taskIDs)
+        }
+        .onDisappear {
+            progressSession?.cancel()
+        }
     }
 
     private var header: some View {
@@ -390,6 +410,7 @@ struct BoardView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 16))
                 .foregroundStyle(AppTheme.primaryText)
+                .focused($isQuickTitleFocused)
                 .onSubmit(addQuickTask)
             Button {
                 addQuickTask()
@@ -402,7 +423,10 @@ struct BoardView: View {
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
+                .stroke(
+                    isQuickTitleFocused ? AppTheme.event : AppTheme.border,
+                    lineWidth: isQuickTitleFocused ? 2 : 1.25
+                )
         }
     }
 
@@ -418,7 +442,8 @@ struct BoardView: View {
                 onStatusChange: moveTask,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
-                onDelete: deleteTask
+                onDelete: deleteTask,
+                progressText: progressText
             )
 
             KanbanColumn(
@@ -431,7 +456,8 @@ struct BoardView: View {
                 onStatusChange: moveTask,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
-                onDelete: deleteTask
+                onDelete: deleteTask,
+                progressText: progressText
             )
 
             KanbanColumn(
@@ -444,7 +470,8 @@ struct BoardView: View {
                 onStatusChange: moveTask,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
-                onDelete: deleteTask
+                onDelete: deleteTask,
+                progressText: progressText
             )
         }
     }
@@ -474,12 +501,18 @@ struct BoardView: View {
     }
 
     private func moveTask(idString: String, to status: TaskStatus) -> Bool {
-        guard let id = UUID(uuidString: idString),
-              let task = selectedDayTaskRows.first(where: { $0.supersededAt == nil && $0.id == id }) else {
+        guard let instanceID = UUID(uuidString: idString) else { return false }
+        do {
+            guard let task = try modelContext.fetch(
+                BoundedQueryService.taskDescriptor(instanceID: instanceID)
+            ).first else {
+                return false
+            }
+            return requestTaskStatusChange(task, to: status)
+        } catch {
+            persistenceFailureMessage = "작업을 다시 불러오지 못했습니다."
             return false
         }
-
-        return requestTaskStatusChange(task, to: status)
     }
 
     private func moveTask(_ task: Task, to status: TaskStatus) {
@@ -523,7 +556,7 @@ struct BoardView: View {
 
     @discardableResult
     private func persistTaskStatusChange(_ task: Task, to status: TaskStatus) -> Bool {
-        performPersistenceCommand(
+        let didChange = performPersistenceCommand(
             failureMessage: "작업 상태를 변경하지 못했습니다."
         ) {
             let now = Date()
@@ -540,6 +573,7 @@ struct BoardView: View {
             )
             task.order = nextOrder
         }
+        return didChange
     }
 
     private func updateTaskTitle(_ task: Task, to title: String) -> Bool {
@@ -562,7 +596,12 @@ struct BoardView: View {
                 dayKey: currentTodayKey,
                 status: .todo
             )
-            TaskRules.bringToToday(task, order: nextOrder, now: now)
+            try TaskLifecycleService.bringToToday(
+                task,
+                in: modelContext,
+                order: nextOrder,
+                now: now
+            )
         }
     }
 
@@ -627,5 +666,15 @@ struct BoardView: View {
 
     private func editTask(_ task: Task) {
         presentedSheet = .taskDetail(task.id)
+    }
+
+    private func progressText(for task: Task, at date: Date) -> String? {
+        guard let progressSession else { return nil }
+        return TaskProgressEventRules.detailText(
+            projection: progressSession.projection(for: task.id),
+            status: TaskStatus(rawValue: task.status) ?? .todo,
+            now: date,
+            completedAt: task.completedAt
+        )
     }
 }

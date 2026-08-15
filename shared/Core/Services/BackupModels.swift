@@ -14,6 +14,7 @@ public struct BackupPayload: Codable {
     public var diaryBlocks: [DiaryBlockDTO]?
     public var memos: [MemoDTO]? = nil
     public var taskCompletionActivities: [TaskCompletionActivityDTO]? = nil
+    public var taskProgressEvents: [TaskProgressEventDTO]? = nil
 }
 
 public struct TaskDTO: Codable {
@@ -144,6 +145,17 @@ public struct TaskCompletionActivityDTO: Codable {
     public var activityDayKey: String
     public var occurredAt: Date
     public var originRawValue: String
+    public var createdAt: Date
+    public var updatedAt: Date
+}
+
+public struct TaskProgressEventDTO: Codable {
+    public var id: UUID
+    public var instanceID: UUID
+    public var taskId: UUID
+    public var kindRawValue: String
+    public var originRawValue: String
+    public var occurredAt: Date
     public var createdAt: Date
     public var updatedAt: Date
 }

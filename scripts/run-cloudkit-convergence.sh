@@ -16,9 +16,9 @@ if [[ -z "$device_id" ]]; then
 fi
 
 case "$probe_kind" in
-  event|media|conflict|checklist|activity) ;;
+  event|media|conflict|checklist|activity|progress) ;;
   *)
-    print -u2 "PLANBASE_PROBE_KIND must be event, media, conflict, checklist, or activity."
+    print -u2 "PLANBASE_PROBE_KIND must be event, media, conflict, checklist, activity, or progress."
     exit 64
     ;;
 esac
@@ -127,13 +127,17 @@ wait_for_success() {
   local seconds="${3:-30}"
   local process_id="${4:-}"
   local elapsed=0
+  local result_line=""
 
   while (( elapsed < seconds )); do
-    if grep -Fq "\"passed\":true,\"role\":\"$role\"" "$log_file" 2>/dev/null; then
+    result_line="$(grep -F 'PLANBASE_CKPROBE RESULT ' "$log_file" 2>/dev/null | tail -n 1 || true)"
+    if [[ "$result_line" == *'"passed":true'* &&
+          "$result_line" == *"\"role\":\"$role\""* ]]; then
       cat "$log_file"
       return 0
     fi
-    if grep -Fq '"passed":false' "$log_file" 2>/dev/null; then
+    if [[ "$result_line" == *'"passed":false'* &&
+          "$result_line" == *"\"role\":\"$role\""* ]]; then
       cat "$log_file" >&2
       return 1
     fi

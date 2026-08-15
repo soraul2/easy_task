@@ -264,7 +264,7 @@ func backupV6RoundTripPreservesChecklistAndIsIdempotent() throws {
     try source.mainContext.save()
 
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(contents.manifest.formatVersion == 6)
+    #expect(contents.manifest.formatVersion == BackupPackageCodec.currentVersion)
     #expect(contents.records.payload.taskChecklistItems?.count == 1)
     #expect(contents.records.payload.taskTemplateItems.first?.checklistTitles == ["검증", "배포"])
 

@@ -27,6 +27,17 @@ extension BackupPackageCodec {
             activity.createdAt == dto.createdAt
     }
 
+    static func sameTaskProgressEvent(
+        _ dto: TaskProgressEventDTO,
+        _ event: TaskProgressEvent
+    ) -> Bool {
+        event.taskId == dto.taskId &&
+            event.kindRawValue == dto.kindRawValue &&
+            event.originRawValue == dto.originRawValue &&
+            event.occurredAt == dto.occurredAt &&
+            event.createdAt == dto.createdAt
+    }
+
     static func uniqueByInstanceID<Record>(
         _ records: [Record],
         recordType: String,

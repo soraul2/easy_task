@@ -14,6 +14,7 @@ struct KanbanColumn: View {
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onDelete: (Task) -> Void
+    var progressText: ((Task, Date) -> String?)? = nil
     @State private var isDropTargeted = false
 
     private var tint: Color {
@@ -79,30 +80,33 @@ struct KanbanColumn: View {
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
 
-            LazyVStack(spacing: 10) {
-                if tasks.isEmpty {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Label(status.emptyStateTitle, systemImage: status.systemImage)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.primaryText)
-                        Text(status.emptyStateDescription)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .background(AppTheme.panel.opacity(0.76), in: RoundedRectangle(cornerRadius: 10))
-                } else {
-                    ForEach(tasks) { task in
-                        TaskCard(
-                            task: task,
-                            selectedDayKey: selectedDayKey,
-                            onStatusChange: onStatusChange,
-                            onTitleChange: onTitleChange,
-                            onEdit: onEdit,
-                            onDelete: onDelete
-                        )
-                        .draggable(task.id.uuidString)
+            TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                LazyVStack(spacing: 10) {
+                    if tasks.isEmpty {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Label(status.emptyStateTitle, systemImage: status.systemImage)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Text(status.emptyStateDescription)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(AppTheme.panel.opacity(0.76), in: RoundedRectangle(cornerRadius: 10))
+                    } else {
+                        ForEach(tasks) { task in
+                            TaskCard(
+                                task: task,
+                                selectedDayKey: selectedDayKey,
+                                onStatusChange: onStatusChange,
+                                onTitleChange: onTitleChange,
+                                onEdit: onEdit,
+                                onDelete: onDelete,
+                                progressText: progressText?(task, timeline.date)
+                            )
+                            .draggable(task.instanceID.uuidString)
+                        }
                     }
                 }
             }
@@ -154,6 +158,7 @@ struct TaskCard: View {
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onDelete: (Task) -> Void
+    var progressText: String?
     @State private var draftTitle = ""
     @State private var isHovered = false
     @FocusState private var isTitleFocused: Bool
@@ -317,6 +322,13 @@ struct TaskCard: View {
                 .tint(status == .doing ? AppTheme.event : AppTheme.selectedTab)
                 .help("\(task.title) 작업을 \(status.primaryActionStatus.title) 상태로 변경")
                 .accessibilityLabel("\(task.title) \(status.primaryActionTitle)")
+            }
+
+            if let progressText {
+                Label(progressText, systemImage: "clock.arrow.circlepath")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.cardMutedText)
+                    .accessibilityLabel("진행 시간 \(progressText)")
             }
         }
         .padding(14)

@@ -36,19 +36,19 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 코어에 두지 않는다. 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위해
 `PlanBaseCore`가 `EasyTaskCore`를 다시 노출한다.
 
-- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`
-- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V5`, 현재 `EasyTaskSchemaV6`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
+- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `TaskCompletionActivity`, `TaskProgressEvent`
+- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V7`, 현재 `EasyTaskSchemaV8`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
 - 동기화 상태: `CloudKitSyncMonitor`, 이벤트별 진행·오류 추적
-- 날짜/보드 규칙: `DayKey`, `TaskRules`
+- 날짜/보드 규칙: `DayKey`, `TaskRules`, `TaskLifecycleService`, `TaskProgressEventRules`
 - 제한 조회: `BoundedQueryService`, 날짜 범위 descriptor와 action-time 관계 fetch
 - 기록 조회: `ArchiveQueryRules`, `ArchiveFilter`, `ArchiveQuerySession`
 - 메모: `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
 - 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlanBaseDeepLink`
-- 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·메모를 포함하는 V5 `BackupPackageCodec`(V2~V5 읽기 호환)
+- 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·메모·진행 이벤트를 포함하는 V7 `BackupPackageCodec`(V2~V7 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일: 코드 내 기본 목록을 사용하고, 번들에 `SpecialDays.kr.json`이 있으면 이를 우선 사용
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
@@ -66,7 +66,7 @@ macOS 앱은 `desktop/App`에 둔다.
 
 iPhone 앱은 `mobile/App`에 둔다.
 
-- `MobileBoardView`: segmented 상태 전환 기반 칸반
+- `MobileBoardView`: `할 일 / 진행 중 / 완료` 상태 전환 기반 보드
 - `MobileCalendarView`: 월간 캘린더와 이벤트/템플릿 sheet
 - `MobileArchiveView`: 회고와 완료 작업 피드
 - `MobileMemoView`: 검색·고정 목록과 자동 저장 편집기
@@ -102,7 +102,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI와 확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V6`, `EasyTaskMigrationPlan`
+- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V7`, `EasyTaskMigrationPlan`
 - 레거시 저장소·이미지 이관에 사용되는 기존 폴더와 marker 이름
 
 이 값들은 [PlanBaseCompatibility.swift](../shared/Core/Persistence/PlanBaseCompatibility.swift)와
@@ -110,8 +110,8 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 ## 데이터 흐름
 
-1. 두 앱은 `PlanBaseContainerFactory`에서 같은 V6 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
-2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 순서로 이동하며 이미 배포된 V1~V5 정의는 수정하지 않는다.
+1. 두 앱은 `PlanBaseContainerFactory`에서 같은 V8 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
+2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 순서로 이동하며 이미 배포된 V1~V7 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
@@ -123,7 +123,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
 9. 메모는 날짜·Task·회고와 독립적으로 저장하며 600ms 자동 저장과 상단 고정을 제공한다.
-10. 백업 V5는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V5를 읽는다.
+10. 백업 V7은 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V7을 읽는다.
 11. `Task.reminderAt`이 알림 원본이자 설정 기록이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
     저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
@@ -153,6 +153,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - 체크리스트는 `TaskChecklistItem.taskId`로 Task에 연결한다. 날짜 이동, 이월, 완료·재개는 연결과 항목 완료 상태를 유지하고 Task 삭제만 연결 항목을 함께 삭제한다.
 - 모든 체크리스트 항목이 완료돼도 상위 Task 상태는 자동 변경하지 않는다. 빈 제목과 부모 없는 항목은 supersede하고 활성 항목 순서는 100 단위로 다시 계산한다.
 - `진행 중` 카드에서는 체크리스트를 펼쳐 완료 상태만 바로 바꿀 수 있다. 항목 추가·수정·삭제·정렬은 작업 상세에서만 처리하고 iOS는 한 번에 한 카드만 펼친다.
+- 상태 전환은 `TaskLifecycleService`에서 Task 변경과 `TaskProgressEvent` 기록을 한 저장 명령으로 처리한다. started/stopped 이벤트의 논리 중복은 결정적으로 수렴하며, 구버전 기기에서 닫힌 구간은 임의 시간을 합성하지 않고 시간 미상으로 표시한다.
 - 템플릿은 체크리스트 제목과 순서만 저장하며 적용 시 모든 항목을 미완료로 생성한다.
 - 메모 중복은 같은 `id` 내에서 가장 최신 `updatedAt`을 우선하고 `instanceID`로 결정적으로 수렴한다.
 - 첨부는 `reviewId`로 대표 회고에 재연결하며 MIME, 크기, SHA-256을 원본 데이터에서 다시 계산한다.
@@ -171,7 +172,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - 누락되거나 손상된 기존 파일은 참조를 지우지 않고 다음 실행에서 재시도하며, 모두 옮긴 회고만 레거시 참조를 정리한다.
 - 기존 이미지가 10개를 넘으면 처음 10개까지만 옮기고 초과 참조는 보존한다. 배열과 block-only 참조를 함께 표시하며 미해결 레거시 항목은 삭제해 백업 차단을 해소할 수 있다.
 - 미해결 레거시 항목이 남은 동안 canonical 이미지 추가·삭제는 잠그고, 마지막 항목을 정리해 저장할 때 기존 메타데이터와 이미지 블록을 제거한다.
-- 백업 V5는 records와 각 첨부의 크기·SHA-256, MIME, Task/체크리스트 참조, 메모 식별자 무결성을 전부 확인한 뒤 비파괴 병합한다.
+- 백업 V7은 records와 각 첨부의 크기·SHA-256, MIME, Task/체크리스트 참조, 메모·진행 이벤트 식별자 무결성을 전부 확인한 뒤 비파괴 병합한다.
 - 회고가 대표 ID로 재연결된 첨부는 병합 전 공통 부분집합과 병합 후 전체 incoming 부분집합의 상대 순서가 일치해야 한다.
 - 다만 로컬 첨부가 백업 후보보다 최신이면 해당 후보는 과거 순서 검증에서 제외해 최신 로컬 정렬을 보존한다.
 - `.easytaskbackup`은 `public.package` 계열의 고정 UTI로 등록해 Finder와 파일 패널에서 하나의 패키지로 다룬다.
@@ -194,16 +195,16 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 ## 현재 MVP 범위
 
-- V6 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
+- V8 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
 - 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS와 macOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
-- CloudKit Production에는 V6 스키마가 배포되어 있으며 TestFlight 앱은 운영 private database를 사용한다.
+- CloudKit Production에는 V7 스키마까지 배포되어 있다. V8의 `TaskProgressEvent` record type은 Development 수렴 검증 후 별도로 Production에 배포해야 한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
-- iOS는 iPhone 우선이며 drag/drop은 제외하고 버튼/segmented control 중심으로 처리한다.
+- iOS는 iPhone 우선이며 상태 필터와 상태 슬라이더를 중심으로 작업을 변경한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그와 선택형 체크리스트를 편집한다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
-- 기본 내보내기는 이미지 원본, Task 알림·체크리스트·메모를 포함한 백업 V5이며 패키지 V2~V4와 JSON V1은 가져오기 호환 경로로 유지한다.
+- 기본 내보내기는 이미지 원본, Task 알림·체크리스트·메모·진행 이벤트를 포함한 백업 V7이며 패키지 V2~V6와 JSON V1은 가져오기 호환 경로로 유지한다.
 - Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
 - Calendar는 표시 월의 적응형 5/6주 범위(최대 42일) 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.

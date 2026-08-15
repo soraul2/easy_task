@@ -5,21 +5,25 @@ public struct TaskLifecycleTransitionResult: Equatable, Sendable {
     public var didChange: Bool
     public var didComplete: Bool
     public var activityInserted: Bool
+    public var progressEventKind: TaskProgressEventKind?
 
     public init(
         didChange: Bool,
         didComplete: Bool,
-        activityInserted: Bool
+        activityInserted: Bool,
+        progressEventKind: TaskProgressEventKind? = nil
     ) {
         self.didChange = didChange
         self.didComplete = didComplete
         self.activityInserted = activityInserted
+        self.progressEventKind = progressEventKind
     }
 
     public static let unchanged = TaskLifecycleTransitionResult(
         didChange: false,
         didComplete: false,
-        activityInserted: false
+        activityInserted: false,
+        progressEventKind: nil
     )
 }
 
@@ -51,10 +55,47 @@ public enum TaskLifecycleService {
                 in: context
             )
             : nil
+        let progressEvent = TaskProgressEventService.recordTransition(
+            taskID: task.id,
+            from: oldStatus,
+            to: status,
+            occurredAt: now,
+            in: context
+        )
         return TaskLifecycleTransitionResult(
             didChange: true,
             didComplete: didComplete,
-            activityInserted: activity != nil
+            activityInserted: activity != nil,
+            progressEventKind: progressEvent.flatMap {
+                TaskProgressEventKind(rawValue: $0.kindRawValue)
+            }
+        )
+    }
+
+    @MainActor
+    @discardableResult
+    public static func bringToToday(
+        _ task: Task,
+        in context: ModelContext,
+        order: Double? = nil,
+        now: Date = Date()
+    ) throws -> TaskLifecycleTransitionResult {
+        guard task.supersededAt == nil else { return .unchanged }
+        let status = TaskStatus(rawValue: task.status) ?? .todo
+        let transition = status == .doing
+            ? try applyStatus(.todo, to: task, in: context, now: now)
+            : .unchanged
+        let previousDayKey = task.plannedDayKey
+        let previousOrder = task.order
+        TaskRules.move(task, to: now, order: order, now: now)
+        guard previousDayKey != task.plannedDayKey || previousOrder != task.order else {
+            return transition
+        }
+        return TaskLifecycleTransitionResult(
+            didChange: true,
+            didComplete: transition.didComplete,
+            activityInserted: transition.activityInserted,
+            progressEventKind: transition.progressEventKind
         )
     }
 

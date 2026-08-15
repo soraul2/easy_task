@@ -161,7 +161,12 @@ struct MobileCarryoverSheet: View {
                     status: .todo
                 )
                 for task in tasksToMove {
-                    TaskRules.bringToToday(task, order: nextOrder, now: now)
+                    try TaskLifecycleService.bringToToday(
+                        task,
+                        in: modelContext,
+                        order: nextOrder,
+                        now: now
+                    )
                     nextOrder += 100
                 }
             }
@@ -181,7 +186,12 @@ struct MobileCarryoverSheet: View {
                     dayKey: DayKey.key(for: now),
                     status: .todo
                 )
-                TaskRules.bringToToday(task, order: nextOrder, now: now)
+                try TaskLifecycleService.bringToToday(
+                    task,
+                    in: modelContext,
+                    order: nextOrder,
+                    now: now
+                )
             }
             movedTaskIDs.insert(task.id)
             let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)

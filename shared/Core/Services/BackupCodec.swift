@@ -52,7 +52,10 @@ public enum BackupCodec {
                 FetchDescriptor<TaskCompletionActivity>()
             )
                 .filter { $0.supersededAt == nil }
-                .map(TaskCompletionActivityDTO.init)
+                .map(TaskCompletionActivityDTO.init),
+            taskProgressEvents: try context.fetch(FetchDescriptor<TaskProgressEvent>())
+                .filter { $0.supersededAt == nil }
+                .map(TaskProgressEventDTO.init)
         )
         return try validatedPayload(payload)
     }
@@ -121,6 +124,9 @@ public enum BackupCodec {
             for activity in try context.fetch(FetchDescriptor<TaskCompletionActivity>()) {
                 context.delete(activity)
             }
+            for event in try context.fetch(FetchDescriptor<TaskProgressEvent>()) {
+                context.delete(event)
+            }
 
             for dto in payload.calendarEvents {
                 context.insert(CalendarEvent(dto: dto))
@@ -151,6 +157,9 @@ public enum BackupCodec {
             }
             for dto in payload.taskCompletionActivities ?? [] {
                 context.insert(TaskCompletionActivity(dto: dto))
+            }
+            for dto in payload.taskProgressEvents ?? [] {
+                context.insert(TaskProgressEvent(dto: dto))
             }
 
             if payload.taskCompletionActivities == nil {
@@ -201,6 +210,10 @@ private extension BackupCodec {
         _ = try uniqueIDs(
             (payload.taskCompletionActivities ?? []).map(\.id),
             recordType: "TaskCompletionActivity"
+        )
+        _ = try uniqueIDs(
+            (payload.taskProgressEvents ?? []).map(\.id),
+            recordType: "TaskProgressEvent"
         )
 
         try validateEvents(payload.calendarEvents)
@@ -288,6 +301,7 @@ private extension BackupCodec {
         }
 
         try validateTaskCompletionActivities(payload.taskCompletionActivities ?? [])
+        try validateTaskProgressEvents(payload.taskProgressEvents ?? [])
 
         return payload
     }
@@ -348,6 +362,47 @@ private extension BackupCodec {
                     field: "\(field).updatedAt",
                     value: "before createdAt"
                 )
+            }
+        }
+    }
+
+    static func validateTaskProgressEvents(
+        _ events: [TaskProgressEventDTO]
+    ) throws {
+        for (index, event) in events.enumerated() {
+            let field = "taskProgressEvents[\(index)]"
+            guard let kind = TaskProgressEventKind(rawValue: event.kindRawValue) else {
+                throw BackupServiceError.invalidEnum(
+                    field: "\(field).kindRawValue",
+                    value: event.kindRawValue
+                )
+            }
+            guard let origin = TaskProgressEventOrigin(rawValue: event.originRawValue) else {
+                throw BackupServiceError.invalidEnum(
+                    field: "\(field).originRawValue",
+                    value: event.originRawValue
+                )
+            }
+            try validateDate(event.occurredAt, field: "\(field).occurredAt")
+            try validateDate(event.createdAt, field: "\(field).createdAt")
+            try validateDate(event.updatedAt, field: "\(field).updatedAt")
+            guard event.createdAt <= event.updatedAt else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).updatedAt",
+                    value: "before createdAt"
+                )
+            }
+            if origin == .compatibilityBoundary {
+                guard kind == .stopped,
+                      event.id == TaskProgressEventService.compatibilityBoundaryID(
+                        taskID: event.taskId,
+                        occurredAt: event.occurredAt
+                      ) else {
+                    throw BackupServiceError.invalidValue(
+                        field: "\(field).id",
+                        value: event.id.uuidString
+                    )
+                }
             }
         }
     }

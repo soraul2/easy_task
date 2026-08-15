@@ -17,13 +17,14 @@ macOS와 iPhone 앱이 같은 SwiftData·CloudKit 데이터를 같은 의미로 
 
 ## 2. 변경 경계
 
-- `EasyTaskSchemaV1`~`V6`와 `EasyTaskMigrationPlan`을 변경하지 않는다.
+- 배포된 `EasyTaskSchemaV1`~`V7`은 직접 변경하지 않는다. 이 정합성 계획 자체는 새 schema를
+  추가하지 않으며, 별도 기능에서 새 모델이 필요하면 다음 버전과 migration stage를 사용한다.
 - bundle ID, CloudKit container, App Group, 백업 UTI와 확장자를 변경하지 않는다.
 - 기존 `PlanBaseCore` 서비스와 `PersistenceCommandService.perform` 경계를 재사용한다.
 - CloudKit 중복 수렴, `instanceID`, `supersededAt` 규칙을 우회하지 않는다.
 - 백업 가져오기는 교체가 아니라 기존 병합·검증·rollback 정책을 그대로 사용한다.
 - 위젯은 계속 App Group snapshot만 읽고 SwiftData 또는 CloudKit을 직접 열지 않는다.
-- 현재 진행 중인 모바일 보드·캘린더·위젯 디자인 변경을 먼저 독립적으로 정리한 뒤
+- 현재 진행 중인 캘린더·위젯 디자인 변경을 먼저 독립적으로 정리한 뒤
   clean `main`에서 정합성 작업을 시작한다.
 
 ## 3. 현재 판정
@@ -41,7 +42,7 @@ macOS와 iPhone 앱이 같은 SwiftData·CloudKit 데이터를 같은 의미로 
 | macOS | iPhone |
 |---|---|
 | 세 개 칸반 열 동시 표시 | 선택한 상태 중심의 단일 목록 |
-| 오늘 보드와 이월함을 분리 | 오늘 보드에 이월 작업도 함께 표시 |
+| 오늘 보드와 별도 이월함 | 오늘 보드와 별도 이월함 sheet |
 | 마우스 드래그 앤 드롭 | 터치·스와이프·상태 슬라이더 |
 | 키보드 단축키와 파일 패널 | 홈/잠금 화면 위젯과 딥링크 |
 | 넓은 화면의 목록·편집기 동시 표시 | NavigationStack 기반 단계 이동 |
@@ -74,8 +75,8 @@ iPhone 책임이다. 기존 알림 계획에서 macOS 읽기 전용을 명시적
 
 ### 코드 재대조로 보정한 전제
 
-- `TaskBoardRulesTests`가 macOS와 iPhone의 오늘 보드 이월 표시 차이를 의도된 정책으로
-  고정하고 있다. 따라서 오늘 보드의 표시 목록을 강제로 같게 만들지 않는다.
+- `TaskBoardRulesTests`가 macOS와 iPhone 모두 오늘 보드에서 carryover를 제외하고 별도 이월함에
+  두는 현재 정책을 고정한다.
 - iPhone 이월함은 `selectedDayKey` 이전 작업을 조회하지만 버튼은 항상
   `오늘로 이월`을 실행한다. 미래 보드에서는 오늘 작업까지 후보가 될 수 있으므로
   이월함 후보 기준은 양 플랫폼 모두 `DayKey.today`로 고정해야 한다.
@@ -93,8 +94,7 @@ iPhone 책임이다. 기존 알림 계획에서 macOS 읽기 전용을 명시적
 
 ### 이월 작업
 
-- iPhone 오늘 보드는 이전 날짜의 활성 미완료 작업을 함께 표시하고, macOS는 오늘
-  보드와 이월함을 분리하는 현재 플랫폼별 표현을 유지한다.
+- 양 플랫폼 오늘 보드는 이전 날짜의 todo carryover를 일반 목록에 섞지 않고 별도 이월함을 사용한다.
 - 양 플랫폼 이월함은 현재 선택 날짜와 무관하게 `DayKey.today` 이전의 활성 미완료
   작업만 후보로 사용한다.
 - 완료·보관·대체 레코드는 기존 `BoardQueryRules`와 `TaskRules`대로 제외한다.
@@ -196,7 +196,7 @@ iPhone 책임이다. 기존 알림 계획에서 macOS 읽기 전용을 명시적
 완료 조건:
 
 - 같은 Task 집합으로 양 플랫폼 이월함의 후보 ID와 실행 결과가 같다.
-- iPhone 인라인 표시와 macOS 별도 이월함이라는 플랫폼별 표현은 유지된다.
+- 양 플랫폼의 미완료 carryover는 별도 이월함에 유지된다.
 - 모바일에서 작성한 일정 메모를 macOS에서 손실 없이 수정할 수 있다.
 - schema와 백업 format에는 diff가 없다.
 
@@ -348,7 +348,7 @@ xcodebuild -quiet \
 |---|---|
 | iPhone에서 일정 메모 생성 → Mac CloudKit import | Mac에서 같은 메모를 표시·편집 |
 | Mac에서 일정 메모 수정 → iPhone CloudKit import | 다른 필드와 메모가 함께 수렴 |
-| 과거 미완료 Task 생성 → 양쪽 이월함 | 같은 후보 Task ID, 인라인 표현은 플랫폼 정책 유지 |
+| 과거 미완료 Task 생성 → 양쪽 이월함 | 같은 후보 Task ID, 일반 보드 목록에는 직접 포함하지 않음 |
 | 미래 날짜 보드에서 iPhone 이월함 열기 | 오늘 작업은 후보에서 제외 |
 | iPhone에서 템플릿 다중 날짜 배치 → Mac CloudKit import | Mac 날짜 상세에 같은 배치와 작업 수 |
 | Mac에서 배치만 삭제 | 양쪽에서 Task는 유지되고 placement만 제거 |
@@ -402,7 +402,7 @@ Xcode 설정 또는 persistence 경계를 변경한 브랜치는 양 플랫폼 �
 
 - 같은 공통 데이터 집합에서 양 플랫폼의 Task·Event·Placement 의미가 같다.
 - 일정 메모가 양방향 생성·수정에서 손실되지 않는다.
-- 이월함의 후보 Task ID와 실행 결과가 양 플랫폼에서 같고 인라인 표시 차이는 의도대로 유지된다.
+- 이월함의 후보 Task ID와 실행 결과가 양 플랫폼에서 같고 todo carryover는 별도 이월함에 유지된다.
 - 템플릿 배치 조회와 원자적인 두 가지 삭제 정책을 양 플랫폼에서 수행할 수 있다.
 - 캘린더 대표 이벤트, lane과 overflow 개수가 공통 엔진 결과와 일치한다.
 - 백업 package가 macOS와 iPhone 사이에서 이미지까지 포함해 왕복한다.

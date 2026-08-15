@@ -187,6 +187,17 @@ public enum DataIntegrityService {
         report.normalizedFields += activityReport.normalizedFields
         report.supersededRecords += activityReport.supersededRecords
 
+        let progressReport = try TaskProgressEventIntegrityService.reconcile(in: context)
+        report.mergedRecords += progressReport.mergedRecords
+        report.normalizedFields += progressReport.normalizedFields
+        report.supersededRecords += progressReport.supersededRecords
+
+        let compatibilityReport = try TaskProgressCompatibilityService.reconcile(
+            tasks: tasks,
+            in: context
+        )
+        report.insertedRecords += compatibilityReport.insertedBoundaries
+
         if report.hasChanges && saveChanges {
             try context.save()
         }

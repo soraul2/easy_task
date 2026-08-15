@@ -36,7 +36,7 @@ func backupPackageRoundTripIncludesAttachmentBytes() throws {
 
 @Test
 @MainActor
-func backupPackageReadsV2AndWritesV6() throws {
+func backupPackageReadsV2AndWritesCurrentVersion() throws {
     let source = try PlanBaseContainerFactory.makeInMemory()
     var legacyContents = try BackupPackageCodec.makeContents(context: source.mainContext)
     legacyContents.manifest.formatVersion = 2
@@ -45,9 +45,10 @@ func backupPackageReadsV2AndWritesV6() throws {
 
     try BackupPackageCodec.validate(legacyContents)
     let current = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(current.manifest.formatVersion == 6)
-    #expect(current.records.formatVersion == 6)
+    #expect(current.manifest.formatVersion == BackupPackageCodec.currentVersion)
+    #expect(current.records.formatVersion == BackupPackageCodec.currentVersion)
     #expect(current.records.payload.taskCompletionActivities != nil)
+    #expect(current.records.payload.taskProgressEvents != nil)
 }
 
 @Test
@@ -107,6 +108,58 @@ func backupPackageV6RequiresExplicitActivityArray() throws {
     )) {
         try BackupPackageCodec.validate(contents)
     }
+}
+
+@Test
+@MainActor
+func backupPackageV7RoundTripsProgressEventsAndV6KeepsLocalHistory() throws {
+    let source = try PlanBaseContainerFactory.makeInMemory()
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let task = Task(title: "백업 진행 시간", plannedAt: start, order: 100)
+    source.mainContext.insert(task)
+    try source.mainContext.save()
+    _ = try PersistenceCommandService.perform(in: source.mainContext) {
+        try TaskLifecycleService.applyStatus(
+            .doing,
+            to: task,
+            in: source.mainContext,
+            now: start
+        )
+    }
+    _ = try PersistenceCommandService.perform(in: source.mainContext) {
+        try TaskLifecycleService.applyStatus(
+            .done,
+            to: task,
+            in: source.mainContext,
+            now: start.addingTimeInterval(600)
+        )
+    }
+
+    let current = try BackupPackageCodec.makeContents(context: source.mainContext)
+    #expect(current.records.payload.taskProgressEvents?.count == 2)
+
+    let destination = try PlanBaseContainerFactory.makeInMemory()
+    _ = try BackupPackageCodec.restoreMerging(current, into: destination.mainContext)
+    #expect(try destination.mainContext.fetchCount(FetchDescriptor<TaskProgressEvent>()) == 2)
+
+    let localOnly = TaskProgressEvent(
+        taskId: UUID(),
+        kind: .started,
+        occurredAt: start
+    )
+    destination.mainContext.insert(localOnly)
+    try destination.mainContext.save()
+    let legacySource = try PlanBaseContainerFactory.makeInMemory()
+    var legacyV6 = try BackupPackageCodec.makeContents(context: legacySource.mainContext)
+    legacyV6.manifest.formatVersion = 6
+    legacyV6.records.formatVersion = 6
+    legacyV6.records.payload.taskProgressEvents = nil
+    refreshRecordsMetadata(&legacyV6)
+    try BackupPackageCodec.validate(legacyV6)
+    _ = try BackupPackageCodec.restoreMerging(legacyV6, into: destination.mainContext)
+    #expect(try destination.mainContext.fetch(
+        FetchDescriptor<TaskProgressEvent>()
+    ).contains { $0.instanceID == localOnly.instanceID })
 }
 
 @Test

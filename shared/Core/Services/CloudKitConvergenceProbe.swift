@@ -18,6 +18,7 @@ public enum CloudKitProbeKind: String, Codable, Sendable {
     case conflict
     case checklist
     case activity
+    case progress
 }
 
 public enum CloudKitConflictVariant: String, Codable, CaseIterable, Sendable {
@@ -145,6 +146,17 @@ public struct CloudKitActivityProbeSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public struct CloudKitProgressProbeSnapshot: Codable, Equatable, Sendable {
+    public var token: UUID
+    public var totalEventCount: Int
+    public var activeEventCount: Int
+    public var matchingEventCount: Int
+    public var kindRawValue: String?
+    public var originRawValue: String?
+    public var expectation: CloudKitProbeExpectation
+    public var passed: Bool
+}
+
 public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
@@ -155,6 +167,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var conflictSnapshot: CloudKitConflictProbeSnapshot?
     public var checklistSnapshot: CloudKitChecklistProbeSnapshot?
     public var activitySnapshot: CloudKitActivityProbeSnapshot?
+    public var progressSnapshot: CloudKitProgressProbeSnapshot?
     public var error: String?
 
     public init(
@@ -167,6 +180,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
         conflictSnapshot: CloudKitConflictProbeSnapshot? = nil,
         checklistSnapshot: CloudKitChecklistProbeSnapshot? = nil,
         activitySnapshot: CloudKitActivityProbeSnapshot? = nil,
+        progressSnapshot: CloudKitProgressProbeSnapshot? = nil,
         error: String? = nil
     ) {
         self.kind = kind
@@ -178,6 +192,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
         self.conflictSnapshot = conflictSnapshot
         self.checklistSnapshot = checklistSnapshot
         self.activitySnapshot = activitySnapshot
+        self.progressSnapshot = progressSnapshot
         self.error = error
     }
 }
@@ -304,6 +319,11 @@ public enum CloudKitConvergenceProbe {
                 )
             case .activity:
                 result = try await runActivityProbe(
+                    configuration: configuration,
+                    context: context
+                )
+            case .progress:
+                result = try await runProgressProbe(
                     configuration: configuration,
                     context: context
                 )

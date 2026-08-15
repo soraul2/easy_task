@@ -223,8 +223,8 @@ public enum BackupPackageError: LocalizedError, Equatable {
 
 public enum BackupPackageCodec {
     public static let formatIdentifier = PlanBaseCompatibility.backupFormatIdentifier
-    public static let currentVersion = 6
-    public static let supportedVersions: ClosedRange<Int> = 2...6
+    public static let currentVersion = 7
+    public static let supportedVersions: ClosedRange<Int> = 2...7
     public static let manifestFileName = "manifest.json"
     public static let recordsFileName = "records.json"
     public static let attachmentsDirectoryName = "attachments"
@@ -560,6 +560,13 @@ public enum BackupPackageCodec {
                 id: zeroUUID
             )
         }
+        if contents.records.formatVersion >= 7,
+           contents.records.payload.taskProgressEvents == nil {
+            throw BackupPackageError.invalidRecordMetadata(
+                recordType: "TaskProgressEvent",
+                id: zeroUUID
+            )
+        }
         let legacyReferenceCount = (contents.records.payload.dailyReviews ?? []).reduce(0) {
             $0 + ($1.imageFileNames?.count ?? 0)
         } + (contents.records.payload.diaryBlocks ?? []).filter {
@@ -752,6 +759,12 @@ private extension BackupPackageCodec {
                 ($0.id, Optional($0.instanceID))
             },
             recordType: "TaskCompletionActivity"
+        )
+        try validateInstanceIDs(
+            (payload.taskProgressEvents ?? []).map {
+                ($0.id, Optional($0.instanceID))
+            },
+            recordType: "TaskProgressEvent"
         )
 
         for item in payload.taskTemplateItems {

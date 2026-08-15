@@ -240,6 +240,16 @@ public enum BoundedQueryService {
         return descriptor
     }
 
+    public static func taskDescriptor(instanceID: UUID) -> FetchDescriptor<Task> {
+        var descriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { task in
+                task.supersededAt == nil && task.instanceID == instanceID
+            }
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
+
     public static func activeReminderTasksDescriptor() -> FetchDescriptor<Task> {
         let doneStatus = TaskStatus.done.rawValue
         return FetchDescriptor(

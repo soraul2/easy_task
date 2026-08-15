@@ -36,7 +36,8 @@ func lifecycleCapturesActualActionDayWithoutChangingBackdatedCompletionMeaning()
     #expect(result == TaskLifecycleTransitionResult(
         didChange: true,
         didComplete: true,
-        activityInserted: true
+        activityInserted: true,
+        progressEventKind: .stopped
     ))
     #expect(task.completedDayKey == "2026-08-10")
     #expect(task.completedAt == occurredAt)
@@ -129,6 +130,7 @@ func lifecycleRollbackAndTaskDeletionDoNotCorruptActivityHistory() throws {
 
     #expect(try context.fetchCount(FetchDescriptor<Task>()) == 0)
     #expect(try context.fetchCount(FetchDescriptor<TaskCompletionActivity>()) == 1)
+    #expect(try context.fetchCount(FetchDescriptor<TaskProgressEvent>()) == 0)
 }
 
 @Test

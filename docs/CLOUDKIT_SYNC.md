@@ -5,8 +5,8 @@
 - CloudKit 컨테이너: `iCloud.com.soraul2.easytask`
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
-- 앱 스키마: `EasyTaskSchemaV7`
-- 운영 스키마: V7 배포 완료
+- 앱 스키마: `EasyTaskSchemaV8`
+- 운영 스키마: V8 배포 완료
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
@@ -47,9 +47,9 @@ CloudKit 모드는 별도의 네트워크 전용 저장소가 아니라 로컬 S
 ```
 
 초기화 코드는 명시적인 인자가 있는 Debug 빌드에서만 실행된다. 완료 후 CloudKit
-Console의 Development 환경에서 모든 V7 record type, `Task.reminderAt`,
+Console의 Development 환경에서 모든 V8 record type, `Task.reminderAt`,
 `TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`,
-`TaskCompletionActivity`가 생성됐는지 확인한다.
+`TaskCompletionActivity`, `TaskProgressEvent`가 생성됐는지 확인한다.
 
 ## 검증 순서
 
@@ -88,6 +88,8 @@ PLANBASE_PROBE_KIND=event \
   부모·자식 참조, 완료 메타데이터와 그래프 삭제 전파를 양방향 확인한다.
 - `activity`: 2099-12-30의 익명 완료 활동을 사용해 활동일, 원본 종류, 생성과 삭제
   전파를 양방향 확인한다.
+- `progress`: 익명 `started` 진행 이벤트를 사용해 종류, 원본, 생성과 삭제 전파를
+  양방향 확인한다.
 
 모든 writer와 cleanup은 로컬 저장만 확인하지 않고 해당 저장으로 시작된 CloudKit export의
 완료와 성공까지 기다린다. 진단 실행에서는 일반 앱 화면과 시작 시 전체 무결성 정리를
@@ -148,6 +150,13 @@ upload 대기 0건을 확인했다. macOS와 iPhone 저장소의 11개 엔터티
 2일 연속·최근 1년 최고 4일·오늘 완료 4건을 동일하게 표시했다. 진단 뒤에는 앱 삭제 없이
 TestFlight에서 iOS build 30을 다시 설치했다. beta 설치본의 setup/import/export가 22:35에
 다시 성공했고 upload 대기 0건과 같은 활동 수·기록 화면이 유지되는 것을 확인했다.
+2026-08-15에는 V8 Development schema를 초기화하고 `TaskProgressEvent`의 macOS → iPhone,
+iPhone → macOS 생성·삭제와 양쪽 export/import 성공, 진단 레코드 정리를 확인했다.
+같은 날 CloudKit Console에서 `CD_TaskProgressEvent` record type과 관련 인덱스 28개를
+Production에 배포하고, Production record type 목록에서 반영을 다시 확인했다. 이어
+iOS TestFlight build 33 archive의 App Group·CloudKit entitlement를 검증한 뒤 App Store
+Connect 업로드에 성공했다. 이어 기존 3상태 보드를 복원하고 진행 시간 기록을 유지한
+iOS TestFlight build 34도 같은 entitlement 검증을 통과해 App Store Connect에 업로드했다.
 
 ## 운영 회귀 조건
 
@@ -181,3 +190,8 @@ CloudKit Console에서 `TaskCompletionActivity`를 Production에 추가 배포�
 macOS TestFlight 앱에서 기존 활동의 export 성공과 upload 대기 해소를 확인했다. 다음 스키마
 변경에서도 새 record type이 Production에 없으면 TestFlight 앱의 export가 실패하므로,
 같은 순서를 완료하기 전에는 해당 빌드를 테스터에게 배포하거나 App Review에 제출하지 않는다.
+
+V8은 `TaskProgressEvent` record type을 새로 추가한다. 출시 전 Development에서
+`PLANBASE_PROBE_KIND=progress`의 macOS → iPhone, iPhone → macOS 생성·삭제 수렴을 모두
+통과하고, CloudKit Console에서 V8 schema를 Production에 배포해야 한다. Production 배포와
+TestFlight 실기기 확인 전에는 진행 시간 기능을 출시 완료로 취급하지 않는다.

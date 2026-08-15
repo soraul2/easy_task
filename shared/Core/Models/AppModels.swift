@@ -11,6 +11,7 @@ public typealias DiaryBlock = EasyTaskSchemaV5.DiaryBlock
 public typealias DiaryAttachment = EasyTaskSchemaV5.DiaryAttachment
 public typealias Memo = EasyTaskSchemaV6.Memo
 public typealias TaskCompletionActivity = EasyTaskSchemaV7.TaskCompletionActivity
+public typealias TaskProgressEvent = EasyTaskSchemaV8.TaskProgressEvent
 
 public enum TaskStatus: String, CaseIterable, Identifiable {
     case todo

@@ -152,6 +152,19 @@ extension TaskCompletionActivityDTO {
     }
 }
 
+extension TaskProgressEventDTO {
+    init(event: TaskProgressEvent) {
+        id = event.id
+        instanceID = event.instanceID
+        taskId = event.taskId
+        kindRawValue = event.kindRawValue
+        originRawValue = event.originRawValue
+        occurredAt = event.occurredAt
+        createdAt = event.createdAt
+        updatedAt = event.updatedAt
+    }
+}
+
 extension CalendarEvent {
     convenience init(dto: CalendarEventDTO) {
         self.init(
@@ -320,6 +333,21 @@ extension TaskCompletionActivity {
             activityDayKey: dto.activityDayKey,
             occurredAt: dto.occurredAt,
             origin: TaskActivityRules.origin(for: dto.originRawValue) ?? .legacyBackfill,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+extension TaskProgressEvent {
+    convenience init(dto: TaskProgressEventDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID,
+            taskId: dto.taskId,
+            kind: TaskProgressEventKind(rawValue: dto.kindRawValue) ?? .stopped,
+            origin: TaskProgressEventOrigin(rawValue: dto.originRawValue) ?? .compatibilityBoundary,
+            occurredAt: dto.occurredAt,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

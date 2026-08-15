@@ -135,6 +135,16 @@ func schemaV7ContainsEveryCurrentPersistedModel() {
 }
 
 @Test
+func schemaV8AddsProgressEventsWithoutChangingFrozenModels() {
+    let modelNames = Set(EasyTaskSchemaV8.models.map { String(reflecting: $0) })
+    let expectedNames = Set(EasyTaskSchemaV7.models.map { String(reflecting: $0) })
+        .union([String(reflecting: TaskProgressEvent.self)])
+
+    #expect(EasyTaskSchemaV8.versionIdentifier == Schema.Version(8, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
 @MainActor
 func versionedContainerReopensFileBackedStore() throws {
     try withTemporaryStore { storeURL in
@@ -425,6 +435,54 @@ func versionedV6StoreMigratesToV7WithEmptyActivities() throws {
         try expectFixture(in: reopened, title: "V6 활동 이관")
         #expect(try reopened.mainContext.fetchCount(
             FetchDescriptor<TaskCompletionActivity>()
+        ) == 0)
+    }
+}
+
+@Test
+@MainActor
+func versionedV7StoreMigratesToV8WithEmptyProgressEvents() throws {
+    try withTemporaryStore { storeURL in
+        let activityTaskID = UUID()
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: EasyTaskSchemaV7.self)
+            let configuration = ModelConfiguration(
+                "PlanBaseV7",
+                schema: schema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            try writeFixture(to: container, title: "V7 진행 이벤트 이관")
+            let occurredAt = Date(timeIntervalSince1970: 1_800_000_000)
+            let activityDayKey = DayKey.key(for: occurredAt)
+            container.mainContext.insert(TaskCompletionActivity(
+                id: TaskActivityRules.logicalID(
+                    taskID: activityTaskID,
+                    activityDayKey: activityDayKey
+                ),
+                taskId: activityTaskID,
+                activityDayKey: activityDayKey,
+                occurredAt: occurredAt,
+                createdAt: occurredAt,
+                updatedAt: occurredAt
+            ))
+            try container.mainContext.save()
+        }
+
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
+        try expectFixture(in: migrated, title: "V7 진행 이벤트 이관")
+        #expect(try migrated.mainContext.fetchCount(
+            FetchDescriptor<TaskCompletionActivity>()
+        ) == 1)
+        #expect(try migrated.mainContext.fetchCount(
+            FetchDescriptor<TaskProgressEvent>()
+        ) == 0)
+
+        let reopened = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
+        #expect(try reopened.mainContext.fetchCount(
+            FetchDescriptor<TaskProgressEvent>()
         ) == 0)
     }
 }

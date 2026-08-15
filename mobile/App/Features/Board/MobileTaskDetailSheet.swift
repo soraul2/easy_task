@@ -408,8 +408,7 @@ struct MobileTaskDetailSheet: View {
                         status,
                         to: currentTask,
                         in: modelContext,
-                        now: now,
-                        completionDayKey: newDayKey
+                        now: now
                     )
                 }
 
