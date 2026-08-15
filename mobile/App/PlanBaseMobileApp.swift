@@ -240,6 +240,7 @@ private struct MobileAppRootView: View {
     @State private var showingThemePicker = false
     @State private var syncMonitor = CloudKitSyncMonitor()
     @State private var activityImportCoordinator: TaskActivityImportCoordinator?
+    @State private var themePreferences = ThemePreferenceStore.shared
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
     @AppStorage(MobileCloudKitSyncUI.showsWarningBannerKey)
     private var showsSyncWarningBanner = true
@@ -323,6 +324,10 @@ private struct MobileAppRootView: View {
         }
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
+            let syncedThemeID = themePreferences.refreshFromCloud()
+            if syncedThemeID != selectedThemeID {
+                selectedThemeID = syncedThemeID
+            }
             refreshCurrentDay()
             refreshWidgetSnapshot(forceWrite: true)
             Swift.Task {
@@ -341,6 +346,17 @@ private struct MobileAppRootView: View {
             for: CloudKitSyncService.eventChangedNotification
         )) { notification in
             handleCloudKitEvent(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSUbiquitousKeyValueStore.didChangeExternallyNotification
+        )) { notification in
+            let keys = notification.userInfo?[
+                NSUbiquitousKeyValueStoreChangedKeysKey
+            ] as? [String]
+            let syncedThemeID = themePreferences.applyCloudChanges(changedKeys: keys)
+            if syncedThemeID != selectedThemeID {
+                selectedThemeID = syncedThemeID
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             refreshCurrentDay()
@@ -416,7 +432,13 @@ private struct MobileAppRootView: View {
         if migratedThemeID != selectedThemeID {
             selectedThemeID = migratedThemeID
         }
-        AppTheme.activate(migratedThemeID, colorScheme: colorScheme)
+        let syncedThemeID = themePreferences.start(
+            syncsWithICloud: themePreferenceCloudSyncEnabled
+        )
+        if syncedThemeID != selectedThemeID {
+            selectedThemeID = syncedThemeID
+        }
+        AppTheme.activate(syncedThemeID, colorScheme: colorScheme)
         themeRevision += 1
         do {
             try PersistenceCommandService.perform(in: modelContext) {
@@ -448,6 +470,14 @@ private struct MobileAppRootView: View {
         } catch {
             syncMonitor.recordStartupFailure(error)
         }
+    }
+
+    private var themePreferenceCloudSyncEnabled: Bool {
+#if DEBUG
+        !PlanBaseLaunchEnvironment.isUITesting
+#else
+        true
+#endif
     }
 
     private func refreshWidgetSnapshot(
@@ -866,6 +896,7 @@ struct MobileThemePickerSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
     @Binding var selectedThemeID: String
+    @State private var selectedSection = MobileThemePickerSection.palette
 
     private var columns: [GridItem] {
         if dynamicTypeSize.isAccessibilitySize {
@@ -880,36 +911,56 @@ struct MobileThemePickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Label(
-                            "\(appearanceTitle) 미리보기",
-                            systemImage: "circle.lefthalf.filled"
-                        )
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText)
-
-                        Text("선택한 테마는 기기의 라이트·다크 모드에 맞춰 자동으로 바뀝니다.")
-                            .font(.footnote)
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(AppThemePreset.all) { preset in
-                            MobileThemePresetCard(
-                                preset: preset,
-                                appearance: AppThemeAppearance(colorScheme: colorScheme),
-                                isSelected: selectedThemeID == preset.id
-                            ) {
-                                AppTheme.activate(preset.id, colorScheme: colorScheme)
-                                selectedThemeID = preset.id
-                            }
-                        }
+            VStack(spacing: 0) {
+                Picker("테마 설정", selection: $selectedSection) {
+                    ForEach(MobileThemePickerSection.allCases) { section in
+                        Text(section.title).tag(section)
                     }
                 }
-                .padding(16)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                switch selectedSection {
+                case .palette:
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Label(
+                                    "\(appearanceTitle) 미리보기",
+                                    systemImage: "circle.lefthalf.filled"
+                                )
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.primaryText)
+
+                                Text("선택한 테마는 기기의 라이트·다크 모드에 맞춰 자동으로 바뀝니다.")
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(AppThemePreset.all) { preset in
+                                    MobileThemePresetCard(
+                                        preset: preset,
+                                        appearance: AppThemeAppearance(colorScheme: colorScheme),
+                                        isSelected: selectedThemeID == preset.id
+                                    ) {
+                                        ThemePreferenceStore.shared.setSelectedThemeID(preset.id)
+                                        AppTheme.activate(preset.id, colorScheme: colorScheme)
+                                        selectedThemeID = preset.id
+                                    }
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                case .activity:
+                    ActivityHeatmapThemeEditor(themeID: selectedThemeID)
+                        .padding(16)
+                }
             }
             .background(AppTheme.background)
             .navigationTitle("테마")
@@ -923,6 +974,20 @@ struct MobileThemePickerSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.background)
+    }
+}
+
+private enum MobileThemePickerSection: String, CaseIterable, Identifiable {
+    case palette
+    case activity
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .palette: "앱 색상"
+        case .activity: "활동 그래프"
+        }
     }
 }
 

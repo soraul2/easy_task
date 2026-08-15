@@ -5,6 +5,7 @@ set -euo pipefail
 archive_path="${1:-}"
 expected_app_group="group.com.soraul2.easytask"
 expected_cloud_container="iCloud.com.soraul2.easytask"
+expected_kv_store="8QCW4WP3SM.com.soraul2.easytask"
 
 if [[ -z "$archive_path" ]]; then
   print -u2 "usage: $0 <PlanBase-iOS.xcarchive>"
@@ -57,6 +58,10 @@ widget_app_group="$(entitlement_value \
 cloud_container="$(entitlement_value \
   "$app_entitlements" \
   "com.apple.developer.icloud-container-identifiers" || true)"
+kv_store="$(/usr/libexec/PlistBuddy \
+  -c "Print :com.apple.developer.ubiquity-kvstore-identifier" \
+  "$app_entitlements" \
+  2>/dev/null || true)"
 
 if [[ "$app_group" != "$expected_app_group" ]]; then
   print -u2 "App Group entitlement mismatch for PlanBase.app: ${app_group:-missing}"
@@ -73,7 +78,13 @@ if [[ "$cloud_container" != "$expected_cloud_container" ]]; then
   exit 1
 fi
 
+if [[ "$kv_store" != "$expected_kv_store" ]]; then
+  print -u2 "iCloud key-value store entitlement mismatch: ${kv_store:-missing}"
+  exit 1
+fi
+
 print "Verified signed iOS archive entitlements:"
 print "  app group: $app_group"
 print "  widget app group: $widget_app_group"
 print "  CloudKit container: $cloud_container"
+print "  iCloud key-value store: $kv_store"

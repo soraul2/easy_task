@@ -517,7 +517,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.launchArguments = ["--ui-testing"]
         app.launch()
 
-        let memoTab = app.tabBars.firstMatch.buttons["메모"]
+        let memoTab = app.buttons["메모"].firstMatch
         XCTAssertTrue(memoTab.waitForExistence(timeout: 15))
         memoTab.tap()
 
@@ -557,6 +557,49 @@ final class PlanBaseLaunchUITests: XCTestCase {
                 )
             )
         }
+    }
+
+    @MainActor
+    func testThemePickerCustomizesAndPersistsActivityEmoji() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        let memoTab = app.buttons["메모"].firstMatch
+        XCTAssertTrue(memoTab.waitForExistence(timeout: 15))
+        memoTab.tap()
+        app.buttons["테마 선택"].firstMatch.tap()
+
+        let activitySection = app.buttons["활동 그래프"].firstMatch
+        XCTAssertTrue(activitySection.waitForExistence(timeout: 5))
+        activitySection.tap()
+
+        let emojiStyle = app.buttons["이모지"].firstMatch
+        XCTAssertTrue(emojiStyle.waitForExistence(timeout: 5))
+        emojiStyle.tap()
+
+        let emojiField = app.textFields["activity-heatmap-emoji-field"]
+        XCTAssertTrue(emojiField.waitForExistence(timeout: 5))
+        emojiField.tap()
+        emojiField.typeText("🎯")
+        XCTAssertEqual(emojiField.value as? String, "🎯")
+        addReferenceScreenshot(named: "Theme activity emoji editor")
+
+        app.navigationBars["테마"].buttons["완료"].tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["메모"].firstMatch.waitForExistence(timeout: 15))
+        app.buttons["메모"].firstMatch.tap()
+        app.buttons["테마 선택"].firstMatch.tap()
+        app.buttons["활동 그래프"].firstMatch.tap()
+        app.buttons["이모지"].firstMatch.tap()
+
+        let restoredEmojiField = app.textFields["activity-heatmap-emoji-field"]
+        XCTAssertTrue(restoredEmojiField.waitForExistence(timeout: 5))
+        XCTAssertEqual(restoredEmojiField.value as? String, "🎯")
+
+        app.buttons["기본값"].tap()
+        app.buttons["테마 색상"].firstMatch.tap()
     }
 
     @MainActor

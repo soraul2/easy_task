@@ -11,6 +11,12 @@
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
 
+선택 테마와 테마별 활동 그래프 설정은 앱 레코드가 아닌 작은 환경설정이므로
+`NSUbiquitousKeyValueStore`를 사용한다. iOS·macOS 앱은 같은
+`8QCW4WP3SM.com.soraul2.easytask` key-value store identifier를 사용하며, 현재 기기에는
+`UserDefaults`로 즉시 저장한다. key-value store 전파는 비동기이므로 다른 기기에
+즉시 표시되는 것을 전제로 하지 않는다.
+
 macOS Debug 앱은 Development 환경과 `com.soraul2.easytask.macos`를 사용하고,
 TestFlight의 iOS/macOS 앱은 Production 환경과 `com.soraul2.easytask`를 사용한다.
 같은 Apple ID여도 Development와 Production 데이터는 서로 동기화되지 않는다.
@@ -179,7 +185,8 @@ TestFlight용 iOS archive는 서명되지 않은 상태로 내보내면 안 된�
 ```
 
 검증 대상은 앱과 위젯의 `group.com.soraul2.easytask` App Group, 앱의
-`iCloud.com.soraul2.easytask` CloudKit container다. 로컬 Apple Distribution 개인 키가
+`iCloud.com.soraul2.easytask` CloudKit container와
+`8QCW4WP3SM.com.soraul2.easytask` key-value store identifier다. 로컬 Apple Distribution 개인 키가
 없다면 Apple Development로 서명된 archive를 만든 뒤 App Store Connect 자동 서명으로
 재서명해 업로드한다. 이 경우에도 위 검증을 통과한 archive만 export한다.
 프로젝트의 Release 앱과 위젯은 이 경로를 반복할 수 있도록 Automatic signing을

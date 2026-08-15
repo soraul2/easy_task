@@ -344,6 +344,8 @@ struct MobileArchiveView: View {
 private struct MobileArchiveActivityOverview: View {
     @Bindable var session: ActivityOverviewSession
     @Binding var selectedDayKey: String?
+    @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
+    @State private var themePreferences = ThemePreferenceStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -376,6 +378,7 @@ private struct MobileArchiveActivityOverview: View {
                 ActivityHeatmapView(
                     overview: session.overview,
                     palette: AppTheme.activityHeatmapPalette,
+                    mark: themePreferences.activityMark(for: selectedThemeID),
                     selectedDayKey: selectedDayKey,
                     onSelectDay: { selectedDayKey = $0 }
                 )
@@ -421,15 +424,12 @@ private struct MobileArchiveActivityOverview: View {
                 .font(.caption2)
                 .foregroundStyle(AppTheme.secondaryText)
             ForEach(ActivityIntensityLevel.allCases, id: \.rawValue) { level in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(AppTheme.activityHeatmapPalette.fill(for: ActivityDaySummary(
-                        dayKey: "",
-                        completedTaskCount: level.rawValue,
-                        intensity: level,
-                        isFuture: false,
-                        isInCurrentStreak: false
-                    )))
-                    .frame(width: 11, height: 11)
+                ActivityHeatmapMarkSample(
+                    level: level,
+                    palette: AppTheme.activityHeatmapPalette,
+                    mark: themePreferences.activityMark(for: selectedThemeID),
+                    size: 13
+                )
             }
             Text("많음")
                 .font(.caption2)

@@ -45,6 +45,66 @@ public struct ActivityHeatmapPalette {
     }
 }
 
+public struct ActivityHeatmapMarkSample: View {
+    private let level: ActivityIntensityLevel
+    private let palette: ActivityHeatmapPalette
+    private let mark: ActivityHeatmapMark
+    private let size: CGFloat
+
+    public init(
+        level: ActivityIntensityLevel,
+        palette: ActivityHeatmapPalette,
+        mark: ActivityHeatmapMark,
+        size: CGFloat
+    ) {
+        self.level = level
+        self.palette = palette
+        self.mark = mark
+        self.size = size
+    }
+
+    public var body: some View {
+        ZStack {
+            if renderedEmoji == nil {
+                RoundedRectangle(cornerRadius: min(5, size * 0.2))
+                    .fill(palette.fill(for: day))
+            }
+
+            if let renderedEmoji {
+                Text(renderedEmoji)
+                    .font(.system(size: size * 0.76 * emojiScale))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    private var renderedEmoji: String? {
+        guard case .emoji(let emoji) = mark, level != .none else { return nil }
+        return emoji
+    }
+
+    private var day: ActivityDaySummary {
+        ActivityDaySummary(
+            dayKey: "",
+            completedTaskCount: level.rawValue,
+            intensity: level,
+            isFuture: false,
+            isInCurrentStreak: false
+        )
+    }
+
+    private var emojiScale: CGFloat {
+        switch level {
+        case .none: 0
+        case .low: 0.64
+        case .medium: 0.76
+        case .high: 0.88
+        case .veryHigh: 1
+        }
+    }
+}
+
 public struct ActivityHeatmapLayout: Equatable, Sendable {
     public var size: CGSize
     public var weekCount: Int
@@ -104,6 +164,7 @@ public struct ActivityHeatmapLayout: Equatable, Sendable {
 public struct ActivityHeatmapView: View {
     private let overview: ActivityOverview
     private let palette: ActivityHeatmapPalette
+    private let mark: ActivityHeatmapMark
     private let selectedDayKey: String?
     private let onSelectDay: (String?) -> Void
     @State private var hoveredDayKey: String?
@@ -111,11 +172,13 @@ public struct ActivityHeatmapView: View {
     public init(
         overview: ActivityOverview,
         palette: ActivityHeatmapPalette,
+        mark: ActivityHeatmapMark = .color,
         selectedDayKey: String?,
         onSelectDay: @escaping (String?) -> Void
     ) {
         self.overview = overview
         self.palette = palette
+        self.mark = mark
         self.selectedDayKey = selectedDayKey
         self.onSelectDay = onSelectDay
     }
@@ -132,15 +195,28 @@ public struct ActivityHeatmapView: View {
                     let rect = layout.rect(week: index / 7, weekday: index % 7)
                     let cornerRadius = min(2.5, layout.cellSide * 0.22)
                     let path = Path(roundedRect: rect, cornerRadius: cornerRadius)
-                    context.fill(path, with: .color(palette.fill(for: day)))
+                    let emoji = renderedEmoji(for: day, cellSide: layout.cellSide)
+
+                    if emoji == nil {
+                        context.fill(path, with: .color(palette.fill(for: day)))
+                    }
+
+                    drawEmoji(
+                        emoji,
+                        intensity: day.intensity,
+                        in: rect,
+                        cellSide: layout.cellSide,
+                        context: &context
+                    )
 
                     if selectedDayKey == day.dayKey {
                         context.stroke(
-                            path,
+                            emoji == nil ? path : emojiIndicatorPath(in: rect),
                             with: .color(palette.selectionStroke),
                             lineWidth: min(2.5, max(1, layout.cellSide * 0.18))
                         )
-                    } else if day.dayKey == overview.range?.todayDayKey {
+                    } else if day.dayKey == overview.range?.todayDayKey,
+                              emoji == nil {
                         context.stroke(
                             path,
                             with: .color(palette.todayStroke),
@@ -151,11 +227,11 @@ public struct ActivityHeatmapView: View {
                         )
                     } else if hoveredDayKey == day.dayKey {
                         context.stroke(
-                            path,
+                            emoji == nil ? path : emojiIndicatorPath(in: rect),
                             with: .color(palette.selectionStroke.opacity(0.55)),
                             lineWidth: min(2, max(1, layout.cellSide * 0.14))
                         )
-                    } else if day.isInCurrentStreak {
+                    } else if day.isInCurrentStreak, emoji == nil {
                         context.stroke(
                             path,
                             with: .color(palette.streakStroke),
@@ -242,6 +318,53 @@ public struct ActivityHeatmapView: View {
 }
 
 private extension ActivityHeatmapView {
+    func emojiIndicatorPath(in rect: CGRect) -> Path {
+        Path(ellipseIn: rect.insetBy(dx: rect.width * 0.04, dy: rect.height * 0.04))
+    }
+
+    func renderedEmoji(
+        for day: ActivityDaySummary,
+        cellSide: CGFloat
+    ) -> String? {
+        guard case .emoji(let emoji) = mark,
+              !day.isFuture,
+              day.intensity != .none,
+              cellSide >= 8 else {
+            return nil
+        }
+        return emoji
+    }
+
+    func drawEmoji(
+        _ emoji: String?,
+        intensity: ActivityIntensityLevel,
+        in rect: CGRect,
+        cellSide: CGFloat,
+        context: inout GraphicsContext
+    ) {
+        guard let emoji else { return }
+
+        let scale = emojiScale(for: intensity)
+        let text = Text(emoji)
+            .font(.system(size: min(cellSide * 0.84, 18) * scale))
+        let resolvedText = context.resolve(text)
+        context.draw(
+            resolvedText,
+            at: CGPoint(x: rect.midX, y: rect.midY),
+            anchor: .center
+        )
+    }
+
+    func emojiScale(for intensity: ActivityIntensityLevel) -> CGFloat {
+        switch intensity {
+        case .none: 0
+        case .low: 0.64
+        case .medium: 0.76
+        case .high: 0.88
+        case .veryHigh: 1
+        }
+    }
+
     var accessibilityValue: String {
         guard let range = overview.range else { return "활동 기록 없음" }
         let overviewValue = "\(range.startDayKey)부터 \(range.endDayKey), " +

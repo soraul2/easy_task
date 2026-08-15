@@ -46,6 +46,7 @@ struct AppRootView: View {
     @State private var isWidgetSnapshotPublisherReady = false
     @State private var syncMonitor = CloudKitSyncMonitor()
     @State private var activityImportCoordinator: TaskActivityImportCoordinator?
+    @State private var themePreferences = ThemePreferenceStore.shared
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     private var cloudKitEnabled: Bool {
@@ -92,6 +93,10 @@ struct AppRootView: View {
         }
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
+            let syncedThemeID = themePreferences.refreshFromCloud()
+            if syncedThemeID != selectedThemeID {
+                selectedThemeID = syncedThemeID
+            }
             refreshCurrentDay()
             refreshWidgetSnapshot(forceWrite: true)
             if cloudKitEnabled {
@@ -110,6 +115,17 @@ struct AppRootView: View {
             for: CloudKitSyncService.eventChangedNotification
         )) { notification in
             handleCloudKitEvent(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSUbiquitousKeyValueStore.didChangeExternallyNotification
+        )) { notification in
+            let keys = notification.userInfo?[
+                NSUbiquitousKeyValueStoreChangedKeysKey
+            ] as? [String]
+            let syncedThemeID = themePreferences.applyCloudChanges(changedKeys: keys)
+            if syncedThemeID != selectedThemeID {
+                selectedThemeID = syncedThemeID
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             refreshCurrentDay()
@@ -136,7 +152,13 @@ struct AppRootView: View {
         if migratedThemeID != selectedThemeID {
             selectedThemeID = migratedThemeID
         }
-        AppTheme.activate(migratedThemeID, colorScheme: colorScheme)
+        let syncedThemeID = themePreferences.start(
+            syncsWithICloud: themePreferenceCloudSyncEnabled
+        )
+        if syncedThemeID != selectedThemeID {
+            selectedThemeID = syncedThemeID
+        }
+        AppTheme.activate(syncedThemeID, colorScheme: colorScheme)
         themeRevision += 1
 
         do {
@@ -168,6 +190,14 @@ struct AppRootView: View {
         } catch {
             syncMonitor.recordStartupFailure(error)
         }
+    }
+
+    private var themePreferenceCloudSyncEnabled: Bool {
+#if DEBUG
+        !PlanBaseDesktopLaunchEnvironment.isUITesting
+#else
+        true
+#endif
     }
 
     private func seedDemoDataIfNeeded() throws {
@@ -543,6 +573,7 @@ struct ThemePickerSheet: View {
     @Binding var selectedThemeID: String
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedSection = ThemePickerSection.palette
 
     private let columns = [
         GridItem(.adaptive(minimum: 240), spacing: 12)
@@ -572,24 +603,53 @@ struct ThemePickerSheet: View {
                 .foregroundStyle(AppTheme.secondaryText)
             }
 
-            ScrollView {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                    ForEach(AppThemePreset.all) { preset in
-                        ThemePresetCard(
-                            preset: preset,
-                            isSelected: selectedThemeID == preset.id
-                        ) {
-                            AppTheme.activate(preset.id, colorScheme: colorScheme)
-                            selectedThemeID = preset.id
+            Picker("테마 설정", selection: $selectedSection) {
+                ForEach(ThemePickerSection.allCases) { section in
+                    Text(section.title).tag(section)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 340)
+
+            switch selectedSection {
+            case .palette:
+                ScrollView {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                        ForEach(AppThemePreset.all) { preset in
+                            ThemePresetCard(
+                                preset: preset,
+                                isSelected: selectedThemeID == preset.id
+                            ) {
+                                ThemePreferenceStore.shared.setSelectedThemeID(preset.id)
+                                AppTheme.activate(preset.id, colorScheme: colorScheme)
+                                selectedThemeID = preset.id
+                            }
                         }
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
+            case .activity:
+                ActivityHeatmapThemeEditor(themeID: selectedThemeID)
             }
         }
         .padding(22)
         .frame(minWidth: 620, idealWidth: 720, minHeight: 480, idealHeight: 560)
         .background(AppTheme.panel)
+    }
+}
+
+private enum ThemePickerSection: String, CaseIterable, Identifiable {
+    case palette
+    case activity
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .palette: "앱 색상"
+        case .activity: "활동 그래프"
+        }
     }
 }
 

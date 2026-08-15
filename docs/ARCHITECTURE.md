@@ -52,6 +52,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일: 코드 내 기본 목록을 사용하고, 번들에 `SpecialDays.kr.json`이 있으면 이를 우선 사용
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
+- 테마 환경설정: `ThemePreferenceStore`가 선택 테마와 테마별 활동 그래프 표시 방식·이모지를 로컬에 즉시 저장하고 iCloud key-value store로 동기화
 
 ## 플랫폼 경계
 
@@ -91,6 +92,17 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 두 앱 타겟은 공통 코어 소스를 직접 컴파일하지 않고 로컬 Swift Package의
 `PlanBaseCore` 제품을 링크한다.
+
+## 테마 환경설정 동기화
+
+선택한 앱 테마와 테마별 활동 그래프 표시 방식(색상/이모지), 사용자 이모지는
+작은 환경설정으로 다룬다. `ThemePreferenceStore`는 변경을 `UserDefaults`에 먼저
+저장하고 `NSUbiquitousKeyValueStore`에 반영한다. 따라서 오프라인이거나 iCloud 상태가
+좋지 않아도 현재 기기의 설정은 유지되며, 같은 iCloud 계정의 iPhone·iPad·Mac에서
+앱이 활성화되면 외부 변경을 가져온다.
+
+이 경로는 Task·회고 등의 SwiftData/CloudKit private database 동기화와 분리된다.
+위젯은 key-value store에 직접 접근하지 않고 기존 App Group snapshot만 읽는다.
 
 ## 배포 호환성 식별자
 
