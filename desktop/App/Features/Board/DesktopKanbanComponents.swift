@@ -118,13 +118,6 @@ struct KanbanColumn: View {
             isDropTargeted ? tint.opacity(0.96) : tint,
             in: RoundedRectangle(cornerRadius: 12)
         )
-        .overlay(alignment: .top) {
-            Capsule()
-                .fill(accent)
-                .frame(height: 4)
-                .padding(.horizontal, 14)
-                .accessibilityHidden(true)
-        }
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
