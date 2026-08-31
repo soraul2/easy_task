@@ -163,6 +163,36 @@ Production에 배포하고, Production record type 목록에서 반영을 다시
 iOS TestFlight build 33 archive의 App Group·CloudKit entitlement를 검증한 뒤 App Store
 Connect 업로드에 성공했다. 이어 기존 3상태 보드를 복원하고 진행 시간 기록을 유지한
 iOS TestFlight build 34도 같은 entitlement 검증을 통과해 App Store Connect에 업로드했다.
+2026-08-31에는 월간 일정과 오늘 Task를 결합한 planner widget을 포함한 iOS TestFlight
+build 40의 앱·위젯 App Group과 앱 CloudKit entitlement, archive 내 planner widget kind를
+검증한 뒤 App Store Connect 업로드에 성공했다. Apple 처리 완료와 실제 iPhone/iPad 위젯
+gallery 인수는 별도로 확인한다. 같은 날 참고 이미지형 `systemMedium` 플래너를 추가한
+iOS TestFlight build 41도 앱·위젯 build number, App Group·CloudKit entitlement와 archive
+내 planner widget kind를 검증한 뒤 App Store Connect 업로드에 성공했다. Apple 처리 완료와
+실제 기기 gallery 노출은 별도로 확인한다.
+같은 날 Task 중심 잠금 화면 위젯과 진행 중 Task 전용 Live Activity를 포함한 iOS
+TestFlight build 42도 앱·위젯 build number, 기존 App Group·CloudKit entitlement와
+`NSSupportsLiveActivities` 선언을 서명 archive에서 검증한 뒤 App Store Connect 업로드에
+성공했다. Apple 처리 완료 후 iPhone 잠금 인증·Always On·Dynamic Island를 우선 확인하고,
+iPad와 macOS 시스템 표현을 순서대로 인수한다.
+이어 Live Activity의 진행 막대를 제거하고 완료·다음 조작 영역을 58×48pt 버튼으로 확대한
+iOS TestFlight build 43도 공통 테스트 328개와 iOS Release 빌드를 통과했다. 앱·위젯 build
+number, App Group·CloudKit entitlement와 `NSSupportsLiveActivities`를 서명 archive에서 다시
+검증한 뒤 App Store Connect 업로드에 성공했다.
+이어 Dynamic Island 최소형·축소형·확장형에 RunCat 기본 Cat 애니메이션과 현재 Task 제목을
+적응형으로 추가한 iOS TestFlight build 44도 Release 테스트 327개와 iOS Release 빌드를
+통과했다. 앱·위젯 build number, App Group·CloudKit entitlement,
+`NSSupportsLiveActivities=true`, RunCat 5프레임과 Apache 2.0 라이선스 포함 여부를 서명
+archive에서 검증한 뒤 App Store Connect 업로드에 성공했다.
+build 44 실기기 확인 후에는 Live Activity가 timeline 기반 지속 애니메이션을 지원하지 않고
+콘텐츠 변경 애니메이션도 최대 2초로 제한되는 점을 확인했다. 따라서 후속 소스에서는 RunCat
+코드·자산·라이선스를 제거하고 Dynamic Island 진행 상태를 시스템 아이콘과 텍스트로
+표현한다.
+이어 RunCat을 제거하고 시스템 timer text로 누적 진행 시간을 표시하는 iOS TestFlight
+build 45도 Release 패키지 테스트와 서명 archive 생성을 통과했다. 앱·위젯 build number,
+App Group·CloudKit entitlement, `NSSupportsLiveActivities=true`, 캘린더·플래너·잠금 화면
+widget kind와 Activity 타입 포함 여부를 검증한 뒤 App Store Connect 업로드에 성공했고
+패키지 처리가 시작됐다.
 
 ## 운영 회귀 조건
 

@@ -5,6 +5,7 @@ public enum CalendarWidgetConstants {
     public static let snapshotFileName = "calendar-widget-v1.json"
     public static let kind = PlanBaseCompatibility.calendarWidgetKind
     public static let lockScreenKind = PlanBaseCompatibility.lockScreenWidgetKind
+    public static let plannerKind = PlanBaseCompatibility.plannerWidgetKind
     public static let deepLinkScheme = "planbase"
     public static let supportedDeepLinkSchemes = [
         deepLinkScheme,
@@ -57,7 +58,7 @@ public struct CalendarWidgetEventSnapshot: Codable, Equatable, Identifiable, Sen
 }
 
 public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 4
+    public static let currentSchemaVersion = 5
 
     public let schemaVersion: Int
     public let generatedAt: Date
@@ -69,6 +70,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     public let lockScreenCoveredStartDayKey: String?
     public let lockScreenCoveredEndDayKey: String?
     public let lockScreenDaySummaries: [LockScreenWidgetDaySummary]?
+    public let plannerTaskPreviewsByDayKey: [String: [PlannerWidgetTaskPreview]]?
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
@@ -80,7 +82,8 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         events: [CalendarWidgetEventSnapshot],
         lockScreenCoveredStartDayKey: String? = nil,
         lockScreenCoveredEndDayKey: String? = nil,
-        lockScreenDaySummaries: [LockScreenWidgetDaySummary]? = nil
+        lockScreenDaySummaries: [LockScreenWidgetDaySummary]? = nil,
+        plannerTaskPreviewsByDayKey: [String: [PlannerWidgetTaskPreview]]? = nil
     ) {
         let defaultCoverage = Self.defaultCoverage(for: generatedAt)
         self.schemaVersion = schemaVersion
@@ -97,6 +100,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         self.lockScreenCoveredStartDayKey = lockScreenCoveredStartDayKey
         self.lockScreenCoveredEndDayKey = lockScreenCoveredEndDayKey
         self.lockScreenDaySummaries = lockScreenDaySummaries
+        self.plannerTaskPreviewsByDayKey = plannerTaskPreviewsByDayKey
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -110,6 +114,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         case lockScreenCoveredStartDayKey
         case lockScreenCoveredEndDayKey
         case lockScreenDaySummaries
+        case plannerTaskPreviewsByDayKey
     }
 
     public init(from decoder: Decoder) throws {
@@ -154,6 +159,10 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         self.lockScreenDaySummaries = try container.decodeIfPresent(
             [LockScreenWidgetDaySummary].self,
             forKey: .lockScreenDaySummaries
+        )
+        self.plannerTaskPreviewsByDayKey = try container.decodeIfPresent(
+            [String: [PlannerWidgetTaskPreview]].self,
+            forKey: .plannerTaskPreviewsByDayKey
         )
     }
 
@@ -210,6 +219,12 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
                 referenceDate: referenceDate
             )
         }
+        let plannerTaskPreviewsByDayKey = tasks.map {
+            PlannerWidgetRules.makeTaskPreviewsByDayKey(
+                tasks: $0,
+                referenceDate: referenceDate
+            )
+        }
 
         return CalendarWidgetSnapshot(
             generatedAt: referenceDate,
@@ -220,7 +235,8 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
             events: snapshots,
             lockScreenCoveredStartDayKey: lockScreenCoverage?.startDayKey,
             lockScreenCoveredEndDayKey: lockScreenCoverage?.endDayKey,
-            lockScreenDaySummaries: lockScreenDaySummaries
+            lockScreenDaySummaries: lockScreenDaySummaries,
+            plannerTaskPreviewsByDayKey: plannerTaskPreviewsByDayKey
         )
     }
 
@@ -250,6 +266,20 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         lockScreenSummary(onDayKey: dayKey) != nil
     }
 
+    public func plannerTaskPreviews(
+        onDayKey dayKey: String
+    ) -> [PlannerWidgetTaskPreview]? {
+        guard hasLockScreenCoverage(dayKey: dayKey),
+              let plannerTaskPreviewsByDayKey else {
+            return nil
+        }
+        return plannerTaskPreviewsByDayKey[dayKey]
+    }
+
+    public func hasPlannerCoverage(dayKey: String) -> Bool {
+        plannerTaskPreviews(onDayKey: dayKey) != nil
+    }
+
     public func lockScreenTimelineEntryDates(startingAt date: Date) -> [Date] {
         let todayKey = DayKey.key(for: date)
         guard hasLockScreenCoverage(dayKey: todayKey),
@@ -275,6 +305,12 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         DayKey.addingDays(1, to: DayKey.startOfDay(for: lastEntryDate))
     }
 
+    public func plannerTimelineEntryDates(startingAt date: Date) -> [Date] {
+        lockScreenTimelineEntryDates(startingAt: date).filter { entryDate in
+            entryDate == date || hasPlannerCoverage(dayKey: DayKey.key(for: entryDate))
+        }
+    }
+
     public static func coverageDayKeys(for referenceDate: Date) -> (
         startDayKey: String,
         endDayKey: String
@@ -292,6 +328,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
             && lockScreenCoveredStartDayKey == other.lockScreenCoveredStartDayKey
             && lockScreenCoveredEndDayKey == other.lockScreenCoveredEndDayKey
             && lockScreenDaySummaries == other.lockScreenDaySummaries
+            && plannerTaskPreviewsByDayKey == other.plannerTaskPreviewsByDayKey
     }
 
     private static func representativeEvents(
@@ -667,6 +704,35 @@ public enum PlanBaseBoardRoute: Equatable, Sendable {
     }
 }
 
+public enum PlanBaseBoardAction: Equatable, Sendable {
+    case newTask
+    case confirmCompletion(taskID: UUID)
+}
+
+public struct PlanBaseBoardNavigationRoute: Equatable, Sendable {
+    public let destination: PlanBaseBoardRoute
+    public let action: PlanBaseBoardAction?
+
+    public init(destination: PlanBaseBoardRoute, action: PlanBaseBoardAction? = nil) {
+        self.destination = destination
+        self.action = action
+    }
+}
+
+public enum PlanBaseCalendarRoute: Equatable, Sendable {
+    case today
+    case day(String)
+
+    public func resolvedDayKey(todayDayKey: String = DayKey.today) -> String {
+        switch self {
+        case .today:
+            todayDayKey
+        case .day(let dayKey):
+            dayKey
+        }
+    }
+}
+
 public enum PlanBaseDeepLink {
     public static func calendarURL(dayKey: String) -> URL? {
         guard DayKey.date(from: dayKey) != nil else { return nil }
@@ -678,19 +744,41 @@ public enum PlanBaseDeepLink {
     }
 
     public static func calendarDayKey(from url: URL) -> String? {
+        guard case .day(let dayKey) = calendarRoute(from: url) else { return nil }
+        return dayKey
+    }
+
+    public static func calendarTodayURL() -> URL? {
+        var components = URLComponents()
+        components.scheme = CalendarWidgetConstants.deepLinkScheme
+        components.host = "calendar"
+        components.queryItems = [URLQueryItem(name: "scope", value: "today")]
+        return components.url
+    }
+
+    public static func calendarRoute(from url: URL) -> PlanBaseCalendarRoute? {
         guard let scheme = url.scheme?.lowercased(),
               CalendarWidgetConstants.supportedDeepLinkSchemes.contains(scheme),
               url.host?.lowercased() == "calendar",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
-        let dates = components.queryItems?.filter { $0.name == "date" } ?? []
-        guard dates.count == 1,
-              let dayKey = dates.first?.value,
-              DayKey.date(from: dayKey) != nil else {
+        let items = components.queryItems ?? []
+        guard items.allSatisfy({ $0.name == "date" || $0.name == "scope" }) else {
             return nil
         }
-        return dayKey
+        let dates = components.queryItems?.filter { $0.name == "date" } ?? []
+        let scopes = components.queryItems?.filter { $0.name == "scope" } ?? []
+        guard dates.count <= 1, scopes.count <= 1 else { return nil }
+        if let scope = scopes.first?.value {
+            guard dates.isEmpty, scope == "today" else { return nil }
+            return .today
+        }
+        if let dayKey = dates.first?.value {
+            guard scopes.isEmpty, DayKey.date(from: dayKey) != nil else { return nil }
+            return .day(dayKey)
+        }
+        return nil
     }
 
     public static func boardTodayURL() -> URL? {
@@ -710,25 +798,85 @@ public enum PlanBaseDeepLink {
         return components.url
     }
 
+    public static func boardNewTaskTodayURL() -> URL? {
+        boardTodayActionURL(action: "new-task")
+    }
+
+    public static func boardConfirmCompletionTodayURL(taskID: UUID) -> URL? {
+        boardTodayActionURL(
+            action: "confirm-completion",
+            additionalItems: [URLQueryItem(name: "task", value: taskID.uuidString)]
+        )
+    }
+
     public static func boardRoute(from url: URL) -> PlanBaseBoardRoute? {
+        boardNavigationRoute(from: url)?.destination
+    }
+
+    public static func boardNavigationRoute(from url: URL) -> PlanBaseBoardNavigationRoute? {
         guard let scheme = url.scheme?.lowercased(),
               CalendarWidgetConstants.supportedDeepLinkSchemes.contains(scheme),
               url.host?.lowercased() == "board",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
-        let scopes = components.queryItems?.filter { $0.name == "scope" } ?? []
-        let dates = components.queryItems?.filter { $0.name == "date" } ?? []
-        guard scopes.count <= 1, dates.count <= 1 else { return nil }
+        let items = components.queryItems ?? []
+        guard items.allSatisfy({
+            $0.name == "scope" || $0.name == "date"
+                || $0.name == "action" || $0.name == "task"
+        }) else { return nil }
+        let scopes = items.filter { $0.name == "scope" }
+        let dates = items.filter { $0.name == "date" }
+        let actions = items.filter { $0.name == "action" }
+        let taskIDs = items.filter { $0.name == "task" }
+        guard scopes.count <= 1, dates.count <= 1,
+              actions.count <= 1, taskIDs.count <= 1 else { return nil }
+
+        let destination: PlanBaseBoardRoute
 
         if let scope = scopes.first?.value {
             guard dates.isEmpty, scope == "today" else { return nil }
-            return .today
-        }
-        if let dayKey = dates.first?.value {
+            destination = .today
+        } else if let dayKey = dates.first?.value {
             guard scopes.isEmpty, DayKey.date(from: dayKey) != nil else { return nil }
-            return .day(dayKey)
+            destination = .day(dayKey)
+        } else {
+            return nil
         }
-        return nil
+
+        let action: PlanBaseBoardAction?
+        if let actionValue = actions.first?.value {
+            guard destination == .today else { return nil }
+            switch actionValue {
+            case "new-task":
+                guard taskIDs.isEmpty else { return nil }
+                action = .newTask
+            case "confirm-completion":
+                guard taskIDs.count == 1,
+                      let rawTaskID = taskIDs.first?.value,
+                      let taskID = UUID(uuidString: rawTaskID) else { return nil }
+                action = .confirmCompletion(taskID: taskID)
+            default:
+                return nil
+            }
+        } else {
+            guard taskIDs.isEmpty else { return nil }
+            action = nil
+        }
+        return PlanBaseBoardNavigationRoute(destination: destination, action: action)
+    }
+
+    private static func boardTodayActionURL(
+        action: String,
+        additionalItems: [URLQueryItem] = []
+    ) -> URL? {
+        var components = URLComponents()
+        components.scheme = CalendarWidgetConstants.deepLinkScheme
+        components.host = "board"
+        components.queryItems = [
+            URLQueryItem(name: "scope", value: "today"),
+            URLQueryItem(name: "action", value: action)
+        ] + additionalItems
+        return components.url
     }
 }

@@ -27,8 +27,19 @@ private struct PendingMobileTaskCompletion {
     var reminderAt: Date
 }
 
+struct MobileBoardActionRequest: Equatable, Identifiable {
+    let id: UUID
+    let action: PlanBaseBoardAction
+
+    init(id: UUID = UUID(), action: PlanBaseBoardAction) {
+        self.id = id
+        self.action = action
+    }
+}
+
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
+    @Binding var actionRequest: MobileBoardActionRequest?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var selectedDayTaskRows: [TodoTask]
@@ -38,6 +49,7 @@ struct MobileBoardView: View {
     @Query private var templateItems: [TaskTemplateItem]
 
     @State private var quickTitle = ""
+    @State private var quickAddFocusRequestID: UUID?
     @State private var selectedStatus: TaskStatus = .todo
     @State private var presentedSheet: MobileBoardSheet?
     @State private var pendingTaskCompletion: PendingMobileTaskCompletion?
@@ -48,8 +60,12 @@ struct MobileBoardView: View {
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var isTodayBoard: Bool { selectedDayKey == DayKey.today }
 
-    init(selectedDate: Binding<Date>) {
+    init(
+        selectedDate: Binding<Date>,
+        actionRequest: Binding<MobileBoardActionRequest?>
+    ) {
         _selectedDate = selectedDate
+        _actionRequest = actionRequest
 
         let dayKey = DayKey.key(for: selectedDate.wrappedValue)
         _selectedDayTaskRows = Query(
@@ -184,6 +200,12 @@ struct MobileBoardView: View {
             .onChange(of: displayedTaskIDs) { _, taskIDs in
                 progressSession?.apply(taskIDs: taskIDs)
             }
+            .onChange(of: actionRequest) { _, request in
+                handleActionRequest(request)
+            }
+            .onAppear {
+                handleActionRequest(actionRequest)
+            }
             .onDisappear {
                 progressSession?.cancel()
             }
@@ -216,7 +238,11 @@ struct MobileBoardView: View {
             selectedDayKey: selectedDayKey
         )
         BoardEventStrip(events: dayEvents)
-        BoardQuickAdd(title: $quickTitle, onAdd: addQuickTask)
+        BoardQuickAdd(
+            title: $quickTitle,
+            focusRequestID: quickAddFocusRequestID,
+            onAdd: addQuickTask
+        )
         BoardStatusPicker(
             selectedStatus: $selectedStatus,
             taskCount: taskCount
@@ -289,12 +315,39 @@ struct MobileBoardView: View {
         changeTaskStatus(task: task, status: status)
     }
 
+    private func handleActionRequest(_ request: MobileBoardActionRequest?) {
+        guard let request else { return }
+        actionRequest = nil
+
+        switch request.action {
+        case .newTask:
+            quickAddFocusRequestID = request.id
+        case .confirmCompletion(let taskID):
+            do {
+                let candidates = try modelContext.fetch(
+                    BoundedQueryService.taskCandidatesDescriptor(id: taskID)
+                )
+                guard let task = BoundedQueryService.representativeTask(from: candidates),
+                      task.plannedDayKey == DayKey.today,
+                      task.archivedAt == nil,
+                      task.status == TaskStatus.doing.rawValue else {
+                    showBoardNotice("작업이 변경되어 완료하지 못했습니다")
+                    return
+                }
+                requestTaskStatusChange(task: task, status: .done)
+            } catch {
+                showBoardNotice("작업을 다시 불러오지 못했습니다")
+            }
+        }
+    }
+
     private func completePendingTask(_ pending: PendingMobileTaskCompletion) {
         pendingTaskCompletion = nil
         do {
-            guard let task = try modelContext.fetch(
-                BoundedQueryService.taskDescriptor(id: pending.taskID)
-            ).first else {
+            let candidates = try modelContext.fetch(
+                BoundedQueryService.taskCandidatesDescriptor(id: pending.taskID)
+            )
+            guard let task = BoundedQueryService.representativeTask(from: candidates) else {
                 showBoardNotice("작업이 변경되어 완료하지 못했습니다")
                 return
             }

@@ -15,4 +15,13 @@ enum PlanBaseWidgetSnapshotAvailability: Equatable {
             "PlanBase를 업데이트해 주세요"
         }
     }
+
+    var taskMessage: String {
+        switch self {
+        case .available, .missing, .corrupt, .staleCoverage:
+            "PlanBase를 열면 작업을 갱신해요"
+        case .unsupportedNewerSchema:
+            "PlanBase를 업데이트해 주세요"
+        }
+    }
 }

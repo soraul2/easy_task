@@ -95,6 +95,7 @@ enum CalendarWidgetSnapshotPublicationService {
 
         if didWrite || forceTimelineReload {
             WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
+            WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.plannerKind)
 #if os(iOS)
             WidgetCenter.shared.reloadTimelines(
                 ofKind: CalendarWidgetConstants.lockScreenKind

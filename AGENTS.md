@@ -4,7 +4,7 @@
 
 ## 1. 한눈에 보는 프로젝트
 
-PlanBase는 칸반, 캘린더, 기록, 메모를 제공하는 개인 생산성 앱이다. 하나의 저장소에서 macOS 앱, iPhone 앱, 양 플랫폼 캘린더 위젯을 관리하며 두 앱은 같은 SwiftData 모델과 CloudKit private database를 공유한다.
+PlanBase는 칸반, 캘린더, 기록, 메모를 제공하는 개인 생산성 앱이다. 하나의 저장소에서 macOS 앱, iPhone 앱, 양 플랫폼 캘린더·플래너 위젯을 관리하며 두 앱은 같은 SwiftData 모델과 CloudKit private database를 공유한다.
 
 - 언어/도구: Swift 6, Swift tools 6.3, SwiftUI, SwiftData
 - 최소 플랫폼: iOS 18, macOS 26
@@ -91,7 +91,7 @@ PlanBase/
 │   ├── App/PlanBaseMobileApp.swift   # iOS @main, container 개방·복구, 탭 루트
 │   ├── App/Features/                 # Board/Calendar/Templates/Archive/Review/Memo 화면
 │   ├── App/Infrastructure/           # 알림, 이미지·공용 UI 어댑터
-│   ├── Widget/                       # iOS/macOS 캘린더 및 iOS 잠금 화면 위젯 타겟
+│   ├── Widget/                       # iOS/macOS 캘린더·플래너 및 iOS 잠금 화면 위젯 타겟
 │   ├── Tests/                        # iPhone launch UI test
 │   └── Configuration/                # iOS/Widget plist, entitlements, export options
 ├── docs/                             # 상세 아키텍처·동기화·계획 문서
@@ -119,7 +119,7 @@ PlanBase/
 |---|---|---|
 | `PlanBase-macOS` | `desktop/App/PlanBaseDesktopApp.swift` | macOS 앱, AppKit 연동, 백업 파일 UI, 위젯 snapshot 발행 |
 | `PlanBase-iOS` | `mobile/App/PlanBaseMobileApp.swift` | iPhone 앱, 알림, deep link, 위젯 snapshot 발행 |
-| `PlanBaseWidgetExtension` | `mobile/Widget/PlanBaseCalendarWidget.swift` | App Group JSON을 읽는 iOS/macOS WidgetKit 확장. 잠금 화면 위젯은 iOS 전용 |
+| `PlanBaseWidgetExtension` | `mobile/Widget/PlanBaseWidgetBundle.swift` | App Group JSON을 읽는 iOS/macOS 캘린더·플래너 WidgetKit 확장. 잠금 화면 위젯은 iOS 전용 |
 | `PlanBaseLaunchUITests` | `mobile/Tests/PlanBaseLaunchUITests.swift` | iPhone launch smoke test |
 
 앱 소스 파일은 `PlanBase.xcodeproj/project.pbxproj`에 명시적으로 등록되어 있다. `desktop/App` 또는 `mobile/App`에 새 파일을 만들면 해당 앱 타겟 membership도 추가해야 한다. 반면 SwiftPM 타겟 경로 아래의 새 Swift 파일은 패키지에서 자동으로 발견된다.
@@ -182,7 +182,7 @@ PlanBase/
 | 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | 현재 별도 파일 UI 없음 |
 | CloudKit | `PlanBaseContainerFactory`, `CloudKitSyncService`, `CloudKitConvergenceProbe*` | 앱 루트 sync UI/diagnostic args | 앱 루트 sync UI/diagnostic args |
 | 작업 알림 | `TaskReminderRules` | 로컬 알림 스케줄러 없음 | `TaskNotificationScheduler`, app delegate/route store |
-| 위젯 | `CalendarWidgetSnapshot`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, `PlanBaseCalendarWidget`, iOS 잠금 화면 위젯 |
+| 위젯 | `CalendarWidgetSnapshot`, `PlannerWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget`, iOS 잠금 화면 위젯 |
 | 테마 | `AppTheme`, `CalendarEventPalette` | 앱 루트 theme selector | 앱 루트/mobile theme UI 및 위젯 snapshot |
 
 새 비즈니스 규칙은 가능한 한 `shared/Core/Services`에 두고 단위 테스트한다. 플랫폼 디렉터리에는 화면 상태, SwiftUI composition, AppKit/UIKit/WidgetKit 같은 플랫폼 어댑터만 둔다.

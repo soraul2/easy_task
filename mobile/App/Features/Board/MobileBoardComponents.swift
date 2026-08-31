@@ -106,6 +106,7 @@ struct BoardEventStrip: View {
 
 struct BoardQuickAdd: View {
     @Binding var title: String
+    let focusRequestID: UUID?
     var onAdd: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var isTitleFocused: Bool
@@ -150,6 +151,10 @@ struct BoardQuickAdd: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
+        .onChange(of: focusRequestID) { _, requestID in
+            guard requestID != nil else { return }
+            isTitleFocused = true
+        }
     }
 
     private var titleField: some View {

@@ -44,7 +44,7 @@ func calendarWidgetSnapshotFiltersSortsAndFindsSpanningEvents() throws {
         themeID: "roseLilac"
     )
 
-    #expect(snapshot.schemaVersion == 4)
+    #expect(snapshot.schemaVersion == 5)
     #expect(snapshot.themeID == "roseLilac")
     #expect(snapshot.events.map(\.title) == ["프로젝트 일정", "회의"])
     #expect(snapshot.events.first?.colorID == CalendarEventColor.red.rawValue)
@@ -396,6 +396,10 @@ func calendarWidgetDeepLinkValidatesAndRoundTripsDayKeys() throws {
     let url = try #require(PlanBaseDeepLink.calendarURL(dayKey: "2026-07-16"))
     #expect(url.absoluteString == "planbase://calendar?date=2026-07-16")
     #expect(PlanBaseDeepLink.calendarDayKey(from: url) == "2026-07-16")
+    let todayURL = try #require(PlanBaseDeepLink.calendarTodayURL())
+    #expect(todayURL.absoluteString == "planbase://calendar?scope=today")
+    #expect(PlanBaseDeepLink.calendarRoute(from: todayURL) == .today)
+    #expect(PlanBaseDeepLink.calendarRoute(from: url) == .day("2026-07-16"))
     #expect(
         PlanBaseDeepLink.calendarDayKey(
             from: URL(string: "easytask://calendar?date=2026-07-16")!
@@ -416,6 +420,11 @@ func calendarWidgetDeepLinkValidatesAndRoundTripsDayKeys() throws {
     #expect(
         PlanBaseDeepLink.calendarDayKey(
             from: URL(string: "planbase://calendar?date=")!
+        ) == nil
+    )
+    #expect(
+        PlanBaseDeepLink.calendarRoute(
+            from: URL(string: "planbase://calendar?scope=today&unknown=value")!
         ) == nil
     )
 }

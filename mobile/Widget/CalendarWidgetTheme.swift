@@ -102,6 +102,29 @@ extension CalendarWidgetSnapshot {
         let today = Date()
         let todayKey = DayKey.key(for: today)
         let tomorrowKey = DayKey.key(for: DayKey.addingDays(1, to: today))
+        let taskCoverage = (0..<LockScreenWidgetRules.coverageDayCount).map {
+            DayKey.key(for: DayKey.addingDays($0, to: today))
+        }
+        let taskPreviews = [
+            PlannerWidgetTaskPreview(
+                id: UUID(),
+                title: "플래너 위젯 마무리",
+                status: .doing,
+                order: 0
+            ),
+            PlannerWidgetTaskPreview(
+                id: UUID(),
+                title: "주간 계획 검토",
+                status: .todo,
+                order: 10
+            ),
+            PlannerWidgetTaskPreview(
+                id: UUID(),
+                title: "운동 기록하기",
+                status: .todo,
+                order: 20
+            )
+        ]
         return CalendarWidgetSnapshot(
             generatedAt: today,
             themeID: "roseLilac",
@@ -120,7 +143,25 @@ extension CalendarWidgetSnapshot {
                     endDayKey: tomorrowKey,
                     colorID: CalendarEventColor.green.rawValue
                 )
-            ]
+            ],
+            lockScreenCoveredStartDayKey: taskCoverage.first,
+            lockScreenCoveredEndDayKey: taskCoverage.last,
+            lockScreenDaySummaries: taskCoverage.map { dayKey in
+                LockScreenWidgetDaySummary(
+                    dayKey: dayKey,
+                    todoCount: dayKey == todayKey ? 2 : 0,
+                    doingCount: dayKey == todayKey ? 1 : 0,
+                    doneCount: dayKey == todayKey ? 2 : 0,
+                    eventCount: dayKey == todayKey ? 2 : 0,
+                    focusTitle: dayKey == todayKey ? "플래너 위젯 마무리" : nil,
+                    focusKind: dayKey == todayKey ? .doingTask : nil
+                )
+            },
+            plannerTaskPreviewsByDayKey: Dictionary(uniqueKeysWithValues:
+                taskCoverage.map { dayKey in
+                    (dayKey, dayKey == todayKey ? taskPreviews : [])
+                }
+            )
         )
     }
 }

@@ -347,70 +347,75 @@ private struct CalendarWidgetMonthHeader: View {
     }
 }
 
-private enum CalendarWidgetMonthGridStyle: Equatable {
+enum CalendarWidgetMonthGridStyle: Equatable {
     case compact
     case expanded
     case extraLarge
+    case plannerCompact
+    case plannerExpanded
 
     var monthHeaderFontSize: CGFloat {
         switch self {
-        case .compact: 11
+        case .compact, .plannerCompact: 11
         case .expanded: 12
-        case .extraLarge: 15
+        case .extraLarge, .plannerExpanded: 15
         }
     }
 
     var monthHeaderHeight: CGFloat {
         switch self {
-        case .compact: 14
+        case .compact, .plannerCompact: 14
         case .expanded: 16
-        case .extraLarge: 22
+        case .extraLarge, .plannerExpanded: 22
         }
     }
 
     var monthControlFontSize: CGFloat {
         switch self {
-        case .compact: 9
+        case .compact, .plannerCompact: 9
         case .expanded: 10
-        case .extraLarge: 12
+        case .extraLarge, .plannerExpanded: 12
         }
     }
 
     var monthControlWidth: CGFloat {
         switch self {
-        case .compact: 22
+        case .compact, .plannerCompact: 22
         case .expanded: 24
-        case .extraLarge: 30
+        case .extraLarge, .plannerExpanded: 30
         }
     }
 
     var dayFontSize: CGFloat {
         switch self {
-        case .compact: 8
+        case .compact, .plannerCompact: 8
         case .expanded: 9
-        case .extraLarge: 11
+        case .extraLarge, .plannerExpanded: 11
         }
     }
 
     var dayBadgeSize: CGFloat {
         switch self {
         case .compact: 10
+        case .plannerCompact: 11
         case .expanded: 14
-        case .extraLarge: 18
+        case .extraLarge, .plannerExpanded: 18
         }
     }
 
     var eventTopInset: CGFloat {
         switch self {
         case .compact: 10
+        case .plannerCompact: 12
         case .expanded: 15
         case .extraLarge: 19
+        case .plannerExpanded: 20
         }
     }
 
     var laneHeight: CGFloat {
         switch self {
-        case .compact: 3
+        case .compact, .plannerCompact: 3
         case .expanded:
 #if os(macOS)
             10.5
@@ -423,12 +428,14 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 #else
             10
 #endif
+        case .plannerExpanded: 13
         }
     }
 
     var barHeight: CGFloat {
         switch self {
         case .compact: 2
+        case .plannerCompact: 2.5
         case .expanded:
 #if os(macOS)
             10
@@ -441,14 +448,16 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 #else
             9
 #endif
+        case .plannerExpanded: 12
         }
     }
 
     var maximumLaneLimit: Int {
         switch self {
-        case .compact: 3
+        case .compact, .plannerCompact: 3
         case .expanded: 5
         case .extraLarge: 4
+        case .plannerExpanded: 3
         }
     }
 
@@ -460,8 +469,10 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 #else
             7
 #endif
+        case .plannerCompact: 8
         case .expanded: 9
         case .extraLarge: 11
+        case .plannerExpanded: 10
         }
     }
 
@@ -473,8 +484,9 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 #else
             6
 #endif
+        case .plannerCompact: 7
         case .expanded: 7
-        case .extraLarge: 8
+        case .extraLarge, .plannerExpanded: 8
         }
     }
 
@@ -486,6 +498,7 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 #else
             9
 #endif
+        case .plannerCompact: 12
         case .expanded:
 #if os(macOS)
             15
@@ -493,12 +506,13 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
             14
 #endif
         case .extraLarge: 18
+        case .plannerExpanded: 17
         }
     }
 
     var eventTitleFontSize: CGFloat {
         switch self {
-        case .compact: 0
+        case .compact, .plannerCompact: 0
         case .expanded:
 #if os(macOS)
             8
@@ -511,28 +525,35 @@ private enum CalendarWidgetMonthGridStyle: Equatable {
 #else
             8
 #endif
+        case .plannerExpanded: 11
         }
     }
 
     var eventTitleMinimumScaleFactor: CGFloat {
+        switch self {
+        case .plannerExpanded:
+            1
+        default:
 #if os(macOS)
-        1
+            1
 #else
-        0.85
+            0.85
 #endif
+        }
     }
 
     var cellHorizontalPadding: CGFloat {
         switch self {
-        case .compact: 1
+        case .compact, .plannerCompact: 1
         case .expanded: 2
         case .extraLarge: 3
+        case .plannerExpanded: 2
         }
     }
 
 }
 
-private struct CalendarWidgetWeekdayHeader: View {
+struct CalendarWidgetWeekdayHeader: View {
     let theme: CalendarWidgetTheme
     let style: CalendarWidgetMonthGridStyle
 
@@ -564,7 +585,7 @@ private struct CalendarWidgetWeekdayHeader: View {
     }
 }
 
-private struct CalendarWidgetMonthGrid: View {
+struct CalendarWidgetMonthGrid: View {
     let snapshot: CalendarWidgetSnapshot
     let month: Date
     let dates: [Date]
@@ -776,11 +797,11 @@ private struct CalendarWidgetEventBar: View {
     var body: some View {
         Group {
             switch style {
-            case .compact:
+            case .compact, .plannerCompact:
                 Capsule()
                     .fill(theme.eventColor(event.colorID))
                     .widgetAccentable()
-            case .expanded, .extraLarge:
+            case .expanded, .extraLarge, .plannerExpanded:
                 Text(event.title)
                     .font(.system(
                         size: style.eventTitleFontSize,

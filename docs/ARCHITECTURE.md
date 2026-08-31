@@ -47,7 +47,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 - 메모: `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
-- 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlanBaseDeepLink`
+- 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlannerWidgetRules`, `PlanBaseDeepLink`
 - 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·메모·진행 이벤트를 포함하는 V7 `BackupPackageCodec`(V2~V7 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일: 코드 내 기본 목록을 사용하고, 번들에 `SpecialDays.kr.json`이 있으면 이를 우선 사용
@@ -61,7 +61,7 @@ macOS 앱은 `desktop/App`에 둔다.
 - 데스크톱 칸반 보드, 캘린더, 기록, 목록·편집기 분할형 메모 UI
 - AppKit 기반 파일 패널 wrapper
 - 데스크톱 전용 드래그/호버 UX
-- `CalendarWidgetSnapshotPublisher`로 캘린더와 8일 Task 요약을 App Group에 발행
+- `CalendarWidgetSnapshotPublisher`로 캘린더와 8일 Task 요약·플래너 미리보기를 App Group에 발행
 - 위젯의 캘린더 날짜와 오늘 보드 deep link를 네이티브 화면으로 연결
 - Xcode `PlanBase-macOS` 타겟에서 `PlanBaseCore` 패키지 제품에 의존한다.
 
@@ -72,18 +72,19 @@ iPhone 앱은 `mobile/App`에 둔다.
 - `MobileArchiveView`: 회고와 완료 작업 피드
 - `MobileMemoView`: 검색·고정 목록과 자동 저장 편집기
 - `MobileReviewComposerSheet`: 이미지 첨부 가능한 회고 작성
-- `CalendarWidgetSnapshotPublisher`: 캘린더와 8일 Task 요약을 App Group 스냅샷으로 발행
+- `CalendarWidgetSnapshotPublisher`: 캘린더와 8일 Task 요약·플래너 미리보기를 App Group 스냅샷으로 발행
 - `TaskNotificationScheduler`: iPhone 로컬 알림 예약·즉시 취소·전체 수렴
 - Xcode `PlanBase-iOS` 타겟과 같은 이름의 공유 scheme을 사용한다.
 
 iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 - 캘린더 위젯은 소형의 오늘 이벤트, 중형의 월별 적응형 그리드와 이벤트 표시점, 대형·초대형의 날짜별 이벤트 제목을 iOS/iPadOS와 macOS에서 공유한다.
+- 플래너 위젯은 중형에서 오늘 Task 최대 2개와 미니 월간 달력을 간결하게 보여 주고, 대형·초대형에서는 월간 캘린더와 오늘 Task 최대 6개를 좌우로 보여 준다. 대형 캘린더는 색상 막대, 충분한 폭의 초대형은 일정 제목을 사용한다.
 - macOS 앱은 같은 extension을 네이티브 바탕화면·알림 센터 위젯으로 embed한다.
 - iPhone 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공하며 macOS 빌드에서는 등록·컴파일하지 않는다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
-- 스냅샷 v4에는 선택 테마, 캘린더 범위와 별도로 오늘부터 8일간의 최소 Task/Event 요약을 포함한다.
-  대표 제목 하나만 저장하고 잠금 화면에서는 `privacySensitive()`로 보호한다.
+- 스냅샷 v5에는 선택 테마, 캘린더 범위, 오늘부터 8일간의 최소 Task/Event 요약과
+  날짜별 Task 미리보기 최대 6개를 포함한다. Task 제목은 위젯에서 `privacySensitive()`로 보호한다.
 - 날짜 탭은 `planbase://calendar?date=yyyy-MM-dd`로 앱의 해당 날짜 캘린더를 연다.
 - 잠금 화면 탭은 처리 시점의 오늘을 해석하는 `planbase://board?scope=today`로 보드를 연다.
   명시적 보드 날짜는 `planbase://board?date=yyyy-MM-dd`를 사용한다.
@@ -223,7 +224,8 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - 메모 검색은 기록과 분리하고 제목·본문 전체를 대상으로 40개씩 조회한다. 편집은 600ms debounce로 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
 - iOS/iPadOS와 macOS 캘린더 위젯은 소형·중형·대형·초대형을 지원하며 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트를 사용한다. 실제 노출 family는 플랫폼과 배치 위치의 WidgetKit 정책을 따른다.
-- iOS 잠금 화면 오늘 위젯은 세 accessory family를 지원한다. 앱이 무결성 수렴을 마친 뒤 bounded query로 8일 요약을 발행하며 두 widget kind를 함께 reload한다.
+- iOS/iPadOS와 macOS 플래너 위젯은 중형·대형·초대형을 지원한다. 중형은 오늘 Task 최대 2개와 일정 날짜 점이 있는 미니 월간 달력을, 대형·초대형은 오늘 Task 최대 6개와 확장 월간 일정을 표시한다.
+- iOS 잠금 화면 오늘 위젯은 세 accessory family를 지원한다. 앱이 무결성 수렴을 마친 뒤 bounded query로 8일 요약·미리보기를 발행하며 캘린더, 플래너, iOS 잠금 화면 kind를 함께 reload한다.
 
 ## 다음 단계
 

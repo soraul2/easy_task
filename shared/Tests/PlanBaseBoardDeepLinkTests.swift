@@ -23,6 +23,28 @@ func boardDeepLinksRoundTripTodayAndExplicitDates() throws {
 }
 
 @Test
+func boardActionDeepLinksRoundTripQuickAddAndCompletionConfirmation() throws {
+    let taskID = UUID()
+    let quickAddURL = try #require(PlanBaseDeepLink.boardNewTaskTodayURL())
+    let confirmationURL = try #require(
+        PlanBaseDeepLink.boardConfirmCompletionTodayURL(taskID: taskID)
+    )
+
+    #expect(quickAddURL.absoluteString == "planbase://board?scope=today&action=new-task")
+    #expect(
+        PlanBaseDeepLink.boardNavigationRoute(from: quickAddURL)
+            == PlanBaseBoardNavigationRoute(destination: .today, action: .newTask)
+    )
+    #expect(
+        PlanBaseDeepLink.boardNavigationRoute(from: confirmationURL)
+            == PlanBaseBoardNavigationRoute(
+                destination: .today,
+                action: .confirmCompletion(taskID: taskID)
+            )
+    )
+}
+
+@Test
 func boardDeepLinksRejectAmbiguousAndInvalidRoutes() {
     #expect(PlanBaseDeepLink.boardURL(dayKey: "2026-02-31") == nil)
     #expect(PlanBaseDeepLink.boardRoute(
@@ -36,6 +58,15 @@ func boardDeepLinksRejectAmbiguousAndInvalidRoutes() {
     ) == nil)
     #expect(PlanBaseDeepLink.boardRoute(
         from: URL(string: "https://example.com/board?scope=today")!
+    ) == nil)
+    #expect(PlanBaseDeepLink.boardNavigationRoute(
+        from: URL(string: "planbase://board?scope=today&action=new-task&task=bad")!
+    ) == nil)
+    #expect(PlanBaseDeepLink.boardNavigationRoute(
+        from: URL(string: "planbase://board?date=2026-07-16&action=new-task")!
+    ) == nil)
+    #expect(PlanBaseDeepLink.boardNavigationRoute(
+        from: URL(string: "planbase://board?scope=today&unknown=value")!
     ) == nil)
 }
 

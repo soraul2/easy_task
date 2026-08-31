@@ -240,6 +240,30 @@ public enum BoundedQueryService {
         return descriptor
     }
 
+    public static func taskCandidatesDescriptor(id: UUID) -> FetchDescriptor<Task> {
+        FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { task in
+                task.supersededAt == nil && task.id == id
+            },
+            sortBy: [
+                SortDescriptor(\Task.updatedAt, order: .reverse),
+                SortDescriptor(\Task.instanceID, order: .reverse)
+            ]
+        )
+    }
+
+    @MainActor
+    public static func representativeTask(from candidates: [Task]) -> Task? {
+        candidates
+            .filter { $0.supersededAt == nil }
+            .max { lhs, rhs in
+                if lhs.updatedAt != rhs.updatedAt {
+                    return lhs.updatedAt < rhs.updatedAt
+                }
+                return lhs.instanceID.uuidString < rhs.instanceID.uuidString
+            }
+    }
+
     public static func taskDescriptor(instanceID: UUID) -> FetchDescriptor<Task> {
         var descriptor = FetchDescriptor<Task>(
             predicate: #Predicate<Task> { task in

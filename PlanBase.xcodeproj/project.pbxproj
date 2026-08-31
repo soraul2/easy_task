@@ -45,6 +45,15 @@
 		AF3000000000000000000003 /* mobile/Widget/CalendarWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2000000000000000000003 /* mobile/Widget/CalendarWidgetViews.swift */; };
 		AF3000000000000000000004 /* mobile/Widget/CalendarWidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2000000000000000000004 /* mobile/Widget/CalendarWidgetTheme.swift */; };
 		AF3000000000000000000005 /* mobile/Widget/PlanBaseWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2000000000000000000005 /* mobile/Widget/PlanBaseWidgetBundle.swift */; };
+		AP3000000000000000000001 /* mobile/Widget/PlanBasePlannerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AP2000000000000000000001 /* mobile/Widget/PlanBasePlannerWidget.swift */; };
+		AP3000000000000000000002 /* mobile/Widget/PlannerWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AP2000000000000000000002 /* mobile/Widget/PlannerWidgetIntent.swift */; };
+		AL3000000000000000000001 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000001 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift */; };
+		AL3000000000000000000002 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000001 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift */; };
+		AL3000000000000000000003 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000002 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift */; };
+		AL3000000000000000000004 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000002 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift */; };
+		AL3000000000000000000005 /* mobile/Widget/PlanBaseTaskLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000003 /* mobile/Widget/PlanBaseTaskLiveActivity.swift */; };
+		AL3000000000000000000006 /* mobile/App/Infrastructure/TaskLiveActivityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000004 /* mobile/App/Infrastructure/TaskLiveActivityCoordinator.swift */; };
+		AL3000000000000000000007 /* mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = AL2000000000000000000005 /* mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift */; };
 		AK3000000000000000000001 /* shared/Resources/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AK2000000000000000000001 /* shared/Resources/PrivacyInfo.xcprivacy */; };
 		AK3000000000000000000002 /* shared/Resources/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AK2000000000000000000001 /* shared/Resources/PrivacyInfo.xcprivacy */; };
 		AK3000000000000000000003 /* mobile/Widget/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AK2000000000000000000002 /* mobile/Widget/PrivacyInfo.xcprivacy */; };
@@ -176,6 +185,13 @@
 		AF2000000000000000000003 /* mobile/Widget/CalendarWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/CalendarWidgetViews.swift; sourceTree = SOURCE_ROOT; };
 		AF2000000000000000000004 /* mobile/Widget/CalendarWidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/CalendarWidgetTheme.swift; sourceTree = SOURCE_ROOT; };
 		AF2000000000000000000005 /* mobile/Widget/PlanBaseWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlanBaseWidgetBundle.swift; sourceTree = SOURCE_ROOT; };
+		AP2000000000000000000001 /* mobile/Widget/PlanBasePlannerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlanBasePlannerWidget.swift; sourceTree = SOURCE_ROOT; };
+		AP2000000000000000000002 /* mobile/Widget/PlannerWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlannerWidgetIntent.swift; sourceTree = SOURCE_ROOT; };
+		AL2000000000000000000001 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlanBaseTaskActivityAttributes.swift; sourceTree = SOURCE_ROOT; };
+		AL2000000000000000000002 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlanBaseTaskWidgetIntents.swift; sourceTree = SOURCE_ROOT; };
+		AL2000000000000000000003 /* mobile/Widget/PlanBaseTaskLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Widget/PlanBaseTaskLiveActivity.swift; sourceTree = SOURCE_ROOT; };
+		AL2000000000000000000004 /* mobile/App/Infrastructure/TaskLiveActivityCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/TaskLiveActivityCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		AL2000000000000000000005 /* mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift; sourceTree = SOURCE_ROOT; };
 		AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/MobileBackupService.swift; sourceTree = SOURCE_ROOT; };
 		AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/MobileBackupServiceTests.swift; sourceTree = SOURCE_ROOT; };
 		C10000000000000000000010 /* PlanBase.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlanBase.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -375,6 +391,8 @@
 				AD2000000000000000000001 /* mobile/App/Infrastructure/MobileImageSupport.swift */,
 				AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */,
 				A20000000000000000000017 /* mobile/App/Infrastructure/TaskNotificationScheduler.swift */,
+				AL2000000000000000000004 /* mobile/App/Infrastructure/TaskLiveActivityCoordinator.swift */,
+				AL2000000000000000000005 /* mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift */,
 			);
 			name = Infrastructure;
 			sourceTree = "<group>";
@@ -387,9 +405,14 @@
 				AF2000000000000000000002 /* mobile/Widget/CalendarWidgetTimeline.swift */,
 				AF2000000000000000000003 /* mobile/Widget/CalendarWidgetViews.swift */,
 				AF2000000000000000000004 /* mobile/Widget/CalendarWidgetTheme.swift */,
+				AP2000000000000000000002 /* mobile/Widget/PlannerWidgetIntent.swift */,
 				910000000000000000000009 /* mobile/Widget/PlanBaseCalendarWidget.swift */,
+				AP2000000000000000000001 /* mobile/Widget/PlanBasePlannerWidget.swift */,
 				AB2000000000000000000001 /* mobile/Widget/PlanBaseLockScreenWidget.swift */,
 				AB2000000000000000000002 /* mobile/Widget/PlanBaseWidgetSnapshotAvailability.swift */,
+				AL2000000000000000000001 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift */,
+				AL2000000000000000000002 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift */,
+				AL2000000000000000000003 /* mobile/Widget/PlanBaseTaskLiveActivity.swift */,
 				AF2000000000000000000005 /* mobile/Widget/PlanBaseWidgetBundle.swift */,
 			);
 			name = Widget;
@@ -770,9 +793,14 @@
 				AF3000000000000000000002 /* mobile/Widget/CalendarWidgetTimeline.swift in Sources */,
 				AF3000000000000000000003 /* mobile/Widget/CalendarWidgetViews.swift in Sources */,
 				AF3000000000000000000004 /* mobile/Widget/CalendarWidgetTheme.swift in Sources */,
+				AP3000000000000000000002 /* mobile/Widget/PlannerWidgetIntent.swift in Sources */,
 				91000000000000000000000C /* mobile/Widget/PlanBaseCalendarWidget.swift in Sources */,
+				AP3000000000000000000001 /* mobile/Widget/PlanBasePlannerWidget.swift in Sources */,
 				AB3000000000000000000001 /* mobile/Widget/PlanBaseLockScreenWidget.swift in Sources */,
 				AB3000000000000000000002 /* mobile/Widget/PlanBaseWidgetSnapshotAvailability.swift in Sources */,
+				AL3000000000000000000001 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift in Sources */,
+				AL3000000000000000000003 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift in Sources */,
+				AL3000000000000000000005 /* mobile/Widget/PlanBaseTaskLiveActivity.swift in Sources */,
 				AF3000000000000000000005 /* mobile/Widget/PlanBaseWidgetBundle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -803,6 +831,10 @@
 				A30000000000000000000029 /* mobile/App/Features/Review/MobileReviewComposerComponents.swift in Sources */,
 				A30000000000000000000031 /* mobile/App/Features/Memo/MobileMemoView.swift in Sources */,
 				A30000000000000000000017 /* mobile/App/Infrastructure/TaskNotificationScheduler.swift in Sources */,
+				AL3000000000000000000002 /* mobile/Widget/PlanBaseTaskActivityAttributes.swift in Sources */,
+				AL3000000000000000000004 /* mobile/Widget/PlanBaseTaskWidgetIntents.swift in Sources */,
+				AL3000000000000000000006 /* mobile/App/Infrastructure/TaskLiveActivityCoordinator.swift in Sources */,
+				AL3000000000000000000007 /* mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift in Sources */,
 				910000000000000000000014 /* shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -886,7 +918,7 @@
 				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/PlanBaseWidget.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -920,7 +952,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1074,7 +1106,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1099,7 +1131,7 @@
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
@@ -1121,7 +1153,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1147,7 +1179,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1173,7 +1205,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1198,7 +1230,7 @@
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS-AppStore.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1219,7 +1251,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1244,7 +1276,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 45;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (

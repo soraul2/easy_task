@@ -15,7 +15,9 @@
 - [활동 스트릭·히트맵 및 통계 보기](plans/active/ACTIVITY_STREAK_HEATMAP_PLAN.md)
 - [macOS·iPhone 기능 정합성](plans/active/CROSS_PLATFORM_PARITY_PLAN.md)
 - [캘린더 위젯 밀도](plans/active/CALENDAR_WIDGET_DENSITY_PLAN.md)
+- [월간 일정·오늘 작업 결합 플래너 위젯](plans/active/PLANNER_WIDGET_PLAN.md)
 - [잠금 화면 위젯](plans/active/LOCK_SCREEN_WIDGET_PLAN.md)
+- [Task 중심 잠금 화면·Live Activity 확장](plans/active/LOCK_SCREEN_TASK_LIVE_ACTIVITY_PLAN.md)
 - [Task 완료 전환 알림 보존](plans/active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md)
 
 이 문서들은 구현이 진행 중이거나 코드 완료 후 실기기·출시 승인 확인이 남은 작업을

@@ -5,7 +5,7 @@ import XCTest
 @testable import PlanBase
 
 final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
-    func testSnapshotStoreRoundTripsV4PayloadUsingAtomicProtectedFile() throws {
+    func testSnapshotStoreRoundTripsV5PayloadUsingAtomicProtectedFile() throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directoryURL) }
@@ -23,7 +23,15 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
             events: [],
             lockScreenCoveredStartDayKey: "2026-07-16",
             lockScreenCoveredEndDayKey: "2026-07-23",
-            lockScreenDaySummaries: [summary]
+            lockScreenDaySummaries: [summary],
+            plannerTaskPreviewsByDayKey: [
+                "2026-07-16": [PlannerWidgetTaskPreview(
+                    id: UUID(),
+                    title: "통합 테스트 작업",
+                    status: .doing,
+                    order: 0
+                )]
+            ]
         )
 
         XCTAssertTrue(try CalendarWidgetSnapshotStore.writeIfChanged(
@@ -109,7 +117,16 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
             color: CalendarEventColor.blue.rawValue,
             now: referenceDate
         ))
+        let task = PlanBaseCore.Task(
+            title: "오늘 플래너 작업",
+            status: .doing,
+            plannedAt: referenceDate,
+            order: 0,
+            createdAt: referenceDate,
+            updatedAt: referenceDate
+        )
         context.insert(event)
+        context.insert(task)
         try context.save()
 
         let didWrite = try await CalendarWidgetSnapshotPublicationService.publish(
@@ -129,6 +146,11 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
             snapshot.events(onDayKey: "2026-07-24").map(\.title),
             ["위젯 통합 일정"]
         )
+        XCTAssertEqual(
+            snapshot.plannerTaskPreviews(onDayKey: "2026-07-24")?.map(\.title),
+            ["오늘 플래너 작업"]
+        )
+        XCTAssertEqual(snapshot.plannerTaskPreviewsByDayKey?.count, 8)
 
         let changedThemeDidWrite = try await CalendarWidgetSnapshotPublicationService.publish(
             context: context,

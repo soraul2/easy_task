@@ -4,7 +4,7 @@ import Testing
 
 @Test
 @MainActor
-func lockScreenWidgetSummariesUseBoardCompletionSemantics() throws {
+func lockScreenWidgetSummariesUsePlannedTodayEligibility() throws {
     let today = try #require(DayKey.date(from: "2026-07-16"))
     let yesterday = try #require(DayKey.date(from: "2026-07-15"))
     let todo = makeTask(title: "할 일", status: .todo, plannedAt: today, order: 20)
@@ -54,9 +54,86 @@ func lockScreenWidgetSummariesUseBoardCompletionSemantics() throws {
     #expect(todaySummary.remainingTaskCount == 2)
     #expect(todaySummary.focusTitle == "진행")
     #expect(todaySummary.focusKind == .doingTask)
-    #expect(tomorrowSummary.doneCount == 1)
+    #expect(tomorrowSummary.doneCount == 0)
     #expect(tomorrowSummary.todoCount == 0)
     #expect(tomorrowSummary.doingCount == 0)
+}
+
+@Test
+func lockScreenTaskPresentationPrefersDoingThenTodoAndUsesCompactProgress() {
+    let doingID = UUID()
+    let todoID = UUID()
+    let doing = PlannerWidgetTaskPreview(
+        id: doingID,
+        title: "기획서 작성",
+        status: .doing,
+        order: 0
+    )
+    let todo = PlannerWidgetTaskPreview(
+        id: todoID,
+        title: "검토 요청",
+        status: .todo,
+        order: 1
+    )
+    let doingPresentation = LockScreenWidgetRules.taskPresentation(
+        summary: LockScreenWidgetDaySummary(
+            dayKey: "2026-07-16",
+            todoCount: 1,
+            doingCount: 1,
+            doneCount: 3,
+            eventCount: 0
+        ),
+        previews: [doing, todo]
+    )
+    #expect(doingPresentation.state == .doing)
+    #expect(doingPresentation.taskID == doingID)
+    #expect(doingPresentation.title == "기획서 작성")
+    #expect(doingPresentation.progressText == "3/5")
+
+    let todoPresentation = LockScreenWidgetRules.taskPresentation(
+        summary: LockScreenWidgetDaySummary(
+            dayKey: "2026-07-16",
+            todoCount: 1,
+            doingCount: 0,
+            doneCount: 3,
+            eventCount: 0
+        ),
+        previews: [todo]
+    )
+    #expect(todoPresentation.state == .startable)
+    #expect(todoPresentation.taskID == todoID)
+    #expect(todoPresentation.progressText == "3/4")
+}
+
+@Test
+func lockScreenTaskPresentationHandlesCompleteAndEmptyDays() {
+    let complete = LockScreenWidgetRules.taskPresentation(
+        summary: LockScreenWidgetDaySummary(
+            dayKey: "2026-07-16",
+            todoCount: 0,
+            doingCount: 0,
+            doneCount: 4,
+            eventCount: 1
+        ),
+        previews: []
+    )
+    #expect(complete.state == .complete)
+    #expect(complete.title == "오늘 완료")
+    #expect(complete.progressText == "4/4")
+
+    let empty = LockScreenWidgetRules.taskPresentation(
+        summary: LockScreenWidgetDaySummary(
+            dayKey: "2026-07-16",
+            todoCount: 0,
+            doingCount: 0,
+            doneCount: 0,
+            eventCount: 2
+        ),
+        previews: []
+    )
+    #expect(empty.state == .empty)
+    #expect(empty.title == "오늘 할 일 없음")
+    #expect(empty.progressText == "0/0")
 }
 
 @Test

@@ -6,8 +6,8 @@ PlanBase는 iPhone과 macOS에서 칸반, 캘린더, 기록, 메모를 관리하
 
 Xcode에서 `PlanBase.xcodeproj`를 열고 목적에 맞는 scheme을 선택한다.
 
-- `PlanBase-iOS`: iPhone 앱과 캘린더·잠금 화면 위젯
-- `PlanBase-macOS`: macOS 데스크톱 앱과 네이티브 바탕화면 위젯
+- `PlanBase-iOS`: iPhone 앱과 캘린더·플래너·잠금 화면 위젯
+- `PlanBase-macOS`: macOS 데스크톱 앱과 네이티브 캘린더·플래너 위젯
 - `PlanBaseCore`: 공통 모델과 서비스의 공개 패키지 제품
 
 ## 구조

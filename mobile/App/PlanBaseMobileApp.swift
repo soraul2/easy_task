@@ -85,11 +85,14 @@ struct PlanBaseMobileApp: App {
         }
     }
 
+    @MainActor
     private static func makePersistenceState() -> PersistenceState {
 #if DEBUG
         if PlanBaseLaunchEnvironment.isUITesting {
             do {
-                return .ready(try PlanBaseContainerFactory.makeInMemory())
+                let modelContainer = try PlanBaseContainerFactory.makeInMemory()
+                PlanBaseTaskIntentRuntime.install(modelContainer: modelContainer)
+                return .ready(modelContainer)
             } catch {
                 return .failed(error.localizedDescription)
             }
@@ -111,6 +114,7 @@ struct PlanBaseMobileApp: App {
             _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
             let modelContainer = try PlanBaseContainerFactory.makeAppPersistent()
+            PlanBaseTaskIntentRuntime.install(modelContainer: modelContainer)
 #if DEBUG
             startCloudKitProbeIfRequested(modelContainer: modelContainer)
 #endif
@@ -230,6 +234,7 @@ private struct MobileAppRootView: View {
 
     @State private var selectedTab: MobileTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
+    @State private var boardActionRequest: MobileBoardActionRequest?
     @State private var calendarNavigationDate: Date?
     @State private var themeRevision = 0
     @State private var activeDayKey = DayKey.today
@@ -251,7 +256,10 @@ private struct MobileAppRootView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            MobileBoardView(selectedDate: $selectedBoardDate)
+            MobileBoardView(
+                selectedDate: $selectedBoardDate,
+                actionRequest: $boardActionRequest
+            )
                 .tabItem {
                     Image(systemName: MobileTab.board.symbol)
                         .accessibilityLabel(MobileTab.board.title)
@@ -309,6 +317,7 @@ private struct MobileAppRootView: View {
                 await syncMonitor.refreshAccountStatus()
             }
             await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+            await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
             handlePendingNotificationRoute()
         }
         .onChange(of: selectedTab) {
@@ -335,6 +344,7 @@ private struct MobileAppRootView: View {
                     await syncMonitor.refreshAccountStatus()
                 }
                 await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+                await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
                 handlePendingNotificationRoute()
             }
         }
@@ -360,15 +370,18 @@ private struct MobileAppRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             refreshCurrentDay()
+            reconcileLiveActivity()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             refreshCurrentDay()
             reconcileTaskNotifications()
+            reconcileLiveActivity()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
         )) { _ in
             reconcileTaskNotifications()
+            reconcileLiveActivity()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: TaskNotificationRouteStore.didReceiveRoute
@@ -738,6 +751,12 @@ private struct MobileAppRootView: View {
         }
     }
 
+    private func reconcileLiveActivity() {
+        Swift.Task {
+            await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
+        }
+    }
+
     private func handlePendingNotificationRoute() {
         guard let route = TaskNotificationRouteStore.shared.consume() else { return }
         let currentTask = try? modelContext.fetch(
@@ -750,16 +769,19 @@ private struct MobileAppRootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
-        if let dayKey = PlanBaseDeepLink.calendarDayKey(from: url),
-           let date = DayKey.date(from: dayKey) {
+        if let route = PlanBaseDeepLink.calendarRoute(from: url),
+           let date = DayKey.date(from: route.resolvedDayKey()) {
             calendarNavigationDate = date
             selectedTab = .calendar
             return
         }
-        if let route = PlanBaseDeepLink.boardRoute(from: url),
-           let date = DayKey.date(from: route.resolvedDayKey()) {
+        if let route = PlanBaseDeepLink.boardNavigationRoute(from: url),
+           let date = DayKey.date(from: route.destination.resolvedDayKey()) {
             selectedBoardDate = date
             selectedTab = .board
+            if let action = route.action {
+                boardActionRequest = MobileBoardActionRequest(action: action)
+            }
         }
     }
 }

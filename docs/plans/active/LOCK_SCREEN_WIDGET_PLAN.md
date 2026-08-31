@@ -13,6 +13,11 @@
 
 코드 체크리스트와 자동 검증은 완료했다. 마지막 항목은 simulator나 정적 검사로 대체할 수 없는 실기기 출시 승인 단계이며, 읽기 전용 1차 범위 밖의 Task 직접 완료는 계획대로 구현하지 않았다.
 
+읽기 전용 1차 구현 이후 확정된 Task 상태 전환, 오늘 이벤트 인라인, 빠른 추가와
+Live Activity 확장은
+[`LOCK_SCREEN_TASK_LIVE_ACTIVITY_PLAN.md`](LOCK_SCREEN_TASK_LIVE_ACTIVITY_PLAN.md)에서
+별도 관리한다.
+
 ## 1. 목적
 
 PlanBase의 오늘 보드와 캘린더 요약을 iPhone 일반 잠금 화면에서 빠르게 확인하게 한다. 기존 홈 화면 캘린더 위젯은 그대로 유지하고, 같은 Widget Extension과 App Group 스냅샷을 재사용해 잠금 화면 전용 위젯을 추가한다.

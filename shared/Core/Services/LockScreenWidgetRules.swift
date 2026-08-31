@@ -44,8 +44,45 @@ public struct LockScreenWidgetDaySummary: Codable, Equatable, Sendable {
         todoCount + doingCount
     }
 
+    public var totalTaskCount: Int {
+        remainingTaskCount + doneCount
+    }
+
     public var hasContent: Bool {
         remainingTaskCount > 0 || doneCount > 0 || eventCount > 0
+    }
+}
+
+public enum LockScreenWidgetTaskState: String, Equatable, Sendable {
+    case doing
+    case startable
+    case complete
+    case empty
+}
+
+public struct LockScreenWidgetTaskPresentation: Equatable, Sendable {
+    public let state: LockScreenWidgetTaskState
+    public let taskID: UUID?
+    public let title: String
+    public let completedCount: Int
+    public let totalCount: Int
+
+    public init(
+        state: LockScreenWidgetTaskState,
+        taskID: UUID? = nil,
+        title: String,
+        completedCount: Int,
+        totalCount: Int
+    ) {
+        self.state = state
+        self.taskID = taskID
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.completedCount = max(0, completedCount)
+        self.totalCount = max(0, totalCount)
+    }
+
+    public var progressText: String {
+        "\(completedCount)/\(totalCount)"
     }
 }
 
@@ -59,6 +96,49 @@ public enum LockScreenWidgetRules {
         return (
             DayKey.key(for: startDate),
             DayKey.key(for: DayKey.addingDays(coverageDayCount - 1, to: startDate))
+        )
+    }
+
+    public static func taskPresentation(
+        summary: LockScreenWidgetDaySummary,
+        previews: [PlannerWidgetTaskPreview]
+    ) -> LockScreenWidgetTaskPresentation {
+        let completedCount = summary.doneCount
+        let totalCount = summary.totalTaskCount
+
+        if summary.doingCount > 0 {
+            let preview = previews.first { $0.status == .doing }
+            return LockScreenWidgetTaskPresentation(
+                state: .doing,
+                taskID: preview?.id,
+                title: preview?.title ?? "진행 중",
+                completedCount: completedCount,
+                totalCount: totalCount
+            )
+        }
+        if summary.todoCount > 0 {
+            let preview = previews.first { $0.status == .todo }
+            return LockScreenWidgetTaskPresentation(
+                state: .startable,
+                taskID: preview?.id,
+                title: preview?.title ?? "시작 가능",
+                completedCount: completedCount,
+                totalCount: totalCount
+            )
+        }
+        if summary.doneCount > 0 {
+            return LockScreenWidgetTaskPresentation(
+                state: .complete,
+                title: "오늘 완료",
+                completedCount: completedCount,
+                totalCount: totalCount
+            )
+        }
+        return LockScreenWidgetTaskPresentation(
+            state: .empty,
+            title: "오늘 할 일 없음",
+            completedCount: 0,
+            totalCount: 0
         )
     }
 
@@ -114,7 +194,7 @@ public enum LockScreenWidgetRules {
             }
             .sorted(by: taskSort)
         let doneTasks = tasks.filter {
-            $0.status == TaskStatus.done.rawValue && $0.completedDayKey == dayKey
+            $0.status == TaskStatus.done.rawValue && $0.plannedDayKey == dayKey
         }
         let dayEvents = events
             .filter { $0.startDayKey <= dayKey && dayKey <= $0.endDayKey }
