@@ -68,6 +68,18 @@
 		AM3000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift */; };
 		B10000000000000000000003 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* PlanBaseCore */; };
 		B10000000000000000000004 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* PlanBaseCore */; };
+		B30000000000000000000001 /* watch/App/PlanBaseWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* watch/App/PlanBaseWatchApp.swift */; };
+		B30000000000000000000002 /* watch/App/WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* watch/App/WatchRootView.swift */; };
+		B30000000000000000000003 /* watch/App/WatchTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* watch/App/WatchTodayView.swift */; };
+		B30000000000000000000004 /* watch/App/WatchWidgetSnapshotPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000006 /* watch/App/WatchWidgetSnapshotPublisher.swift */; };
+		B30000000000000000000005 /* watch/Widget/PlanBaseWatchWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000007 /* watch/Widget/PlanBaseWatchWidget.swift */; };
+		B30000000000000000000006 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B80000000000000000000001 /* PlanBaseCore */; };
+		B30000000000000000000007 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B80000000000000000000002 /* PlanBaseCore */; };
+		B30000000000000000000008 /* PlanBaseWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* PlanBaseWatch.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		B30000000000000000000009 /* PlanBaseWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* PlanBaseWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B3000000000000000000000A /* shared/Resources/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AK2000000000000000000001 /* shared/Resources/PrivacyInfo.xcprivacy */; };
+		B3000000000000000000000B /* mobile/Widget/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AK2000000000000000000002 /* mobile/Widget/PrivacyInfo.xcprivacy */; };
+		B3000000000000000000000C /* shared/Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* shared/Resources/Assets.xcassets */; };
 		C30000000000000000000030 /* shared/Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030 /* shared/Resources/Assets.xcassets */; };
 		C30000000000000000000031 /* shared/Resources/container-migration.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* shared/Resources/container-migration.plist */; };
 		D30000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift */; };
@@ -130,6 +142,20 @@
 			remoteGlobalIDString = A10000000000000000000001;
 			remoteInfo = "PlanBase-iOS";
 		};
+		B60000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B50000000000000000000002;
+			remoteInfo = PlanBaseWatchWidgetExtension;
+		};
+		B60000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B50000000000000000000001;
+			remoteInfo = "PlanBase-watchOS";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -155,6 +181,28 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B50000000000000000000013 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B30000000000000000000009 /* PlanBaseWatchWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B50000000000000000000023 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				B30000000000000000000008 /* PlanBaseWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -164,6 +212,17 @@
 		91000000000000000000000B /* mobile/Configuration/PlanBaseWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = mobile/Configuration/PlanBaseWidget.entitlements; sourceTree = SOURCE_ROOT; };
 		910000000000000000000013 /* shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift; sourceTree = SOURCE_ROOT; };
 		920000000000000000000005 /* desktop/Configuration/PlanBaseWidget-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "desktop/Configuration/PlanBaseWidget-macOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000001 /* PlanBaseWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlanBaseWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000002 /* PlanBaseWatchWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PlanBaseWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000003 /* watch/App/PlanBaseWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/App/PlanBaseWatchApp.swift; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000004 /* watch/App/WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/App/WatchRootView.swift; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000005 /* watch/App/WatchTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/App/WatchTodayView.swift; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000006 /* watch/App/WatchWidgetSnapshotPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/App/WatchWidgetSnapshotPublisher.swift; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000007 /* watch/Widget/PlanBaseWatchWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/Widget/PlanBaseWatchWidget.swift; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000008 /* watch/Configuration/PlanBase-watchOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "watch/Configuration/PlanBase-watchOS-Info.plist"; sourceTree = SOURCE_ROOT; };
+		B20000000000000000000009 /* watch/Configuration/PlanBaseWatchWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "watch/Configuration/PlanBaseWatchWidget-Info.plist"; sourceTree = SOURCE_ROOT; };
+		B2000000000000000000000A /* watch/Configuration/PlanBase-watchOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "watch/Configuration/PlanBase-watchOS.entitlements"; sourceTree = SOURCE_ROOT; };
+		B2000000000000000000000B /* watch/Configuration/PlanBaseWatchWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = watch/Configuration/PlanBaseWatchWidget.entitlements; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000010 /* PlanBase.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlanBase.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/PlanBaseMobileApp.swift; sourceTree = SOURCE_ROOT; };
 		AQ2000000000000000000001 /* mobile/App/MobileCloudKitSyncViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/MobileCloudKitSyncViews.swift; sourceTree = SOURCE_ROOT; };
@@ -296,6 +355,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B50000000000000000000012 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B30000000000000000000006 /* PlanBaseCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B50000000000000000000022 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B30000000000000000000007 /* PlanBaseCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -304,6 +379,7 @@
 			children = (
 				A10000000000000000000005 /* Mobile */,
 				F10000000000000000000004 /* Desktop */,
+				B40000000000000000000001 /* Watch */,
 				E10000000000000000000001 /* Shared */,
 				A10000000000000000000007 /* Products */,
 			);
@@ -328,6 +404,8 @@
 				F10000000000000000000010 /* PlanBaseLaunchUITests.xctest */,
 				AA1000000000000000000010 /* PlanBaseMobileTests.xctest */,
 				910000000000000000000008 /* PlanBaseWidgetExtension.appex */,
+				B20000000000000000000001 /* PlanBaseWatch.app */,
+				B20000000000000000000002 /* PlanBaseWatchWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -593,6 +671,46 @@
 			name = Desktop;
 			sourceTree = "<group>";
 		};
+		B40000000000000000000001 /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				B40000000000000000000002 /* App */,
+				B40000000000000000000003 /* Widget */,
+				B40000000000000000000004 /* Configuration */,
+			);
+			name = Watch;
+			sourceTree = "<group>";
+		};
+		B40000000000000000000002 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000003 /* watch/App/PlanBaseWatchApp.swift */,
+				B20000000000000000000004 /* watch/App/WatchRootView.swift */,
+				B20000000000000000000005 /* watch/App/WatchTodayView.swift */,
+				B20000000000000000000006 /* watch/App/WatchWidgetSnapshotPublisher.swift */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		B40000000000000000000003 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000007 /* watch/Widget/PlanBaseWatchWidget.swift */,
+			);
+			name = Widget;
+			sourceTree = "<group>";
+		};
+		B40000000000000000000004 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000008 /* watch/Configuration/PlanBase-watchOS-Info.plist */,
+				B20000000000000000000009 /* watch/Configuration/PlanBaseWatchWidget-Info.plist */,
+				B2000000000000000000000A /* watch/Configuration/PlanBase-watchOS.entitlements */,
+				B2000000000000000000000B /* watch/Configuration/PlanBaseWatchWidget.entitlements */,
+			);
+			name = Configuration;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -624,11 +742,13 @@
 				A10000000000000000000009 /* Resources */,
 				A10000000000000000000003 /* Frameworks */,
 				910000000000000000000010 /* Embed Foundation Extensions */,
+				B50000000000000000000023 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				910000000000000000000012 /* PBXTargetDependency */,
+				B60000000000000000000012 /* PBXTargetDependency */,
 			);
 			name = "PlanBase-iOS";
 			packageProductDependencies = (
@@ -701,6 +821,48 @@
 			productReference = F10000000000000000000010 /* PlanBaseLaunchUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		B50000000000000000000001 /* PlanBase-watchOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B70000000000000000000003 /* Build configuration list for PBXNativeTarget "PlanBase-watchOS" */;
+			buildPhases = (
+				B50000000000000000000010 /* Sources */,
+				B50000000000000000000011 /* Resources */,
+				B50000000000000000000012 /* Frameworks */,
+				B50000000000000000000013 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B60000000000000000000011 /* PBXTargetDependency */,
+			);
+			name = "PlanBase-watchOS";
+			packageProductDependencies = (
+				B80000000000000000000001 /* PlanBaseCore */,
+			);
+			productName = PlanBaseWatch;
+			productReference = B20000000000000000000001 /* PlanBaseWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B50000000000000000000002 /* PlanBaseWatchWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B70000000000000000000013 /* Build configuration list for PBXNativeTarget "PlanBaseWatchWidgetExtension" */;
+			buildPhases = (
+				B50000000000000000000020 /* Sources */,
+				B50000000000000000000021 /* Resources */,
+				B50000000000000000000022 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PlanBaseWatchWidgetExtension;
+			packageProductDependencies = (
+				B80000000000000000000002 /* PlanBaseCore */,
+			);
+			productName = PlanBaseWatchWidgetExtension;
+			productReference = B20000000000000000000002 /* PlanBaseWatchWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -712,6 +874,28 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					910000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+					B50000000000000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
+					};
+					B50000000000000000000002 = {
 						CreatedOnToolsVersion = 26.5;
 						SystemCapabilities = {
 							com.apple.ApplicationGroups.iOS = {
@@ -781,6 +965,8 @@
 				F10000000000000000000001 /* PlanBaseLaunchUITests */,
 				AA1000000000000000000001 /* PlanBaseMobileTests */,
 				910000000000000000000001 /* PlanBaseWidgetExtension */,
+				B50000000000000000000001 /* PlanBase-watchOS */,
+				B50000000000000000000002 /* PlanBaseWatchWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -824,6 +1010,23 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B50000000000000000000011 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3000000000000000000000A /* shared/Resources/PrivacyInfo.xcprivacy in Resources */,
+				B3000000000000000000000C /* shared/Resources/Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B50000000000000000000021 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3000000000000000000000B /* mobile/Widget/PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -945,6 +1148,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B50000000000000000000010 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B30000000000000000000001 /* watch/App/PlanBaseWatchApp.swift in Sources */,
+				B30000000000000000000002 /* watch/App/WatchRootView.swift in Sources */,
+				B30000000000000000000003 /* watch/App/WatchTodayView.swift in Sources */,
+				B30000000000000000000004 /* watch/App/WatchWidgetSnapshotPublisher.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B50000000000000000000020 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B30000000000000000000005 /* watch/Widget/PlanBaseWatchWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -968,6 +1190,16 @@
 			target = A10000000000000000000001 /* PlanBase-iOS */;
 			targetProxy = F40000000000000000000001 /* PBXContainerItemProxy */;
 		};
+		B60000000000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B50000000000000000000002 /* PlanBaseWatchWidgetExtension */;
+			targetProxy = B60000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		B60000000000000000000012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B50000000000000000000001 /* PlanBase-watchOS */;
+			targetProxy = B60000000000000000000002 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -978,7 +1210,7 @@
 				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/PlanBaseWidget.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1012,7 +1244,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1166,7 +1398,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1191,7 +1423,7 @@
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
@@ -1213,7 +1445,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1239,7 +1471,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1265,7 +1497,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1290,7 +1522,7 @@
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS-AppStore.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1311,7 +1543,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1336,7 +1568,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1353,6 +1585,124 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = "PlanBase-iOS";
+			};
+			name = Release;
+		};
+		B70000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "watch/Configuration/PlanBase-watchOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 61;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "watch/Configuration/PlanBase-watchOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.watchkitapp;
+				PRODUCT_NAME = PlanBaseWatch;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		B70000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "watch/Configuration/PlanBase-watchOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 61;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "watch/Configuration/PlanBase-watchOS-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.watchkitapp;
+				PRODUCT_NAME = PlanBaseWatch;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		B70000000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = watch/Configuration/PlanBaseWatchWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 61;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "watch/Configuration/PlanBaseWatchWidget-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.watchkitapp.widget;
+				PRODUCT_NAME = PlanBaseWatchWidgetExtension;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		B70000000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = watch/Configuration/PlanBaseWatchWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 61;
+				DEVELOPMENT_TEAM = 8QCW4WP3SM;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "watch/Configuration/PlanBaseWatchWidget-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soraul2.easytask.watchkitapp.widget;
+				PRODUCT_NAME = PlanBaseWatchWidgetExtension;
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Release;
 		};
@@ -1413,6 +1763,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		B70000000000000000000003 /* Build configuration list for PBXNativeTarget "PlanBase-watchOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B70000000000000000000001 /* Debug */,
+				B70000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B70000000000000000000013 /* Build configuration list for PBXNativeTarget "PlanBaseWatchWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B70000000000000000000011 /* Debug */,
+				B70000000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -1439,6 +1807,16 @@
 			productName = PlanBaseCore;
 		};
 		B10000000000000000000002 /* PlanBaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
+			productName = PlanBaseCore;
+		};
+		B80000000000000000000001 /* PlanBaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
+			productName = PlanBaseCore;
+		};
+		B80000000000000000000002 /* PlanBaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B10000000000000000000000 /* XCLocalSwiftPackageReference "." */;
 			productName = PlanBaseCore;

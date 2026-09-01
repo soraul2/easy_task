@@ -34,7 +34,11 @@ public struct ActivityHeatmapThemeEditor: View {
                             Text(style.title).tag(style)
                         }
                     }
+#if os(watchOS)
+                    .pickerStyle(.navigationLink)
+#else
                     .pickerStyle(.segmented)
+#endif
                     .labelsHidden()
                     .accessibilityIdentifier("activity-heatmap-style-picker")
                 }

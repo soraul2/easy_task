@@ -5,13 +5,13 @@
 ## 1. 한눈에 보는 프로젝트
 
 PlanBase는 칸반, 캘린더, 기록, 메모를 제공하는 개인 생산성 앱이다. 하나의 저장소에서
-macOS 앱, iPhone·iPad universal 앱, 양 플랫폼 캘린더·플래너 위젯을 관리하며 두 앱은
-같은 SwiftData 모델과 CloudKit private database를 공유한다.
+macOS 앱, iPhone·iPad universal 앱, 독립 실행형 Apple Watch 앱과 각 플랫폼 위젯을
+관리하며 세 앱은 같은 SwiftData 모델과 CloudKit private database를 공유한다.
 
 - 언어/도구: Swift 6, Swift tools 6.3, SwiftUI, SwiftData
-- 최소 플랫폼: iOS 18, macOS 26
+- 최소 플랫폼: iOS 18, macOS 26, watchOS 11
 - 공통 패키지 제품: `PlanBaseCore`
-- Xcode scheme: `PlanBase-iOS`, `PlanBase-macOS`
+- Xcode scheme: `PlanBase-iOS`, `PlanBase-macOS`, `PlanBase-watchOS`
 - 현재 영속 스키마: `EasyTaskSchemaV8`
 
 의존 방향은 아래와 같다.
@@ -21,10 +21,10 @@ shared/Core (EasyTaskCore: 실제 모델·서비스 구현)
                     │
                     ▼
 shared/PlanBaseCore (PlanBaseCore: 공개 re-export 계층)
-          ┌─────────┼──────────────┐
-          ▼         ▼              ▼
-desktop/App     mobile/App       mobile/Widget
- macOS 앱      iPhone·iPad 앱   iOS/macOS 위젯 확장
+       ┌──────────┬──────────┬──────────────┐
+       ▼          ▼          ▼              ▼
+desktop/App  mobile/App  mobile/Widget  watch/App·Widget
+ macOS 앱   iPhone·iPad  iOS/macOS 위젯  watchOS 앱·컴플리케이션
 ```
 
 앱 타겟은 `shared/Core`를 직접 컴파일하지 않고 로컬 Swift Package의 `PlanBaseCore` 제품을 링크한다. `EasyTaskCore`라는 이름은 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위한 호환 이름이므로 임의로 바꾸지 않는다.
@@ -101,6 +101,10 @@ PlanBase/
 │   ├── Widget/                       # iOS/macOS 캘린더·플래너, iOS 잠금 화면·Live Activity
 │   ├── Tests/                        # iPhone·iPad launch/UI test
 │   └── Configuration/                # iOS/Widget plist, entitlements, export options
+├── watch/
+│   ├── App/                           # watchOS @main, 오늘 화면, snapshot 발행
+│   ├── Widget/                        # accessory family 컴플리케이션
+│   └── Configuration/                 # Watch 앱·위젯 plist와 entitlements
 ├── docs/                             # 상세 아키텍처·동기화·계획 문서
 ├── scripts/                          # 전체 빌드 검증과 실기기 CloudKit probe
 └── .local/backups/                   # 추적하지 않는 로컬 데이터 안전 백업
@@ -130,13 +134,15 @@ PlanBase/
 | `PlanBase-macOS` | `desktop/App/PlanBaseDesktopApp.swift` | macOS 앱, AppKit 연동, 백업 파일 UI, 위젯 snapshot 발행 |
 | `PlanBase-iOS` | `mobile/App/PlanBaseMobileApp.swift` | iPhone·iPad 앱, 알림, deep link, 위젯 snapshot 발행 |
 | `PlanBaseWidgetExtension` | `mobile/Widget/PlanBaseWidgetBundle.swift` | App Group JSON을 읽는 iOS/macOS 캘린더·플래너 확장. 잠금 화면 위젯·Live Activity는 iOS 전용 |
+| `PlanBase-watchOS` | `watch/App/PlanBaseWatchApp.swift` | 독립 실행형 Watch 앱, 오늘 작업·일정과 상태 변경, Watch snapshot 발행 |
+| `PlanBaseWatchWidgetExtension` | `watch/Widget/PlanBaseWatchWidget.swift` | Watch App Group JSON을 읽는 네 가지 accessory 컴플리케이션 |
 | `PlanBaseLaunchUITests` | `mobile/Tests/PlanBaseLaunchUITests.swift` | iPhone·iPad launch/UI smoke test |
 
-앱 소스 파일은 `PlanBase.xcodeproj/project.pbxproj`에 명시적으로 등록되어 있다. `desktop/App` 또는 `mobile/App`에 새 파일을 만들면 해당 앱 타겟 membership도 추가해야 한다. 반면 SwiftPM 타겟 경로 아래의 새 Swift 파일은 패키지에서 자동으로 발견된다.
+앱 소스 파일은 `PlanBase.xcodeproj/project.pbxproj`에 명시적으로 등록되어 있다. `desktop/App`, `mobile/App`, `watch/App` 또는 플랫폼 Widget 디렉터리에 새 파일을 만들면 해당 타겟 membership도 추가해야 한다. 반면 SwiftPM 타겟 경로 아래의 새 Swift 파일은 패키지에서 자동으로 발견된다.
 
 ## 5. 앱 시작과 데이터 흐름
 
-두 앱의 기본 시작 흐름은 동일하다.
+세 앱의 기본 시작 흐름은 동일하다. Watch 앱은 레거시 이미지 이관과 demo seed를 생략한다.
 
 ```text
 @main App
@@ -151,7 +157,7 @@ PlanBase/
       5. CloudKit 이벤트 관찰 및 import 후 재수렴
 ```
 
-`PlanBaseContainerFactory`는 런타임 entitlement가 유효하면 private CloudKit 저장소를, 그렇지 않으면 안전하게 로컬 저장소를 연다. 위젯은 SwiftData/CloudKit을 직접 열지 않는다. iOS와 macOS 앱이 `CalendarWidgetSnapshotPublisher`를 통해 각 기기의 App Group에 JSON snapshot을 쓰고 위젯은 그것만 읽는다.
+`PlanBaseContainerFactory`는 런타임 entitlement가 유효하면 private CloudKit 저장소를, 그렇지 않으면 안전하게 로컬 저장소를 연다. 위젯은 SwiftData/CloudKit을 직접 열지 않는다. iOS와 macOS 앱은 `CalendarWidgetSnapshotPublisher`, Watch 앱은 `WatchWidgetSnapshotPublicationService`를 통해 각 기기의 App Group에 JSON snapshot을 쓰고 각 위젯은 그것만 읽는다.
 
 ## 6. 데이터 모델과 핵심 규칙
 
@@ -189,19 +195,19 @@ PlanBase/
 
 ## 7. 기능별 수정 위치
 
-| 기능 | 공통 코어 | macOS UI/어댑터 | iOS UI/어댑터 |
-|---|---|---|---|
-| 보드·작업 | `TaskRules`, `BoardQueryRules`, `BoundedQueryService`, `PersistenceCommandService` | `BoardView`, `DesktopKanbanComponents`, `DesktopBoardSheets`, `DesktopTaskDetailSheet` | `MobileBoardView`, `MobileBoardComponents`, `MobileTaskDetailSheet`, `MobileCarryoverSheet` |
-| 체크리스트 | `TaskChecklistService` | `DesktopTaskDetailSheet`, 진행 카드 UI | `MobileTaskDetailSheet`, `MobileBoardComponents` |
-| 템플릿 | `TemplateService`, `TemplateListRules`, 공용 `Template*` components | `DesktopTemplatePlacementSheet`, 보드 sheet | `MobileTemplateLibrarySheet`, `MobileTemplatePlacementSheet`, `MobileTemplateComponents` |
-| 캘린더 | `CalendarEventRules`, `CalendarEventTimeline`, `DayKey` | `CalendarView`, `DesktopCalendarGrid`, `DesktopEventEditorSheets` | `MobileCalendarView`, `MobileCalendarGrid`, `MobileCalendarDaySheet`, `MobileEventEditorSheet` |
-| 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `DailyReview*`, `TaskActivity*`, `TaskHistoryStatistics*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` |
-| 메모 | `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession` | `MemoView` | `MobileMemoView` |
-| 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | `MobileBackupService`와 문서 picker |
-| CloudKit | `PlanBaseContainerFactory`, `CloudKitSyncService`, `CloudKitConvergenceProbe*` | 앱 루트 sync UI/diagnostic args | 앱 루트 sync UI/diagnostic args |
-| 작업 알림·진행 | `TaskReminderRules`, `TaskLifecycleService`, `TaskProgressEvent*` | 로컬 알림·Live Activity 스케줄러 없음 | `TaskNotificationScheduler`, `TaskLiveActivityCoordinator`, app delegate/intent route store |
-| 위젯 | `CalendarWidgetSnapshot`, `PlannerWidgetRules`, `LockScreenWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, 캘린더·플래너·잠금 화면 위젯과 `PlanBaseTaskLiveActivity` |
-| 테마 | `AppTheme`, `CalendarEventPalette` | 앱 루트 theme selector | 앱 루트/mobile theme UI 및 위젯 snapshot |
+| 기능 | 공통 코어 | macOS UI/어댑터 | iOS UI/어댑터 | watchOS UI/어댑터 |
+|---|---|---|---|---|
+| 보드·작업 | `TaskRules`, `BoardQueryRules`, `BoundedQueryService`, `PersistenceCommandService` | `BoardView`, `DesktopKanbanComponents`, `DesktopBoardSheets`, `DesktopTaskDetailSheet` | `MobileBoardView`, `MobileBoardComponents`, `MobileTaskDetailSheet`, `MobileCarryoverSheet` | `WatchTodayView` 빠른 추가·상태 변경 |
+| 체크리스트 | `TaskChecklistService` | `DesktopTaskDetailSheet`, 진행 카드 UI | `MobileTaskDetailSheet`, `MobileBoardComponents` | 현재 표시 없음 |
+| 템플릿 | `TemplateService`, `TemplateListRules`, 공용 `Template*` components | `DesktopTemplatePlacementSheet`, 보드 sheet | `MobileTemplateLibrarySheet`, `MobileTemplatePlacementSheet`, `MobileTemplateComponents` | 현재 표시 없음 |
+| 캘린더 | `CalendarEventRules`, `CalendarEventTimeline`, `DayKey` | `CalendarView`, `DesktopCalendarGrid`, `DesktopEventEditorSheets` | `MobileCalendarView`, `MobileCalendarGrid`, `MobileCalendarDaySheet`, `MobileEventEditorSheet` | `WatchTodayView` 당일 일정 요약 |
+| 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `DailyReview*`, `TaskActivity*`, `TaskHistoryStatistics*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` | 현재 표시 없음 |
+| 메모 | `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession` | `MemoView` | `MobileMemoView` | 현재 표시 없음 |
+| 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | `MobileBackupService`와 문서 picker | 현재 파일 UI 없음 |
+| CloudKit | `PlanBaseContainerFactory`, `CloudKitSyncService`, `CloudKitConvergenceProbe*` | 앱 루트 sync UI/diagnostic args | 앱 루트 sync UI/diagnostic args | `WatchRootView` import 후 재수렴 |
+| 작업 알림·진행 | `TaskReminderRules`, `TaskLifecycleService`, `TaskProgressEvent*` | 로컬 알림·Live Activity 스케줄러 없음 | `TaskNotificationScheduler`, `TaskLiveActivityCoordinator`, app delegate/intent route store | `WatchTodayView` 상태 전환·미래 알림 확인, 로컬 스케줄러 없음 |
+| 위젯 | `CalendarWidgetSnapshot`, `WatchWidgetSnapshot`, `PlannerWidgetRules`, `LockScreenWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, 캘린더·플래너·잠금 화면 위젯과 `PlanBaseTaskLiveActivity` | `WatchWidgetSnapshotPublicationService`, `PlanBaseWatchWidget` |
+| 테마 | `AppTheme`, `CalendarEventPalette` | 앱 루트 theme selector | 앱 루트/mobile theme UI 및 위젯 snapshot | 시스템 tint 중심의 작은 화면 UI |
 
 새 비즈니스 규칙은 가능한 한 `shared/Core/Services`에 두고 단위 테스트한다. 플랫폼 디렉터리에는 화면 상태, SwiftUI composition, AppKit/UIKit/WidgetKit 같은 플랫폼 어댑터만 둔다.
 
@@ -245,13 +251,13 @@ swift test
 swift test -c release
 ```
 
-양 플랫폼 Debug/Release simulator build와 패키지 테스트를 모두 실행하는 전체 회귀 게이트:
+iOS·macOS·watchOS Debug/Release simulator build와 패키지 테스트를 모두 실행하는 전체 회귀 게이트:
 
 ```bash
 ./scripts/verify-platform-builds.sh
 ```
 
-이 스크립트는 `git diff --check`, Debug/Release `swift test`, iOS/macOS Debug/Release build를 수행한다. 서명된 실기기와 CloudKit 계정이 필요한 수렴 검증은 일반 테스트가 아니며 `docs/CLOUDKIT_SYNC.md`를 읽은 후에만 다음 스크립트를 사용한다.
+이 스크립트는 `git diff --check`, Debug/Release `swift test`, iOS/macOS/watchOS Debug/Release build와 내장 번들 검증을 수행한다. 현재 Xcode SDK에 맞는 watchOS Simulator runtime이 필요하다. 서명된 실기기와 CloudKit 계정이 필요한 수렴 검증은 일반 테스트가 아니며 `docs/CLOUDKIT_SYNC.md`를 읽은 후에만 다음 스크립트를 사용한다.
 
 ```bash
 PLANBASE_DEVICE_ID=<devicectl-id> \
@@ -268,6 +274,7 @@ PLANBASE_XCODE_DEVICE_ID=<xcode-udid> \
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): 런타임, 데이터 무결성, 백업, 이미지, 플랫폼 경계의 상세 설명
 - [`docs/DATA_FOUNDATION_PLAN.md`](docs/DATA_FOUNDATION_PLAN.md): 데이터 안전 작업 순서와 Git 운영 규칙
 - [`docs/CLOUDKIT_SYNC.md`](docs/CLOUDKIT_SYNC.md): entitlement, schema 배포, 실기기 수렴 검증
+- [`docs/WATCHOS.md`](docs/WATCHOS.md): Watch 앱·컴플리케이션 구조와 출시 검증
 - [`docs/STRUCTURE_CLEANUP_CHECKLIST.md`](docs/STRUCTURE_CLEANUP_CHECKLIST.md): 디렉터리·파일 정리 순서와 검증 상태
 - [`docs/plans/completed/TASK_REMINDER_PLAN.md`](docs/plans/completed/TASK_REMINDER_PLAN.md): Task 1회성 알림 설계와 수명주기
 - [`docs/plans/active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md`](docs/plans/active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md): 완료 전환 경고와 알림 기록 보존 정책

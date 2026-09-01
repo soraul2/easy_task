@@ -26,7 +26,7 @@ public enum PlanBaseContainerFactory {
     /// capabilities required by the platform. This prevents Core Data's
     /// asynchronous CloudKit setup from terminating a malformed build.
     public static var runtimeAppStoreMode: PlanBaseStoreMode {
-#if os(iOS)
+#if os(iOS) || os(watchOS)
         let hasRequiredEntitlements = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: applicationGroupIdentifier
         ) != nil

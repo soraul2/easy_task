@@ -319,6 +319,11 @@ Debug·Release 전체 회귀 빌드를 통과했다. 서명 archive에서 앱·�
 bundle ID, 앱의 CloudKit·App Group·key-value store와 위젯 App Group 권한을 확인한 뒤
 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
 
+독립 실행형 Watch 앱과 컴플리케이션을 포함한 iOS TestFlight build 61은 iOS 앱·위젯과
+Watch 앱·위젯의 build 번호, bundle ID, companion 관계, `WKApplication`, 코드 서명을
+검증했다. iOS와 Watch 앱의 CloudKit·App Group·key-value store, 두 위젯의 App Group
+권한을 확인한 뒤 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
 ## 운영 회귀 조건
 
 - 두 기기 오프라인 충돌 시나리오 통과

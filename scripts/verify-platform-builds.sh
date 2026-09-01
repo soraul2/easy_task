@@ -53,6 +53,52 @@ verify_embedded_widget() {
   fi
 }
 
+verify_embedded_watch_app() {
+  local watch_app_path="$1"
+
+  if [[ ! -d "$watch_app_path" ]]; then
+    print -u2 "Missing embedded Watch app: $watch_app_path"
+    exit 1
+  fi
+
+  local info_plist="$watch_app_path/Info.plist"
+  local bundle_identifier
+  bundle_identifier="$(/usr/libexec/PlistBuddy \
+    -c "Print :CFBundleIdentifier" \
+    "$info_plist" 2>/dev/null || true)"
+  if [[ "$bundle_identifier" != "com.soraul2.easytask.watchkitapp" ]]; then
+    print -u2 "Unexpected Watch app bundle ID: $bundle_identifier"
+    exit 1
+  fi
+
+  local companion_identifier
+  companion_identifier="$(/usr/libexec/PlistBuddy \
+    -c "Print :WKCompanionAppBundleIdentifier" \
+    "$info_plist" 2>/dev/null || true)"
+  if [[ "$companion_identifier" != "com.soraul2.easytask" ]]; then
+    print -u2 "Unexpected Watch companion bundle ID: $companion_identifier"
+    exit 1
+  fi
+
+  local watch_application
+  watch_application="$(/usr/libexec/PlistBuddy \
+    -c "Print :WKApplication" \
+    "$info_plist" 2>/dev/null || true)"
+  if [[ "$watch_application" != "true" ]]; then
+    print -u2 "Missing WKApplication=true in Watch app: $info_plist"
+    exit 1
+  fi
+
+  local executable_name
+  executable_name="$(/usr/libexec/PlistBuddy \
+    -c "Print :CFBundleExecutable" \
+    "$info_plist" 2>/dev/null || true)"
+  if [[ -z "$executable_name" || ! -f "$watch_app_path/$executable_name" ]]; then
+    print -u2 "Missing Watch app executable: $watch_app_path/$executable_name"
+    exit 1
+  fi
+}
+
 verify_privacy_manifest() {
   local bundle_path="$1"
   local bundle_contents="$bundle_path"
@@ -73,6 +119,12 @@ trap cleanup EXIT
 
 cd "$repo_root"
 
+if ! xcrun simctl list runtimes available | grep -q "watchOS"; then
+  print -u2 \
+    "A watchOS Simulator runtime is required. Install the matching runtime in Xcode > Settings > Components."
+  exit 1
+fi
+
 git diff --check
 swift test --scratch-path "$derived_root/SwiftPM"
 swift test --scratch-path "$derived_root/SwiftPM" -c release
@@ -91,6 +143,15 @@ for configuration in Debug Release; do
   verify_embedded_widget "$ios_widget_path" "com.soraul2.easytask.widget"
   verify_privacy_manifest "$derived_root/iOS-$configuration/Build/Products/$configuration-iphonesimulator/PlanBase.app"
   verify_privacy_manifest "$ios_widget_path"
+
+  watch_app_path="$derived_root/iOS-$configuration/Build/Products/$configuration-iphonesimulator/PlanBase.app/Watch/PlanBaseWatch.app"
+  watch_widget_path="$watch_app_path/PlugIns/PlanBaseWatchWidgetExtension.appex"
+  verify_embedded_watch_app "$watch_app_path"
+  verify_embedded_widget \
+    "$watch_widget_path" \
+    "com.soraul2.easytask.watchkitapp.widget"
+  verify_privacy_manifest "$watch_app_path"
+  verify_privacy_manifest "$watch_widget_path"
 
   xcodebuild -quiet \
     -project PlanBase.xcodeproj \

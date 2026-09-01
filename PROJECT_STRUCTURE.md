@@ -1,10 +1,11 @@
 # PlanBase 프로젝트 구조
 
-PlanBase는 macOS 앱, iPhone·iPad 앱, iOS/macOS 위젯과 iOS Live Activity를 하나의
-저장소에서 관리하며, 공통 모델과 서비스는 로컬 Swift Package로 공유한다.
+PlanBase는 macOS 앱, iPhone·iPad 앱, 독립 실행형 Apple Watch 앱, 각 플랫폼 위젯과
+iOS Live Activity를 하나의 저장소에서 관리하며, 공통 모델과 서비스는 로컬 Swift
+Package로 공유한다.
 
-현재 기준은 `EasyTaskSchemaV8`, 위젯 snapshot v5, 백업 package V7, 앱 버전
-`1.0`(build 60)이다.
+현재 기준은 `EasyTaskSchemaV8`, 위젯 snapshot v5, 백업 package V7, 앱 버전 `1.0`,
+iOS·watchOS build 61과 macOS build 60이다.
 
 ## 디렉터리 구성
 
@@ -31,6 +32,10 @@ PlanBase/
 │   ├── Widget/                   # iOS/macOS 캘린더·플래너, iOS 잠금 화면·Live Activity
 │   ├── Tests/                    # iOS 기능·통합·실행 테스트
 │   └── Configuration/            # iOS·위젯 plist·entitlements·배포 설정
+├── watch/
+│   ├── App/                      # watchOS 앱과 오늘 화면·snapshot 발행
+│   ├── Widget/                   # accessory family 컴플리케이션
+│   └── Configuration/            # watchOS 앱·위젯 plist와 entitlements
 ├── docs/                         # 아키텍처·운영·기능 계획 문서
 ├── scripts/                      # 빌드·아카이브·CloudKit 검증 스크립트
 └── .local/backups/               # Git 비추적 로컬 안전 백업
@@ -43,7 +48,7 @@ shared/Core (EasyTaskCore)
         ↓
 shared/PlanBaseCore (PlanBaseCore)
         ↓
-desktop/App · mobile/App · mobile/Widget
+desktop/App · mobile/App · mobile/Widget · watch/App · watch/Widget
 ```
 
 `EasyTaskCore`는 배포된 SwiftData 모델의 모듈 호환성을 위해 이름을 유지하고, 앱 타겟은 공개 제품인 `PlanBaseCore`를 사용한다.
@@ -58,14 +63,16 @@ desktop/App · mobile/App · mobile/Widget
 | [`mobile/App/PlanBaseMobileApp.swift`](mobile/App/PlanBaseMobileApp.swift) | iOS 앱 시작점과 저장소 개방·복구 |
 | [`mobile/App/MobileAppRootView.swift`](mobile/App/MobileAppRootView.swift) | iOS 탭·deep link·snapshot·Activity orchestration |
 | [`mobile/Widget/PlanBaseWidgetBundle.swift`](mobile/Widget/PlanBaseWidgetBundle.swift) | 위젯 확장 시작점 |
+| [`watch/App/PlanBaseWatchApp.swift`](watch/App/PlanBaseWatchApp.swift) | 독립 실행형 watchOS 앱 시작점 |
+| [`watch/Widget/PlanBaseWatchWidget.swift`](watch/Widget/PlanBaseWatchWidget.swift) | Watch 컴플리케이션 확장 시작점 |
 | [`shared/PlanBaseCore/Exports.swift`](shared/PlanBaseCore/Exports.swift) | 공통 코어의 공개 API |
 | [`shared/Core/Persistence/PlanBaseCompatibility.swift`](shared/Core/Persistence/PlanBaseCompatibility.swift) | 배포 호환 식별자 기준 |
-| [`scripts/verify-platform-builds.sh`](scripts/verify-platform-builds.sh) | 패키지 테스트와 양 플랫폼 전체 빌드 검증 |
+| [`scripts/verify-platform-builds.sh`](scripts/verify-platform-builds.sh) | 패키지 테스트와 iOS·macOS·watchOS 전체 빌드 검증 |
 
 ## 파일 추가 시 주의
 
 - `shared/Core`와 `shared/Tests` 아래 Swift 파일은 SwiftPM이 자동으로 찾는다.
-- `desktop/App`, `mobile/App`, `mobile/Widget`, `mobile/Tests`에 파일을 추가하면 `PlanBase.xcodeproj`의 대상 타겟 membership도 확인한다.
+- `desktop/App`, `mobile/App`, `mobile/Widget`, `mobile/Tests`, `watch/App`, `watch/Widget`에 파일을 추가하면 `PlanBase.xcodeproj`의 대상 타겟 membership도 확인한다.
 - 데이터 모델 변경은 기존 스키마를 수정하지 않고 새 `VersionedSchema`와 migration stage로 추가한다.
 - `.local/backups/`는 안전 백업 영역이므로 임의로 정리하거나 덮어쓰지 않는다.
 

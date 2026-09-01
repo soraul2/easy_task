@@ -13,7 +13,11 @@ public struct TemplateScopePicker: View {
                 Text(scope.title).tag(scope)
             }
         }
+#if os(watchOS)
+        .pickerStyle(.navigationLink)
+#else
         .pickerStyle(.segmented)
+#endif
         .frame(width: 220)
     }
 }

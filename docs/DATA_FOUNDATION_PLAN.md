@@ -328,7 +328,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 운영 동기화 태그: `v1.2.0`
 
 위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
-`CURRENT_PROJECT_VERSION = 60`이며, 태그는 저장소의 실제 릴리스 절차에서 별도로 확정한다.
+`CURRENT_PROJECT_VERSION = 61`이며, 태그는 저장소의 실제 릴리스 절차에서 별도로 확정한다.
 
 2026-09-01 검증 결과:
 

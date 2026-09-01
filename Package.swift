@@ -7,7 +7,8 @@ let package = Package(
     name: "PlanBase",
     platforms: [
         .iOS(.v18),
-        .macOS(.v26)
+        .macOS(.v26),
+        .watchOS(.v11)
     ],
     products: [
         .library(

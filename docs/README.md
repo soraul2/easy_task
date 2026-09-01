@@ -10,6 +10,7 @@
 - [프로젝트 구조](../PROJECT_STRUCTURE.md): 주요 진입점과 파일 추가 규칙
 - [아키텍처](ARCHITECTURE.md): 모듈 경계, 데이터 흐름, 무결성, 백업, 플랫폼 책임
 - [CloudKit 동기화](CLOUDKIT_SYNC.md): entitlement, schema 배포, 실기기 수렴 검증
+- [Apple Watch](WATCHOS.md): 독립 실행형 앱, 컴플리케이션 데이터 흐름과 출시 검증
 - [데이터 기반 계획](DATA_FOUNDATION_PLAN.md): 최초 데이터 안전 전환 순서, 현재 V8 상태와 남은 실기기 인수
 - [구조 정리 체크리스트](STRUCTURE_CLEANUP_CHECKLIST.md): 2026-07 완료 당시 디렉터리·파일 정리 스냅샷
 

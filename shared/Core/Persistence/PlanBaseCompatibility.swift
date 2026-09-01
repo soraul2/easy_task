@@ -9,6 +9,7 @@ public enum PlanBaseCompatibility {
     public static let calendarWidgetKind = "com.soraul2.easytask.calendar-widget"
     public static let lockScreenWidgetKind = "com.soraul2.easytask.today-lock-screen-widget"
     public static let plannerWidgetKind = "com.soraul2.easytask.planner-widget"
+    public static let watchWidgetKind = "com.soraul2.easytask.watch-today-widget"
     public static let backupFormatIdentifier = "com.soraul2.easytask.backup"
     public static let backupPackageUTI = "com.soraul2.easytask.backup-package"
     public static let legacyDeepLinkScheme = "easytask"

@@ -2,13 +2,14 @@
 
 ## 개요
 
-PlanBase는 macOS 데스크톱 앱과 iPhone·iPad universal 앱을 하나의 저장소에서 관리한다.
-두 앱은 같은 SwiftData 모델과 순수 서비스 로직을 공유하고, 화면 구현만 플랫폼별로 분리한다.
+PlanBase는 macOS 데스크톱 앱, iPhone·iPad universal 앱과 독립 실행형 watchOS 앱을
+하나의 저장소에서 관리한다. 세 앱은 같은 SwiftData 모델과 순수 서비스 로직을 공유하고,
+화면 구현만 플랫폼별로 분리한다.
 
 ## 구조
 
 ```text
-PlanBase.xcodeproj          # iPhone/macOS 앱 번들 타겟과 공유 scheme
+PlanBase.xcodeproj          # iPhone/macOS/watchOS 앱 번들 타겟과 공유 scheme
 Package.swift               # SwiftPM 기반 공통 코어/테스트 구성
 mobile/
   App/                      # iPhone·iPad 앱 구현
@@ -18,6 +19,10 @@ mobile/
 desktop/
   App/                      # macOS 앱 구현
   Configuration/            # macOS 앱·위젯 Info.plist, entitlements, export 설정
+watch/
+  App/                      # 독립 실행형 watchOS 앱과 오늘 snapshot 발행
+  Widget/                   # Watch accessory 컴플리케이션
+  Configuration/            # Watch 앱·위젯 Info.plist와 entitlements
 shared/
   Core/                     # 공통 모델, 서비스, 공유 SwiftUI 조각과 테마
   Resources/                # 양 플랫폼 공용 에셋과 마이그레이션 리소스
@@ -98,7 +103,18 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
   기존 위젯과 링크를 위해 `easytask://`도 계속 수신한다.
 - Xcode `PlanBaseWidgetExtension` 타겟은 `PlanBaseCore` 패키지 제품에 의존하고 각 플랫폼의 `PlanBase.app`에 내장된다.
 
-두 앱 타겟은 공통 코어 소스를 직접 컴파일하지 않고 로컬 Swift Package의
+Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
+
+- `PlanBase-watchOS`는 `PlanBaseContainerFactory`로 같은 V8 private CloudKit 저장소를 열어
+  iPhone 연결 없이 오늘 작업·일정을 조회하고 작업을 생성하거나 상태를 변경한다.
+- 상태 변경은 `PersistenceCommandService`와 `TaskLifecycleService` 경계를 그대로 사용해
+  완료 활동과 진행 이벤트를 함께 기록한다.
+- `PlanBaseWatchWidgetExtension`은 SwiftData를 열지 않고 Watch 앱이 기기 로컬 App Group에
+  쓴 `WatchWidgetSnapshot`만 읽는다.
+- 원형·직사각형·인라인·코너 accessory family를 지원하며 `PlanBase-iOS` 앱 번들 안에
+  Watch 앱과 확장이 함께 내장된다.
+
+세 앱 타겟은 공통 코어 소스를 직접 컴파일하지 않고 로컬 Swift Package의
 `PlanBaseCore` 제품을 링크한다.
 
 ## 테마 환경설정 동기화
@@ -130,7 +146,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 ## 데이터 흐름
 
-1. 두 앱은 `PlanBaseContainerFactory`에서 같은 V8 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
+1. iOS, macOS와 watchOS 앱은 `PlanBaseContainerFactory`에서 같은 V8 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
 2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 순서로 이동하며 이미 배포된 V1~V7 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.
@@ -148,7 +164,8 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
     저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
 12. 보드와 캘린더는 선택 날짜 또는 월별 5/6주 그리드 범위(최대 42일)만 live query하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다.
-13. iPhone과 macOS 앱은 이벤트 변경·앱 활성화·CloudKit import 뒤 각 기기의 App Group 위젯 스냅샷을 갱신하고, 내용이 달라졌을 때만 WidgetKit 타임라인을 다시 요청한다.
+13. iPhone과 macOS 앱은 이벤트 변경·앱 활성화·CloudKit import 뒤 캘린더 snapshot을,
+    Watch 앱은 당일 최소 snapshot을 각 기기의 App Group에 갱신하고 WidgetKit 타임라인을 다시 요청한다.
 
 ## 저장과 동기화 런타임
 
@@ -216,11 +233,11 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 ## 현재 MVP 범위
 
 - V8 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
-- 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS와 macOS가 같은 컨테이너를 명시적으로 선택한다.
+- 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS, macOS와 watchOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
 - CloudKit Production에는 V8의 `TaskProgressEvent` record type과 관련 인덱스까지 배포되어 있다. 다음 스키마 변경도 Development 양방향 create/delete 수렴을 확인한 뒤 Production에 배포한다.
-- macOS와 iOS는 같은 모델 스키마를 공유한다.
+- macOS, iOS와 watchOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 상태 필터와 상태 슬라이더를 중심으로 작업을 변경한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그와 선택형 체크리스트를 편집한다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
@@ -233,13 +250,18 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - iOS/iPadOS와 macOS 캘린더 위젯은 소형·중형·대형·초대형을 지원하며 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트를 사용한다. 실제 노출 family는 플랫폼과 배치 위치의 WidgetKit 정책을 따른다.
 - iOS/iPadOS와 macOS 플래너 위젯은 중형·대형·초대형을 지원한다. 중형은 오늘 Task 최대 2개와 일정 날짜 점이 있는 미니 월간 달력을, 대형·초대형은 오늘 Task 최대 6개와 확장 월간 일정을 표시한다.
 - iOS 잠금 화면 오늘 위젯은 세 accessory family를 지원한다. 앱이 무결성 수렴을 마친 뒤 bounded query로 8일 요약·미리보기를 발행하며 캘린더, 플래너, iOS 잠금 화면 kind를 함께 reload한다.
+- watchOS 앱은 오늘 작업·일정, 빠른 추가와 상태 변경을 제공한다. 전용 컴플리케이션은
+  당일 Task/Event 개수와 대표 제목만 담은 snapshot v1을 사용한다.
 
 ## 현재 배포 상태와 다음 단계
 
 2026-09-01 기준 V8 Development의 `TaskProgressEvent` macOS ↔ iPhone 양방향
 create/delete probe와 Production schema 배포가 완료됐다. iOS·macOS 앱 버전 `1.0`
 (build 60)은 전체 Debug/Release 회귀, 서명 archive의 앱·위젯 권한 검증을 통과해
-App Store Connect에 업로드됐다. 남은 운영 게이트는 active 계획에 기록된 실제 기기별
+App Store Connect에 업로드됐다. 같은 날 watchOS MVP를 포함한 iOS build 61도 iOS 앱,
+iOS 위젯, Watch 앱과 Watch 위젯의 버전·서명·CloudKit/App Group 권한 및 companion 관계를
+검증한 뒤 업로드되어 처리 중이다. 실제 Watch CloudKit 수렴은 출시 인수 게이트로 남아 있다.
+그 밖의 운영 게이트는 active 계획에 기록된 실제 기기별
 위젯 갤러리·접근성·저휘도 표현, 오프라인 충돌·재설치·iCloud 재로그인 같은 명시적
 수동 인수 시나리오다.
 
