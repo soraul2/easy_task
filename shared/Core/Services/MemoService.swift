@@ -62,6 +62,65 @@ public enum MemoService {
     }
 
     @MainActor
+    @discardableResult
+    public static func saveComposite(
+        memo: Memo?,
+        content: String,
+        preferredMode: MemoEditorMode,
+        drawingData: Data,
+        checklistDrafts: [MemoChecklistDraft],
+        now: Date = Date(),
+        in context: ModelContext
+    ) throws -> Memo? {
+        let normalizedChecklist = MemoChecklistService.normalizedDrafts(checklistDrafts)
+        let hasContent = !MemoRules.isBlank(content) ||
+            !drawingData.isEmpty ||
+            !normalizedChecklist.isEmpty
+        guard memo != nil || hasContent else { return nil }
+
+        return try PersistenceCommandService.perform(in: context) {
+            let target: Memo
+            if let memo {
+                target = memo
+            } else {
+                target = Memo(
+                    content: content,
+                    preferredMode: preferredMode,
+                    createdAt: now,
+                    updatedAt: now
+                )
+                context.insert(target)
+            }
+
+            var changed = false
+            if target.content != content {
+                target.content = content
+                changed = true
+            }
+            if target.preferredModeRawValue != preferredMode.rawValue {
+                target.preferredModeRawValue = preferredMode.rawValue
+                changed = true
+            }
+            changed = try MemoDrawingService.replace(
+                for: target.id,
+                with: drawingData,
+                in: context,
+                now: now
+            ) || changed
+            changed = try MemoChecklistService.replace(
+                for: target.id,
+                with: normalizedChecklist,
+                in: context,
+                now: now
+            ) || changed
+            if changed {
+                target.updatedAt = now
+            }
+            return target
+        }
+    }
+
+    @MainActor
     public static func setPinned(
         _ isPinned: Bool,
         for memo: Memo,
@@ -78,6 +137,21 @@ public enum MemoService {
     @MainActor
     public static func delete(_ memo: Memo, in context: ModelContext) throws {
         try PersistenceCommandService.perform(in: context) {
+            let memoID = memo.id
+            for drawing in try context.fetch(FetchDescriptor<MemoDrawing>(
+                predicate: #Predicate<MemoDrawing> { drawing in
+                    drawing.memoId == memoID
+                }
+            )) {
+                context.delete(drawing)
+            }
+            for item in try context.fetch(FetchDescriptor<MemoChecklistItem>(
+                predicate: #Predicate<MemoChecklistItem> { item in
+                    item.memoId == memoID
+                }
+            )) {
+                context.delete(item)
+            }
             context.delete(memo)
         }
     }
@@ -115,13 +189,31 @@ public enum MemoService {
                 return MemoQueryPage(memos: matches, nextCursor: nil, hasMore: false)
             }
 
+            let normalizedQuery = MemoRules.normalizedSearchText(query)
+            let checklistByMemoID: [UUID: [MemoChecklistItem]]
+            if normalizedQuery.isEmpty {
+                checklistByMemoID = [:]
+            } else {
+                let memoIDs = batch.map(\.id)
+                checklistByMemoID = Dictionary(
+                    grouping: try context.fetch(
+                        MemoChecklistService.descriptor(memoIDs: memoIDs)
+                    ),
+                    by: \.memoId
+                )
+            }
+
             for memo in batch {
                 if cursor.scansPinned {
                     cursor.pinnedOffset += 1
                 } else {
                     cursor.regularOffset += 1
                 }
-                if MemoRules.matches(memo, query: query) {
+                if MemoRules.matches(
+                    memo,
+                    checklistTitles: (checklistByMemoID[memo.id] ?? []).map(\.title),
+                    query: query
+                ) {
                     matches.append(memo)
                     if matches.count == pageSize {
                         return MemoQueryPage(

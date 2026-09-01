@@ -55,7 +55,13 @@ public enum BackupCodec {
                 .map(TaskCompletionActivityDTO.init),
             taskProgressEvents: try context.fetch(FetchDescriptor<TaskProgressEvent>())
                 .filter { $0.supersededAt == nil }
-                .map(TaskProgressEventDTO.init)
+                .map(TaskProgressEventDTO.init),
+            memoDrawings: try context.fetch(FetchDescriptor<MemoDrawing>())
+                .filter { $0.supersededAt == nil }
+                .map(MemoDrawingDTO.init),
+            memoChecklistItems: try context.fetch(FetchDescriptor<MemoChecklistItem>())
+                .filter { $0.supersededAt == nil }
+                .map(MemoChecklistItemDTO.init)
         )
         return try validatedPayload(payload)
     }
@@ -118,6 +124,12 @@ public enum BackupCodec {
             for review in try context.fetch(FetchDescriptor<DailyReview>()) {
                 context.delete(review)
             }
+            for drawing in try context.fetch(FetchDescriptor<MemoDrawing>()) {
+                context.delete(drawing)
+            }
+            for item in try context.fetch(FetchDescriptor<MemoChecklistItem>()) {
+                context.delete(item)
+            }
             for memo in try context.fetch(FetchDescriptor<Memo>()) {
                 context.delete(memo)
             }
@@ -154,6 +166,12 @@ public enum BackupCodec {
             }
             for dto in payload.memos ?? [] {
                 context.insert(Memo(dto: dto))
+            }
+            for dto in payload.memoDrawings ?? [] {
+                context.insert(MemoDrawing(dto: dto))
+            }
+            for dto in payload.memoChecklistItems ?? [] {
+                context.insert(MemoChecklistItem(dto: dto))
             }
             for dto in payload.taskCompletionActivities ?? [] {
                 context.insert(TaskCompletionActivity(dto: dto))
@@ -206,7 +224,15 @@ private extension BackupCodec {
         let reviews = payload.dailyReviews ?? []
         let reviewIDs = try uniqueIDs(reviews.map(\.id), recordType: "DailyReview")
         _ = try uniqueIDs((payload.diaryBlocks ?? []).map(\.id), recordType: "DiaryBlock")
-        _ = try uniqueIDs((payload.memos ?? []).map(\.id), recordType: "Memo")
+        let memoIDs = try uniqueIDs((payload.memos ?? []).map(\.id), recordType: "Memo")
+        _ = try uniqueIDs(
+            (payload.memoDrawings ?? []).map(\.id),
+            recordType: "MemoDrawing"
+        )
+        _ = try uniqueIDs(
+            (payload.memoChecklistItems ?? []).map(\.id),
+            recordType: "MemoChecklistItem"
+        )
         _ = try uniqueIDs(
             (payload.taskCompletionActivities ?? []).map(\.id),
             recordType: "TaskCompletionActivity"
@@ -296,6 +322,69 @@ private extension BackupCodec {
                 throw BackupServiceError.invalidValue(
                     field: "\(field).updatedAt",
                     value: "before createdAt"
+                )
+            }
+            if let mode = memo.preferredModeRawValue,
+               MemoEditorMode(rawValue: mode) == nil {
+                throw BackupServiceError.invalidEnum(
+                    field: "\(field).preferredModeRawValue",
+                    value: mode
+                )
+            }
+        }
+
+        for (index, drawing) in (payload.memoDrawings ?? []).enumerated() {
+            let field = "memoDrawings[\(index)]"
+            guard memoIDs.contains(drawing.memoId) else {
+                throw BackupServiceError.danglingReference(
+                    field: "\(field).memoId",
+                    id: drawing.memoId
+                )
+            }
+            guard !drawing.drawingData.isEmpty,
+                  drawing.drawingData.count <= MemoDrawingService.maximumDrawingSizeBytes else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).drawingData",
+                    value: "size=\(drawing.drawingData.count)"
+                )
+            }
+            try validateDate(drawing.createdAt, field: "\(field).createdAt")
+            try validateDate(drawing.updatedAt, field: "\(field).updatedAt")
+            guard drawing.createdAt <= drawing.updatedAt else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).updatedAt",
+                    value: "before createdAt"
+                )
+            }
+        }
+
+        for (index, item) in (payload.memoChecklistItems ?? []).enumerated() {
+            let field = "memoChecklistItems[\(index)]"
+            guard memoIDs.contains(item.memoId) else {
+                throw BackupServiceError.danglingReference(
+                    field: "\(field).memoId",
+                    id: item.memoId
+                )
+            }
+            guard !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw BackupServiceError.invalidValue(field: "\(field).title", value: item.title)
+            }
+            try validateFinite(item.order, field: "\(field).order")
+            try validateDate(item.createdAt, field: "\(field).createdAt")
+            try validateDate(item.updatedAt, field: "\(field).updatedAt")
+            guard item.createdAt <= item.updatedAt else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).updatedAt",
+                    value: "before createdAt"
+                )
+            }
+            if let completedAt = item.completedAt {
+                try validateDate(completedAt, field: "\(field).completedAt")
+            }
+            guard item.isCompleted == (item.completedAt != nil) else {
+                throw BackupServiceError.invalidValue(
+                    field: "\(field).completedAt",
+                    value: item.completedAt == nil ? "nil" : "unexpected"
                 )
             }
         }

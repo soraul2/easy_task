@@ -64,6 +64,16 @@ public extension BackupPackageCodec {
                 preserveLegacyImages: true
             )
             try mergeMemos(payload.memos ?? [], context: context, report: &report)
+            try mergeMemoDrawings(
+                payload.memoDrawings ?? [],
+                context: context,
+                report: &report
+            )
+            try mergeMemoChecklistItems(
+                payload.memoChecklistItems ?? [],
+                context: context,
+                report: &report
+            )
             try mergeTaskCompletionActivities(
                 payload.taskCompletionActivities ?? [],
                 context: context,
@@ -130,6 +140,16 @@ extension BackupPackageCodec {
             try mergeReviews(payload.dailyReviews ?? [], context: context, report: &report)
             try mergeDiaryBlocks(payload.diaryBlocks ?? [], context: context, report: &report)
             try mergeMemos(payload.memos ?? [], context: context, report: &report)
+            try mergeMemoDrawings(
+                payload.memoDrawings ?? [],
+                context: context,
+                report: &report
+            )
+            try mergeMemoChecklistItems(
+                payload.memoChecklistItems ?? [],
+                context: context,
+                report: &report
+            )
             try mergeTaskCompletionActivities(
                 payload.taskCompletionActivities ?? [],
                 context: context,

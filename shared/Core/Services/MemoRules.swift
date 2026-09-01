@@ -3,6 +3,27 @@ import Foundation
 public enum MemoRules {
     public static let emptyTitle = "빈 메모"
 
+    public static func mode(for memo: Memo) -> MemoEditorMode {
+        MemoEditorMode(rawValue: memo.preferredModeRawValue) ?? .text
+    }
+
+    public static func displayTitle(for memo: Memo) -> String {
+        let textTitle = displayTitle(for: memo.content)
+        guard textTitle == emptyTitle else { return textTitle }
+        switch mode(for: memo) {
+        case .text:
+            return emptyTitle
+        case .drawing:
+            return "필기 메모"
+        case .checklist:
+            return "체크리스트"
+        }
+    }
+
+    public static func systemImage(for memo: Memo) -> String {
+        mode(for: memo).systemImage
+    }
+
     public static func displayTitle(for content: String) -> String {
         content
             .split(whereSeparator: \Character.isNewline)
@@ -26,9 +47,19 @@ public enum MemoRules {
     }
 
     public static func matches(_ memo: Memo, query: String) -> Bool {
+        matches(memo, checklistTitles: [], query: query)
+    }
+
+    public static func matches(
+        _ memo: Memo,
+        checklistTitles: [String],
+        query: String
+    ) -> Bool {
         let normalizedQuery = normalizedSearchText(query)
         guard !normalizedQuery.isEmpty else { return true }
-        return normalizedSearchText(memo.content).contains(normalizedQuery)
+        let searchableText = ([memo.content, displayTitle(for: memo)] + checklistTitles)
+            .joined(separator: "\n")
+        return normalizedSearchText(searchableText).contains(normalizedQuery)
     }
 
     public static func sorted(_ memos: [Memo]) -> [Memo] {

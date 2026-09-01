@@ -290,4 +290,55 @@ extension DataIntegrityService {
             }
         }
     }
+
+    @MainActor
+    static func reconcileMemoReferences(
+        memos: [Memo],
+        drawings: [MemoDrawing],
+        checklistItems: [MemoChecklistItem],
+        report: inout Report
+    ) {
+        let activeMemoIDs = Set(memos.lazy.filter(isActive).map(\.id))
+
+        for drawing in drawings where isActive(drawing) {
+            guard activeMemoIDs.contains(drawing.memoId),
+                  !drawing.drawingData.isEmpty,
+                  drawing.drawingData.count <= MemoDrawingService.maximumDrawingSizeBytes else {
+                supersede(drawing, report: &report)
+                continue
+            }
+        }
+
+        _ = mergeActive(
+            drawings,
+            groupedBy: { $0.memoId },
+            report: &report
+        )
+
+        for item in checklistItems where isActive(item) {
+            guard activeMemoIDs.contains(item.memoId), !isBlank(item.title) else {
+                supersede(item, report: &report)
+                continue
+            }
+        }
+
+        let itemsByMemo = Dictionary(
+            grouping: checklistItems.filter(isActive),
+            by: \.memoId
+        )
+        for memoItems in itemsByMemo.values {
+            let ordered = memoItems.sorted {
+                if $0.order != $1.order { return $0.order < $1.order }
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return uuidPrecedes($0.instanceID, $1.instanceID)
+            }
+            for (index, item) in ordered.enumerated() {
+                let normalizedOrder = Double(index + 1) * 100
+                if item.order != normalizedOrder {
+                    item.order = normalizedOrder
+                    report.normalizedFields += 1
+                }
+            }
+        }
+    }
 }

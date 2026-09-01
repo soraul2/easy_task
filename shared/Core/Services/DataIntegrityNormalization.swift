@@ -202,7 +202,32 @@ extension DataIntegrityService {
 
     @MainActor
     static func normalizeMemo(_ memo: Memo) -> Int {
-        normalizeTimestamps(memo)
+        var changes = normalizeTimestamps(memo)
+        let mode = MemoEditorMode(rawValue: memo.preferredModeRawValue) ?? .text
+        changes += assign(&memo.preferredModeRawValue, mode.rawValue)
+        return changes
+    }
+
+    @MainActor
+    static func normalizeMemoDrawing(_ drawing: MemoDrawing) -> Int {
+        normalizeTimestamps(drawing)
+    }
+
+    @MainActor
+    static func normalizeMemoChecklistItem(_ item: MemoChecklistItem) -> Int {
+        var changes = normalizeTimestamps(item)
+        changes += assign(
+            &item.title,
+            item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        if !item.order.isFinite {
+            changes += assign(&item.order, 0)
+        }
+        let completedAt = item.isCompleted
+            ? finiteDate(item.completedAt) ?? item.updatedAt
+            : nil
+        changes += assign(&item.completedAt, completedAt)
+        return changes
     }
 
     @MainActor

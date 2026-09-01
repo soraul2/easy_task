@@ -1,4 +1,5 @@
 #if os(iOS)
+import PencilKit
 import PlanBaseCore
 import SwiftData
 import SwiftUI
@@ -173,12 +174,12 @@ private extension MobileMemoView {
             path.append(MobileMemoRoute(memoInstanceID: memo.instanceID))
         } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: memo.isPinned ? "pin.fill" : "note.text")
+                Image(systemName: MemoRules.systemImage(for: memo))
                     .foregroundStyle(memo.isPinned ? AppTheme.event : AppTheme.secondaryText)
                     .frame(width: 22, height: 22)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(MemoRules.displayTitle(for: memo.content))
+                    Text(MemoRules.displayTitle(for: memo))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
@@ -198,6 +199,12 @@ private extension MobileMemoView {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer(minLength: 0)
+                if memo.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.event)
+                        .accessibilityHidden(true)
+                }
             }
             .padding(.vertical, 5)
             .contentShape(Rectangle())
@@ -219,7 +226,7 @@ private extension MobileMemoView {
                 Label("삭제", systemImage: "trash")
             }
         }
-        .accessibilityLabel(MemoRules.displayTitle(for: memo.content))
+        .accessibilityLabel(MemoRules.displayTitle(for: memo))
         .accessibilityHint("두 번 탭하여 메모 편집")
     }
 
@@ -259,17 +266,26 @@ private struct MobileMemoEditorView: View {
         Group {
             if let editorSession {
                 VStack(spacing: 0) {
-                    TextEditor(text: Binding(
-                        get: { editorSession.content },
-                        set: { editorSession.updateContent($0) }
-                    ))
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .focused($editorFocused)
-                    .accessibilityLabel("메모 내용")
+                    Picker("편집 방식", selection: Binding(
+                        get: { editorSession.preferredMode },
+                        set: { mode in
+                            editorSession.updatePreferredMode(mode)
+                            editorFocused = mode == .text
+                        }
+                    )) {
+                        ForEach(MemoEditorMode.allCases) { mode in
+                            Label(mode.title, systemImage: mode.systemImage)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .accessibilityLabel("메모 편집 방식")
+
+                    Divider()
+
+                    mobileEditorContent(editorSession)
 
                     HStack(spacing: 7) {
                         saveStateIcon(editorSession.saveState)
@@ -282,7 +298,7 @@ private struct MobileMemoEditorView: View {
                     .padding(.horizontal, 16)
                 }
                 .background(AppTheme.panel)
-                .navigationTitle(MemoRules.displayTitle(for: editorSession.content))
+                .navigationTitle(editorSession.displayTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
@@ -321,8 +337,9 @@ private struct MobileMemoEditorView: View {
         }
         .task {
             guard editorSession == nil else { return }
-            editorSession = MemoEditorSession(memo: memo, context: modelContext)
-            editorFocused = true
+            let session = MemoEditorSession(memo: memo, context: modelContext)
+            editorSession = session
+            editorFocused = session.preferredMode == .text
         }
         .onChange(of: scenePhase) { _, newValue in
             guard newValue != .active else { return }
@@ -330,6 +347,53 @@ private struct MobileMemoEditorView: View {
         }
         .onDisappear {
             editorSession?.flush()
+        }
+    }
+
+    @ViewBuilder
+    private func mobileEditorContent(_ session: MemoEditorSession) -> some View {
+        switch session.preferredMode {
+        case .text:
+            TextEditor(text: Binding(
+                get: { session.content },
+                set: { session.updateContent($0) }
+            ))
+            .font(.body)
+            .scrollContentBackground(.hidden)
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .focused($editorFocused)
+            .accessibilityLabel("메모 내용")
+
+        case .drawing:
+            VStack(spacing: 8) {
+                MobileMemoDrawingCanvas(
+                    drawingData: session.drawingData,
+                    onDrawingChanged: session.updateDrawingData
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(AppTheme.border, lineWidth: 1)
+                }
+
+                HStack {
+                    Label("Apple Pencil 또는 손가락으로 작성", systemImage: "pencil.tip")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Spacer()
+                    Button("모두 지우기", role: .destructive) {
+                        session.updateDrawingData(Data())
+                    }
+                    .font(.caption)
+                    .disabled(session.drawingData.isEmpty)
+                }
+            }
+            .padding(12)
+
+        case .checklist:
+            MobileMemoChecklistEditor(session: session)
         }
     }
 
@@ -364,6 +428,139 @@ private struct MobileMemoEditorView: View {
         } catch {
             // The editor stays open with its current content after rollback.
         }
+    }
+}
+
+private struct MobileMemoDrawingCanvas: UIViewRepresentable {
+    var drawingData: Data
+    var onDrawingChanged: (Data) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onDrawingChanged: onDrawingChanged)
+    }
+
+    func makeUIView(context: Context) -> PKCanvasView {
+        let canvas = PKCanvasView()
+        canvas.delegate = context.coordinator
+        canvas.drawingPolicy = .anyInput
+        canvas.backgroundColor = .secondarySystemBackground
+        canvas.isOpaque = true
+        canvas.alwaysBounceVertical = true
+        canvas.contentSize = CGSize(width: 1_600, height: 2_000)
+        if let drawing = try? PKDrawing(data: drawingData) {
+            canvas.drawing = drawing
+        }
+
+        context.coordinator.toolPicker.addObserver(canvas)
+        DispatchQueue.main.async {
+            context.coordinator.toolPicker.setVisible(true, forFirstResponder: canvas)
+            canvas.becomeFirstResponder()
+        }
+        return canvas
+    }
+
+    func updateUIView(_ canvas: PKCanvasView, context: Context) {
+        context.coordinator.onDrawingChanged = onDrawingChanged
+        let currentData = canvas.drawing.strokes.isEmpty
+            ? Data()
+            : canvas.drawing.dataRepresentation()
+        guard currentData != drawingData else { return }
+        if drawingData.isEmpty {
+            canvas.drawing = PKDrawing()
+        } else if let drawing = try? PKDrawing(data: drawingData) {
+            canvas.drawing = drawing
+        }
+    }
+
+    final class Coordinator: NSObject, PKCanvasViewDelegate {
+        let toolPicker = PKToolPicker()
+        var onDrawingChanged: (Data) -> Void
+
+        init(onDrawingChanged: @escaping (Data) -> Void) {
+            self.onDrawingChanged = onDrawingChanged
+        }
+
+        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            onDrawingChanged(
+                canvasView.drawing.strokes.isEmpty
+                    ? Data()
+                    : canvasView.drawing.dataRepresentation()
+            )
+        }
+    }
+}
+
+private struct MobileMemoChecklistEditor: View {
+    var session: MemoEditorSession
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                if !session.checklistDrafts.isEmpty {
+                    let progress = session.checklistProgress
+                    HStack {
+                        Text("\(progress.completedCount)/\(progress.totalCount) 완료")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Spacer()
+                    }
+                }
+
+                ForEach(session.checklistDrafts) { item in
+                    HStack(spacing: 10) {
+                        Button {
+                            session.toggleChecklistItem(id: item.id)
+                        } label: {
+                            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(item.isCompleted
+                                    ? AppTheme.event
+                                    : AppTheme.secondaryText)
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(item.isCompleted ? "완료 해제" : "완료")
+
+                        TextField("체크 항목", text: Binding(
+                            get: { item.title },
+                            set: { session.updateChecklistTitle(id: item.id, title: $0) }
+                        ))
+                        .textFieldStyle(.plain)
+                        .strikethrough(item.isCompleted)
+                        .foregroundStyle(item.isCompleted
+                            ? AppTheme.secondaryText
+                            : AppTheme.primaryText)
+                        .submitLabel(.next)
+                        .onSubmit {
+                            session.appendChecklistItem()
+                        }
+
+                        Button(role: .destructive) {
+                            session.removeChecklistItem(id: item.id)
+                        } label: {
+                            Image(systemName: "trash")
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("항목 삭제")
+                    }
+                    .padding(.horizontal, 10)
+                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 10))
+                }
+
+                Button {
+                    session.appendChecklistItem()
+                } label: {
+                    Label("항목 추가", systemImage: "plus.circle.fill")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.event)
+            }
+            .padding(16)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .accessibilityLabel("메모 체크리스트")
     }
 }
 #endif

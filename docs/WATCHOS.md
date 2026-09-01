@@ -18,7 +18,7 @@ private CloudKit 데이터베이스에서 V8 모델을 열며 다음 기능을 �
 
 ```text
 PlanBase-watchOS
-  → PlanBaseContainerFactory / EasyTaskSchemaV8
+  → PlanBaseContainerFactory / EasyTaskSchemaV9
   → iCloud.com.soraul2.easytask private database
   → bounded 오늘 Task·Event query
   → WatchWidgetSnapshotStore
@@ -59,7 +59,7 @@ swift test --filter WatchWidgetSnapshotTests
 
 TestFlight 업로드와 실제 기기 인수 상태는 다음과 같다.
 
-- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 61로 통일
+- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 62로 통일
 - [x] Apple Developer의 Watch 앱·위젯 App ID와 iCloud, CloudKit, App Group 권한 확인
 - [x] Release archive의 iOS 앱 아래 `Watch/PlanBaseWatch.app`과 Watch 앱의 `PlugIns` 확인
 - [x] `WKApplication`, companion ID, 네 번들의 배포 서명과 App Store Connect 업로드 확인

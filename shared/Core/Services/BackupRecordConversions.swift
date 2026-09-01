@@ -136,6 +136,32 @@ extension MemoDTO {
         createdAt = memo.createdAt
         updatedAt = memo.updatedAt
         instanceID = memo.instanceID
+        preferredModeRawValue = memo.preferredModeRawValue
+    }
+}
+
+extension MemoDrawingDTO {
+    init(drawing: MemoDrawing) {
+        id = drawing.id
+        memoId = drawing.memoId
+        drawingData = drawing.drawingData
+        createdAt = drawing.createdAt
+        updatedAt = drawing.updatedAt
+        instanceID = drawing.instanceID
+    }
+}
+
+extension MemoChecklistItemDTO {
+    init(item: MemoChecklistItem) {
+        id = item.id
+        memoId = item.memoId
+        title = item.title
+        isCompleted = item.isCompleted
+        order = item.order
+        createdAt = item.createdAt
+        updatedAt = item.updatedAt
+        completedAt = item.completedAt
+        instanceID = item.instanceID
     }
 }
 
@@ -318,6 +344,36 @@ extension Memo {
             instanceID: dto.instanceID ?? UUID(),
             content: dto.content,
             isPinned: dto.isPinned,
+            preferredMode: dto.preferredModeRawValue.flatMap(MemoEditorMode.init(rawValue:)) ?? .text,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+extension MemoDrawing {
+    convenience init(dto: MemoDrawingDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
+            memoId: dto.memoId,
+            drawingData: dto.drawingData,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+extension MemoChecklistItem {
+    convenience init(dto: MemoChecklistItemDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID ?? UUID(),
+            memoId: dto.memoId,
+            title: dto.title,
+            isCompleted: dto.isCompleted,
+            order: dto.order,
+            completedAt: dto.completedAt,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

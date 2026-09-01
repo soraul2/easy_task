@@ -42,19 +42,19 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 코어에 두지 않는다. 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위해
 `PlanBaseCore`가 `EasyTaskCore`를 다시 노출한다.
 
-- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `TaskTemplateItem`, `TemplatePlacement`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `TaskCompletionActivity`, `TaskProgressEvent`
-- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V7`, 현재 `EasyTaskSchemaV8`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
+- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `TaskTemplateItem`, `TemplatePlacement`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`
+- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V8`, 현재 `EasyTaskSchemaV9`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
 - 동기화 상태: `CloudKitSyncMonitor`, 이벤트별 진행·오류 추적
 - 날짜/보드 규칙: `DayKey`, `TaskRules`, `TaskLifecycleService`, `TaskProgressEventRules`
 - 제한 조회: `BoundedQueryService`, 날짜 범위 descriptor와 action-time 관계 fetch
 - 기록 조회: `ArchiveQueryRules`, `ArchiveFilter`, `ArchiveQuerySession`
-- 메모: `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession`
+- 메모: `MemoRules`, `MemoService`, `MemoContentService`, `MemoQuerySession`, `MemoEditorSession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
 - 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlannerWidgetRules`, `PlanBaseDeepLink`
-- 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·메모·진행 이벤트를 포함하는 V7 `BackupPackageCodec`(V2~V7 읽기 호환)
+- 백업: JSON V1 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·복합 메모·진행 이벤트를 포함하는 V8 `BackupPackageCodec`(V2~V8 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일: 코드 내 기본 목록을 사용하고, 번들에 `SpecialDays.kr.json`이 있으면 이를 우선 사용
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
@@ -64,7 +64,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 
 macOS 앱은 `desktop/App`에 둔다.
 
-- 데스크톱 칸반 보드, 캘린더, 기록, 목록·편집기 분할형 메모 UI
+- 데스크톱 칸반 보드, 캘린더, 기록, 텍스트·체크리스트 편집과 필기 미리보기를 제공하는 분할형 메모 UI
 - AppKit 기반 파일 패널 wrapper
 - 데스크톱 전용 드래그/호버 UX
 - `CalendarWidgetSnapshotPublisher`로 캘린더와 8일 Task 요약·플래너 미리보기를 App Group에 발행
@@ -76,7 +76,7 @@ iPhone·iPad 앱은 `mobile/App`에 둔다.
 - `MobileBoardView`: `할 일 / 진행 중 / 완료` 상태 전환 기반 보드
 - `MobileCalendarView`: 월간 캘린더와 이벤트/템플릿 sheet
 - `MobileArchiveView`: 회고와 완료 작업 피드
-- `MobileMemoView`: 검색·고정 목록과 자동 저장 편집기
+- `MobileMemoView`: 검색·고정 목록과 텍스트·PencilKit 필기·체크리스트 자동 저장 편집기
 - `MobileReviewComposerSheet`: 이미지 첨부 가능한 회고 작성
 - `CalendarWidgetSnapshotPublisher`: 캘린더와 8일 Task 요약·플래너 미리보기를 App Group 스냅샷으로 발행
 - `TaskNotificationScheduler`: iPhone 로컬 알림 예약·즉시 취소·전체 수렴
@@ -138,7 +138,7 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI와 확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V7`, 현재 `EasyTaskSchemaV8`, `EasyTaskMigrationPlan`
+- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V8`, 현재 `EasyTaskSchemaV9`, `EasyTaskMigrationPlan`
 - 레거시 저장소·이미지 이관에 사용되는 기존 폴더와 marker 이름
 
 이 값들은 [PlanBaseCompatibility.swift](../shared/Core/Persistence/PlanBaseCompatibility.swift)와
@@ -146,8 +146,8 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
 ## 데이터 흐름
 
-1. iOS, macOS와 watchOS 앱은 `PlanBaseContainerFactory`에서 같은 V8 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
-2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 순서로 이동하며 이미 배포된 V1~V7 정의는 수정하지 않는다.
+1. iOS, macOS와 watchOS 앱은 `PlanBaseContainerFactory`에서 같은 V9 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
+2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 → V9 순서로 이동하며 이미 배포된 V1~V8 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
@@ -158,8 +158,8 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 6. 캘린더 이벤트는 기간 이벤트로 보이며, 작업 세부 계획은 보드에서 조정한다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
-9. 메모는 날짜·Task·회고와 독립적으로 저장하며 600ms 자동 저장과 상단 고정을 제공한다.
-10. 백업 V7은 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V7을 읽는다.
+9. 메모는 날짜·Task·회고와 독립적으로 텍스트·PencilKit 필기·체크리스트를 함께 보존하며 600ms 자동 저장과 상단 고정을 제공한다.
+10. 백업 V8은 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V8을 읽는다.
 11. `Task.reminderAt`이 알림 원본이자 설정 기록이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
     저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
@@ -193,6 +193,7 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 - 상태 전환은 `TaskLifecycleService`에서 Task 변경과 `TaskProgressEvent` 기록을 한 저장 명령으로 처리한다. started/stopped 이벤트의 논리 중복은 결정적으로 수렴하며, 구버전 기기에서 닫힌 구간은 임의 시간을 합성하지 않고 시간 미상으로 표시한다.
 - 템플릿은 체크리스트 제목과 순서만 저장하며 적용 시 모든 항목을 미완료로 생성한다.
 - 메모 중복은 같은 `id` 내에서 가장 최신 `updatedAt`을 우선하고 `instanceID`로 결정적으로 수렴한다.
+- 필기는 메모당 활성 `MemoDrawing` 하나로 수렴하고, 메모 체크리스트는 빈 제목·부모 없는 항목을 supersede한 뒤 순서를 100 단위로 정규화한다.
 - 첨부는 `reviewId`로 대표 회고에 재연결하며 MIME, 크기, SHA-256을 원본 데이터에서 다시 계산한다.
 - 활성 첨부는 회고당 최대 10개이며, 백업 병합은 무결성 정리 후의 최종 개수를 저장 전에 다시 검증한다.
 - 백업 병합은 `(id, instanceID)` 후보를 보존하고 최종 저장 전에 같은 무결성 규칙으로 수렴시킨다.
@@ -209,7 +210,7 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 - 누락되거나 손상된 기존 파일은 참조를 지우지 않고 다음 실행에서 재시도하며, 모두 옮긴 회고만 레거시 참조를 정리한다.
 - 기존 이미지가 10개를 넘으면 처음 10개까지만 옮기고 초과 참조는 보존한다. 배열과 block-only 참조를 함께 표시하며 미해결 레거시 항목은 삭제해 백업 차단을 해소할 수 있다.
 - 미해결 레거시 항목이 남은 동안 canonical 이미지 추가·삭제는 잠그고, 마지막 항목을 정리해 저장할 때 기존 메타데이터와 이미지 블록을 제거한다.
-- 백업 V7은 records와 각 첨부의 크기·SHA-256, MIME, Task/체크리스트 참조, 메모·진행 이벤트 식별자 무결성을 전부 확인한 뒤 비파괴 병합한다.
+- 백업 V8은 records와 각 첨부의 크기·SHA-256, MIME, Task/체크리스트 참조, 메모·필기·메모 체크리스트·진행 이벤트 식별자 무결성을 전부 확인한 뒤 비파괴 병합한다.
 - 회고가 대표 ID로 재연결된 첨부는 병합 전 공통 부분집합과 병합 후 전체 incoming 부분집합의 상대 순서가 일치해야 한다.
 - 다만 로컬 첨부가 백업 후보보다 최신이면 해당 후보는 과거 순서 검증에서 제외해 최신 로컬 정렬을 보존한다.
 - `.easytaskbackup`은 `public.package` 계열의 고정 UTI로 등록해 Finder와 파일 패널에서 하나의 패키지로 다룬다.
@@ -232,20 +233,20 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
 ## 현재 MVP 범위
 
-- V8 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
+- V9 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
 - 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS, macOS와 watchOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
-- CloudKit Production에는 V8의 `TaskProgressEvent` record type과 관련 인덱스까지 배포되어 있다. 다음 스키마 변경도 Development 양방향 create/delete 수렴을 확인한 뒤 Production에 배포한다.
+- CloudKit Production에는 V9의 `MemoDrawing`, `MemoChecklistItem`과 관련 필드까지 배포되어 있다. Development 양방향 수렴 검증은 실제 기기 운영 인수로 남아 있다.
 - macOS, iOS와 watchOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 상태 필터와 상태 슬라이더를 중심으로 작업을 변경한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그와 선택형 체크리스트를 편집한다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
-- 기본 내보내기는 이미지 원본, Task 알림·체크리스트·메모·진행 이벤트를 포함한 백업 V7이며 패키지 V2~V6와 JSON V1은 가져오기 호환 경로로 유지한다.
+- 기본 내보내기는 이미지 원본, Task 알림·체크리스트·복합 메모·진행 이벤트를 포함한 백업 V8이며 패키지 V2~V7과 JSON V1은 가져오기 호환 경로로 유지한다.
 - Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
 - Calendar는 표시 월의 적응형 5/6주 범위(최대 42일) 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
-- 메모 검색은 기록과 분리하고 제목·본문 전체를 대상으로 40개씩 조회한다. 편집은 600ms debounce로 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다.
+- 메모 검색은 기록과 분리하고 제목·텍스트·체크리스트 항목을 대상으로 40개씩 조회한다. 세 편집 모드는 600ms debounce로 함께 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다. iPhone·iPad는 PencilKit 필기를 편집하고 macOS는 필기를 미리보기로 표시한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
 - iOS/iPadOS와 macOS 캘린더 위젯은 소형·중형·대형·초대형을 지원하며 현재 월 기준 이전 1개월부터 이후 3개월까지 최대 256개의 활성 이벤트를 사용한다. 실제 노출 family는 플랫폼과 배치 위치의 WidgetKit 정책을 따른다.
 - iOS/iPadOS와 macOS 플래너 위젯은 중형·대형·초대형을 지원한다. 중형은 오늘 Task 최대 2개와 일정 날짜 점이 있는 미니 월간 달력을, 대형·초대형은 오늘 Task 최대 6개와 확장 월간 일정을 표시한다.
@@ -255,12 +256,11 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
 ## 현재 배포 상태와 다음 단계
 
-2026-09-01 기준 V8 Development의 `TaskProgressEvent` macOS ↔ iPhone 양방향
-create/delete probe와 Production schema 배포가 완료됐다. iOS·macOS 앱 버전 `1.0`
-(build 60)은 전체 Debug/Release 회귀, 서명 archive의 앱·위젯 권한 검증을 통과해
-App Store Connect에 업로드됐다. 같은 날 watchOS MVP를 포함한 iOS build 61도 iOS 앱,
-iOS 위젯, Watch 앱과 Watch 위젯의 버전·서명·CloudKit/App Group 권한 및 companion 관계를
-검증한 뒤 업로드되어 처리 중이다. 실제 Watch CloudKit 수렴은 출시 인수 게이트로 남아 있다.
+2026-09-01 기준 V9 복합 메모는 로컬 마이그레이션·백업·전체 Debug/Release 회귀와
+CloudKit Development 초기화 및 Production schema 배포를 마쳤다. 앱 버전 `1.0`
+(build 62)은 iOS·iPadOS·watchOS와 macOS 앱·위젯의 버전, 서명, CloudKit/App Group 권한,
+Watch companion 관계를 검증한 뒤 App Store Connect에 업로드되어 처리 중이다.
+실제 V9 메모와 Watch CloudKit 양방향 수렴은 출시 인수 게이트로 남아 있다.
 그 밖의 운영 게이트는 active 계획에 기록된 실제 기기별
 위젯 갤러리·접근성·저휘도 표현, 오프라인 충돌·재설치·iCloud 재로그인 같은 명시적
 수동 인수 시나리오다.

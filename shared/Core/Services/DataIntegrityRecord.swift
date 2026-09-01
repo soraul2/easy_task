@@ -36,3 +36,6 @@ extension EasyTaskSchemaV5.DiaryAttachment: IntegrityRecord {}
 extension EasyTaskSchemaV6.Memo: IntegrityRecord {}
 extension EasyTaskSchemaV7.TaskCompletionActivity: IntegrityRecord {}
 extension EasyTaskSchemaV8.TaskProgressEvent: IntegrityRecord {}
+extension EasyTaskSchemaV9.Memo: IntegrityRecord {}
+extension EasyTaskSchemaV9.MemoDrawing: IntegrityRecord {}
+extension EasyTaskSchemaV9.MemoChecklistItem: IntegrityRecord {}

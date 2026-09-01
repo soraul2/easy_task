@@ -15,6 +15,8 @@ public struct BackupPayload: Codable {
     public var memos: [MemoDTO]? = nil
     public var taskCompletionActivities: [TaskCompletionActivityDTO]? = nil
     public var taskProgressEvents: [TaskProgressEventDTO]? = nil
+    public var memoDrawings: [MemoDrawingDTO]? = nil
+    public var memoChecklistItems: [MemoChecklistItemDTO]? = nil
 }
 
 public struct TaskDTO: Codable {
@@ -135,6 +137,28 @@ public struct MemoDTO: Codable {
     public var isPinned: Bool
     public var createdAt: Date
     public var updatedAt: Date
+    public var instanceID: UUID? = nil
+    public var preferredModeRawValue: String? = nil
+}
+
+public struct MemoDrawingDTO: Codable {
+    public var id: UUID
+    public var memoId: UUID
+    public var drawingData: Data
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var instanceID: UUID? = nil
+}
+
+public struct MemoChecklistItemDTO: Codable {
+    public var id: UUID
+    public var memoId: UUID
+    public var title: String
+    public var isCompleted: Bool
+    public var order: Double
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var completedAt: Date?
     public var instanceID: UUID? = nil
 }
 

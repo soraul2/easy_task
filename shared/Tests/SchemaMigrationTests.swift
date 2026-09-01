@@ -106,7 +106,7 @@ func schemaV6ContainsEveryFrozenPersistedModel() {
         String(reflecting: DailyReview.self),
         String(reflecting: DiaryBlock.self),
         String(reflecting: DiaryAttachment.self),
-        String(reflecting: Memo.self)
+        String(reflecting: EasyTaskSchemaV6.Memo.self)
     ])
 
     #expect(EasyTaskSchemaV6.versionIdentifier == Schema.Version(6, 0, 0))
@@ -126,8 +126,8 @@ func schemaV7ContainsEveryCurrentPersistedModel() {
         String(reflecting: DailyReview.self),
         String(reflecting: DiaryBlock.self),
         String(reflecting: DiaryAttachment.self),
-        String(reflecting: Memo.self),
-        String(reflecting: TaskCompletionActivity.self)
+        String(reflecting: EasyTaskSchemaV6.Memo.self),
+        String(reflecting: EasyTaskSchemaV7.TaskCompletionActivity.self)
     ])
 
     #expect(EasyTaskSchemaV7.versionIdentifier == Schema.Version(7, 0, 0))
@@ -141,6 +141,22 @@ func schemaV8AddsProgressEventsWithoutChangingFrozenModels() {
         .union([String(reflecting: TaskProgressEvent.self)])
 
     #expect(EasyTaskSchemaV8.versionIdentifier == Schema.Version(8, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
+func schemaV9AddsCompositeMemoModels() {
+    let modelNames = Set(EasyTaskSchemaV9.models.map { String(reflecting: $0) })
+    let expectedNames = Set(EasyTaskSchemaV5.models.map { String(reflecting: $0) })
+        .union([
+            String(reflecting: EasyTaskSchemaV9.Memo.self),
+            String(reflecting: EasyTaskSchemaV7.TaskCompletionActivity.self),
+            String(reflecting: EasyTaskSchemaV8.TaskProgressEvent.self),
+            String(reflecting: EasyTaskSchemaV9.MemoDrawing.self),
+            String(reflecting: EasyTaskSchemaV9.MemoChecklistItem.self)
+        ])
+
+    #expect(EasyTaskSchemaV9.versionIdentifier == Schema.Version(9, 0, 0))
     #expect(modelNames == expectedNames)
 }
 
@@ -419,7 +435,7 @@ func versionedV6StoreMigratesToV7WithEmptyActivities() throws {
             )
             let container = try ModelContainer(for: schema, configurations: configuration)
             try writeFixture(to: container, title: "V6 활동 이관")
-            container.mainContext.insert(Memo(id: memoID, content: "V6 메모"))
+            container.mainContext.insert(EasyTaskSchemaV6.Memo(id: memoID, content: "V6 메모"))
             try container.mainContext.save()
         }
 
@@ -484,6 +500,45 @@ func versionedV7StoreMigratesToV8WithEmptyProgressEvents() throws {
         #expect(try reopened.mainContext.fetchCount(
             FetchDescriptor<TaskProgressEvent>()
         ) == 0)
+    }
+}
+
+@Test
+@MainActor
+func versionedV8StoreMigratesToV9WithTextMemoDefaults() throws {
+    try withTemporaryStore { storeURL in
+        let memoID = UUID()
+        let memoInstanceID = UUID()
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: EasyTaskSchemaV8.self)
+            let configuration = ModelConfiguration(
+                "PlanBaseV8",
+                schema: schema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            container.mainContext.insert(EasyTaskSchemaV6.Memo(
+                id: memoID,
+                instanceID: memoInstanceID,
+                content: "V8 텍스트 메모",
+                isPinned: true,
+                createdAt: Date(timeIntervalSince1970: 100),
+                updatedAt: Date(timeIntervalSince1970: 200)
+            ))
+            try container.mainContext.save()
+        }
+
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
+        let memo = try #require(migrated.mainContext.fetch(FetchDescriptor<Memo>()).first)
+        #expect(memo.id == memoID)
+        #expect(memo.instanceID == memoInstanceID)
+        #expect(memo.content == "V8 텍스트 메모")
+        #expect(memo.isPinned)
+        #expect(MemoRules.mode(for: memo) == .text)
+        #expect(try migrated.mainContext.fetchCount(FetchDescriptor<MemoDrawing>()) == 0)
+        #expect(try migrated.mainContext.fetchCount(FetchDescriptor<MemoChecklistItem>()) == 0)
     }
 }
 

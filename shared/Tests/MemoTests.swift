@@ -115,6 +115,41 @@ func memoEditorDebouncesAndFlushesPendingChanges() async throws {
 
 @Test
 @MainActor
+func memoEditorPreservesTextDrawingAndChecklistTogether() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let session = MemoEditorSession(memo: nil, context: context)
+
+    session.updateContent("회의 메모")
+    session.updateDrawingData(Data([0x01, 0x02, 0x03]))
+    session.appendChecklistItem()
+    let itemID = try #require(session.checklistDrafts.first?.id)
+    session.updateChecklistTitle(id: itemID, title: "자료 보내기")
+    session.updatePreferredMode(.checklist)
+    session.flush()
+
+    let memo = try #require(session.memo)
+    #expect(memo.content == "회의 메모")
+    #expect(MemoRules.mode(for: memo) == .checklist)
+    #expect(try MemoDrawingService.data(for: memo.id, in: context) == Data([0x01, 0x02, 0x03]))
+    let checklist = try context.fetch(MemoChecklistService.descriptor(memoID: memo.id))
+    #expect(checklist.map(\.title) == ["자료 보내기"])
+
+    let searched = try MemoService.page(in: context, query: "자료 보내기")
+    #expect(searched.memos.map(\.id) == [memo.id])
+
+    let reopened = MemoEditorSession(memo: memo, context: context)
+    #expect(reopened.content == "회의 메모")
+    #expect(reopened.drawingData == Data([0x01, 0x02, 0x03]))
+    #expect(reopened.checklistDrafts.map(\.title) == ["자료 보내기"])
+
+    try reopened.delete()
+    #expect(try context.fetchCount(FetchDescriptor<MemoDrawing>()) == 0)
+    #expect(try context.fetchCount(FetchDescriptor<MemoChecklistItem>()) == 0)
+}
+
+@Test
+@MainActor
 func memoPinDeleteAndIntegrityConvergeOnNewestUpdate() throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
@@ -154,6 +189,62 @@ func memoPinDeleteAndIntegrityConvergeOnNewestUpdate() throws {
 
 @Test
 @MainActor
+func memoContentIntegrityConvergesChildrenAndSupersedesOrphans() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = Memo(content: "복합 메모")
+    context.insert(memo)
+
+    let olderDrawing = MemoDrawing(
+        memoId: memo.id,
+        drawingData: Data([0x01]),
+        createdAt: Date(timeIntervalSince1970: 10),
+        updatedAt: Date(timeIntervalSince1970: 20)
+    )
+    let newerDrawing = MemoDrawing(
+        memoId: memo.id,
+        drawingData: Data([0x02]),
+        createdAt: Date(timeIntervalSince1970: 15),
+        updatedAt: Date(timeIntervalSince1970: 30)
+    )
+    let orphan = MemoChecklistItem(
+        memoId: UUID(),
+        title: "고아 항목",
+        order: 100
+    )
+    let blank = MemoChecklistItem(
+        memoId: memo.id,
+        title: "   ",
+        order: 200
+    )
+    let valid = MemoChecklistItem(
+        memoId: memo.id,
+        title: "  정상 항목  ",
+        isCompleted: true,
+        order: .infinity
+    )
+    context.insert(olderDrawing)
+    context.insert(newerDrawing)
+    context.insert(orphan)
+    context.insert(blank)
+    context.insert(valid)
+    try context.save()
+
+    let report = try DataIntegrityService.reconcile(context: context)
+    let activeDrawings = try context.fetch(FetchDescriptor<MemoDrawing>())
+        .filter { $0.supersededAt == nil }
+    #expect(activeDrawings.count == 1)
+    #expect(activeDrawings.first?.drawingData == Data([0x02]))
+    #expect(orphan.supersededAt != nil)
+    #expect(blank.supersededAt != nil)
+    #expect(valid.title == "정상 항목")
+    #expect(valid.order == 100)
+    #expect(valid.completedAt != nil)
+    #expect(report.hasChanges)
+}
+
+@Test
+@MainActor
 func backupV6RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     let source = try PlanBaseContainerFactory.makeInMemory()
     let memo = Memo(
@@ -163,11 +254,31 @@ func backupV6RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
         updatedAt: Date(timeIntervalSince1970: 200)
     )
     source.mainContext.insert(memo)
+    memo.preferredModeRawValue = MemoEditorMode.drawing.rawValue
+    let drawing = MemoDrawing(
+        memoId: memo.id,
+        drawingData: Data([0x10, 0x20]),
+        createdAt: Date(timeIntervalSince1970: 100),
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    let checklistItem = MemoChecklistItem(
+        memoId: memo.id,
+        title: "백업 체크 항목",
+        isCompleted: true,
+        order: 100,
+        completedAt: Date(timeIntervalSince1970: 180),
+        createdAt: Date(timeIntervalSince1970: 100),
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    source.mainContext.insert(drawing)
+    source.mainContext.insert(checklistItem)
     try source.mainContext.save()
 
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
     #expect(contents.manifest.formatVersion == BackupPackageCodec.currentVersion)
     #expect(contents.records.payload.memos?.count == 1)
+    #expect(contents.records.payload.memoDrawings?.count == 1)
+    #expect(contents.records.payload.memoChecklistItems?.count == 1)
 
     let destination = try PlanBaseContainerFactory.makeInMemory()
     let first = try BackupPackageCodec.restoreMerging(contents, into: destination.mainContext)
@@ -178,12 +289,19 @@ func backupV6RoundTripIncludesMemosAndV4TreatsThemAsEmpty() throws {
     #expect(restored.instanceID == memo.instanceID)
     #expect(restored.content == memo.content)
     #expect(restored.isPinned)
+    #expect(MemoRules.mode(for: restored) == .drawing)
+    #expect(try MemoDrawingService.data(for: restored.id, in: destination.mainContext) == drawing.drawingData)
+    #expect(try destination.mainContext.fetch(
+        MemoChecklistService.descriptor(memoID: restored.id)
+    ).map(\.title) == ["백업 체크 항목"])
 
     let legacySource = try PlanBaseContainerFactory.makeInMemory()
     var v4Contents = try BackupPackageCodec.makeContents(context: legacySource.mainContext)
     v4Contents.manifest.formatVersion = 4
     v4Contents.records.formatVersion = 4
     v4Contents.records.payload.memos = nil
+    v4Contents.records.payload.memoDrawings = nil
+    v4Contents.records.payload.memoChecklistItems = nil
     refreshMemoPackageRecordsMetadata(&v4Contents)
     try BackupPackageCodec.validate(v4Contents)
 

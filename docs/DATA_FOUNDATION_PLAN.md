@@ -25,15 +25,16 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ## 현재 진행 상태 (2026-09-01)
 
-- 현재 영속 스키마는 `EasyTaskSchemaV8`이고 V1~V7은 동결되어 있다.
-- private CloudKit Development의 V8 양방향 progress create/delete probe와 Production
-  `TaskProgressEvent` 배포가 완료됐다.
-- 백업 package V7은 V2~V7을 읽고 Task 알림·체크리스트·메모·활동·진행 이벤트와 회고
-  첨부를 비파괴 병합한다.
+- 현재 소스의 영속 스키마는 `EasyTaskSchemaV9`이고 V1~V8은 동결되어 있다. V9는
+  메모의 텍스트·PencilKit 필기·체크리스트 모델을 포함한다.
+- private CloudKit Production에는 V9까지 배포됐으며 Development 양방향 검증은
+  아직 수행하지 않았다.
+- 백업 package V8은 V2~V8을 읽고 Task 알림·체크리스트·복합 메모·활동·진행 이벤트와
+  회고 첨부를 비파괴 병합한다.
 - bounded query/session, 컨테이너 복구 UI, save/rollback, 이미지 다운샘플·제한 캐시,
   iOS/macOS 실행 UI 테스트와 전체 플랫폼 회귀 게이트가 구현됐다.
-- 앱 버전 `1.0`(build 60)의 iOS·macOS TestFlight archive는 앱·위젯 서명과
-  App Group·CloudKit 권한을 확인한 뒤 App Store Connect에 업로드됐다.
+- 앱 버전 `1.0`(build 62)의 iOS·iPadOS·watchOS 및 macOS TestFlight archive는 앱·위젯
+  서명과 App Group·CloudKit 권한을 확인한 뒤 App Store Connect에 업로드됐다.
 - 남은 기반 인수 항목은 오프라인 동시 편집, 이미지 추가·삭제 후 재설치,
   iCloud 로그아웃·재로그인과 자동 복구 백업 UX의 실제 기기 시나리오다.
 
@@ -316,7 +317,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ### Phase 8. 릴리스 안정화
 
-상태: 앱 버전 1.0(build 60) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
+상태: 앱 버전 1.0(build 62) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
 
 - Debug/Release 양쪽 플랫폼 빌드와 UI smoke test를 통과한다.
 - iOS와 macOS launch UI smoke test 타겟을 추가해 앱 시작을 검증한다.
@@ -328,15 +329,15 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 운영 동기화 태그: `v1.2.0`
 
 위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
-`CURRENT_PROJECT_VERSION = 61`이며, 태그는 저장소의 실제 릴리스 절차에서 별도로 확정한다.
+`CURRENT_PROJECT_VERSION = 62`이며, 태그는 저장소의 실제 릴리스 절차에서 별도로 확정한다.
 
 2026-09-01 검증 결과:
 
-- Debug SwiftPM 331개, Release SwiftPM 330개 통과
+- Debug SwiftPM 337개, Release SwiftPM 336개 통과
 - `PlanBaseMobileTests` 16개와 접근성 AX5·기록 이동·기본 글자 크기 UI smoke 통과
 - iOS/macOS Debug·Release 전체 빌드 회귀 게이트 통과
-- iOS/macOS 서명 archive의 앱·위젯 build 60, bundle ID, App Group, CloudKit 및 iOS
-  Live Activity 선언 검증 통과
+- iOS·watchOS/macOS 서명 archive의 앱·위젯 build 62, bundle ID, App Group, CloudKit 및
+  iOS Live Activity 선언 검증 통과
 - 두 플랫폼 App Store Connect 업로드 성공, Apple package 처리 시작
 
 ## 멀티에이전트 작업 분배

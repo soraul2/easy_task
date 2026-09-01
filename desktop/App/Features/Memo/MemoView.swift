@@ -1,3 +1,4 @@
+import PencilKit
 import PlanBaseCore
 import SwiftData
 import SwiftUI
@@ -195,13 +196,13 @@ private extension MemoView {
             openMemo(memo)
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: memo.isPinned ? "pin.fill" : "note.text")
+                Image(systemName: MemoRules.systemImage(for: memo))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(memo.isPinned ? AppTheme.event : AppTheme.secondaryText)
                     .frame(width: 18, height: 18)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(MemoRules.displayTitle(for: memo.content))
+                    Text(MemoRules.displayTitle(for: memo))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(1)
@@ -219,6 +220,12 @@ private extension MemoView {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer(minLength: 0)
+                if memo.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.event)
+                        .accessibilityHidden(true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
@@ -242,7 +249,7 @@ private extension MemoView {
                 Label("삭제", systemImage: "trash")
             }
         }
-        .accessibilityLabel(MemoRules.displayTitle(for: memo.content))
+        .accessibilityLabel(MemoRules.displayTitle(for: memo))
     }
 
     @ViewBuilder
@@ -251,7 +258,7 @@ private extension MemoView {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(MemoRules.displayTitle(for: editorSession.content))
+                        Text(editorSession.displayTitle)
                             .font(.title3.bold())
                             .lineLimit(1)
                         Text(editorSession.memo?.updatedAt.formatted(
@@ -292,16 +299,30 @@ private extension MemoView {
                     .fill(AppTheme.border)
                     .frame(height: 1)
 
-                TextEditor(text: Binding(
-                    get: { editorSession.content },
-                    set: { editorSession.updateContent($0) }
-                ))
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(16)
-                .focused($editorFocused)
-                .accessibilityLabel("메모 내용")
+                Picker("편집 방식", selection: Binding(
+                    get: { editorSession.preferredMode },
+                    set: { mode in
+                        editorSession.updatePreferredMode(mode)
+                        editorFocused = mode == .text
+                    }
+                )) {
+                    ForEach(MemoEditorMode.allCases) { mode in
+                        Label(mode.title, systemImage: mode.systemImage)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 440)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .accessibilityLabel("메모 편집 방식")
+
+                Rectangle()
+                    .fill(AppTheme.border)
+                    .frame(height: 1)
+
+                desktopEditorContent(editorSession)
 
                 HStack(spacing: 7) {
                     saveStateIcon(editorSession.saveState)
@@ -325,6 +346,135 @@ private extension MemoView {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.panel)
         }
+    }
+
+    @ViewBuilder
+    func desktopEditorContent(_ session: MemoEditorSession) -> some View {
+        switch session.preferredMode {
+        case .text:
+            TextEditor(text: Binding(
+                get: { session.content },
+                set: { session.updateContent($0) }
+            ))
+            .font(.body)
+            .scrollContentBackground(.hidden)
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(16)
+            .focused($editorFocused)
+            .accessibilityLabel("메모 내용")
+
+        case .drawing:
+            VStack(spacing: 14) {
+                if let image = drawingImage(from: session.drawingData) {
+                    ScrollView([.horizontal, .vertical]) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 900, maxHeight: 900)
+                            .padding(24)
+                    }
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(AppTheme.border, lineWidth: 1)
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "아직 필기 내용이 없습니다",
+                        systemImage: "pencil.tip",
+                        description: Text("iPhone 또는 iPad에서 필기를 시작하세요.")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+
+                HStack {
+                    Label("필기는 iPhone 또는 iPad에서 편집할 수 있습니다.", systemImage: "ipad.and.iphone")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Spacer()
+                    Button("필기 지우기", role: .destructive) {
+                        session.updateDrawingData(Data())
+                    }
+                    .disabled(session.drawingData.isEmpty)
+                }
+            }
+            .padding(18)
+
+        case .checklist:
+            ScrollView {
+                LazyVStack(spacing: 9) {
+                    if !session.checklistDrafts.isEmpty {
+                        let progress = session.checklistProgress
+                        HStack {
+                            Text("\(progress.completedCount)/\(progress.totalCount) 완료")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                            Spacer()
+                        }
+                    }
+
+                    ForEach(session.checklistDrafts) { item in
+                        HStack(spacing: 10) {
+                            Button {
+                                session.toggleChecklistItem(id: item.id)
+                            } label: {
+                                Image(systemName: item.isCompleted
+                                    ? "checkmark.circle.fill"
+                                    : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(item.isCompleted
+                                        ? AppTheme.event
+                                        : AppTheme.secondaryText)
+                                    .frame(width: 30, height: 30)
+                            }
+                            .buttonStyle(.plain)
+
+                            TextField("체크 항목", text: Binding(
+                                get: { item.title },
+                                set: { session.updateChecklistTitle(id: item.id, title: $0) }
+                            ))
+                            .textFieldStyle(.plain)
+                            .strikethrough(item.isCompleted)
+                            .foregroundStyle(item.isCompleted
+                                ? AppTheme.secondaryText
+                                : AppTheme.primaryText)
+                            .onSubmit {
+                                session.appendChecklistItem()
+                            }
+
+                            Button(role: .destructive) {
+                                session.removeChecklistItem(id: item.id)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .frame(width: 30, height: 30)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    Button {
+                        session.appendChecklistItem()
+                    } label: {
+                        Label("항목 추가", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppTheme.event)
+                }
+                .padding(18)
+            }
+        }
+    }
+
+    func drawingImage(from data: Data) -> NSImage? {
+        guard !data.isEmpty,
+              let drawing = try? PKDrawing(data: data),
+              !drawing.bounds.isEmpty else { return nil }
+        let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
+        return drawing.image(from: bounds, scale: 2)
     }
 
     @ViewBuilder

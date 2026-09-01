@@ -51,6 +51,8 @@ public enum DataIntegrityService {
         let diaryBlocks = try context.fetch(FetchDescriptor<DiaryBlock>())
         let diaryAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
         let memos = try context.fetch(FetchDescriptor<Memo>())
+        let memoDrawings = try context.fetch(FetchDescriptor<MemoDrawing>())
+        let memoChecklistItems = try context.fetch(FetchDescriptor<MemoChecklistItem>())
 
         var report = Report()
 
@@ -105,6 +107,16 @@ public enum DataIntegrityService {
             groupedBy: { $0.id },
             report: &report
         )
+        _ = mergeActive(
+            memoDrawings,
+            groupedBy: { $0.id },
+            report: &report
+        )
+        _ = mergeActive(
+            memoChecklistItems,
+            groupedBy: { $0.id },
+            report: &report
+        )
 
         normalizeActive(events, with: normalizeEvent, report: &report)
         normalizeActive(templates, with: normalizeTemplate, report: &report)
@@ -116,6 +128,12 @@ public enum DataIntegrityService {
         normalizeActive(diaryBlocks, with: normalizeDiaryBlock, report: &report)
         normalizeActive(diaryAttachments, with: normalizeDiaryAttachment, report: &report)
         normalizeActive(memos, with: normalizeMemo, report: &report)
+        normalizeActive(memoDrawings, with: normalizeMemoDrawing, report: &report)
+        normalizeActive(
+            memoChecklistItems,
+            with: normalizeMemoChecklistItem,
+            report: &report
+        )
 
         let templateRewrites = mergeActive(
             templates,
@@ -172,6 +190,12 @@ public enum DataIntegrityService {
         reconcileChecklistReferences(
             tasks: tasks,
             items: checklistItems,
+            report: &report
+        )
+        reconcileMemoReferences(
+            memos: memos,
+            drawings: memoDrawings,
+            checklistItems: memoChecklistItems,
             report: &report
         )
 

@@ -74,6 +74,24 @@ extension BackupPackageCodec {
             }
             payload.memos = memos
         }
+        if var drawings = payload.memoDrawings {
+            for index in drawings.indices where drawings[index].instanceID == nil {
+                drawings[index].instanceID = legacyInstanceID(
+                    type: "MemoDrawing",
+                    id: drawings[index].id
+                )
+            }
+            payload.memoDrawings = drawings
+        }
+        if var items = payload.memoChecklistItems {
+            for index in items.indices where items[index].instanceID == nil {
+                items[index].instanceID = legacyInstanceID(
+                    type: "MemoChecklistItem",
+                    id: items[index].id
+                )
+            }
+            payload.memoChecklistItems = items
+        }
         if var reviews = payload.dailyReviews {
             for index in reviews.indices where reviews[index].instanceID == nil {
                 reviews[index].instanceID = legacyInstanceID(

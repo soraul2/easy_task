@@ -5,8 +5,8 @@
 - CloudKit 컨테이너: `iCloud.com.soraul2.easytask`
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
-- 앱 스키마: `EasyTaskSchemaV8`
-- 운영 스키마: V8 배포 완료
+- 앱 스키마: `EasyTaskSchemaV9`
+- 운영 스키마: V9 Production 배포 완료, Development 양방향 검증 대기
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
@@ -53,16 +53,18 @@ CloudKit 모드는 별도의 네트워크 전용 저장소가 아니라 로컬 S
 ```
 
 초기화 코드는 명시적인 인자가 있는 Debug 빌드에서만 실행된다. 완료 후 CloudKit
-Console의 Development 환경에서 모든 V8 record type, `Task.reminderAt`,
+Console의 Development 환경에서 모든 V9 record type, `Task.reminderAt`,
 `TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`,
-`TaskCompletionActivity`, `TaskProgressEvent`가 생성됐는지 확인한다.
+`MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`가
+생성됐는지 확인한다. V9을 Production에 배포하기 전에는 V9 앱을 TestFlight에 올리지 않는다.
 
 ## 검증 순서
 
 1. 기존 macOS 데이터의 `.easytaskbackup` 백업을 만든다.
 2. macOS 앱만 실행해 최초 export가 성공하는지 확인한다.
 3. iPhone 앱을 설치하고 최초 import가 끝날 때까지 기다린다.
-4. 작업, 체크리스트, 이벤트, 템플릿, 회고와 이미지를 양쪽에서 확인한다.
+4. 작업, 체크리스트, 이벤트, 템플릿, 회고·이미지와 메모의 텍스트·필기·체크리스트를
+   양쪽에서 확인한다.
 5. 양쪽을 오프라인으로 둔 상태에서 같은 작업과 같은 날짜 회고를 각각 수정한다.
 6. 다시 연결해 중복, 누락, 고아 이미지 없이 수렴하는지 확인한다.
 7. iPhone 앱을 삭제 후 재설치해 데이터와 이미지가 복구되는지 확인한다.
@@ -323,6 +325,12 @@ App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
 Watch 앱·위젯의 build 번호, bundle ID, companion 관계, `WKApplication`, 코드 서명을
 검증했다. iOS와 Watch 앱의 CloudKit·App Group·key-value store, 두 위젯의 App Group
 권한을 확인한 뒤 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+V9 복합 메모와 백업 package V8을 포함한 iOS·macOS TestFlight build 62는 Debug SwiftPM
+337개와 Release SwiftPM 336개 및 양 플랫폼 Debug·Release 전체 회귀를 통과했다. CloudKit
+Development 스키마 초기화와 V9 Production 배포 후, iOS·iPadOS·Watch 앱·위젯 및 macOS
+앱·위젯의 build 번호, 서명, CloudKit·App Group·key-value store 권한을 확인했다. 두
+아카이브 모두 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
 
 ## 운영 회귀 조건
 

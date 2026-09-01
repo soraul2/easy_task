@@ -4,9 +4,10 @@ PlanBase는 iPhone, iPad, Apple Watch와 macOS에서 계획을 관리하는 개�
 iOS universal 앱, 독립 실행형 watchOS 앱과 macOS 앱은 같은 SwiftData 모델과 private
 CloudKit 컨테이너를 공유한다.
 
-현재 배포 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV8`, 위젯 스냅샷 v5,
-백업 package V7이다. Watch 앱을 포함한 iOS TestFlight build 61과 macOS build 60은
-서명·공유 권한 검증 후 App Store Connect에 업로드됐다.
+현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV9`, 위젯 스냅샷 v5,
+백업 package V8이다. V9는 메모의 텍스트·필기·체크리스트 콘텐츠를 추가하며 CloudKit
+Development 초기화와 Production 배포를 완료했다. 마지막 업로드본은 V9/백업 V8을 포함한
+iOS·iPadOS·watchOS 및 macOS TestFlight build 62다.
 
 ## 시작하기
 

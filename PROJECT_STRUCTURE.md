@@ -4,8 +4,8 @@ PlanBase는 macOS 앱, iPhone·iPad 앱, 독립 실행형 Apple Watch 앱, 각 �
 iOS Live Activity를 하나의 저장소에서 관리하며, 공통 모델과 서비스는 로컬 Swift
 Package로 공유한다.
 
-현재 기준은 `EasyTaskSchemaV8`, 위젯 snapshot v5, 백업 package V7, 앱 버전 `1.0`,
-iOS·watchOS build 61과 macOS build 60이다.
+현재 소스 기준은 `EasyTaskSchemaV9`, 위젯 snapshot v5, 백업 package V8, 앱 버전 `1.0`이다.
+마지막 업로드본은 V9 기준의 iOS·iPadOS·watchOS 및 macOS build 62다.
 
 ## 디렉터리 구성
 

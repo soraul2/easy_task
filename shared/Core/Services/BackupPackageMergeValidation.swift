@@ -13,7 +13,26 @@ extension BackupPackageCodec {
     }
 
     static func sameMemo(_ dto: MemoDTO, _ memo: Memo) -> Bool {
-        memo.content == dto.content && memo.isPinned == dto.isPinned
+        memo.content == dto.content &&
+            memo.isPinned == dto.isPinned &&
+            memo.preferredModeRawValue == (
+                dto.preferredModeRawValue ?? MemoEditorMode.text.rawValue
+            )
+    }
+
+    static func sameMemoDrawing(_ dto: MemoDrawingDTO, _ drawing: MemoDrawing) -> Bool {
+        drawing.memoId == dto.memoId && drawing.drawingData == dto.drawingData
+    }
+
+    static func sameMemoChecklistItem(
+        _ dto: MemoChecklistItemDTO,
+        _ item: MemoChecklistItem
+    ) -> Bool {
+        item.memoId == dto.memoId &&
+            item.title == dto.title &&
+            item.isCompleted == dto.isCompleted &&
+            item.order == dto.order &&
+            item.completedAt == dto.completedAt
     }
 
     static func sameTaskCompletionActivity(

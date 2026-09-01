@@ -240,6 +240,8 @@ extension BackupPackageCodec {
                 }
                 current.content = dto.content
                 current.isPinned = dto.isPinned
+                current.preferredModeRawValue = dto.preferredModeRawValue
+                    ?? MemoEditorMode.text.rawValue
                 current.createdAt = min(current.createdAt, dto.createdAt)
                 current.updatedAt = dto.updatedAt
                 current.supersededAt = nil
@@ -250,11 +252,124 @@ extension BackupPackageCodec {
                     instanceID: instanceID,
                     content: dto.content,
                     isPinned: dto.isPinned,
+                    preferredMode: dto.preferredModeRawValue
+                        .flatMap(MemoEditorMode.init(rawValue:)) ?? .text,
                     createdAt: dto.createdAt,
                     updatedAt: dto.updatedAt
                 )
                 context.insert(memo)
                 existing[instanceID] = memo
+                report.insertedRecords += 1
+            }
+        }
+    }
+
+    @MainActor
+    static func mergeMemoDrawings(
+        _ incoming: [MemoDrawingDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<MemoDrawing>()),
+            recordType: "MemoDrawing",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            guard let instanceID = dto.instanceID else {
+                throw BackupPackageError.invalidRecordMetadata(
+                    recordType: "MemoDrawing",
+                    id: dto.id
+                )
+            }
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "MemoDrawing",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard sameMemoDrawing(dto, current) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "MemoDrawing",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.memoId = dto.memoId
+                current.drawingData = dto.drawingData
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let drawing = MemoDrawing(dto: dto)
+                context.insert(drawing)
+                existing[instanceID] = drawing
+                report.insertedRecords += 1
+            }
+        }
+    }
+
+    @MainActor
+    static func mergeMemoChecklistItems(
+        _ incoming: [MemoChecklistItemDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<MemoChecklistItem>()),
+            recordType: "MemoChecklistItem",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            guard let instanceID = dto.instanceID else {
+                throw BackupPackageError.invalidRecordMetadata(
+                    recordType: "MemoChecklistItem",
+                    id: dto.id
+                )
+            }
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "MemoChecklistItem",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard sameMemoChecklistItem(dto, current) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "MemoChecklistItem",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.memoId = dto.memoId
+                current.title = dto.title
+                current.isCompleted = dto.isCompleted
+                current.order = dto.order
+                current.completedAt = dto.completedAt
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let item = MemoChecklistItem(dto: dto)
+                context.insert(item)
+                existing[instanceID] = item
                 report.insertedRecords += 1
             }
         }

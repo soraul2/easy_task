@@ -134,7 +134,7 @@ for configuration in Debug Release; do
     -project PlanBase.xcodeproj \
     -scheme PlanBase-iOS \
     -configuration "$configuration" \
-    -sdk iphonesimulator \
+    -destination "generic/platform=iOS Simulator" \
     -derivedDataPath "$derived_root/iOS-$configuration" \
     CODE_SIGNING_ALLOWED=NO \
     build

@@ -5,12 +5,12 @@ import SwiftData
 
 public enum BackupPackageCodec {
     public static let formatIdentifier = PlanBaseCompatibility.backupFormatIdentifier
-    public static let currentVersion = 7
-    public static let supportedVersions: ClosedRange<Int> = 2...7
+    public static let currentVersion = 8
+    public static let supportedVersions: ClosedRange<Int> = 2...8
     public static let manifestFileName = "manifest.json"
     public static let recordsFileName = "records.json"
     public static let attachmentsDirectoryName = "attachments"
-    public static let maximumMetadataSizeBytes = 10 * 1_024 * 1_024
+    public static let maximumMetadataSizeBytes = 200 * 1_024 * 1_024
     public static let maximumTotalAttachmentBytes = 200 * 1_024 * 1_024
 
     @MainActor
@@ -535,6 +535,14 @@ private extension BackupPackageCodec {
         try validateInstanceIDs(
             (payload.memos ?? []).map { ($0.id, $0.instanceID) },
             recordType: "Memo"
+        )
+        try validateInstanceIDs(
+            (payload.memoDrawings ?? []).map { ($0.id, $0.instanceID) },
+            recordType: "MemoDrawing"
+        )
+        try validateInstanceIDs(
+            (payload.memoChecklistItems ?? []).map { ($0.id, $0.instanceID) },
+            recordType: "MemoChecklistItem"
         )
         try validateInstanceIDs(
             (payload.taskCompletionActivities ?? []).map {
