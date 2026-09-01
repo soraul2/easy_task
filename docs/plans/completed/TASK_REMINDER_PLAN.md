@@ -1,5 +1,8 @@
 # PlanBase Task 알림 구현 계획
 
+문서 상태: 1회성 알림 최초 구현 완료 기록. 현재 완료·재개 보존 정책과 남은 실기기
+인수는 아래 후속 문서를 기준으로 한다.
+
 > 완료 상태 전환 시 알림 시각을 삭제하지 않고 보존하는 후속 정책은
 > [`TASK_REMINDER_COMPLETION_RETENTION_PLAN.md`](../active/TASK_REMINDER_COMPLETION_RETENTION_PLAN.md)를 따른다.
 

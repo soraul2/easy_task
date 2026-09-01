@@ -2,6 +2,11 @@
 
 기준일: 2026-07-24
 
+문서 상태: 완료 당시 구조 정리 스냅샷이다. 2026-09-01 현재 V8 구조와 이후 분리 결과는
+[`AGENTS.md`](../AGENTS.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
+[`접근성·문구·문서·파일 구조 개선 완료 기록`](plans/completed/ACCESSIBILITY_AND_MAINTAINABILITY_PLAN.md)을
+기준으로 한다. 아래 V1~V6 표기와 테스트 개수는 당시 검증 기록으로 보존한다.
+
 ## 목표와 변경 경계
 
 동작, 데이터 의미, 배포 호환성을 바꾸지 않고 파일 책임과 탐색 경로를 명확하게 한다.

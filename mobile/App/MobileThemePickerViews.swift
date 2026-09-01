@@ -1,0 +1,189 @@
+#if os(iOS)
+import PlanBaseCore
+import SwiftUI
+
+struct MobileThemePickerSheet: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedThemeID: String
+    @State private var selectedSection = MobileThemePickerSection.palette
+
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: 148, maximum: 220), spacing: 12)]
+    }
+
+    private var brightPresets: [AppThemePreset] {
+        AppThemePreset.all.filter { !$0.isDarkTheme }
+    }
+
+    private var darkPresets: [AppThemePreset] {
+        AppThemePreset.all.filter(\.isDarkTheme)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("테마 설정", selection: $selectedSection) {
+                    ForEach(MobileThemePickerSection.allCases) { section in
+                        Text(section.title).tag(section)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                switch selectedSection {
+                case .palette:
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Label("테마 미리보기", systemImage: "paintpalette.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppTheme.primaryText)
+
+                                Text("선택한 테마의 밝기와 색상은 시스템 모드와 관계없이 동일하게 유지됩니다.")
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Label("밝은 테마", systemImage: "sun.max.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                            themeGrid(brightPresets)
+
+                            Label("다크 테마", systemImage: "moon.stars.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                            themeGrid(darkPresets)
+                        }
+                        .padding(16)
+                    }
+                case .activity:
+                    ActivityHeatmapThemeEditor(themeID: selectedThemeID)
+                        .padding(16)
+                }
+            }
+            .background(AppTheme.background)
+            .navigationTitle("테마")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("완료") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.background)
+    }
+
+    private func themeGrid(_ presets: [AppThemePreset]) -> some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(presets) { preset in
+                MobileThemePresetCard(
+                    preset: preset,
+                    appearance: AppThemeAppearance(colorScheme: colorScheme),
+                    isSelected: selectedThemeID == preset.id
+                ) {
+                    ThemePreferenceStore.shared.setSelectedThemeID(preset.id)
+                    AppTheme.activate(preset.id, colorScheme: colorScheme)
+                    selectedThemeID = preset.id
+                }
+            }
+        }
+    }
+}
+
+private enum MobileThemePickerSection: String, CaseIterable, Identifiable {
+    case palette
+    case activity
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .palette: "앱 색상"
+        case .activity: "활동 그래프"
+        }
+    }
+}
+
+private struct MobileThemePresetCard: View {
+    var preset: AppThemePreset
+    var appearance: AppThemeAppearance
+    var isSelected: Bool
+    var action: () -> Void
+
+    private var colors: AppThemeColorSet {
+        preset.colorSet(for: appearance)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 8) {
+                    Text(preset.name)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(colors.primaryText.color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? colors.event.color : colors.secondaryText.color)
+                }
+
+                HStack(spacing: 0) {
+                    ForEach(Array(preset.sourceColors.enumerated()), id: \.offset) { _, color in
+                        color.frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(colors.border.color.opacity(0.75), lineWidth: 1)
+                }
+
+                HStack(spacing: 6) {
+                    themeSample(color: colors.todo, symbol: "circle")
+                    themeSample(color: colors.doing, symbol: "arrow.right")
+                    themeSample(color: colors.done, symbol: "checkmark")
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+            .background(colors.panel.color, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        isSelected ? colors.event.color : colors.border.color,
+                        lineWidth: isSelected ? 2 : 1
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(preset.name) 테마")
+        .accessibilityValue(isSelected ? "선택됨" : "")
+        .accessibilityHint(isSelected ? "현재 적용된 테마" : "두 번 탭하여 테마 적용")
+    }
+
+    private func themeSample(color: ThemeColorToken, symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(colors.resolvedCardForeground(on: color).color)
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+            .background(color.color, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+#endif

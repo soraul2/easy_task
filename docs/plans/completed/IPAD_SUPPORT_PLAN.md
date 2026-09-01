@@ -4,6 +4,9 @@
 
 상태: 완료
 
+최종 확인: 2026-09-01 universal target과 iPad simulator 회귀가 build 60 전체 빌드에서
+유지됐다. 개별 기능의 좁은 Split View 수동 인수는 해당 active 계획에서 추적한다.
+
 ## 1. 목표
 
 현재 iPhone 전용으로 배포되는 PlanBase iOS 앱을 iPhone과 iPad를 함께 지원하는

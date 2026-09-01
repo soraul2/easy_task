@@ -1,6 +1,8 @@
 # PlanBase macOS·iPhone 기능 정합성 개선 계획
 
 기준일: 2026-07-24
+최종 갱신: 2026-09-01
+상태: 기능·자동 회귀·양 플랫폼 build 60 업로드 완료, 수동 백업·CloudKit 왕복 인수 대기
 
 ## 1. 목표
 
@@ -17,8 +19,9 @@ macOS와 iPhone 앱이 같은 SwiftData·CloudKit 데이터를 같은 의미로 
 
 ## 2. 변경 경계
 
-- 배포된 `EasyTaskSchemaV1`~`V7`은 직접 변경하지 않는다. 이 정합성 계획 자체는 새 schema를
-  추가하지 않으며, 별도 기능에서 새 모델이 필요하면 다음 버전과 migration stage를 사용한다.
+- 동결된 `EasyTaskSchemaV1`~`V7`과 현재 V8은 직접 변경하지 않는다. 이 정합성 계획 자체는
+  새 schema를 추가하지 않으며, 별도 기능에서 새 모델이 필요하면 다음 버전과 migration
+  stage를 사용한다.
 - bundle ID, CloudKit container, App Group, 백업 UTI와 확장자를 변경하지 않는다.
 - 기존 `PlanBaseCore` 서비스와 `PersistenceCommandService.perform` 경계를 재사용한다.
 - CloudKit 중복 수렴, `instanceID`, `supersededAt` 규칙을 우회하지 않는다.
@@ -27,7 +30,7 @@ macOS와 iPhone 앱이 같은 SwiftData·CloudKit 데이터를 같은 의미로 
 - 현재 진행 중인 캘린더·위젯 디자인 변경을 먼저 독립적으로 정리한 뒤
   clean `main`에서 정합성 작업을 시작한다.
 
-## 3. 현재 판정
+## 3. 계획 수립 당시 판정
 
 ### 공통 기반이 이미 일치하는 영역
 
@@ -146,7 +149,7 @@ iPhone 책임이다. 기존 알림 계획에서 macOS 읽기 전용을 명시적
   - 대형 위젯 이벤트 제목 7pt는 active density 계획의 8pt 목표보다 작고, 더 최근
     캘린더 경험 계획의 11pt 기준과도 충돌한다. 11pt를 현재 승인 기준으로 적용하며,
     다른 크기를 채택하려면 실기기 근거와 함께 계획을 먼저 개정한다.
-  - 기록 카드의 `상세보기`가 실제로는 날짜 칸반보드를 여는 동작임을 문구에서 명확히 한다.
+  - [x] 기록 카드 문구를 실제 날짜 칸반보드 이동과 일치하는 `보드 열기`로 명확히 했다.
 - [ ] 아래 수동 fixture를 양 플랫폼에 준비한다.
   - 일정 메모 있음/없음
   - 오늘 작업과 이전 날짜 미완료 작업
@@ -327,8 +330,8 @@ iPhone 책임이다. 기존 알림 계획에서 macOS 읽기 전용을 명시적
 - `PlanBaseLaunchUITests` 10건 통과
 - iOS·macOS Debug/Release 빌드 통과
 
-모든 자동 검증과 실기기 승인 항목이 끝난 뒤에만 TestFlight와 macOS 배포용 archive를
-생성한다.
+자동 검증과 서명 archive·업로드는 build 60에서 완료했다. 위 세 수동 항목은 배포
+산출물 생성 조건이 아니라 기능 정합성 계획의 최종 승인 조건으로 유지한다.
 
 `verify-platform-builds.sh`가 포함하지 않는 iOS 테스트는 별도로 실행한다.
 

@@ -108,7 +108,6 @@ struct MobileCalendarView: View {
                     onShowTemplates: { sheet = .templates },
                     onAddEvent: { sheet = .addEvent(selectedDate) }
                 )
-                .dynamicTypeSize(.xSmall ... .xxxLarge)
                 if let placementTemplate {
                     CalendarTemplatePlacementStatus(
                         templateName: placementTemplate.name,

@@ -21,6 +21,8 @@ enum PlanBaseTaskIntentRuntime {
 private final class PlanBaseTaskIntentCommandExecutor:
     PlanBaseTaskIntentCommandHandling,
     @unchecked Sendable {
+    private static var actionGate = PlanBaseTaskIntentActionGate()
+
     private let modelContainer: ModelContainer
 
     init(modelContainer: ModelContainer) {
@@ -59,6 +61,7 @@ private final class PlanBaseTaskIntentCommandExecutor:
             }
 
         case .complete(let taskID, let taskSessionID):
+            guard Self.actionGate.canAccept(at: now) else { return }
             let task = try validatedCurrentTask(
                 id: taskID,
                 sessionID: taskSessionID,
@@ -76,9 +79,11 @@ private final class PlanBaseTaskIntentCommandExecutor:
                     now: now
                 )
             }
+            Self.actionGate.recordAccepted(at: now)
             TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])
 
         case .advance(let taskID, let taskSessionID):
+            guard Self.actionGate.canAccept(at: now) else { return }
             let task = try validatedCurrentTask(
                 id: taskID,
                 sessionID: taskSessionID,
@@ -109,6 +114,7 @@ private final class PlanBaseTaskIntentCommandExecutor:
                     )
                 }
             }
+            Self.actionGate.recordAccepted(at: now)
         }
 
         let themeID = UserDefaults.standard.string(forKey: AppTheme.storageKey)
@@ -140,6 +146,26 @@ private final class PlanBaseTaskIntentCommandExecutor:
             throw PlanBaseTaskIntentRuntimeError.staleTask
         }
         return task
+    }
+}
+
+struct PlanBaseTaskIntentActionGate {
+    static let defaultMinimumInterval: TimeInterval = 1
+
+    private let minimumInterval: TimeInterval
+    private var lastAcceptedAt: Date?
+
+    init(minimumInterval: TimeInterval = Self.defaultMinimumInterval) {
+        self.minimumInterval = minimumInterval
+    }
+
+    func canAccept(at now: Date) -> Bool {
+        guard let lastAcceptedAt else { return true }
+        return now.timeIntervalSince(lastAcceptedAt) >= minimumInterval
+    }
+
+    mutating func recordAccepted(at now: Date) {
+        lastAcceptedAt = now
     }
 }
 

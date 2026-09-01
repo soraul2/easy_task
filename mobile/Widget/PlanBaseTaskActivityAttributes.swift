@@ -12,6 +12,7 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
         let hasNextTask: Bool
         let requiresCompletionConfirmation: Bool
         let elapsedTimerStartedAt: Date
+        let themeID: String?
 
         private enum CodingKeys: String, CodingKey {
             case taskSessionID
@@ -21,10 +22,33 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
             case totalCount
             case hasNextTask
             case requiresCompletionConfirmation
+            case themeID
 
             // build 44 used this wire key for the current session start.
             // Keeping it allows an in-flight Live Activity to survive an app update.
             case elapsedTimerStartedAt = "updatedAt"
+        }
+
+        init(
+            taskSessionID: String,
+            taskID: UUID,
+            title: String,
+            completedCount: Int,
+            totalCount: Int,
+            hasNextTask: Bool,
+            requiresCompletionConfirmation: Bool,
+            elapsedTimerStartedAt: Date,
+            themeID: String? = nil
+        ) {
+            self.taskSessionID = taskSessionID
+            self.taskID = taskID
+            self.title = title
+            self.completedCount = completedCount
+            self.totalCount = totalCount
+            self.hasNextTask = hasNextTask
+            self.requiresCompletionConfirmation = requiresCompletionConfirmation
+            self.elapsedTimerStartedAt = elapsedTimerStartedAt
+            self.themeID = themeID
         }
 
         var progressValue: Double {

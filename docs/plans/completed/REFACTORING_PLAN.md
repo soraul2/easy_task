@@ -1,8 +1,9 @@
 # PlanBase UI Refactoring Plan
 
 > 완료 기록: 아래 줄 수는 각 단계 완료 당시의 스냅샷이다. 이후 기능 추가로 현재
-> 파일 크기는 달라졌으며, 현재 정리 작업은
-> [`STRUCTURE_CLEANUP_CHECKLIST.md`](../../STRUCTURE_CLEANUP_CHECKLIST.md)에서 추적한다.
+> 파일 크기는 달라졌다. 2026-09-01 현재 구조는
+> [`AGENTS.md`](../../../AGENTS.md)와
+> [`접근성·문구·문서·파일 구조 개선 기록`](ACCESSIBILITY_AND_MAINTAINABILITY_PLAN.md)을 따른다.
 
 ## 목표
 

@@ -255,155 +255,11 @@ struct DiaryView: View {
     }
 
     private var taskSummarySection: some View {
-        DisclosureGroup(isExpanded: $isTaskSummaryExpanded) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("그날 계획한 일")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.secondaryText)
-
-                if taskSummary.totalCount == 0 {
-                    Text("이 날짜에 계획한 작업이 없습니다")
-                        .font(.callout)
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 2)
-                } else {
-                    taskGroup(
-                        title: "완료",
-                        systemImage: "checkmark.circle.fill",
-                        color: AppTheme.done,
-                        items: taskSummary.completed
-                    )
-                    taskGroup(
-                        title: "진행 중",
-                        systemImage: "clock.fill",
-                        color: AppTheme.doing,
-                        items: taskSummary.inProgress
-                    )
-                    taskGroup(
-                        title: "할 일",
-                        systemImage: "circle",
-                        color: AppTheme.todo,
-                        items: taskSummary.pending
-                    )
-                }
-
-                Divider()
-                    .overlay(AppTheme.border)
-
-                Text("그날 실제 완료한 일")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.secondaryText)
-
-                if taskSummary.actualCompleted.isEmpty {
-                    Text("이 날짜에 완료한 작업이 없습니다")
-                        .font(.callout)
-                        .foregroundStyle(AppTheme.secondaryText)
-                } else {
-                    taskGroup(
-                        title: "완료",
-                        systemImage: "checkmark.circle.fill",
-                        color: AppTheme.done,
-                        items: taskSummary.actualCompleted,
-                        showsPlannedDate: true
-                    )
-                }
-            }
-            .padding(.top, 14)
-        } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("작업 요약")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-
-                HStack(spacing: 8) {
-                    summaryCountChip(
-                        title: "완료",
-                        count: taskSummary.completed.count,
-                        color: AppTheme.done
-                    )
-                    summaryCountChip(
-                        title: "진행 중",
-                        count: taskSummary.inProgress.count,
-                        color: AppTheme.doing
-                    )
-                    summaryCountChip(
-                        title: "할 일",
-                        count: taskSummary.pending.count,
-                        color: AppTheme.todo
-                    )
-                    summaryCountChip(
-                        title: "실제 완료",
-                        count: taskSummary.actualCompleted.count,
-                        color: AppTheme.done
-                    )
-                }
-            }
-        }
-        .tint(AppTheme.secondaryText)
-        .padding(16)
-        .background(AppTheme.input.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-        .accessibilityIdentifier("desktop-review-task-summary")
-    }
-
-    private func summaryCountChip(title: String, count: Int, color: Color) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text("\(title) \(count)")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.16), in: Capsule())
-    }
-
-    @ViewBuilder
-    private func taskGroup(
-        title: String,
-        systemImage: String,
-        color: Color,
-        items: [DailyReviewTaskSummaryItem],
-        showsPlannedDate: Bool = false
-    ) -> some View {
-        if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.secondaryText)
-
-                ForEach(items) { item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(color)
-                            .frame(width: 16)
-
-                        Text(item.title)
-                            .font(.callout)
-                            .foregroundStyle(AppTheme.primaryText)
-                            .lineLimit(2)
-
-                        Spacer(minLength: 8)
-
-                        if let detailText = taskDetailText(
-                            for: item,
-                            showsPlannedDate: showsPlannedDate
-                        ) {
-                            Text(detailText)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.secondaryText)
-                        }
-                    }
-                }
-            }
-        }
+        DesktopDiaryTaskSummarySection(
+            summary: taskSummary,
+            selectedDayKey: selectedDayKey,
+            isExpanded: $isTaskSummaryExpanded
+        )
     }
 
     private var titleSection: some View {
@@ -458,176 +314,24 @@ struct DiaryView: View {
     }
 
     private var writingPromptPicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("어디서 시작할까요?")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-
-            Text("질문을 고르면 회고에 소제목을 만들어드려요.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.secondaryText)
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 120), spacing: 8)],
-                alignment: .leading,
-                spacing: 8
-            ) {
-                ForEach(DailyReviewWritingPrompt.allCases) { prompt in
-                    let isAdded = DailyReviewWritingRules.contains(
-                        prompt,
-                        in: content
-                    )
-                    Button {
-                        addWritingPrompt(prompt)
-                    } label: {
-                        Label(
-                            prompt.title,
-                            systemImage: isAdded ? "checkmark" : "plus"
-                        )
-                        .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 30)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isAdded)
-                    .accessibilityLabel(
-                        isAdded
-                            ? "\(prompt.title) 항목 추가됨"
-                            : "\(prompt.title) 항목 추가"
-                    )
-                    .accessibilityHint(
-                        isAdded
-                            ? ""
-                            : "회고 본문에 소제목을 추가하고 입력을 시작합니다"
-                    )
-                }
-            }
-        }
-        .padding(12)
-        .background(AppTheme.input.opacity(0.72), in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-        .accessibilityIdentifier("desktop-review-writing-prompts")
+        DesktopDiaryWritingPromptPicker(
+            content: content,
+            onSelect: addWritingPrompt
+        )
     }
 
     private var imageSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Text("이미지")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-
-                if hasImages {
-                    Text("\(selectedImageIndex + 1)/\(displayedImages.count)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
-
-                Spacer()
-
-                Button(action: addImages) {
-                    if isImportingImages {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("이미지 추가", systemImage: "photo.badge.plus")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(
-                    isImportingImages ||
-                        isSaving ||
-                        hasLegacyImageReferences ||
-                        attachmentDrafts.count >= DiaryAttachmentService.maximumAttachmentCount
-                )
-                .help(hasLegacyImageReferences ? "이전 이미지를 정리한 뒤 추가할 수 있습니다" : "이미지 추가")
-            }
-
-            if hasImages {
-                inlineImagePreview
-            }
-        }
-    }
-
-    private var inlineImagePreview: some View {
-        ZStack {
-            if let image = displayedImages[safe: selectedImageIndex] {
-                DiaryImageView(request: image.request)
-                    .id(image.id)
-            }
-
-            VStack {
-                HStack {
-                    Spacer()
-
-                    if canRemoveSelectedImage {
-                        Button(role: .destructive, action: removeSelectedImage) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
-                                .frame(width: 30, height: 30)
-                                .background(.black.opacity(0.52), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.white)
-                        .help("현재 이미지 삭제")
-                    }
-                }
-
-                Spacer()
-            }
-            .padding(10)
-
-            HStack {
-                if selectedImageIndex > 0 {
-                    carouselButton(systemName: "chevron.left") {
-                        moveImageSelection(-1)
-                    }
-                }
-
-                Spacer()
-
-                if selectedImageIndex < displayedImages.count - 1 {
-                    carouselButton(systemName: "chevron.right") {
-                        moveImageSelection(1)
-                    }
-                }
-            }
-            .padding(.horizontal, 10)
-
-            if displayedImages.count > 1 {
-                VStack {
-                    Spacer()
-                    carouselDots
-                }
-                .padding(.bottom, 10)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(16 / 10, contentMode: .fit)
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-    }
-
-    private var carouselDots: some View {
-        HStack(spacing: 6) {
-            ForEach(displayedImages.indices, id: \.self) { index in
-                Circle()
-                    .fill(
-                        index == selectedImageIndex
-                            ? AppTheme.primaryText
-                            : AppTheme.secondaryText.opacity(0.45)
-                    )
-                    .frame(width: 6, height: 6)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(AppTheme.floatingBar.opacity(0.86), in: Capsule())
+        DesktopDiaryAttachmentSection(
+            images: displayedImages,
+            selectedImageIndex: $selectedImageIndex,
+            isImportingImages: isImportingImages,
+            isSaving: isSaving,
+            hasLegacyImageReferences: hasLegacyImageReferences,
+            attachmentDraftCount: attachmentDrafts.count,
+            canRemoveSelectedImage: canRemoveSelectedImage,
+            onAddImages: addImages,
+            onRemoveSelectedImage: removeSelectedImage
+        )
     }
 
     private var footer: some View {
@@ -671,23 +375,6 @@ struct DiaryView: View {
                 .accessibilityIdentifier("desktop-review-save-button")
             }
         }
-    }
-
-    private func carouselButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
-                .frame(width: 34, height: 34)
-                .background(.black.opacity(0.46), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white)
-    }
-
-    private func moveImageSelection(_ offset: Int) {
-        guard hasImages else { return }
-        let nextIndex = selectedImageIndex + offset
-        selectedImageIndex = min(max(nextIndex, 0), displayedImages.count - 1)
     }
 
     private func loadSelectedReview() {
@@ -956,31 +643,6 @@ struct DiaryView: View {
         onDirtyChange(false)
         self.pendingDate = nil
         selectedDate = DayKey.startOfDay(for: pendingDate)
-    }
-
-    private func carryoverText(for item: DailyReviewTaskSummaryItem) -> String? {
-        guard item.isCarryover,
-              let date = DayKey.date(from: item.plannedDayKey) else { return nil }
-        let components = Calendar.current.dateComponents([.month, .day], from: date)
-        guard let month = components.month, let day = components.day else { return nil }
-        return "\(month)월 \(day)일에서 이월"
-    }
-
-    private func taskDetailText(
-        for item: DailyReviewTaskSummaryItem,
-        showsPlannedDate: Bool
-    ) -> String? {
-        if showsPlannedDate, item.plannedDayKey != selectedDayKey {
-            guard let date = DayKey.date(from: item.plannedDayKey) else {
-                return "계획 \(item.plannedDayKey)"
-            }
-            let components = DayKey.calendar.dateComponents([.month, .day], from: date)
-            guard let month = components.month, let day = components.day else {
-                return "계획 \(item.plannedDayKey)"
-            }
-            return "계획 \(month)월 \(day)일"
-        }
-        return carryoverText(for: item)
     }
 
     private func normalizedFileName(_ fileName: String?) -> String? {

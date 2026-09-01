@@ -158,16 +158,18 @@ final class PlanBaseLaunchUITests: XCTestCase {
         ]
         app.launch()
 
-        XCTAssertTrue(
-            app.scrollViews["board-accessibility-scroll"]
-                .waitForExistence(timeout: 15)
-        )
-        XCTAssertTrue(
-            app.staticTexts["board-date-title"].waitForExistence(timeout: 5)
-        )
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 15))
+        let dateTitle = app.staticTexts["board-date-title"]
+        XCTAssertTrue(dateTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(isHorizontallyContained(dateTitle, in: window))
+        let eventSummary = app.staticTexts["board-event-summary"].firstMatch
+        XCTAssertTrue(eventSummary.waitForExistence(timeout: 5))
+        XCTAssertTrue(isHorizontallyContained(eventSummary, in: window))
         XCTAssertTrue(
             app.buttons["board-status-filter-menu"].waitForExistence(timeout: 5)
         )
+        addReferenceScreenshot(named: "iPhone-Board-Accessibility-Header")
 
         let taskTitle = "오늘 처리할 작업 빠르게 추가해보기"
         let editButton = app.buttons["\(taskTitle) 작업 편집"]
@@ -182,15 +184,32 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
 
         tabBar.buttons["캘린더"].tap()
-        XCTAssertTrue(app.buttons["이벤트 추가"].waitForExistence(timeout: 10))
+        let monthTitle = app.staticTexts["calendar-month-title"]
+        XCTAssertTrue(monthTitle.waitForExistence(timeout: 10))
+        XCTAssertTrue(isHorizontallyContained(monthTitle, in: window))
+        let addEventButton = app.buttons["이벤트 추가"]
+        XCTAssertTrue(addEventButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(addEventButton.isHittable)
         addReferenceScreenshot(named: "iPhone-Calendar-Accessibility-Text")
 
         tabBar.buttons["기록"].tap()
-        XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
+        let archiveFilter = app.buttons["기록 필터"]
+        XCTAssertTrue(archiveFilter.waitForExistence(timeout: 10))
+        XCTAssertTrue(archiveFilter.isHittable)
+        let boardButton = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "archive-open-board-button-"
+            )
+        ).firstMatch
+        XCTAssertTrue(scrollToHittable(boardButton, in: app))
+        XCTAssertTrue(boardButton.isHittable)
         addReferenceScreenshot(named: "iPhone-Archive-Accessibility-Text")
 
         tabBar.buttons["메모"].tap()
-        XCTAssertTrue(app.buttons["새 메모"].waitForExistence(timeout: 10))
+        let newMemoButton = app.buttons["새 메모"]
+        XCTAssertTrue(newMemoButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(newMemoButton.isHittable)
         addReferenceScreenshot(named: "iPhone-Memo-Accessibility-Text")
     }
 
@@ -238,18 +257,18 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(archiveTab.waitForExistence(timeout: 15))
         archiveTab.tap()
 
-        let disclosure = app.buttons["그날 완료한 일 펼치기"].firstMatch
-        XCTAssertTrue(disclosure.waitForExistence(timeout: 10))
+        let todayDayKey = localDayKey(Date())
+        let disclosure = app.buttons["archive-task-disclosure-\(todayDayKey)"]
+        XCTAssertTrue(scrollToHittable(disclosure, in: app))
         let completedTaskTitle = app.staticTexts["완료 영역 접힘 확인"]
         XCTAssertFalse(completedTaskTitle.exists)
 
         disclosure.tap()
         XCTAssertTrue(completedTaskTitle.waitForExistence(timeout: 5))
 
-        let boardButton = app.buttons.matching(
-            NSPredicate(format: "label ENDSWITH %@", "칸반보드 열기")
-        ).firstMatch
+        let boardButton = app.buttons["archive-open-board-button-\(todayDayKey)"]
         XCTAssertTrue(boardButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(boardButton.label.hasSuffix("칸반보드 열기"))
         boardButton.tap()
         XCTAssertTrue(
             app.textFields["해당 날짜에 할 일 입력"]
@@ -827,6 +846,15 @@ final class PlanBaseLaunchUITests: XCTestCase {
         return formatter.string(from: date)
     }
 
+    private func localDayKey(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
     @MainActor
     private func scrollToHittable(
         _ element: XCUIElement,
@@ -847,6 +875,17 @@ final class PlanBaseLaunchUITests: XCTestCase {
             scrollable.swipeDown(velocity: velocity)
         }
         return element.exists && element.isHittable
+    }
+
+    @MainActor
+    private func isHorizontallyContained(
+        _ element: XCUIElement,
+        in container: XCUIElement,
+        tolerance: CGFloat = 1
+    ) -> Bool {
+        guard element.exists, container.exists else { return false }
+        return element.frame.minX >= container.frame.minX - tolerance &&
+            element.frame.maxX <= container.frame.maxX + tolerance
     }
 
     @MainActor

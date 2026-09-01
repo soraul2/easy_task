@@ -9,8 +9,34 @@ struct CalendarHeader: View {
     var onShowTheme: () -> Void
     var onShowTemplates: () -> Void
     var onAddEvent: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    monthNavigation
+                    if showsActions {
+                        HStack(spacing: 4) {
+                            Spacer(minLength: 0)
+                            calendarActions
+                        }
+                    }
+                }
+            } else {
+                HStack(spacing: 2) {
+                    monthNavigation
+                    Spacer(minLength: 0)
+                    if showsActions {
+                        calendarActions
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private var monthNavigation: some View {
         HStack(spacing: 2) {
             Button { moveMonth(by: -1) } label: {
                 Image(systemName: "chevron.left")
@@ -23,9 +49,11 @@ struct CalendarHeader: View {
 
             Text(DayKey.monthTitle(visibleMonth))
                 .font(.headline.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("calendar-month-title")
 
             Button { moveMonth(by: 1) } label: {
                 Image(systemName: "chevron.right")
@@ -35,55 +63,52 @@ struct CalendarHeader: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("다음 달")
-
-            Spacer(minLength: 0)
-
-            if showsActions {
-                HStack(spacing: 2) {
-                    if !DayKey.isSameMonth(visibleMonth, Date()) {
-                        Button("오늘") {
-                            moveToToday()
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minWidth: 44, minHeight: 44)
-                        .buttonStyle(.plain)
-                        .accessibilityHint("이번 달로 이동합니다")
-                    }
-
-                    Menu {
-                        Button {
-                            onShowTheme()
-                        } label: {
-                            Label("테마 선택", systemImage: "paintpalette")
-                        }
-
-                        Button {
-                            onShowTemplates()
-                        } label: {
-                            Label("템플릿 배치", systemImage: "square.grid.3x3")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("캘린더 메뉴")
-
-                    Button {
-                        onAddEvent()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("이벤트 추가")
-                }
-            }
         }
-        .padding(.horizontal, 2)
+    }
+
+    private var calendarActions: some View {
+        HStack(spacing: 2) {
+            if !DayKey.isSameMonth(visibleMonth, Date()) {
+                Button("오늘") {
+                    moveToToday()
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(.plain)
+                .accessibilityHint("이번 달로 이동합니다")
+            }
+
+            Menu {
+                Button {
+                    onShowTheme()
+                } label: {
+                    Label("테마 선택", systemImage: "paintpalette")
+                }
+
+                Button {
+                    onShowTemplates()
+                } label: {
+                    Label("템플릿 배치", systemImage: "square.grid.3x3")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("캘린더 메뉴")
+
+            Button {
+                onAddEvent()
+            } label: {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("이벤트 추가")
+        }
     }
 
     private func moveMonth(by offset: Int) {

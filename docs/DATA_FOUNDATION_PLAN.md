@@ -6,7 +6,12 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 이미지, 백업, 빌드 타겟을 안정화한다. UI 기능 추가보다 데이터 손실과
 기기별 불일치를 막는 것을 우선한다.
 
-## 현재 기준점
+## 문서 상태와 현재 기준점
+
+이 문서는 2026-07의 데이터 기반 전환 순서와 당시 브랜치·태그를 보존하는 운영 기록이다.
+현재 구현 판단은 아래 최신 상태와 [`ARCHITECTURE.md`](ARCHITECTURE.md)를 우선한다.
+
+### 최초 계획 기준점
 
 - 기준 브랜치: `main`
 - 통합 브랜치: `feature/data-foundation`
@@ -18,14 +23,19 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 `v1.0.0-local-mvp`는 데이터 기반 작업 중 문제가 생겼을 때 돌아갈 수 있는
 복구 지점이다.
 
-## 현재 진행 상태 (2026-07-12)
+## 현재 진행 상태 (2026-09-01)
 
-- 작업 브랜치: `fix/runtime-resilience`
-- 공통 V4 모델과 private CloudKit 컨테이너 연결은 유지한다.
-- 컨테이너 개방 실패 복구 UI, 명시적 save/rollback, CloudKit 상태 화면과 이벤트별 오류 추적을 구현했다.
-- 자정·시간대 변경 시 의미상 날짜를 보존하고, 템플릿 배치는 날짜 키를 기준으로 다시 구성한다.
-- iOS/macOS 회고 이미지는 백그라운드 다운샘플·제한 캐시를 사용하며 기록 목록의 반복 첨부 검색을 제거했다.
-- 두 기기 수렴 검증, 기간·페이지 기반 fetch, 자동 백업과 UI 자동화는 아직 완료 조건이다.
+- 현재 영속 스키마는 `EasyTaskSchemaV8`이고 V1~V7은 동결되어 있다.
+- private CloudKit Development의 V8 양방향 progress create/delete probe와 Production
+  `TaskProgressEvent` 배포가 완료됐다.
+- 백업 package V7은 V2~V7을 읽고 Task 알림·체크리스트·메모·활동·진행 이벤트와 회고
+  첨부를 비파괴 병합한다.
+- bounded query/session, 컨테이너 복구 UI, save/rollback, 이미지 다운샘플·제한 캐시,
+  iOS/macOS 실행 UI 테스트와 전체 플랫폼 회귀 게이트가 구현됐다.
+- 앱 버전 `1.0`(build 60)의 iOS·macOS TestFlight archive는 앱·위젯 서명과
+  App Group·CloudKit 권한을 확인한 뒤 App Store Connect에 업로드됐다.
+- 남은 기반 인수 항목은 오프라인 동시 편집, 이미지 추가·삭제 후 재설치,
+  iCloud 로그아웃·재로그인과 자동 복구 백업 UX의 실제 기기 시나리오다.
 
 ## 핵심 원칙
 
@@ -166,6 +176,8 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 브랜치: `feature/media-backup-v2`
 
+상태: 완료 — 이후 V7 package까지 호환 확장
+
 - 회고 이미지의 원본을 `DiaryAttachment` 모델로 통합한다.
 - 첨부에는 ID, 회고 ID, 순서, MIME type, 크기, 해시, 생성/수정 시각과
   external storage 데이터가 들어간다.
@@ -253,7 +265,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 브랜치: `feature/cloudkit-sync`
 
-상태: 개발 컨테이너·iPhone 서명 설치 확인, macOS/iPhone 수렴 검증 진행 필요
+상태: 완료 — V8 Development 양방향 probe와 Production 배포까지 확인
 
 - 하나의 private CloudKit container ID를 iOS와 macOS에 적용한다.
 - iCloud entitlement와 remote notification capability를 두 타겟에 추가한다.
@@ -273,12 +285,17 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 공통 테스트 Debug 102개, Release 101개와 iOS/macOS Debug/Release unsigned build를 통과했다.
 - iOS Simulator 설치와 앱 시작을 통과했다.
 - 2026-07-11 macOS 기존 87개 레코드 브리지, CloudKit setup/import/export와 iPhone 서명 설치를 확인했다. 동일 Apple ID만으로 충분하다고 간주하지 않고 양 앱의 동일 컨테이너 entitlement, 개발 환경 레코드와 실제 수렴을 계속 확인한다.
+- 2026-07-12 macOS ↔ iPhone 기본 create/delete 전파를 고유 진단 레코드로 확인했다.
+- 2026-08-14 V7 활동 create/delete 양방향 probe를 통과하고
+  `TaskCompletionActivity`를 Production에 배포했다.
+- 2026-08-15 V8 진행 이벤트 create/delete 양방향 probe를 통과하고
+  `TaskProgressEvent`와 관련 인덱스를 Production에 배포했다.
 
 ### Phase 7.1. 저장·동기화 런타임 안정화
 
 브랜치: `fix/runtime-resilience`
 
-상태: 코드 검증 완료, 실기기 수렴 시나리오 대기
+상태: 코드·기본 양방향 수렴 완료, 명시적 충돌·재설치 인수 시나리오 유지
 
 - 저장소 개방 실패 시 `fatalError` 대신 원인 표시와 비파괴 재시도를 제공한다.
 - 주요 사용자 변경과 무결성 정리를 명시적 save/rollback 명령으로 처리한다.
@@ -299,7 +316,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ### Phase 8. 릴리스 안정화
 
-브랜치: `release/1.2.0`
+상태: 앱 버전 1.0(build 60) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
 
 - Debug/Release 양쪽 플랫폼 빌드와 UI smoke test를 통과한다.
 - iOS와 macOS launch UI smoke test 타겟을 추가해 앱 시작을 검증한다.
@@ -309,6 +326,18 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 데이터 기반 완료 태그: `v1.1.0-data-foundation`
 - 동기화 베타 태그: `v1.2.0-sync.beta.1`
 - 운영 동기화 태그: `v1.2.0`
+
+위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
+`CURRENT_PROJECT_VERSION = 60`이며, 태그는 저장소의 실제 릴리스 절차에서 별도로 확정한다.
+
+2026-09-01 검증 결과:
+
+- Debug SwiftPM 331개, Release SwiftPM 330개 통과
+- `PlanBaseMobileTests` 16개와 접근성 AX5·기록 이동·기본 글자 크기 UI smoke 통과
+- iOS/macOS Debug·Release 전체 빌드 회귀 게이트 통과
+- iOS/macOS 서명 archive의 앱·위젯 build 60, bundle ID, App Group, CloudKit 및 iOS
+  Live Activity 선언 검증 통과
+- 두 플랫폼 App Store Connect 업로드 성공, Apple package 처리 시작
 
 ## 멀티에이전트 작업 분배
 
@@ -365,8 +394,9 @@ macOS Xcode 타겟 생성 후에는 양쪽 공유 scheme의 Debug/Release 빌드
 
 ## 다음 실행 단위
 
-1. `feature/media-backup-v2`를 Debug/Release, 양 플랫폼 빌드와 독립 리뷰로 마감한다.
-2. 완료한 Phase 6 제한 조회를 iPhone/macOS 실기기 UI smoke test로 계측한다.
-3. 같은 iCloud 계정의 두 기기에서 오프라인 충돌·이미지·재설치·반복 병합 수렴을 검증한다.
-4. 자동 복구 백업과 복원 UX를 추가한다.
-5. 위 검증을 모두 통과하기 전에는 CloudKit 운영 스키마를 승격하지 않는다.
+1. 같은 iCloud 계정의 두 기기에서 오프라인 충돌·이미지·재설치·반복 병합 수렴을 검증한다.
+2. iCloud 로그아웃·재로그인과 시간대 전환 중 데이터·위젯·알림 재수렴을 확인한다.
+3. 실제 기기 Instruments로 대량 기록·이미지 스크롤과 bounded query 메모리를 계측한다.
+4. 자동 복구 백업과 복원 UX를 별도 계획으로 설계한다.
+5. 다음 schema를 추가할 때 V8 절차처럼 Development 양방향 probe를 완료한 뒤에만
+   Production에 배포한다.

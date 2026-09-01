@@ -1,6 +1,10 @@
 # PlanBase 프로젝트 구조
 
-PlanBase는 macOS 앱, iPhone 앱, iPhone 위젯을 하나의 저장소에서 관리하며, 공통 모델과 서비스는 로컬 Swift Package로 공유한다.
+PlanBase는 macOS 앱, iPhone·iPad 앱, iOS/macOS 위젯과 iOS Live Activity를 하나의
+저장소에서 관리하며, 공통 모델과 서비스는 로컬 Swift Package로 공유한다.
+
+현재 기준은 `EasyTaskSchemaV8`, 위젯 snapshot v5, 백업 package V7, 앱 버전
+`1.0`(build 60)이다.
 
 ## 디렉터리 구성
 
@@ -17,13 +21,14 @@ PlanBase/
 │   │   └── Theme/                # 앱 테마와 색상
 │   ├── PlanBaseCore/             # EasyTaskCore를 공개하는 re-export 계층
 │   ├── Resources/                # 앱 에셋과 컨테이너 마이그레이션 설정
+│   ├── WidgetSupport/            # 양 앱이 공유하는 WidgetKit snapshot publisher
 │   └── Tests/                    # 공통 단위·통합 테스트
 ├── desktop/
-│   ├── App/                      # macOS 앱, 화면, 플랫폼 서비스
+│   ├── App/                      # macOS 앱, 기능 화면, 루트·플랫폼 서비스
 │   └── Configuration/            # macOS plist·entitlements·배포 설정
 ├── mobile/
-│   ├── App/                      # iPhone 앱, 화면, 알림·위젯 연동
-│   ├── Widget/                   # 캘린더·잠금 화면 WidgetKit 확장
+│   ├── App/                      # iPhone·iPad 앱, 화면, 알림·위젯·Activity 연동
+│   ├── Widget/                   # iOS/macOS 캘린더·플래너, iOS 잠금 화면·Live Activity
 │   ├── Tests/                    # iOS 기능·통합·실행 테스트
 │   └── Configuration/            # iOS·위젯 plist·entitlements·배포 설정
 ├── docs/                         # 아키텍처·운영·기능 계획 문서
@@ -50,7 +55,8 @@ desktop/App · mobile/App · mobile/Widget
 | [`Package.swift`](Package.swift) | 공통 패키지 제품과 타겟 정의 |
 | [`desktop/App/PlanBaseDesktopApp.swift`](desktop/App/PlanBaseDesktopApp.swift) | macOS 앱 시작점 |
 | [`desktop/App/AppRootView.swift`](desktop/App/AppRootView.swift) | macOS 루트 화면 |
-| [`mobile/App/PlanBaseMobileApp.swift`](mobile/App/PlanBaseMobileApp.swift) | iPhone 앱 시작점과 루트 구성 |
+| [`mobile/App/PlanBaseMobileApp.swift`](mobile/App/PlanBaseMobileApp.swift) | iOS 앱 시작점과 저장소 개방·복구 |
+| [`mobile/App/MobileAppRootView.swift`](mobile/App/MobileAppRootView.swift) | iOS 탭·deep link·snapshot·Activity orchestration |
 | [`mobile/Widget/PlanBaseWidgetBundle.swift`](mobile/Widget/PlanBaseWidgetBundle.swift) | 위젯 확장 시작점 |
 | [`shared/PlanBaseCore/Exports.swift`](shared/PlanBaseCore/Exports.swift) | 공통 코어의 공개 API |
 | [`shared/Core/Persistence/PlanBaseCompatibility.swift`](shared/Core/Persistence/PlanBaseCompatibility.swift) | 배포 호환 식별자 기준 |

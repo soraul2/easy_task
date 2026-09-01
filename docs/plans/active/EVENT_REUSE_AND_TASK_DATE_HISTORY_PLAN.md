@@ -1,6 +1,8 @@
 # 일정 재사용과 계획일·완료일 기록 개선 계획
 
 기준일: 2026-07-25
+최종 갱신: 2026-09-01
+상태: 구현·자동 회귀·build 60 업로드 완료, 접근성·실기기 양방향 CloudKit 인수 대기
 
 ## 1. 목표
 
@@ -18,7 +20,7 @@
 
 각 체크박스는 한 번에 하나씩 구현하고 관련 테스트를 통과한 뒤 다음 항목으로 이동한다.
 
-## 2. 현재 코드 판정
+## 2. 계획 수립 당시 코드 판정
 
 ### Task 날짜 데이터
 
@@ -33,7 +35,7 @@
 현재 시각 기준으로 기록한다. 사용자가 이월함의 `원래 날짜에 완료`를 명시적으로
 선택하면 `completedAt`은 처리 시각, `completedDayKey`는 사용자가 지정한 원래 날짜가
 된다. 따라서 사용자가 목요일 Task를 다른 날짜로 옮기지 않고 토요일에 완료한 후기
-시나리오는 `EasyTaskSchemaV7`이나 migration 없이 표시·조회 정책부터 개선할 수 있다.
+시나리오는 새 schema나 migration 없이 표시·조회 정책만으로 개선할 수 있다.
 
 다만 `TaskRules.move`와 `bringToToday`는 `plannedAt`과 `plannedDayKey`를 새 날짜로
 갱신한다. 현재 모델에는 최초 계획일이나 재계획 이력이 없으므로, 사용자가 목요일 Task를
@@ -388,7 +390,7 @@ SwiftUI 구현자다. AI가 만든 첫 초안을 그대로 채택하지 말고 �
 
 ## 5. 변경 경계와 데이터 안전
 
-- `EasyTaskSchemaV1`~`V6`와 `EasyTaskMigrationPlan`을 수정하지 않는다.
+- 동결된 `EasyTaskSchemaV1`~`V7`, 현재 V8과 `EasyTaskMigrationPlan`을 수정하지 않는다.
 - bundle ID, CloudKit container, App Group, 백업 UTI와 확장자를 수정하지 않는다.
 - 첫 구현은 기존 필드만 사용하므로 백업 DTO와 codec format을 변경하지 않는다.
 - `id`, `instanceID`, `supersededAt` 수렴 규칙을 우회하지 않는다.
@@ -405,8 +407,8 @@ SwiftUI 구현자다. AI가 만든 첫 초안을 그대로 채택하지 말고 �
 - 플랫폼 UI에 날짜 판단이나 추천 정렬 규칙을 중복 구현하지 않는다.
 
 시간대와 반복 규칙을 지원하려면 새 필드와 명확한 recurrence 정책이 필요하다. 이는
-`EasyTaskSchemaV7`, migration, 백업, CloudKit schema, 위젯 표시 규칙을 함께 설계하는
-별도 계획으로만 진행한다.
+다음 `EasyTaskSchemaV*`, migration, 백업, CloudKit schema, 위젯 표시 규칙을 함께
+설계하는 별도 계획으로만 진행한다.
 
 Task의 최초 계획일과 재계획 이력도 현재 필드만으로는 복원할 수 없다. 이 요구가 생기면
 최초 계획일 단일 필드로 충분한지, 날짜 변경 이력 모델이 필요한지부터 결정하고 같은

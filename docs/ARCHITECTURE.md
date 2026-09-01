@@ -2,7 +2,8 @@
 
 ## 개요
 
-PlanBase는 macOS 데스크톱 앱과 iPhone 앱을 하나의 저장소에서 관리한다. 두 앱은 같은 SwiftData 모델과 순수 서비스 로직을 공유하고, 화면 구현만 플랫폼별로 분리한다.
+PlanBase는 macOS 데스크톱 앱과 iPhone·iPad universal 앱을 하나의 저장소에서 관리한다.
+두 앱은 같은 SwiftData 모델과 순수 서비스 로직을 공유하고, 화면 구현만 플랫폼별로 분리한다.
 
 ## 구조
 
@@ -10,8 +11,8 @@ PlanBase는 macOS 데스크톱 앱과 iPhone 앱을 하나의 저장소에서 �
 PlanBase.xcodeproj          # iPhone/macOS 앱 번들 타겟과 공유 scheme
 Package.swift               # SwiftPM 기반 공통 코어/테스트 구성
 mobile/
-  App/                      # iPhone 앱 구현
-  Widget/                   # iOS/macOS 캘린더·iPhone 잠금 화면 위젯 소스
+  App/                      # iPhone·iPad 앱 구현
+  Widget/                   # iOS/macOS 캘린더·플래너, iOS 잠금 화면·Live Activity 소스
   Configuration/            # iOS/Widget Info.plist, entitlements, export 설정
   Tests/                    # iPhone scheduler 단위 테스트와 UI 테스트
 desktop/
@@ -36,7 +37,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 코어에 두지 않는다. 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위해
 `PlanBaseCore`가 `EasyTaskCore`를 다시 노출한다.
 
-- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `TaskCompletionActivity`, `TaskProgressEvent`
+- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `TaskTemplateItem`, `TemplatePlacement`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `TaskCompletionActivity`, `TaskProgressEvent`
 - 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V7`, 현재 `EasyTaskSchemaV8`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
@@ -65,7 +66,7 @@ macOS 앱은 `desktop/App`에 둔다.
 - 위젯의 캘린더 날짜와 오늘 보드 deep link를 네이티브 화면으로 연결
 - Xcode `PlanBase-macOS` 타겟에서 `PlanBaseCore` 패키지 제품에 의존한다.
 
-iPhone 앱은 `mobile/App`에 둔다.
+iPhone·iPad 앱은 `mobile/App`에 둔다.
 
 - `MobileBoardView`: `할 일 / 진행 중 / 완료` 상태 전환 기반 보드
 - `MobileCalendarView`: 월간 캘린더와 이벤트/템플릿 sheet
@@ -74,14 +75,20 @@ iPhone 앱은 `mobile/App`에 둔다.
 - `MobileReviewComposerSheet`: 이미지 첨부 가능한 회고 작성
 - `CalendarWidgetSnapshotPublisher`: 캘린더와 8일 Task 요약·플래너 미리보기를 App Group 스냅샷으로 발행
 - `TaskNotificationScheduler`: iPhone 로컬 알림 예약·즉시 취소·전체 수렴
+- `TaskLiveActivityCoordinator`: 오늘 진행 Task의 Live Activity 시작·갱신·종료와 intent 후 수렴
+- `MobileBackupService`: Files document picker를 통한 package 내보내기·검증·비파괴 가져오기
 - Xcode `PlanBase-iOS` 타겟과 같은 이름의 공유 scheme을 사용한다.
 
 iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
-- 캘린더 위젯은 소형의 오늘 이벤트, 중형의 월별 적응형 그리드와 이벤트 표시점, 대형·초대형의 날짜별 이벤트 제목을 iOS/iPadOS와 macOS에서 공유한다.
+- 캘린더 위젯은 소형의 오늘 이벤트 최대 4개, 중형의 적응형 5/6주 그리드와 얇은 기간
+  막대, 대형·초대형의 주간 lane·이벤트 제목을 iOS/iPadOS와 macOS에서 공유한다.
 - 플래너 위젯은 중형에서 오늘 Task 최대 2개와 미니 월간 달력을 간결하게 보여 주고, 대형·초대형에서는 월간 캘린더와 오늘 Task 최대 6개를 좌우로 보여 준다. 대형 캘린더는 색상 막대, 충분한 폭의 초대형은 일정 제목을 사용한다.
 - macOS 앱은 같은 extension을 네이티브 바탕화면·알림 센터 위젯으로 embed한다.
 - iPhone 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공하며 macOS 빌드에서는 등록·컴파일하지 않는다.
+- iPhone Live Activity는 오늘 대표 `doing` Task의 제목·누적 진행 시간·완료 수치와
+  완료/다음 intent를 제공한다. 상태 변경은 앱 프로세스의 기존 컨테이너와
+  `TaskLifecycleService`를 사용하고, 연속 입력은 action gate로 보호한다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
 - 스냅샷 v5에는 선택 테마, 캘린더 범위, 오늘부터 8일간의 최소 Task/Event 요약과
   날짜별 Task 미리보기 최대 6개를 포함한다. Task 제목은 위젯에서 `privacySensitive()`로 보호한다.
@@ -115,7 +122,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI와 확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V7`, `EasyTaskMigrationPlan`
+- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V7`, 현재 `EasyTaskSchemaV8`, `EasyTaskMigrationPlan`
 - 레거시 저장소·이미지 이관에 사용되는 기존 폴더와 marker 이름
 
 이 값들은 [PlanBaseCompatibility.swift](../shared/Core/Persistence/PlanBaseCompatibility.swift)와
@@ -212,7 +219,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS와 macOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
-- CloudKit Production에는 V7 스키마까지 배포되어 있다. V8의 `TaskProgressEvent` record type은 Development 수렴 검증 후 별도로 Production에 배포해야 한다.
+- CloudKit Production에는 V8의 `TaskProgressEvent` record type과 관련 인덱스까지 배포되어 있다. 다음 스키마 변경도 Development 양방향 create/delete 수렴을 확인한 뒤 Production에 배포한다.
 - macOS와 iOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 상태 필터와 상태 슬라이더를 중심으로 작업을 변경한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그와 선택형 체크리스트를 편집한다.
@@ -227,12 +234,14 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - iOS/iPadOS와 macOS 플래너 위젯은 중형·대형·초대형을 지원한다. 중형은 오늘 Task 최대 2개와 일정 날짜 점이 있는 미니 월간 달력을, 대형·초대형은 오늘 Task 최대 6개와 확장 월간 일정을 표시한다.
 - iOS 잠금 화면 오늘 위젯은 세 accessory family를 지원한다. 앱이 무결성 수렴을 마친 뒤 bounded query로 8일 요약·미리보기를 발행하며 캘린더, 플래너, iOS 잠금 화면 kind를 함께 reload한다.
 
-## 다음 단계
+## 현재 배포 상태와 다음 단계
 
-2026-07-12 기준으로 동일 개발 컨테이너의 macOS ↔ iPhone 양방향 create/delete 전파는
-고유 진단 레코드로 통과했다. 다음 우선순위는 같은 레코드의 오프라인 동시 편집,
-이미지 추가·삭제·재설치, iCloud 로그아웃·재로그인, 자동 복구 백업과 UI smoke test다.
-이 조건과 Debug/Release 서명 검증은 이후 스키마 변경과 배포의 회귀 게이트로 유지한다.
+2026-09-01 기준 V8 Development의 `TaskProgressEvent` macOS ↔ iPhone 양방향
+create/delete probe와 Production schema 배포가 완료됐다. iOS·macOS 앱 버전 `1.0`
+(build 60)은 전체 Debug/Release 회귀, 서명 archive의 앱·위젯 권한 검증을 통과해
+App Store Connect에 업로드됐다. 남은 운영 게이트는 active 계획에 기록된 실제 기기별
+위젯 갤러리·접근성·저휘도 표현, 오프라인 충돌·재설치·iCloud 재로그인 같은 명시적
+수동 인수 시나리오다.
 
 데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
 [`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.

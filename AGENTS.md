@@ -4,13 +4,15 @@
 
 ## 1. 한눈에 보는 프로젝트
 
-PlanBase는 칸반, 캘린더, 기록, 메모를 제공하는 개인 생산성 앱이다. 하나의 저장소에서 macOS 앱, iPhone 앱, 양 플랫폼 캘린더·플래너 위젯을 관리하며 두 앱은 같은 SwiftData 모델과 CloudKit private database를 공유한다.
+PlanBase는 칸반, 캘린더, 기록, 메모를 제공하는 개인 생산성 앱이다. 하나의 저장소에서
+macOS 앱, iPhone·iPad universal 앱, 양 플랫폼 캘린더·플래너 위젯을 관리하며 두 앱은
+같은 SwiftData 모델과 CloudKit private database를 공유한다.
 
 - 언어/도구: Swift 6, Swift tools 6.3, SwiftUI, SwiftData
 - 최소 플랫폼: iOS 18, macOS 26
 - 공통 패키지 제품: `PlanBaseCore`
 - Xcode scheme: `PlanBase-iOS`, `PlanBase-macOS`
-- 현재 영속 스키마: `EasyTaskSchemaV6`
+- 현재 영속 스키마: `EasyTaskSchemaV8`
 
 의존 방향은 아래와 같다.
 
@@ -22,7 +24,7 @@ shared/PlanBaseCore (PlanBaseCore: 공개 re-export 계층)
           ┌─────────┼──────────────┐
           ▼         ▼              ▼
 desktop/App     mobile/App       mobile/Widget
- macOS 앱        iPhone 앱     iOS/macOS 위젯 확장
+ macOS 앱      iPhone·iPad 앱   iOS/macOS 위젯 확장
 ```
 
 앱 타겟은 `shared/Core`를 직접 컴파일하지 않고 로컬 Swift Package의 `PlanBaseCore` 제품을 링크한다. `EasyTaskCore`라는 이름은 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위한 호환 이름이므로 임의로 바꾸지 않는다.
@@ -48,7 +50,8 @@ desktop/App     mobile/App       mobile/Widget
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI/확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- SwiftData 호환 이름: `EasyTaskSchemaV1`~`V6`, `EasyTaskMigrationPlan`
+- SwiftData 호환 이름: 동결된 `EasyTaskSchemaV1`~`V7`, 현재
+  `EasyTaskSchemaV8`, `EasyTaskMigrationPlan`
 - 레거시 저장소, 이미지 폴더, migration marker 이름
 
 호환 상수의 기준 파일은 `shared/Core/Persistence/PlanBaseCompatibility.swift`다. macOS Debug bundle ID `com.soraul2.easytask.macos`는 Release 앱과 개발 데이터를 병행하기 위한 의도된 예외다.
@@ -77,22 +80,26 @@ PlanBase/
 │   │   ├── Services/                 # 도메인 규칙, 조회, 저장, 백업, 동기화
 │   │   ├── Components/               # 양 플랫폼에서 재사용하는 SwiftUI 조각
 │   │   └── Theme/                    # 색상·테마 토큰
-│   ├── PlanBaseCore/Exports.swift    # EasyTaskCore 재노출과 공개 typealias
+│   ├── PlanBaseCore/Exports.swift    # EasyTaskCore 전체 공개 API 재노출
 │   ├── Resources/                    # 앱 에셋과 macOS container migration plist
 │   ├── WidgetSupport/                # 양 앱이 컴파일하는 WidgetKit snapshot publisher
 │   └── Tests/                        # Swift Package 단위·통합 테스트
 ├── desktop/
 │   ├── App/PlanBaseDesktopApp.swift  # macOS @main, container 개방·복구
-│   ├── App/AppRootView.swift         # macOS 탭 루트
+│   ├── App/AppRootView.swift         # macOS 탭·deep link orchestration
+│   ├── App/Desktop*Views.swift       # macOS CloudKit·테마 보조 화면
+│   ├── App/FloatingTabBar.swift      # macOS 최상위 탭 chrome
 │   ├── App/Features/                 # Board/Calendar/Archive/Memo 화면
 │   ├── App/Services/                 # macOS 파일 패널·이미지/백업 어댑터
 │   └── Configuration/                # Info.plist, 앱·위젯 entitlements, export options
 ├── mobile/
-│   ├── App/PlanBaseMobileApp.swift   # iOS @main, container 개방·복구, 탭 루트
+│   ├── App/PlanBaseMobileApp.swift   # iOS @main, container 개방·복구
+│   ├── App/MobileAppRootView.swift   # iOS 탭·deep link·snapshot orchestration
+│   ├── App/Mobile*Views.swift        # iOS CloudKit·테마 보조 화면
 │   ├── App/Features/                 # Board/Calendar/Templates/Archive/Review/Memo 화면
 │   ├── App/Infrastructure/           # 알림, 이미지·공용 UI 어댑터
-│   ├── Widget/                       # iOS/macOS 캘린더·플래너 및 iOS 잠금 화면 위젯 타겟
-│   ├── Tests/                        # iPhone launch UI test
+│   ├── Widget/                       # iOS/macOS 캘린더·플래너, iOS 잠금 화면·Live Activity
+│   ├── Tests/                        # iPhone·iPad launch/UI test
 │   └── Configuration/                # iOS/Widget plist, entitlements, export options
 ├── docs/                             # 상세 아키텍처·동기화·계획 문서
 ├── scripts/                          # 전체 빌드 검증과 실기기 CloudKit probe
@@ -111,16 +118,19 @@ PlanBase/
 | `PlanBaseCore` | `shared/PlanBaseCore` | `EasyTaskCore`를 re-export하는 앱용 공개 제품 |
 | `PlanBaseCoreTests` | `shared/Tests` | 공통 로직 및 데이터 안전성 테스트 |
 
-`shared/PlanBaseCore/Exports.swift`는 현재 V5 모델을 앱 친화적 이름으로 typealias하고 V6에서 추가된 `Memo`를 함께 노출한다. 따라서 앱 코드는 `import PlanBaseCore` 후 `Task`, `CalendarEvent`, `Memo`처럼 사용한다.
+`shared/PlanBaseCore/Exports.swift`는 `EasyTaskCore` 전체를 한 줄의
+`@_exported import`로 재노출한다. 현재 V8의 `Task`, `CalendarEvent`, `Memo`,
+`TaskCompletionActivity`, `TaskProgressEvent`를 비롯한 공개 모델·서비스는 별도 typealias 없이
+`import PlanBaseCore`만으로 사용한다.
 
 ### Xcode 타겟
 
 | 타겟/scheme | 진입점 | 주요 책임 |
 |---|---|---|
 | `PlanBase-macOS` | `desktop/App/PlanBaseDesktopApp.swift` | macOS 앱, AppKit 연동, 백업 파일 UI, 위젯 snapshot 발행 |
-| `PlanBase-iOS` | `mobile/App/PlanBaseMobileApp.swift` | iPhone 앱, 알림, deep link, 위젯 snapshot 발행 |
-| `PlanBaseWidgetExtension` | `mobile/Widget/PlanBaseWidgetBundle.swift` | App Group JSON을 읽는 iOS/macOS 캘린더·플래너 WidgetKit 확장. 잠금 화면 위젯은 iOS 전용 |
-| `PlanBaseLaunchUITests` | `mobile/Tests/PlanBaseLaunchUITests.swift` | iPhone launch smoke test |
+| `PlanBase-iOS` | `mobile/App/PlanBaseMobileApp.swift` | iPhone·iPad 앱, 알림, deep link, 위젯 snapshot 발행 |
+| `PlanBaseWidgetExtension` | `mobile/Widget/PlanBaseWidgetBundle.swift` | App Group JSON을 읽는 iOS/macOS 캘린더·플래너 확장. 잠금 화면 위젯·Live Activity는 iOS 전용 |
+| `PlanBaseLaunchUITests` | `mobile/Tests/PlanBaseLaunchUITests.swift` | iPhone·iPad launch/UI smoke test |
 
 앱 소스 파일은 `PlanBase.xcodeproj/project.pbxproj`에 명시적으로 등록되어 있다. `desktop/App` 또는 `mobile/App`에 새 파일을 만들면 해당 앱 타겟 membership도 추가해야 한다. 반면 SwiftPM 타겟 경로 아래의 새 Swift 파일은 패키지에서 자동으로 발견된다.
 
@@ -145,7 +155,9 @@ PlanBase/
 
 ## 6. 데이터 모델과 핵심 규칙
 
-현재 `EasyTaskSchemaV6`는 V5 모델 전체에 `Memo`를 추가한 스키마다.
+현재 `EasyTaskSchemaV8`은 V6 모델 전체와 V7의 완료 활동 기록, V8의 진행 시작·중지
+이벤트를 포함한다. 이미 배포된 V1~V7 정의는 동결되어 있고 다음 모델 변경은 새 버전
+스키마와 migration stage로만 추가한다.
 
 | 모델 | 역할/주요 연결 |
 |---|---|
@@ -158,6 +170,8 @@ PlanBase/
 | `DiaryBlock` | 레거시 회고 블록 호환 모델 |
 | `DiaryAttachment` | `reviewId`로 연결된 external-storage 이미지 데이터 |
 | `Memo` | 날짜/Task와 독립된 자동 저장 메모 |
+| `TaskCompletionActivity` | Task 완료 사실을 날짜별로 보존해 활동 스트릭·히트맵을 계산하는 V7 기록 |
+| `TaskProgressEvent` | Task의 `started`/`stopped` 전환 시각을 보존해 누적 진행 시간과 Live Activity를 계산하는 V8 기록 |
 
 중요한 규칙은 다음과 같다.
 
@@ -165,24 +179,28 @@ PlanBase/
 - 완료 작업은 당일 보드에는 남고 이후 lazy archive 대상이 된다. 이월/완료 날짜 규칙은 `TaskRules`에 둔다.
 - 체크리스트 전체 완료가 상위 Task 상태를 자동 완료시키지는 않는다.
 - `Task.reminderAt`이 알림 원본이며 iOS pending notification은 재생성 가능한 캐시다.
+- Task 상태 전환과 `TaskProgressEvent` 기록은 `TaskLifecycleService`의 같은 저장 명령에서
+  처리한다. 구버전 기기의 닫힌 진행 구간에는 임의 시간을 합성하지 않는다.
+- `TaskCompletionActivity`는 실제 완료 활동의 근거이며 활동 무결성·레거시 backfill 규칙을
+  우회해 Task 수를 직접 합산하지 않는다.
 - 기록, 보드, 캘린더, 메모는 전체 테이블을 계속 관찰하지 않고 bounded query/session을 사용한다.
 - 첨부 이미지는 MIME, 크기, 실제 decode, SHA-256 검증을 거친다. 목록에서는 원본을 바로 decode하지 않는다.
 - 백업 package 병합은 파괴적 교체가 아니라 동일한 무결성 규칙으로 수렴하는 병합이다.
 
 ## 7. 기능별 수정 위치
 
-| 기능 | 공통 코어 | macOS UI/어댑터 | iPhone UI/어댑터 |
+| 기능 | 공통 코어 | macOS UI/어댑터 | iOS UI/어댑터 |
 |---|---|---|---|
 | 보드·작업 | `TaskRules`, `BoardQueryRules`, `BoundedQueryService`, `PersistenceCommandService` | `BoardView`, `DesktopKanbanComponents`, `DesktopBoardSheets`, `DesktopTaskDetailSheet` | `MobileBoardView`, `MobileBoardComponents`, `MobileTaskDetailSheet`, `MobileCarryoverSheet` |
 | 체크리스트 | `TaskChecklistService` | `DesktopTaskDetailSheet`, 진행 카드 UI | `MobileTaskDetailSheet`, `MobileBoardComponents` |
 | 템플릿 | `TemplateService`, `TemplateListRules`, 공용 `Template*` components | `DesktopTemplatePlacementSheet`, 보드 sheet | `MobileTemplateLibrarySheet`, `MobileTemplatePlacementSheet`, `MobileTemplateComponents` |
 | 캘린더 | `CalendarEventRules`, `CalendarEventTimeline`, `DayKey` | `CalendarView`, `DesktopCalendarGrid`, `DesktopEventEditorSheets` | `MobileCalendarView`, `MobileCalendarGrid`, `MobileCalendarDaySheet`, `MobileEventEditorSheet` |
-| 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `DailyReview*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` |
+| 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `DailyReview*`, `TaskActivity*`, `TaskHistoryStatistics*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` |
 | 메모 | `MemoRules`, `MemoService`, `MemoQuerySession`, `MemoEditorSession` | `MemoView` | `MobileMemoView` |
-| 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | 현재 별도 파일 UI 없음 |
+| 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | `MobileBackupService`와 문서 picker |
 | CloudKit | `PlanBaseContainerFactory`, `CloudKitSyncService`, `CloudKitConvergenceProbe*` | 앱 루트 sync UI/diagnostic args | 앱 루트 sync UI/diagnostic args |
-| 작업 알림 | `TaskReminderRules` | 로컬 알림 스케줄러 없음 | `TaskNotificationScheduler`, app delegate/route store |
-| 위젯 | `CalendarWidgetSnapshot`, `PlannerWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget`, iOS 잠금 화면 위젯 |
+| 작업 알림·진행 | `TaskReminderRules`, `TaskLifecycleService`, `TaskProgressEvent*` | 로컬 알림·Live Activity 스케줄러 없음 | `TaskNotificationScheduler`, `TaskLiveActivityCoordinator`, app delegate/intent route store |
+| 위젯 | `CalendarWidgetSnapshot`, `PlannerWidgetRules`, `LockScreenWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, 캘린더·플래너·잠금 화면 위젯과 `PlanBaseTaskLiveActivity` |
 | 테마 | `AppTheme`, `CalendarEventPalette` | 앱 루트 theme selector | 앱 루트/mobile theme UI 및 위젯 snapshot |
 
 새 비즈니스 규칙은 가능한 한 `shared/Core/Services`에 두고 단위 테스트한다. 플랫폼 디렉터리에는 화면 상태, SwiftUI composition, AppKit/UIKit/WidgetKit 같은 플랫폼 어댑터만 둔다.
@@ -191,9 +209,9 @@ PlanBase/
 
 ### 모델/필드 변경
 
-1. 기존 스키마를 수정하지 말고 다음 `EasyTaskSchemaV*`를 추가한다.
+1. 동결된 V1~V7과 현재 V8을 수정하지 말고 다음 `EasyTaskSchemaV*`를 추가한다.
 2. `EasyTaskMigrationPlan`의 schema 목록과 stage를 갱신한다.
-3. `PlanBaseContainerFactory.schema`와 `Exports.swift`의 공개 alias를 확인한다.
+3. `PlanBaseContainerFactory.schema`와 `Exports.swift`의 공개 API 재노출을 확인한다.
 4. `DataIntegrityService`, 백업 DTO/codec/merge, CloudKit probe에 영향이 있는지 확인한다.
 5. `SchemaMigrationTests`, `DataSafetyTests`, `DataIntegrityTests`, 백업 테스트를 추가한다.
 6. CloudKit Development schema 검증 및 Production 배포 절차는 `docs/CLOUDKIT_SYNC.md`를 따른다.

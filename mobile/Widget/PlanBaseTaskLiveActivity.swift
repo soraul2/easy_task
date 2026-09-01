@@ -1,5 +1,6 @@
 #if os(iOS)
 import ActivityKit
+import Foundation
 import PlanBaseCore
 import SwiftUI
 import WidgetKit
@@ -7,109 +8,166 @@ import WidgetKit
 struct PlanBaseTaskLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PlanBaseTaskActivityAttributes.self) { context in
-            PlanBaseTaskLiveActivityLockView(context: context)
+            TaskLiveActivityLockScreen(context: context)
                 .activityBackgroundTint(.clear)
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    PlanBaseTaskLiveActivityElapsedTime(
-                        startedAt: context.state.elapsedTimerStartedAt,
-                        font: .headline,
-                        showsIcon: true
-                    )
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.progressText)
-                        .font(.headline.monospacedDigit())
-                }
-                DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .privacySensitive()
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        Spacer(minLength: 0)
-                        PlanBaseTaskLiveActivityActionButtons(context: context)
+                    HStack(spacing: 6) {
+                        TaskLiveActivityActiveDot(themeID: context.state.themeID)
+                        TaskLiveActivityElapsedText(
+                            startedAt: context.state.elapsedTimerStartedAt,
+                            style: .expanded
+                        )
                     }
                 }
             } compactLeading: {
-                PlanBaseTaskLiveActivityElapsedTime(
-                    startedAt: context.state.elapsedTimerStartedAt,
-                    font: .caption2.weight(.semibold),
-                    showsIcon: false
+                TaskLiveActivityCompactTitle(
+                    title: context.state.title,
+                    themeID: context.state.themeID
                 )
             } compactTrailing: {
-                PlanBaseTaskLiveActivityCompactTitle(title: context.state.title)
-            } minimal: {
-                PlanBaseTaskLiveActivityElapsedTime(
+                TaskLiveActivityElapsedText(
                     startedAt: context.state.elapsedTimerStartedAt,
-                    font: .caption2.weight(.bold),
-                    showsIcon: false
+                    style: .compact
+                )
+            } minimal: {
+                TaskLiveActivityElapsedText(
+                    startedAt: context.state.elapsedTimerStartedAt,
+                    style: .minimal
                 )
             }
-            .keylineTint(Color.primary)
         }
     }
 }
 
-private struct PlanBaseTaskLiveActivityElapsedTime: View {
-    let startedAt: Date
-    let font: Font
-    let showsIcon: Bool
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if showsIcon {
-                Image(systemName: "play.fill")
-                    .accessibilityHidden(true)
-            }
-
-            Text(startedAt, style: .timer)
-                .monospacedDigit()
-        }
-        .font(font)
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct PlanBaseTaskLiveActivityCompactTitle: View {
+private struct TaskLiveActivityCompactTitle: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.redactionReasons) private var redactionReasons
+
     let title: String
+    let themeID: String?
+
+    private var theme: TaskLiveActivityTheme {
+        TaskLiveActivityTheme(themeID: themeID, colorScheme: colorScheme)
+    }
 
     var body: some View {
-        Text(redactionReasons.contains(.privacy) ? "진행 중" : title)
+        Text(redactionReasons.contains(.privacy) ? "진행" : title)
             .font(.caption2.weight(.semibold))
             .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .frame(maxWidth: 84, alignment: .trailing)
+            .truncationMode(.tail)
+            .minimumScaleFactor(0.8)
+            .foregroundStyle(theme.accent)
+            .frame(maxWidth: 46, alignment: .leading)
             .privacySensitive()
             .accessibilityLabel("진행 중인 작업 \(title)")
     }
 }
 
-private struct PlanBaseTaskLiveActivityLockView: View {
+private struct TaskLiveActivityElapsedText: View {
+    enum Style {
+        case compact
+        case minimal
+        case expanded
+
+        var font: Font {
+            switch self {
+            case .compact:
+                return .caption2.weight(.semibold)
+            case .minimal:
+                return .caption2.weight(.bold)
+            case .expanded:
+                return .headline
+            }
+        }
+
+        var timeWidth: CGFloat {
+            switch self {
+            case .compact:
+                return 50
+            case .minimal:
+                return 32
+            case .expanded:
+                return 72
+            }
+        }
+
+        var minimumScaleFactor: CGFloat {
+            switch self {
+            case .minimal:
+                return 0.65
+            case .compact, .expanded:
+                return 0.8
+            }
+        }
+    }
+
+    let startedAt: Date
+    let style: Style
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            Text(Self.elapsedText(startedAt: startedAt, now: timeline.date))
+                .font(style.font.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(style.minimumScaleFactor)
+                .frame(width: style.timeWidth, alignment: .trailing)
+                .accessibilityLabel("진행 시간")
+        }
+    }
+
+    private static func elapsedText(startedAt: Date, now: Date) -> String {
+        let totalSeconds = max(0, Int(now.timeIntervalSince(startedAt)))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+private struct TaskLiveActivityActiveDot: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let themeID: String?
+
+    private var theme: TaskLiveActivityTheme {
+        TaskLiveActivityTheme(themeID: themeID, colorScheme: colorScheme)
+    }
+
+    var body: some View {
+        Circle()
+            .fill(theme.accent)
+            .frame(width: 6, height: 6)
+            .accessibilityLabel("작업 진행 중")
+    }
+}
+
+private struct TaskLiveActivityLockScreen: View {
     @Environment(\.redactionReasons) private var redactionReasons
+
     let context: ActivityViewContext<PlanBaseTaskActivityAttributes>
 
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(redactionReasons.contains(.privacy) ? "진행 중인 작업" : context.state.title)
+                Text(redactedTitle)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
                     .privacySensitive()
 
                 HStack(spacing: 8) {
-                    PlanBaseTaskLiveActivityElapsedTime(
-                        startedAt: context.state.elapsedTimerStartedAt,
-                        font: .system(size: 14, weight: .bold, design: .rounded),
-                        showsIcon: true
-                    )
+                    HStack(spacing: 6) {
+                        TaskLiveActivityActiveDot(themeID: context.state.themeID)
+                        TaskLiveActivityElapsedText(
+                            startedAt: context.state.elapsedTimerStartedAt,
+                            style: .expanded
+                        )
+                    }
 
                     Text(context.state.progressText)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -119,35 +177,39 @@ private struct PlanBaseTaskLiveActivityLockView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            PlanBaseTaskLiveActivityActionButtons(context: context)
+            TaskLiveActivityActions(context: context)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(minHeight: 88)
         .widgetURL(PlanBaseDeepLink.boardTodayURL())
     }
+
+    private var redactedTitle: String {
+        redactionReasons.contains(.privacy) ? "진행 중인 작업" : context.state.title
+    }
 }
 
-private struct PlanBaseTaskLiveActivityActionButtons: View {
+private struct TaskLiveActivityActions: View {
     let context: ActivityViewContext<PlanBaseTaskActivityAttributes>
 
     var body: some View {
         HStack(spacing: 7) {
-            completionControl
-
             if context.state.hasNextTask {
                 Button(intent: AdvancePlanBaseTaskIntent(
                     taskID: context.state.taskID,
                     taskSessionID: context.state.taskSessionID
                 )) {
-                    PlanBaseTaskLiveActivityActionLabel(
-                        title: "다음",
-                        systemImage: "arrow.right"
+                    TaskLiveActivityActionLabel(
+                        systemImage: "arrow.right",
+                        themeID: context.state.themeID
                     )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("다음 작업 진행")
             }
+
+            completionControl
         }
     }
 
@@ -158,9 +220,9 @@ private struct PlanBaseTaskLiveActivityActionButtons: View {
                taskID: context.state.taskID
            ) {
             Link(destination: url) {
-                PlanBaseTaskLiveActivityActionLabel(
-                    title: "완료",
-                    systemImage: "checkmark"
+                TaskLiveActivityActionLabel(
+                    systemImage: "checkmark",
+                    themeID: context.state.themeID
                 )
             }
             .accessibilityLabel("앱에서 완료 확인")
@@ -169,9 +231,9 @@ private struct PlanBaseTaskLiveActivityActionButtons: View {
                 taskID: context.state.taskID,
                 taskSessionID: context.state.taskSessionID
             )) {
-                PlanBaseTaskLiveActivityActionLabel(
-                    title: "완료",
-                    systemImage: "checkmark"
+                TaskLiveActivityActionLabel(
+                    systemImage: "checkmark",
+                    themeID: context.state.themeID
                 )
             }
             .buttonStyle(.plain)
@@ -180,24 +242,44 @@ private struct PlanBaseTaskLiveActivityActionButtons: View {
     }
 }
 
-private struct PlanBaseTaskLiveActivityActionLabel: View {
-    let title: String
+private struct TaskLiveActivityActionLabel: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let systemImage: String
+    let themeID: String?
+
+    private var theme: TaskLiveActivityTheme {
+        TaskLiveActivityTheme(themeID: themeID, colorScheme: colorScheme)
+    }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .bold))
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-        }
-        .foregroundStyle(.primary)
-        .frame(width: 58, height: 48)
-        .background(.primary.opacity(0.13), in: RoundedRectangle(
-            cornerRadius: 12,
-            style: .continuous
-        ))
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Image(systemName: systemImage)
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(theme.accent)
+            .frame(width: 48, height: 48)
+            .background(
+                theme.buttonBackground,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct TaskLiveActivityTheme {
+    let colors: AppThemeColorSet
+
+    init(themeID: String?, colorScheme: ColorScheme) {
+        colors = AppThemePreset
+            .preset(for: themeID)
+            .colorSet(for: AppThemeAppearance(colorScheme: colorScheme))
+    }
+
+    var accent: Color {
+        colors.event.color
+    }
+
+    var buttonBackground: Color {
+        accent.opacity(0.18)
     }
 }
 
@@ -216,7 +298,46 @@ private struct PlanBaseTaskLiveActivityActionLabel: View {
         totalCount: 4,
         hasNextTask: true,
         requiresCompletionConfirmation: false,
-        elapsedTimerStartedAt: Date().addingTimeInterval(-754)
+        elapsedTimerStartedAt: Date().addingTimeInterval(-18_960),
+        themeID: "roseLilac"
+    )
+}
+
+#Preview("Dynamic Island Compact", as: .dynamicIsland(.compact), using: PlanBaseTaskActivityAttributes(
+    activityID: UUID(),
+    dayKey: DayKey.today
+)) {
+    PlanBaseTaskLiveActivity()
+} contentStates: {
+    PlanBaseTaskActivityAttributes.ContentState(
+        taskSessionID: "preview",
+        taskID: UUID(),
+        title: "기획서 작성",
+        completedCount: 3,
+        totalCount: 4,
+        hasNextTask: true,
+        requiresCompletionConfirmation: false,
+        elapsedTimerStartedAt: Date().addingTimeInterval(-26_494),
+        themeID: "roseLilac"
+    )
+}
+
+#Preview("Dynamic Island Minimal", as: .dynamicIsland(.minimal), using: PlanBaseTaskActivityAttributes(
+    activityID: UUID(),
+    dayKey: DayKey.today
+)) {
+    PlanBaseTaskLiveActivity()
+} contentStates: {
+    PlanBaseTaskActivityAttributes.ContentState(
+        taskSessionID: "preview",
+        taskID: UUID(),
+        title: "기획서 작성",
+        completedCount: 3,
+        totalCount: 4,
+        hasNextTask: true,
+        requiresCompletionConfirmation: false,
+        elapsedTimerStartedAt: Date().addingTimeInterval(-26_494),
+        themeID: "roseLilac"
     )
 }
 #endif

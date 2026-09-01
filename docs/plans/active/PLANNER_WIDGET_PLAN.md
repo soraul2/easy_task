@@ -1,7 +1,8 @@
 # PlanBase 월간 일정·오늘 작업 결합 플래너 위젯 구현 계획
 
 기준일: 2026-08-31
-상태: systemMedium 포함 iOS TestFlight build 41 업로드 완료 — Apple 처리·실기기 인수 대기
+최종 갱신: 2026-09-01
+상태: iOS/macOS TestFlight build 60 서명 업로드 완료 — 실제 gallery·시각·접근성 인수 대기
 우선순위: iPhone → iPad → macOS
 
 ## 1. 목표
@@ -75,6 +76,8 @@
   확인한 뒤 App Store Connect 업로드에 성공했다.
 - [x] build 40 확인 피드백 뒤 가로형 참고 이미지처럼 왼쪽 오늘 Task와 오른쪽 미니 월간
   달력을 얇은 구분선으로 나눈 `systemMedium` 레이아웃을 추가했다.
+- [x] iOS와 macOS build 60 서명 archive에서 플래너 kind, host embed와 App Group
+  권한을 다시 확인하고 두 플랫폼 모두 App Store Connect에 업로드했다.
 - [ ] 실제 iPhone, iPad, Mac의 위젯 gallery와 홈 화면/바탕화면에서 최종 시각·접근성
   인수를 진행한다.
 
@@ -196,7 +199,7 @@ content bounds로 calendar pane과 task pane이 최소 폭을 확보하는지 �
 
 ### 4.2 widget snapshot v5
 
-현재 snapshot v4의 lock-screen summary에는 날짜별 Task 개수와 대표 제목 하나만 있어
+계획 당시 snapshot v4의 lock-screen summary에는 날짜별 Task 개수와 대표 제목 하나만 있어
 목록을 만들 수 없다. 기존 JSON 파일을 유지하면서 optional 필드를 추가하고 schema를
 v5로 올린다.
 

@@ -1,5 +1,9 @@
 # PlanBase 잠금 화면 위젯 구현 계획
 
+기준일: 2026-07-23
+최종 갱신: 2026-09-01
+상태: 읽기 전용 기반·v5 호환·build 60 업로드 완료, 잠금 상태 수동 인수 대기
+
 ## 구현 체크 결과 (2026-07-23)
 
 - [x] 캘린더 위젯 밀도 v3 위에 snapshot v4 호환 계약을 추가했다.
@@ -12,6 +16,9 @@
 - [ ] 출시 전 실기기에서 widget gallery, 잠금 상태 제목 redaction, Always On/저휘도, cold/warm tap을 수동 확인한다.
 
 코드 체크리스트와 자동 검증은 완료했다. 마지막 항목은 simulator나 정적 검사로 대체할 수 없는 실기기 출시 승인 단계이며, 읽기 전용 1차 범위 밖의 Task 직접 완료는 계획대로 구현하지 않았다.
+
+현재 snapshot 계약은 플래너까지 포함한 v5이고, 2차 범위의 Task 상태 전환과 Live Activity는
+후속 계획에서 구현됐다. 이 문서의 v4·읽기 전용 설명은 1차 구현 당시 기준선으로 보존한다.
 
 읽기 전용 1차 구현 이후 확정된 Task 상태 전환, 오늘 이벤트 인라인, 빠른 추가와
 Live Activity 확장은
@@ -43,7 +50,7 @@ PlanBase의 오늘 보드와 캘린더 요약을 iPhone 일반 잠금 화면에�
 - [Creating a widget extension](https://developer.apple.com/documentation/widgetkit/creating-a-widget-extension)
 - [Controls](https://developer.apple.com/documentation/widgetkit/controls-collection)
 
-## 3. 현재 상태
+## 3. 계획 수립 당시 기준선
 
 ### 위젯 구성
 

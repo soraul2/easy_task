@@ -1,5 +1,9 @@
 # Task 완료 전환 시 알림 보존 설계 및 구현 기록
 
+기준일: 2026-07-24
+최종 갱신: 2026-09-01
+상태: 구현·자동 회귀·build 60 업로드 완료, 실제 알림 전달과 양방향 CloudKit 인수 대기
+
 ## 목적
 
 사용자가 알림이 설정된 Task를 실수로 완료했다가 다시 `할 일` 또는 `진행 중`으로 되돌려도 알림 설정 기록을 잃지 않게 한다. 완료 전환 시 아직 울리지 않은 미래 알림이 있으면 경고하되, 이미 지난 알림 때문에 불필요한 확인창을 띄우지 않는다.
@@ -16,6 +20,8 @@
 - 통과: iOS scheduler fake client 3개와 snapshot 파일 보호 1개를 포함한 단위 테스트 4개
 - 통과: reminder 완료 시나리오 3개를 포함한 iPhone launch UI 테스트 8개
 - 통과: iOS/macOS Debug/Release 빌드와 `git diff --check`
+- 최신 회귀: SwiftPM Debug 331개·Release 330개, `PlanBaseMobileTests` 16개,
+  iOS/macOS build 60 서명 archive와 App Store Connect 업로드 통과
 - 실기기 확인 필요: 신버전 iPhone ↔ 신버전 Mac CloudKit 완료·재개 왕복과 실제 알림 전달/취소
 
 ## 합의 정책

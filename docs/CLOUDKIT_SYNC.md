@@ -193,6 +193,131 @@ build 45도 Release 패키지 테스트와 서명 archive 생성을 통과했다
 App Group·CloudKit entitlement, `NSSupportsLiveActivities=true`, 캘린더·플래너·잠금 화면
 widget kind와 Activity 타입 포함 여부를 검증한 뒤 App Store Connect 업로드에 성공했고
 패키지 처리가 시작됐다.
+이어 Dynamic Island 축소형의 긴 Task 제목을 제거하고 leading에 파란 활성 점과 누적 진행
+시간만 배치한 iOS TestFlight build 46도 Release 패키지 테스트 327개와 서명 archive 생성을
+통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+build 46 실기기 확인 뒤에는 Dynamic Island compact의 leading에 누적 진행 시간, trailing에
+파란 활성 점을 분리 배치하고, 날짜 상대 표현 대신 숫자형 count-up interval을 사용해 잠금
+화면의 `hours`, `minutes` 문구를 제거했다. 이를 포함한 iOS TestFlight build 47은 Release
+패키지 테스트 327개, Debug 빌드, 서명 archive와 앱·위젯 build number, App Group·CloudKit
+entitlement, `NSSupportsLiveActivities=true` 검증을 통과한 뒤 App Store Connect 업로드에
+성공했고 패키지 처리가 시작됐다.
+build 47의 iPhone·macOS 실기기 표시 확인 후 Live Activity UI를 신규 구조로 다시 작성했다.
+Dynamic Island compact는 leading 숫자 stopwatch와 trailing 6pt 활성 점만 사용하고 제목,
+Spacer, 고정 너비, 수동 여백과 그림자를 제거했다. 이 변경을 포함한 iOS TestFlight build
+48은 Release 패키지 테스트 327개와 서명 archive 생성을 통과했다. 앱·위젯 build number,
+App Group·CloudKit entitlement와 `NSSupportsLiveActivities=true`를 검증한 뒤 App Store
+Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+build 48 실기기 확인 후 compact 시간을 숫자 전용 2개 필드로 추가 축소했다. 1시간 미만에는
+`mm:ss`, 1시간 이상에는 `h:mm`으로 전환하며 잠금 화면과 Dynamic Island 확장형은 기존
+3개 필드 표시를 유지한다. 시스템의 2필드 stopwatch는 1시간부터 `시간`, `분` 단위 문구를
+붙이므로 사용하지 않고, 초·분 경계를 제공하는 discrete format으로 숫자만 갱신한다.
+이를 포함한 iOS TestFlight build 49는 Release 패키지 테스트 327개와 서명 archive 생성을
+통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+build 49 실기기 확인에서 사용자 정의 discrete format이 Live Activity 제한 갱신 상태에서
+회색 대시로 redaction됐다. 후속 소스는 사용자 정의 format을 제거하고 시스템 stopwatch를
+그대로 사용한다. compact와 minimal에서만 `00:00` 다섯 글자 너비로 clipping해 1시간
+미만에는 `mm:ss`, 1시간 이상에는 `hh:mm`만 보이게 한다.
+이를 포함한 iOS TestFlight build 50은 Release 패키지 테스트 327개와 서명 archive 생성을
+통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+build 50 실기기에서는 숨은 기준 문자열의 overlay 안에 둔 시스템 시간도 표시되지 않았다.
+후속 소스는 overlay와 clipping을 제거하고 compact·minimal에 시스템
+`durationOffset + hourMinute` Text를 직접 배치한다. 두 표현은 항상 `h:mm`을 사용하고,
+잠금 화면과 Dynamic Island 확장형만 기존 `h:mm:ss`를 유지한다.
+이를 포함한 iOS TestFlight build 51은 Release 패키지 테스트 327개와 서명 archive 생성을
+통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+build 51 실기기 확인 후 후속 소스에서는 Dynamic Island compact의 trailing 활성 점을
+제거했다. compact에는 leading의 시스템 `h:mm` 시간 하나만 남기고, 잠금 화면과 확장형의
+활성 상태 표시는 유지한다. 이를 포함한 iOS TestFlight build 52는 Release 패키지 테스트
+327개와 서명 archive 생성을 통과했다. 앱·위젯 build number, App Group·CloudKit
+entitlement와 `NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에
+성공했고 패키지 처리가 시작됐다.
+build 52 실기기에서 compact의 시간 외 콘텐츠를 모두 제거해도 시스템 캡슐 폭은 유지됐다.
+Apple HIG의 고정 compact 규격과 leading·trailing 결합 구조를 반영해 후속 소스는 leading에
+시스템 `h:mm`, trailing에 `완료/전체` 수치를 배치하고 별도 padding은 사용하지 않는다.
+minimal은 시스템이 다중 Live Activity 상황에서 선택하므로 시간 단독 표현을 유지한다.
+이를 포함한 iOS TestFlight build 53은 Release 패키지 테스트 327개와 서명 archive 생성을
+통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+build 53 실기기 확인 후 후속 소스는 Apple 공식 Live Activities 예제의 `leading 심볼 +
+trailing 동적 값` 패턴을 따라 compactLeading에 주황색 `stopwatch.fill`, compactTrailing에
+주황색 시스템 `h:mm`을 배치한다. 별도 padding·배경은 추가하지 않고 진행률은 확장형과 잠금
+화면에만 유지한다. 이를 포함한 iOS TestFlight build 54는 Release 패키지 테스트 327개와
+서명 archive 생성을 통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+build 54 실기기 확인 후 후속 소스는 Dynamic Island expanded의 제목·진행률·버튼을 제거하고
+점과 시간만 유지한다. compactLeading의 6pt 점과 compactTrailing의 시스템 `h:mm`에는
+`.fixedSize()`를 적용하고 센서 쪽 content margin을 0으로 줄여 공개 API 내 최소 폭을
+검증한다. 잠금 화면 Live Activity 구성은 유지한다. 이를 포함한 iOS TestFlight build 55는
+Release 패키지 테스트 327개와 서명 archive 생성을 통과했다. 앱·위젯 build number,
+App Group·CloudKit entitlement와 `NSSupportsLiveActivities=true`를 검증한 뒤 App Store
+Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+build 55 실기기에서 compact 시간 누락과 expanded 시간 대시를 확인했다. 두 표현의 공통 신규
+제약인 `.fixedSize()`가 실시간 `TimeDataSource`를 제한 영역 밖으로 밀어내는 회귀로 판단해
+후속 소스에서는 Dynamic Island의 모든 `.fixedSize()`와 compact 강제 content margin을
+제거한다. 점과 시간만 남기는 콘텐츠 범위는 유지한다.
+후속 iPhone 17 Pro(iOS 26.5) simulator 교차검증에서 시스템 stopwatch의 큰 이상 너비가
+compact 폭의 직접 원인임을 확인했다. 동적 갱신은 그대로 두고 시간에만 32pt 슬롯을 부여해
+긴 Task 제목과 무관하게 compact가 약 189pt로 줄었고 `MM:SS`가 초 단위로 증가했다. expanded는
+점·시간만, 잠금 화면은 제목·진행 수치·58×48pt 완료/다음 버튼을 유지한다. 잠금 화면에서
+`다음`의 Task/타이머 교체와 `완료`의 Activity 종료도 확인했다. 저휘도 Always On에서 초가
+`--`로 축약되고 화면을 깨우면 숫자 초가 복원되는 것은 시스템 stopwatch 정책으로 수용한다.
+Debug·Release iOS simulator 빌드, 공통 테스트 328개와 iPhone launch smoke test도 통과했다.
+이 변경을 포함한 iOS TestFlight build 56은 Release 패키지 테스트 327개와 서명 archive
+생성을 통과했다. 앱·위젯 build number, App Group·CloudKit entitlement와
+`NSSupportsLiveActivities=true`를 검증한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다. 다음 단계는 iPhone 실기기 인수다.
+build 56 실기기에서 1시간 이상 경과 시간이 `7h…`로 잘리고 system stopwatch의 초가 저휘도에서
+`--`로 바뀌는 것을 확인했다. 후속 소스는 1초 주기의 직접 숫자 포맷을 사용해 1시간 미만
+`MM:SS`, 1시간 이상 `H:MM:SS`를 렌더링한다. Dynamic Island compact는 46pt 이내 Task 제목과
+50pt 시간을, 잠금 화면과 expanded는 72pt 시간을 사용한다. iPhone 17 Pro(iOS 26.5)
+simulator의 7시간 fixture에서 compact 초 단위 증가와 잠금 화면 `7:21:39`를 확인해 단위 문구와
+`--`를 모두 제거했다. 잠금 화면에는 테마 색상의 48×48pt `→`·`✓` 버튼을 적용했고, 선택형
+`themeID`를 Live Activity state에 추가해 기존 in-flight state와의 decode 호환성을 유지했다.
+모든 앱·위젯 테마 preset은 시스템 라이트/다크 모드와 무관하게 고정 팔레트와 다크 표현 모드를
+사용한다. 시스템 라이트 모드의 iPhone 17 Pro simulator에서 8개 preset을 모두 순회하고 다크
+모드 대표 화면과 비교해 배경·카드·상태·강조색·텍스트 대비와 팔레트 고정을 확인했다. Debug
+328개·Release 327개 테스트와 iOS/macOS Debug·Release 전체 빌드를 통과했다. 앱·위젯 build
+57, App Group·CloudKit entitlement와 `NSSupportsLiveActivities=true`를 서명 archive에서
+검증한 뒤 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+밝은 파스텔 8종과 Apple 2020 테마, 잠금 화면 단일 완료 입력 보호 및 계획 Task 진행 버튼을
+포함한 iOS TestFlight build 58은 Release 패키지 테스트 329개와 iOS Release 빌드를 통과했다.
+앱·위젯 build 58, App Group·CloudKit entitlement, `NSSupportsLiveActivities=true`와 Activity
+타입을 서명 archive에서 검증한 뒤 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+고정 다크 테마 Midnight Blue와 Charcoal Rose를 추가한 iOS TestFlight build 59는 Release
+패키지 테스트 330개와 iOS Release 빌드를 통과했다. 두 테마는 시스템 모드와 무관하게 다크
+표현을 유지하며 iPhone 17 Pro simulator에서 상태바·카드·탭 대비를 확인했다. 앱·위젯 build
+59, App Group·CloudKit entitlement, `NSSupportsLiveActivities=true`와 Activity 타입을 서명
+archive에서 검증한 뒤 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+같은 고정 테마를 적용한 macOS TestFlight build 59는 공통 테스트 331개와 macOS
+Debug·Release 빌드를 통과했다. 서명 archive에서 앱 `com.soraul2.easytask`와 위젯
+`com.soraul2.easytask.widget`의 build 59, 앱의 CloudKit·App Group 권한과 위젯의 App Group
+권한을 확인한 뒤 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+iPhone 접근성 글자 크기 레이아웃, 기록 카드의 `보드 열기` 문구와 날짜별 고유 접근성
+identifier, V8 작업 지도 및 대형 파일 책임 분리를 포함한 iOS TestFlight build 60은 Debug
+331개·Release 330개 공통 테스트, 모바일 테스트 16개와 접근성·기록 이동·기본 글자 크기 UI
+test를 통과했다. 서명 archive에서 앱·위젯 build 60, App Group·CloudKit entitlement,
+`NSSupportsLiveActivities=true`를 확인한 뒤 App Store Connect 업로드에 성공했고 패키지
+처리가 시작됐다.
+
+같은 공통 코어·테마·구조 분리를 적용한 macOS TestFlight build 60도 iOS·macOS
+Debug·Release 전체 회귀 빌드를 통과했다. 서명 archive에서 앱·위젯 build 60, Production
+bundle ID, 앱의 CloudKit·App Group·key-value store와 위젯 App Group 권한을 확인한 뒤
+App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
 
 ## 운영 회귀 조건
 
@@ -228,7 +353,9 @@ macOS TestFlight 앱에서 기존 활동의 export 성공과 upload 대기 해�
 변경에서도 새 record type이 Production에 없으면 TestFlight 앱의 export가 실패하므로,
 같은 순서를 완료하기 전에는 해당 빌드를 테스터에게 배포하거나 App Review에 제출하지 않는다.
 
-V8은 `TaskProgressEvent` record type을 새로 추가한다. 출시 전 Development에서
-`PLANBASE_PROBE_KIND=progress`의 macOS → iPhone, iPhone → macOS 생성·삭제 수렴을 모두
-통과하고, CloudKit Console에서 V8 schema를 Production에 배포해야 한다. Production 배포와
-TestFlight 실기기 확인 전에는 진행 시간 기능을 출시 완료로 취급하지 않는다.
+V8의 `TaskProgressEvent`는 2026-08-15 Development에서
+`PLANBASE_PROBE_KIND=progress` macOS → iPhone, iPhone → macOS 생성·삭제 수렴을 모두
+통과했다. 같은 날 CloudKit Console에서 record type과 관련 인덱스를 Production에
+배포했고, 이후 iOS·macOS TestFlight build 60까지 Production 권한을 포함한 서명 archive와
+업로드를 확인했다. 다음 스키마도 이 순서를 반복하며, active 계획에 남은 실제 기기
+오프라인·재설치·로그인 전환 시나리오는 별도 운영 인수 게이트로 유지한다.

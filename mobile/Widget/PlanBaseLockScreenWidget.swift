@@ -150,9 +150,19 @@ private struct PlanBaseLockScreenProvider: TimelineProvider {
 }
 
 private struct PlanBaseLockScreenWidgetView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
     @Environment(\.redactionReasons) private var redactionReasons
     let entry: PlanBaseLockScreenEntry
+
+    private var theme: CalendarWidgetTheme {
+        CalendarWidgetTheme(
+            themeID: entry.snapshot.themeID,
+            colorScheme: colorScheme,
+            renderingMode: renderingMode
+        )
+    }
 
     var body: some View {
         Group {
@@ -165,6 +175,8 @@ private struct PlanBaseLockScreenWidgetView: View {
                 inlineContent
             }
         }
+        .foregroundStyle(theme.primaryText)
+        .tint(theme.accent)
         .containerBackground(for: .widget) { Color.clear }
     }
 
@@ -239,30 +251,41 @@ private struct PlanBaseLockScreenWidgetView: View {
         case .startable:
             if let taskID = presentation.taskID {
                 Button(intent: StartPlanBaseTaskIntent(taskID: taskID)) {
-                    compactTaskRow(presentation, symbol: "play.fill")
+                    compactTaskRow(
+                        presentation,
+                        leadingSymbol: nil,
+                        trailingActionSymbol: "play.fill"
+                    )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(
+                    "\(taskAccessibilityLabel(for: presentation)), 작업 진행하기"
+                )
             } else if let url = PlanBaseDeepLink.boardTodayURL() {
                 Link(destination: url) {
-                    compactTaskRow(presentation, symbol: "play.fill")
+                    compactTaskRow(
+                        presentation,
+                        leadingSymbol: nil,
+                        trailingActionSymbol: "play.fill"
+                    )
                 }
             }
         case .doing:
             if let url = PlanBaseDeepLink.boardTodayURL() {
                 Link(destination: url) {
-                    compactTaskRow(presentation, symbol: "circle.fill")
+                    compactTaskRow(presentation, leadingSymbol: "circle.fill")
                 }
             }
         case .complete:
             if let url = PlanBaseDeepLink.boardTodayURL() {
                 Link(destination: url) {
-                    compactTaskRow(presentation, symbol: "checkmark")
+                    compactTaskRow(presentation, leadingSymbol: "checkmark")
                 }
             }
         case .empty:
             if let url = PlanBaseDeepLink.boardTodayURL() {
                 Link(destination: url) {
-                    compactTaskRow(presentation, symbol: nil)
+                    compactTaskRow(presentation, leadingSymbol: nil)
                 }
             }
         }
@@ -270,11 +293,12 @@ private struct PlanBaseLockScreenWidgetView: View {
 
     private func compactTaskRow(
         _ presentation: LockScreenWidgetTaskPresentation,
-        symbol: String?
+        leadingSymbol: String?,
+        trailingActionSymbol: String? = nil
     ) -> some View {
         HStack(spacing: 5) {
-            if let symbol {
-                Image(systemName: symbol)
+            if let leadingSymbol {
+                Image(systemName: leadingSymbol)
                     .font(.system(size: 10, weight: .bold))
                     .widgetAccentable()
             }
@@ -289,6 +313,14 @@ private struct PlanBaseLockScreenWidgetView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
+            }
+            if let trailingActionSymbol {
+                Image(systemName: trailingActionSymbol)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                    .frame(width: 24, height: 24)
+                    .background(theme.accent.opacity(0.18), in: Circle())
+                    .widgetAccentable()
             }
         }
         .contentShape(Rectangle())

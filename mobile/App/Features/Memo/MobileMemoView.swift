@@ -12,6 +12,7 @@ struct MobileMemoView: View {
     var onShowTheme: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var querySession: MemoQuerySession?
     @State private var searchText = ""
     @State private var path: [MobileMemoRoute] = []
@@ -180,14 +181,16 @@ private extension MobileMemoView {
                     Text(MemoRules.displayTitle(for: memo.content))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     let preview = MemoRules.preview(for: memo.content)
                     if !preview.isEmpty {
                         Text(preview)
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.secondaryText)
-                            .lineLimit(2)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Text(memo.updatedAt.formatted(date: .abbreviated, time: .shortened))

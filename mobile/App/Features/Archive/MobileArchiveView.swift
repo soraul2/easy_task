@@ -456,6 +456,7 @@ private struct MobileArchiveStatisticsOverview: View {
     var statistics: TaskHistoryStatistics
     var presentation: TaskHistoryStatisticsPresentation
     var isLoading: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -483,7 +484,10 @@ private struct MobileArchiveStatisticsOverview: View {
 
             Divider()
 
-            HStack(alignment: .firstTextBaseline, spacing: 16) {
+            let statisticsLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 16))
+            statisticsLayout {
                 statisticValue(title: "계획 작업", value: statistics.plannedTaskCount)
                 statisticValue(title: "완료 작업", value: statistics.completedTaskCount)
                 VStack(alignment: .leading, spacing: 2) {

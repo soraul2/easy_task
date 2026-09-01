@@ -1,7 +1,8 @@
 # PlanBase macOS 바탕화면 네이티브 위젯 구현 계획
 
 기준일: 2026-08-14
-상태: 구현 및 서명 배포 산출물 검증 완료 — 실기기 위젯 인수·CloudKit 출시 게이트 대기
+최종 갱신: 2026-09-01
+상태: 구현·V8 Production·macOS TestFlight build 60 업로드 완료 — 실제 Mac 위젯 인수 대기
 대상: macOS 26 이상, 기존 iPhone/iPad 위젯 회귀 포함
 
 ## 1. 목표
@@ -101,13 +102,14 @@ PlanBaseWidgetExtension (macOS)
 ```
 
 - extension에서 `ModelContainer`, CloudKit container 또는 실제 앱 저장소를 열지 않는다.
-- 현재 snapshot v4와 `CalendarWidgetSnapshotStore`를 그대로 사용한다.
+- 계획 당시 snapshot v4와 `CalendarWidgetSnapshotStore`를 재사용했다. 현재 writer는
+  플래너 preview가 추가된 v5이고 v1~v4 decode 호환을 유지한다.
 - App Group 이름, widget kind, deep-link scheme은 `PlanBaseCompatibility`의 기존 값을
   사용하고 새 상수를 만들지 않는다.
 - iPhone과 Mac은 서로 다른 기기의 App Group container에 쓰므로 같은 snapshot 파일
   이름을 사용해도 충돌하지 않는다.
 
-## 3. 현재 상태와 확인된 차이
+## 3. 계획 수립 당시 상태와 확인된 차이
 
 ### Xcode 타겟
 
@@ -172,7 +174,8 @@ macOS에서 컴파일되고 `PlanBaseLockScreenWidget.swift`의 `accessoryInline
 
 ## 4. 변경 경계
 
-- `EasyTaskSchemaV1`~`V6`와 `EasyTaskMigrationPlan`을 수정하지 않는다.
+- 계획 당시 동결된 `EasyTaskSchemaV1`~`V6`뿐 아니라 이후 배포된 V7과 현재 V8,
+  `EasyTaskMigrationPlan`을 이 위젯 작업에서 수정하지 않는다.
 - CloudKit Development/Production schema를 초기화하거나 배포하지 않는다.
 - 백업 DTO, codec, merge와 `.easytaskbackup` 형식을 수정하지 않는다.
 - 다음 호환 식별자를 바꾸지 않는다.
@@ -279,14 +282,24 @@ Debug macOS 앱은 현재 비샌드박스 개발 정책을 유지한다. App Gro
 - 따라서 Phase 0~6의 자동 검증 범위는 완료됐고, Developer portal capability/profile,
   서명 설치본의 갤러리·렌더링·딥 링크·VoiceOver 확인은 Phase 7에 남아 있다.
 
+### 2026-09-01 배포 갱신
+
+- Phase 0~4의 구현과 Phase 6 자동 검증을 현재 상태에 맞게 완료 처리했다. Phase 5에서
+  실제 Mac 표현이 필요한 항목은 Phase 7과 함께 수동 인수로 유지했다.
+- V8 Development 양방향 probe와 Production schema 배포를 완료했다.
+- macOS `1.0 (60)` archive에서 앱·위젯 build number, Production bundle ID, 앱의
+  CloudKit·App Group·key-value store와 위젯 App Group 권한을 확인했다.
+- App Store Connect 업로드와 package 처리 시작까지 확인했다. Phase 7의 실제 Mac
+  gallery·바탕화면·알림 센터·VoiceOver·cold/warm deep link 항목은 계속 남긴다.
+
 ### Phase 0 — 작업 기준점과 충돌 경계 고정
 
-- [ ] `git status --short`로 다른 세션의 변경 파일을 다시 확인한다.
-- [ ] `PlanBase.xcodeproj/project.pbxproj`, macOS entitlement/Info.plist, widget source와
+- [x] `git status --short`로 다른 세션의 변경 파일을 다시 확인한다.
+- [x] `PlanBase.xcodeproj/project.pbxproj`, macOS entitlement/Info.plist, widget source와
   `desktop/App/AppRootView.swift`가 다른 세션에서 편집 중이지 않은지 확인한다.
-- [ ] 기존 `swift test` 결과를 기록한다.
-- [ ] iOS와 macOS Debug scheme의 서명 없는 build를 기준점으로 기록한다.
-- [ ] 현재 iOS widget target을 직접 빌드해 변경 전 회귀 기준을 남긴다.
+- [x] 기존 `swift test` 결과를 기록한다.
+- [x] iOS와 macOS Debug scheme의 서명 없는 build를 기준점으로 기록한다.
+- [x] 현재 iOS widget target을 직접 빌드해 변경 전 회귀 기준을 남긴다.
 
 완료 조건:
 
@@ -295,33 +308,33 @@ Debug macOS 앱은 현재 비샌드박스 개발 정책을 유지한다. App Gro
 
 ### Phase 1 — Widget Extension의 macOS 컴파일 경계
 
-- [ ] `PlanBaseWidgetExtension`에 macOS 26 destination을 추가한다.
-- [ ] `PlanBaseWidgetBundle`에서 `PlanBaseCalendarWidget`은 모든 지원 플랫폼에
-  등록하고 `PlanBaseLockScreenWidget`만 iOS 조건부로 등록한다.
-- [ ] `PlanBaseLockScreenWidget.swift` 전체를 iOS 컴파일 경계로 감싸 macOS SDK가
+- [x] `PlanBaseWidgetExtension`에 macOS 26 destination을 추가한다.
+- [x] `PlanBaseWidgetBundle`에서 캘린더·플래너는 모든 지원 플랫폼에 등록하고
+  잠금 화면 위젯·Live Activity만 iOS 조건부로 등록한다.
+- [x] `PlanBaseLockScreenWidget.swift` 전체를 iOS 컴파일 경계로 감싸 macOS SDK가
   accessory family 심볼을 해석하지 않게 한다.
-- [ ] 캘린더 widget configuration의 네 system family를 macOS에서도 유지한다.
-- [ ] macOS widget gallery 설명은 `홈 화면` 대신 `바탕화면` 문맥을 사용한다.
-- [ ] `CalendarWidgetIntent`, timeline, theme, views가 양 SDK에서 컴파일되는지 확인한다.
-- [ ] iOS widget build에서 잠금 화면 세 family가 그대로 남는지 확인한다.
+- [x] 캘린더 widget configuration의 네 system family를 macOS에서도 유지한다.
+- [x] macOS widget gallery 설명은 `홈 화면` 대신 `바탕화면` 문맥을 사용한다.
+- [x] `CalendarWidgetIntent`, timeline, theme, views가 양 SDK에서 컴파일되는지 확인한다.
+- [x] iOS widget build에서 잠금 화면 세 family와 Live Activity가 그대로 남는지 확인한다.
 
 완료 조건:
 
 - extension target이 iPhoneSimulator SDK와 macOS SDK에서 모두 컴파일된다.
-- macOS build에는 calendar widget만, iOS build에는 calendar와 lock-screen widget이
-  함께 포함된다.
+- macOS build에는 calendar와 planner, iOS build에는 calendar·planner·lock-screen과
+  Live Activity가 함께 포함된다.
 
 ### Phase 2 — macOS 앱 embed와 App Group 연결
 
-- [ ] `PlanBase-macOS`에 widget target dependency를 추가한다.
-- [ ] macOS 앱 전용 Embed Foundation Extensions phase를 추가한다.
-- [ ] Debug/Release 및 플랫폼 조건부 bundle ID를 적용한다.
-- [ ] macOS 앱 두 entitlement에 기존 App Group을 추가한다.
-- [ ] macOS widget 전용 sandbox/App Group entitlement를 추가한다.
-- [ ] macOS App Groups capability metadata와 서명 설정을 Xcode에서 확인한다.
-- [ ] 서명 없는 macOS 앱 build 결과의
+- [x] `PlanBase-macOS`에 widget target dependency를 추가한다.
+- [x] macOS 앱 전용 Embed Foundation Extensions phase를 추가한다.
+- [x] Debug/Release 및 플랫폼 조건부 bundle ID를 적용한다.
+- [x] macOS 앱 두 entitlement에 기존 App Group을 추가한다.
+- [x] macOS widget 전용 sandbox/App Group entitlement를 추가한다.
+- [x] macOS App Groups capability metadata와 서명 설정을 Xcode에서 확인한다.
+- [x] 서명 없는 macOS 앱 build 결과의
   `PlanBase.app/Contents/PlugIns/PlanBaseWidgetExtension.appex` 존재를 확인한다.
-- [ ] iOS app bundle에도 기존 extension이 계속 embed되는지 확인한다.
+- [x] iOS app bundle에도 기존 extension이 계속 embed되는지 확인한다.
 
 완료 조건:
 
@@ -339,43 +352,43 @@ publisher는 양 앱에서 같은 구현을 사용하되 `PlanBaseCore` 안에 W
 shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift
 ```
 
-- [ ] 기존 `#if os(iOS)`를 제거하고 iOS/macOS 공통 컴파일 가능 상태로 만든다.
-- [ ] 옮긴 파일을 `PlanBase-iOS`, `PlanBase-macOS` 두 앱 target에 명시적으로 등록한다.
-- [ ] Swift Package의 `shared/Core` target에는 포함하지 않는다.
-- [ ] 현재 bounded CalendarEvent/Task query와 150ms coalescing을 그대로 유지한다.
-- [ ] macOS `AppRootView`에 `isWidgetSnapshotPublisherReady` gate를 추가한다.
-- [ ] DataIntegrity reconciliation과 레거시 이관이 끝난 뒤 publisher를 활성화한다.
-- [ ] 시작 중 다른 정리 작업이 실패해도 `defer`에서 best-effort publication을
+- [x] 기존 `#if os(iOS)`를 제거하고 iOS/macOS 공통 컴파일 가능 상태로 만든다.
+- [x] 옮긴 파일을 `PlanBase-iOS`, `PlanBase-macOS` 두 앱 target에 명시적으로 등록한다.
+- [x] Swift Package의 `shared/Core` target에는 포함하지 않는다.
+- [x] 현재 bounded CalendarEvent/Task query와 150ms coalescing을 그대로 유지한다.
+- [x] macOS `AppRootView`에 `isWidgetSnapshotPublisherReady` gate를 추가한다.
+- [x] DataIntegrity reconciliation과 레거시 이관이 끝난 뒤 publisher를 활성화한다.
+- [x] 시작 중 다른 정리 작업이 실패해도 `defer`에서 best-effort publication을
   활성화하는 iOS 정책을 macOS에도 적용한다.
-- [ ] 앱 활성화, 테마 변경, data changed notification, CloudKit import, 자정과 시간대
+- [x] 앱 활성화, 테마 변경, data changed notification, CloudKit import, 자정과 시간대
   변경 후 snapshot이 최종 상태로 수렴하는지 확인한다.
-- [ ] Mac에서 선택한 non-default `themeID`가 snapshot에 기록되고, 이벤트 내용이 같아도
+- [x] Mac에서 선택한 non-default `themeID`가 snapshot에 기록되고, 이벤트 내용이 같아도
   theme만 바뀌면 content change로 판정해 파일 기록과 timeline reload가 발생하게 한다.
-- [ ] Mac publisher가 두 widget kind를 reload해도 macOS에 없는 lock-screen kind로
-  인한 오류가 없는지 확인한다. 필요하면 timeline reload 목록만 플랫폼별로 나눈다.
-- [ ] App Group container를 얻지 못한 오류를 실제 빈 일정으로 바꾸지 않고 로그와
+- [x] Mac publisher가 calendar·planner kind를 reload하고 iOS에서만 lock-screen kind를
+  추가 reload하도록 플랫폼 경계를 유지한다.
+- [x] App Group container를 얻지 못한 오류를 실제 빈 일정으로 바꾸지 않고 로그와
   갱신 상태로 유지한다.
 
 완료 조건:
 
-- Mac 앱 첫 실행 뒤 App Group에 현재 Mac 데이터의 v4 snapshot이 기록된다.
+- Mac 앱 첫 실행 뒤 App Group에 현재 Mac 데이터의 v5 snapshot이 기록된다.
 - 이벤트·테마·CloudKit import 이후 내용 변경 시 macOS calendar timeline이 reload된다.
 - widget extension은 계속 snapshot 파일만 읽는다.
 
 ### Phase 4 — macOS deep link
 
-- [ ] macOS Info.plist에 `planbase`, 레거시 `easytask` URL scheme을 등록한다.
-- [ ] `AppRootView`에 `.onOpenURL` route 처리를 추가한다.
-- [ ] `AppRootView`에 `selectedBoardDate`와 별개인 `calendarNavigationDate` 상태를
+- [x] macOS Info.plist에 `planbase`, 레거시 `easytask` URL scheme을 등록한다.
+- [x] `AppRootView`에 `.onOpenURL` route 처리를 추가한다.
+- [x] `AppRootView`에 `selectedBoardDate`와 별개인 `calendarNavigationDate` 상태를
   만들고 `CalendarView`에 `@Binding`으로 전달한다.
-- [ ] calendar route의 유효한 day key를 `calendarNavigationDate`에 전달한 뒤 캘린더
+- [x] calendar route의 유효한 day key를 `calendarNavigationDate`에 전달한 뒤 캘린더
   탭을 선택한다.
-- [ ] `CalendarView`는 iOS `MobileCalendarView`와 같은 소비 패턴으로 새 날짜를 감지해
+- [x] `CalendarView`는 iOS `MobileCalendarView`와 같은 소비 패턴으로 새 날짜를 감지해
   `visibleMonth`와 `selectedDate`를 갱신하고 `.day(date)` sheet를 연 뒤 binding을
   비운다. 템플릿 배치 같은 다른 활성 sheet가 있으면 일관된 규칙으로 정리한다.
-- [ ] `board?scope=today`는 처리 시점의 오늘 날짜를 계산해 보드 탭을 연다.
-- [ ] 명시 날짜 board route가 들어오면 해당 day key를 복원해 보드 탭을 연다.
-- [ ] 잘못된 scheme, host, 중복 파라미터, 유효하지 않은 날짜는 화면 상태를
+- [x] `board?scope=today`는 처리 시점의 오늘 날짜를 계산해 보드 탭을 연다.
+- [x] 명시 날짜 board route가 들어오면 해당 day key를 복원해 보드 탭을 연다.
+- [x] 잘못된 scheme, host, 중복 파라미터, 유효하지 않은 날짜는 화면 상태를
   바꾸지 않는다.
 - [ ] cold launch, 이미 실행 중인 앱, 백그라운드 상태를 각각 확인한다.
 - [ ] `open 'planbase://calendar?date=2026-08-14'`와
@@ -392,17 +405,17 @@ shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift
 
 ### Phase 5 — macOS 렌더링과 접근성
 
-- [ ] `CalendarWidgetTheme`가 snapshot `themeID`와 environment `colorScheme`으로
+- [x] `CalendarWidgetTheme`가 snapshot `themeID`와 environment `colorScheme`으로
   preset/appearance를 결정하고, 알 수 없는 ID는 기본 preset으로 fallback하게 한다.
-- [ ] event foreground의 중복 계산을 제거하고
+- [x] event foreground의 중복 계산을 제거하고
   `AppThemeColorSet.resolvedEventForeground(on:)`를 재사용한다.
-- [ ] 일요일 semantic color는 raw red를 무조건 쓰지 않는다. panel/input 등 실제
+- [x] 일요일 semantic color는 raw red를 무조건 쓰지 않는다. panel/input 등 실제
   표면에서 4.5:1 이상이면 red를 사용하고, 미달이면 `primaryText`를 포함한 공통
   readable-foreground resolver로 fallback한다. 일요일 의미는 첫 열 위치와 font
   weight로도 유지한다.
-- [ ] 위 semantic foreground 계산은 WidgetKit에 의존하지 않는 Core theme 규칙으로
+- [x] 위 semantic foreground 계산은 WidgetKit에 의존하지 않는 Core theme 규칙으로
   두어 전체 preset의 Light/Dark 조합을 SwiftPM 테스트할 수 있게 한다.
-- [ ] `.fullColor`, `.accented`, `.vibrant`를 명시적으로 분기 또는 수용하고 오늘 badge,
+- [x] `.fullColor`, `.accented`, `.vibrant`를 명시적으로 분기 또는 수용하고 오늘 badge,
   event mark처럼 필요한 요소만 `widgetAccentable()`로 표시한다.
 - [ ] `containerBackground`의 제거 가능 상태를 유지하고, `.contentMarginsDisabled()`와
   현재 수동 padding 조합이 Mac에서 과도하거나 부족하지 않은지 family별로 확인한다.
@@ -411,13 +424,13 @@ shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift
   바탕화면에서 확인한다. 알림 센터는 small/medium/large를 필수 확인하고 extra-large는
   현재 OS가 제공할 때만 확인한다.
 - [ ] Light/Dark와 macOS 위젯 스타일의 full-color/accented/vibrant 표현을 확인한다.
-- [ ] 색상만으로 이벤트, 오늘, 선택 월을 구분하지 않게 한다.
+- [x] 색상만으로 이벤트, 오늘, 선택 월을 구분하지 않게 한다.
 - [ ] native Mac font metrics에서 요일, 날짜, 긴 이벤트 제목, `+N`이 잘리지 않는지
   확인한다.
-- [ ] Mac에서 표시하는 weekday/day/event title은 8pt 이상, overflow `+N`은 7pt
+- [x] Mac에서 표시하는 weekday/day/event title은 8pt 이상, overflow `+N`은 7pt
   이상을 하한으로 둔다. 공간이 부족하면 6pt까지 축소하지 않고 표시 lane/label의
   수를 줄인다.
-- [ ] 크기 변경은 shared style의 iPhone/iPad 회귀를 막도록 필요하면
+- [x] 크기 변경은 shared style의 iPhone/iPad 회귀를 막도록 필요하면
   `#if os(macOS)` 또는 platform metric으로 분리한다.
 - [ ] 이벤트 제목의 privacy 처리가 macOS 잠금/개인정보 설정에서 유지되는지 확인한다.
 - [ ] VoiceOver가 날짜, 전체 이벤트 수, 표시 제목과 overflow를 중복 없이 읽는지
@@ -437,26 +450,26 @@ shared/WidgetSupport/CalendarWidgetSnapshotPublisher.swift
 
 ### Phase 6 — 자동 검증과 회귀 게이트
 
-- [ ] 기존 `CalendarWidgetSnapshotTests`, `PlanBaseBoardDeepLinkTests`를 유지한다.
-- [ ] 플랫폼 분기 때문에 순수 규칙 테스트를 복제하지 않는다.
-- [ ] publisher 파일 이동 후 기존 `PlanBaseWidgetSnapshotIntegrationTests`가 계속
+- [x] 기존 `CalendarWidgetSnapshotTests`, `PlanBaseBoardDeepLinkTests`를 유지한다.
+- [x] 플랫폼 분기 때문에 순수 규칙 테스트를 복제하지 않는다.
+- [x] publisher 파일 이동 후 기존 `PlanBaseWidgetSnapshotIntegrationTests`가 계속
   publication service를 검증하게 한다.
-- [ ] `AppThemeTests`에서 모든 preset의 Light/Dark에 대해 widget semantic text,
+- [x] `AppThemeTests`에서 모든 preset의 Light/Dark에 대해 widget semantic text,
   특히 일요일 foreground가 실제 panel/input surface에서 4.5:1 이상인지 검증하고,
   알 수 없는 theme ID가 기본 preset으로 해석되는지도 확인한다.
-- [ ] `CalendarWidgetSnapshotTests`의 동일 이벤트·변경된 theme content-change 테스트를
+- [x] `CalendarWidgetSnapshotTests`의 동일 이벤트·변경된 theme content-change 테스트를
   유지한다.
-- [ ] `PlanBaseWidgetSnapshotIntegrationTests`에서 non-default theme ID가 publication
+- [x] `PlanBaseWidgetSnapshotIntegrationTests`에서 non-default theme ID가 publication
   service를 거쳐 snapshot에 보존되고 theme-only 변경도 `didWrite == true`인지 검증한다.
-- [ ] 필요하면 macOS platform compile 전용 smoke fixture를 추가하되 실제 App Group이나
+- [x] 필요하면 macOS platform compile 전용 smoke fixture를 추가하되 실제 App Group이나
   CloudKit에 접근하는 자동 테스트는 만들지 않는다.
-- [ ] `scripts/verify-platform-builds.sh`의 macOS scheme build가 extension까지
+- [x] `scripts/verify-platform-builds.sh`의 macOS scheme build가 extension까지
   의존 빌드하고 앱 bundle 안의 `.appex` 존재도 확인하게 한다.
-- [ ] iOS/macOS extension 직접 build에서 AppIntent metadata extraction과 WidgetKit
+- [x] iOS/macOS extension 직접 build에서 AppIntent metadata extraction과 WidgetKit
   extension validation 오류가 없는지 확인한다.
-- [ ] `plutil -lint`로 변경한 Info.plist와 entitlement 파일을 검증한다.
-- [ ] `git diff --check`를 통과한다.
-- [ ] SwiftPM Debug/Release 테스트와 양 플랫폼 Debug/Release build를 통과한다.
+- [x] `plutil -lint`로 변경한 Info.plist와 entitlement 파일을 검증한다.
+- [x] `git diff --check`를 통과한다.
+- [x] SwiftPM Debug/Release 테스트와 양 플랫폼 Debug/Release build를 통과한다.
 
 단계별 빠른 명령:
 

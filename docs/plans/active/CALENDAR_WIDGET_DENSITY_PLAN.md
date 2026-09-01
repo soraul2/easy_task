@@ -1,5 +1,9 @@
 # PlanBase 캘린더 위젯 이벤트 밀도 개선 계획
 
+기준일: 2026-07-23
+최종 갱신: 2026-09-01
+상태: 구현·자동 회귀·iOS/macOS build 60 서명 업로드 완료, 실제 위젯 family 인수 대기
+
 ## 1. 목표
 
 - 홈 화면 캘린더 위젯에서 제한된 면적 안에 가능한 한 많은 이벤트를 정확하게 표시한다.
@@ -33,7 +37,7 @@
 - 소형 위젯은 이벤트 제목 최대 4개를 유지하고 초과 개수는 헤더 우측 `+N` 배지로 표시한다.
 - 날짜별 카드 모음이 아니라 하나의 연속된 표라는 시각 언어를 중형·대형에서 공유한다.
 
-## 3. 현재 상태
+## 3. 계획 수립 당시 기준선
 
 ### iPhone 앱 캘린더
 
@@ -563,8 +567,11 @@ xcodebuild -project PlanBase.xcodeproj \
 - 공통 5·6주 이벤트 배치 엔진과 결정적 lane 재사용 규칙을 구현하고 모바일 캘린더와 위젯이 함께 사용하도록 연결했다.
 - 소형은 오늘 이벤트 최대 4개와 헤더 `+N`, 중형은 제목 없는 얇은 기간 막대, 대형은 제목이 있는 기간 막대를 사용한다.
 - 중형·대형은 날짜별 카드 대신 하나의 연속 표를 사용하고 실제 높이에 맞춰 2~3개 lane을 선택한다.
-- snapshot의 캘린더 v3 필드에 coverage, cap 적용 전 일별 count, 물리 레코드 기반 `renderID`를 추가하고 현재·다음 월의 날짜별 표시 후보를 먼저 보존했다. 통합 작업 트리의 현재 schema v4 잠금화면 요약과도 함께 동작한다.
+- snapshot의 캘린더 v3 필드에 coverage, cap 적용 전 일별 count, 물리 레코드 기반 `renderID`를 추가하고 현재·다음 월의 날짜별 표시 후보를 먼저 보존했다. 이후 v4 잠금 화면 요약과 v5 플래너 Task preview까지 호환 확장됐다.
 - malformed snapshot은 다음 발행에서 교체하고 미래 schema는 덮어쓰지 않으며, 위젯은 누락·손상·coverage 만료·미래 schema 상태를 빈 일정과 구분한다.
 - 발행 쿼리와 변경 관찰 범위를 coverage로 제한하고 앱 시작·active·데이터·CloudKit 관찰값·테마·자정·시간대 신호를 150ms 단위로 병합한다.
 - `CalendarEventGridLayout` 및 `CalendarWidgetSnapshot` 자동 테스트, 전체 Swift package 테스트, iOS 앱과 Widget Extension 빌드를 회귀 게이트로 사용했다.
 - 실제 홈 화면에서의 기기별 clipping, VoiceOver, privacy redaction, tinted 모드는 배포 전 수동 인수 기준으로 유지한다.
+- 2026-09-01 iOS/macOS build 60의 서명 archive에 캘린더 위젯과 App Group 권한이
+  포함된 것을 확인하고 두 플랫폼 모두 App Store Connect에 업로드했다. 아래 미완료
+  체크박스는 실제 홈 화면·바탕화면에서만 판정할 수 있는 수동 인수 항목으로 유지한다.

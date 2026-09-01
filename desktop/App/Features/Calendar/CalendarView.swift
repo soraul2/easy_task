@@ -20,42 +20,6 @@ private enum CalendarSheet: Identifiable {
     }
 }
 
-private struct DesktopCalendarQueryRange: Hashable {
-    let startDayKey: String
-    let endDayKey: String
-
-    init(visibleMonth: Date) {
-        let dates = DayKey.monthGridDates(for: visibleMonth)
-        let fallbackDayKey = DayKey.key(for: visibleMonth)
-        startDayKey = dates.first.map(DayKey.key(for:)) ?? fallbackDayKey
-        endDayKey = dates.last.map(DayKey.key(for:)) ?? fallbackDayKey
-    }
-}
-
-private struct DesktopCalendarMonthQueryHost<Content: View>: View {
-    @Query private var events: [CalendarEvent]
-    @Query private var templatePlacements: [TemplatePlacement]
-    private let content: ([CalendarEvent], [TemplatePlacement]) -> Content
-
-    init(
-        range: DesktopCalendarQueryRange,
-        @ViewBuilder content: @escaping ([CalendarEvent], [TemplatePlacement]) -> Content
-    ) {
-        _events = Query(BoundedQueryService.eventsDescriptor(
-            overlappingStartDayKey: range.startDayKey,
-            endDayKey: range.endDayKey
-        ))
-        _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
-            from: range.startDayKey,
-            through: range.endDayKey
-        ))
-        self.content = content
-    }
-
-    var body: some View {
-        content(events, templatePlacements)
-    }
-}
 
 struct CalendarView: View {
     private static let specialDayStore = SpecialDayStore.load()
@@ -224,154 +188,25 @@ struct CalendarView: View {
     }
 
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            regularHeader
-            compactHeader
-        }
-    }
-
-    private var regularHeader: some View {
-        HStack(spacing: 12) {
-            monthNavigation
-
-            Text(DayKey.monthTitle(visibleMonth))
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(.leading, 6)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            Spacer()
-
-            dayDetailsButton(compact: false)
-            templatePlacementButton(compact: false)
-            addEventButton(compact: false)
-        }
-    }
-
-    private var compactHeader: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                monthNavigation
-
-                Text(DayKey.monthTitle(visibleMonth))
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-
-                Spacer(minLength: 0)
+        DesktopCalendarHeader(
+            visibleMonth: $visibleMonth,
+            selectedDate: $selectedDate,
+            isPlacementMode: isPlacementMode,
+            onMoveMonth: moveVisibleMonth,
+            onToggleTemplatePlacement: {
+                if isPlacementMode {
+                    cancelPlacement()
+                } else {
+                    presentedSheet = .templatePlacement
+                }
+            },
+            onOpenDayDetails: {
+                openDayDetails(for: selectedDate)
+            },
+            onAddEvent: {
+                prepareAddEvent(for: selectedDate)
             }
-
-            HStack(spacing: 10) {
-                Spacer()
-                dayDetailsButton(compact: true)
-                templatePlacementButton(compact: true)
-                addEventButton(compact: true)
-            }
-        }
-    }
-
-    private var monthNavigation: some View {
-        HStack(spacing: 8) {
-            Button {
-                moveVisibleMonth(by: -1)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.borderless)
-
-            Button {
-                visibleMonth = DayKey.startOfMonth(for: Date())
-                selectedDate = DayKey.startOfDay(for: Date())
-            } label: {
-                Text("오늘")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .buttonStyle(.bordered)
-
-            Button {
-                moveVisibleMonth(by: 1)
-            } label: {
-                Image(systemName: "chevron.right")
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.borderless)
-        }
-    }
-
-    private func templatePlacementButton(compact: Bool) -> some View {
-        Button {
-            if isPlacementMode {
-                cancelPlacement()
-            } else {
-                presentedSheet = .templatePlacement
-            }
-        } label: {
-            if compact {
-                Image(systemName: isPlacementMode ? "xmark.circle" : "square.grid.3x3")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 38, height: 34)
-                    .calendarToolbarButtonBackground()
-            } else {
-                Label(
-                    isPlacementMode ? "배치 종료" : "템플릿 배치",
-                    systemImage: isPlacementMode ? "xmark.circle" : "square.grid.3x3"
-                )
-                .font(.system(size: 13, weight: .semibold))
-                .padding(.horizontal, 12)
-                .frame(height: 34)
-                .calendarToolbarButtonBackground()
-            }
-        }
-        .buttonStyle(.plain)
-        .help(isPlacementMode ? "템플릿 배치 종료" : "템플릿을 날짜에 배치")
-    }
-
-    private func dayDetailsButton(compact: Bool) -> some View {
-        Button {
-            openDayDetails(for: selectedDate)
-        } label: {
-            if compact {
-                Image(systemName: "list.bullet.rectangle")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 38, height: 34)
-                    .calendarToolbarButtonBackground()
-            } else {
-                Label("날짜 상세", systemImage: "list.bullet.rectangle")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
-                    .calendarToolbarButtonBackground()
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(isPlacementMode)
-        .help("선택한 날짜 상세 열기 (⌘↩)")
-        .keyboardShortcut(.return, modifiers: .command)
-    }
-
-    private func addEventButton(compact: Bool) -> some View {
-        Button {
-            prepareAddEvent(for: selectedDate)
-        } label: {
-            if compact {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .bold))
-                    .frame(width: 42, height: 34)
-                    .calendarToolbarButtonBackground(isPrimary: true)
-            } else {
-                Label("이벤트 추가", systemImage: "plus")
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
-                    .calendarToolbarButtonBackground(isPrimary: true)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(DayKey.display(selectedDate)) 이벤트 추가")
-        .help("\(DayKey.display(selectedDate))에 이벤트 추가")
+        )
     }
 
     private var placementToolbar: some View {

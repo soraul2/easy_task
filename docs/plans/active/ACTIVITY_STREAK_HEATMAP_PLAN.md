@@ -1,7 +1,8 @@
 # 활동 스트릭·히트맵 및 통계 보기 구현 계획
 
 기준일: 2026-08-14
-상태: 핵심 구현 및 로컬 검증 완료, 실기기·Production 출시 게이트 대기
+최종 갱신: 2026-09-01
+상태: V7 Production 배포·build 60 자동 회귀/업로드 완료, 명시적 실기기 수렴·시각 QA 대기
 대상: macOS, iPhone, iPad의 `기록` 화면
 
 ## 구현 현황 (2026-08-14)
@@ -25,10 +26,16 @@
   회귀 테스트 추가
 - macOS Return/Space 선택과 hover 도움말, 이벤트 기록 UI fixture의 통계 모드 일치 보강
 
-출시 전 남은 항목:
+2026-09-01 추가 완료:
 
-- iPad Split View·macOS 좁은 폭·접근성 옵션의 시각 QA와 실기기 CloudKit
-  양방향 수렴/Production schema 출시 게이트
+- V7 activity 양방향 Development probe와 `TaskCompletionActivity` Production 배포
+- iPhone `accessibility5` 기록 화면을 포함한 보드·캘린더·기록·메모 UI 회귀와
+  reference screenshot, build 60 iOS/macOS TestFlight 업로드
+
+출시 승인 전 남은 항목:
+
+- iPad Split View·macOS 좁은 폭·접근성 옵션의 시각 QA와 완료 취소·재설치까지 포함한
+  명시적 실기기 CloudKit 수렴 시나리오
 
 ## 1. 목표
 
@@ -959,7 +966,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 
 - [x] 위젯 handoff 뒤 현재 기록 화면을 iPhone, iPad portrait/landscape, macOS 기본
   폭에서 캡처하고 변경 전후를 비교한다.
-- [ ] iPhone 작은 화면과 접근성 초대형 글자 UI 테스트를 추가한다.
+- [x] iPhone 작은 화면과 접근성 초대형 글자 UI 테스트를 추가한다.
 - [x] iPad portrait/landscape에서 활동 화면이 노출되는 UI 테스트를 추가한다.
 - [ ] iPad 좁은 Split View UI 테스트를 추가한다.
 - [ ] macOS 기본 폭과 좁은 폭을 수동/자동 확인한다.
@@ -988,7 +995,7 @@ bounded query, 순수 규칙과 관련 SwiftPM 테스트만 진행한다. 기존
 - [ ] 앱 재설치 후 CloudKit 활동 기록과 스트릭이 복구되는지 확인한다.
 - [ ] 이전 백업과 새 V6 package의 호환성 표를 확인한다. 구형 앱이 새 package를 읽는
   양방향 호환을 보장한다고 표현하지 않는다.
-- [ ] Development schema와 실제 데이터 검증 후에만 Production schema를 배포한다.
+- [x] Development schema와 실제 데이터 검증 후에만 Production schema를 배포한다.
 
 완료 조건:
 

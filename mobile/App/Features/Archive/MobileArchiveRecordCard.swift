@@ -11,6 +11,7 @@ struct MobileArchiveRecordCard: View {
     var legacyFileNames: [String]
     var onOpenBoardDate: (Date) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var tasksExpanded = false
 
     private var presentation: ArchiveDayPresentation {
@@ -53,23 +54,21 @@ struct MobileArchiveRecordCard: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Label(presentation.displayDate, systemImage: "calendar")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-
-                Spacer(minLength: 4)
-
-                if presentation.reviewMatchesSearch {
-                    Label("회고 일치", systemImage: "magnifyingglass")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(AppTheme.eventForeground)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppTheme.event, in: Capsule())
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        dateLabel
+                        reviewMatchLabel
+                        detailButton
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        dateLabel
+                        Spacer(minLength: 4)
+                        reviewMatchLabel
+                        detailButton
+                    }
                 }
-
-                detailButton
             }
 
             HStack(alignment: .center, spacing: 10) {
@@ -98,6 +97,25 @@ struct MobileArchiveRecordCard: View {
 
                 Spacer(minLength: 0)
             }
+        }
+    }
+
+    private var dateLabel: some View {
+        Label(presentation.displayDate, systemImage: "calendar")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppTheme.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var reviewMatchLabel: some View {
+        if presentation.reviewMatchesSearch {
+            Label("회고 일치", systemImage: "magnifyingglass")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.eventForeground)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(AppTheme.event, in: Capsule())
         }
     }
 
@@ -146,6 +164,7 @@ struct MobileArchiveRecordCard: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("archive-task-disclosure-\(record.dayKey)")
             .accessibilityLabel(
                 tasksExpanded
                     ? "\(dateBasis.taskSectionTitle) 접기"
@@ -175,11 +194,15 @@ struct MobileArchiveRecordCard: View {
             guard let date = DayKey.date(from: record.dayKey) else { return }
             onOpenBoardDate(date)
         } label: {
-            Text("상세보기")
+            Text("보드 열기")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
                 .padding(.horizontal, 10)
-                .frame(minHeight: 32)
+                .frame(
+                    maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
+                    minHeight: 44,
+                    alignment: .leading
+                )
                 .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
@@ -189,6 +212,7 @@ struct MobileArchiveRecordCard: View {
         }
         .buttonStyle(.plain)
         .frame(minWidth: 44, minHeight: 44)
+        .accessibilityIdentifier("archive-open-board-button-\(record.dayKey)")
         .accessibilityLabel("\(presentation.displayDate) 칸반보드 열기")
         .accessibilityHint("이 날짜의 작업 보드로 이동합니다")
     }

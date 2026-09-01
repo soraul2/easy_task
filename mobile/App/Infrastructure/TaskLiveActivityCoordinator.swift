@@ -160,7 +160,9 @@ final class TaskLiveActivityCoordinator {
                 currentTask,
                 now: now
             ),
-            elapsedTimerStartedAt: elapsedTimerStartedAt
+            elapsedTimerStartedAt: elapsedTimerStartedAt,
+            themeID: UserDefaults.standard.string(forKey: AppTheme.storageKey)
+                ?? AppThemePreset.defaultID
         )
     }
 
