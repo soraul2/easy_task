@@ -29,6 +29,14 @@ public struct PlanBaseBoardNavigationRoute: Equatable, Sendable {
     }
 }
 
+public struct PlanBaseFocusRoute: Equatable, Sendable {
+    public let sessionID: UUID?
+
+    public init(sessionID: UUID? = nil) {
+        self.sessionID = sessionID
+    }
+}
+
 public enum PlanBaseCalendarRoute: Equatable, Sendable {
     case today
     case day(String)
@@ -44,6 +52,36 @@ public enum PlanBaseCalendarRoute: Equatable, Sendable {
 }
 
 public enum PlanBaseDeepLink {
+    public static func focusURL(sessionID: UUID? = nil) -> URL? {
+        var components = URLComponents()
+        components.scheme = CalendarWidgetConstants.deepLinkScheme
+        components.host = "focus"
+        if let sessionID {
+            components.queryItems = [
+                URLQueryItem(name: "session", value: sessionID.uuidString.lowercased())
+            ]
+        }
+        return components.url
+    }
+
+    public static func focusRoute(from url: URL) -> PlanBaseFocusRoute? {
+        guard let scheme = url.scheme?.lowercased(),
+              CalendarWidgetConstants.supportedDeepLinkSchemes.contains(scheme),
+              url.host?.lowercased() == "focus",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let items = components.queryItems ?? []
+        guard items.allSatisfy({ $0.name == "session" }) else { return nil }
+        let sessionItems = items.filter { $0.name == "session" }
+        guard sessionItems.count <= 1 else { return nil }
+        guard let rawSessionID = sessionItems.first?.value else {
+            return PlanBaseFocusRoute()
+        }
+        guard let sessionID = UUID(uuidString: rawSessionID) else { return nil }
+        return PlanBaseFocusRoute(sessionID: sessionID)
+    }
+
     public static func calendarURL(dayKey: String) -> URL? {
         guard DayKey.date(from: dayKey) != nil else { return nil }
         var components = URLComponents()

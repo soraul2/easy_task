@@ -16,9 +16,9 @@ if [[ -z "$device_id" ]]; then
 fi
 
 case "$probe_kind" in
-  event|media|conflict|checklist|activity|progress) ;;
+  event|media|conflict|checklist|activity|progress|focus) ;;
   *)
-    print -u2 "PLANBASE_PROBE_KIND must be event, media, conflict, checklist, activity, or progress."
+    print -u2 "PLANBASE_PROBE_KIND must be event, media, conflict, checklist, activity, progress, or focus."
     exit 64
     ;;
 esac

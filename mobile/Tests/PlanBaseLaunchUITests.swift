@@ -78,6 +78,29 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testInactiveFocusEntryLivesInsideDoingList() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--ui-testing-live-activity-two-doing"
+        ]
+        app.launch()
+
+        let doingFilter = app.buttons["board-status-filter-doing"]
+        XCTAssertTrue(doingFilter.waitForExistence(timeout: 15))
+        doingFilter.tap()
+        XCTAssertTrue(waitForSelected(doingFilter))
+
+        let doingFocusLauncher = app.descendants(matching: .any)[
+            "board-doing-focus-launcher"
+        ]
+        XCTAssertTrue(doingFocusLauncher.waitForExistence(timeout: 10))
+        XCTAssertTrue(doingFocusLauncher.isHittable)
+        XCTAssertFalse(app.buttons["집중 모드 열기"].exists)
+        addReferenceScreenshot(named: "iPhone-Doing-Focus-Launcher")
+    }
+
+    @MainActor
     func testIPadUsesNativeWindowInPortraitAndLandscape() throws {
         guard UIDevice.current.userInterfaceIdiom == .pad else {
             throw XCTSkip("iPad 전용 전체 화면 회귀 테스트")

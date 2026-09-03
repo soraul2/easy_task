@@ -81,3 +81,31 @@ func boardTodayRouteResolvesAtHandlingTime() {
             .resolvedDayKey(todayDayKey: "2026-07-17") == "2026-07-10"
     )
 }
+
+@Test
+func focusDeepLinksRoundTripAndRejectStaleShapes() throws {
+    let sessionID = UUID()
+    let launcherURL = try #require(PlanBaseDeepLink.focusURL())
+    let sessionURL = try #require(PlanBaseDeepLink.focusURL(sessionID: sessionID))
+
+    #expect(launcherURL.absoluteString == "planbase://focus")
+    #expect(PlanBaseDeepLink.focusRoute(from: launcherURL) == PlanBaseFocusRoute())
+    #expect(
+        PlanBaseDeepLink.focusRoute(from: sessionURL)
+            == PlanBaseFocusRoute(sessionID: sessionID)
+    )
+    #expect(
+        PlanBaseDeepLink.focusRoute(
+            from: URL(string: "easytask://focus?session=\(sessionID.uuidString)")!
+        ) == PlanBaseFocusRoute(sessionID: sessionID)
+    )
+    #expect(PlanBaseDeepLink.focusRoute(
+        from: URL(string: "planbase://focus?session=bad")!
+    ) == nil)
+    #expect(PlanBaseDeepLink.focusRoute(
+        from: URL(string: "planbase://focus?session=\(sessionID)&session=\(sessionID)")!
+    ) == nil)
+    #expect(PlanBaseDeepLink.focusRoute(
+        from: URL(string: "planbase://focus?unknown=value")!
+    ) == nil)
+}

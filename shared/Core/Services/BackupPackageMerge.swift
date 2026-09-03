@@ -84,6 +84,11 @@ public extension BackupPackageCodec {
                 context: context,
                 report: &report
             )
+            try mergeFocusSessions(
+                payload.focusSessions ?? [],
+                context: context,
+                report: &report
+            )
             if payload.taskCompletionActivities == nil {
                 _ = try TaskActivityBackfillService.backfillLegacyCompletions(
                     in: context,
@@ -157,6 +162,11 @@ extension BackupPackageCodec {
             )
             try mergeTaskProgressEvents(
                 payload.taskProgressEvents ?? [],
+                context: context,
+                report: &report
+            )
+            try mergeFocusSessions(
+                payload.focusSessions ?? [],
                 context: context,
                 report: &report
             )

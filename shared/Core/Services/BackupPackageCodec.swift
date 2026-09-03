@@ -5,8 +5,8 @@ import SwiftData
 
 public enum BackupPackageCodec {
     public static let formatIdentifier = PlanBaseCompatibility.backupFormatIdentifier
-    public static let currentVersion = 8
-    public static let supportedVersions: ClosedRange<Int> = 2...8
+    public static let currentVersion = 9
+    public static let supportedVersions: ClosedRange<Int> = 2...9
     public static let manifestFileName = "manifest.json"
     public static let recordsFileName = "records.json"
     public static let attachmentsDirectoryName = "attachments"
@@ -349,6 +349,13 @@ public enum BackupPackageCodec {
                 id: zeroUUID
             )
         }
+        if contents.records.formatVersion >= 9,
+           contents.records.payload.focusSessions == nil {
+            throw BackupPackageError.invalidRecordMetadata(
+                recordType: "FocusSession",
+                id: zeroUUID
+            )
+        }
         let legacyReferenceCount = (contents.records.payload.dailyReviews ?? []).reduce(0) {
             $0 + ($1.imageFileNames?.count ?? 0)
         } + (contents.records.payload.diaryBlocks ?? []).filter {
@@ -555,6 +562,12 @@ private extension BackupPackageCodec {
                 ($0.id, Optional($0.instanceID))
             },
             recordType: "TaskProgressEvent"
+        )
+        try validateInstanceIDs(
+            (payload.focusSessions ?? []).map {
+                ($0.id, Optional($0.instanceID))
+            },
+            recordType: "FocusSession"
         )
 
         for item in payload.taskTemplateItems {

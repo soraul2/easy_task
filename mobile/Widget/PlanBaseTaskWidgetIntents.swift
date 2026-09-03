@@ -6,6 +6,93 @@ enum PlanBaseTaskIntentCommand: Hashable, Sendable {
     case start(taskID: UUID)
     case complete(taskID: UUID, taskSessionID: String)
     case advance(taskID: UUID, taskSessionID: String)
+    case pauseFocus(sessionID: UUID, revision: Int)
+    case resumeFocus(sessionID: UUID, revision: Int)
+    case stopFocus(sessionID: UUID, revision: Int)
+}
+
+struct PausePlanBaseFocusIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "PlanBase 집중 일시정지"
+    static let isDiscoverable = false
+    static let authenticationPolicy: IntentAuthenticationPolicy =
+        .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "집중 세션") var sessionID: String
+    @Parameter(title: "상태 버전") var revision: Int
+    @AppDependency(key: PlanBaseTaskIntentDependency.key)
+    private var handler: any PlanBaseTaskIntentCommandHandling
+
+    init() {}
+
+    init(sessionID: UUID, revision: Int) {
+        self.sessionID = sessionID.uuidString
+        self.revision = revision
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        guard let id = UUID(uuidString: sessionID) else {
+            throw PlanBaseTaskIntentError.invalidTask
+        }
+        try await handler.perform(.pauseFocus(sessionID: id, revision: revision))
+        return .result()
+    }
+}
+
+struct ResumePlanBaseFocusIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "PlanBase 집중 계속"
+    static let isDiscoverable = false
+    static let authenticationPolicy: IntentAuthenticationPolicy =
+        .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "집중 세션") var sessionID: String
+    @Parameter(title: "상태 버전") var revision: Int
+    @AppDependency(key: PlanBaseTaskIntentDependency.key)
+    private var handler: any PlanBaseTaskIntentCommandHandling
+
+    init() {}
+
+    init(sessionID: UUID, revision: Int) {
+        self.sessionID = sessionID.uuidString
+        self.revision = revision
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        guard let id = UUID(uuidString: sessionID) else {
+            throw PlanBaseTaskIntentError.invalidTask
+        }
+        try await handler.perform(.resumeFocus(sessionID: id, revision: revision))
+        return .result()
+    }
+}
+
+struct StopPlanBaseFocusIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "PlanBase 집중 종료"
+    static let isDiscoverable = false
+    static let authenticationPolicy: IntentAuthenticationPolicy =
+        .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "집중 세션") var sessionID: String
+    @Parameter(title: "상태 버전") var revision: Int
+    @AppDependency(key: PlanBaseTaskIntentDependency.key)
+    private var handler: any PlanBaseTaskIntentCommandHandling
+
+    init() {}
+
+    init(sessionID: UUID, revision: Int) {
+        self.sessionID = sessionID.uuidString
+        self.revision = revision
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        guard let id = UUID(uuidString: sessionID) else {
+            throw PlanBaseTaskIntentError.invalidTask
+        }
+        try await handler.perform(.stopFocus(sessionID: id, revision: revision))
+        return .result()
+    }
 }
 
 @MainActor

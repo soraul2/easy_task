@@ -16,11 +16,14 @@ struct PlanBaseTaskLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
                         TaskLiveActivityActiveDot(themeID: context.state.themeID)
-                        TaskLiveActivityElapsedText(
-                            startedAt: context.state.elapsedTimerStartedAt,
+                        TaskLiveActivityTimeText(
+                            state: context.state,
                             style: .expanded
                         )
                     }
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    TaskLiveActivityActions(context: context)
                 }
             } compactLeading: {
                 TaskLiveActivityCompactTitle(
@@ -28,13 +31,13 @@ struct PlanBaseTaskLiveActivity: Widget {
                     themeID: context.state.themeID
                 )
             } compactTrailing: {
-                TaskLiveActivityElapsedText(
-                    startedAt: context.state.elapsedTimerStartedAt,
+                TaskLiveActivityTimeText(
+                    state: context.state,
                     style: .compact
                 )
             } minimal: {
-                TaskLiveActivityElapsedText(
-                    startedAt: context.state.elapsedTimerStartedAt,
+                TaskLiveActivityTimeText(
+                    state: context.state,
                     style: .minimal
                 )
             }
@@ -66,7 +69,7 @@ private struct TaskLiveActivityCompactTitle: View {
     }
 }
 
-private struct TaskLiveActivityElapsedText: View {
+private struct TaskLiveActivityTimeText: View {
     enum Style {
         case compact
         case minimal
@@ -104,18 +107,47 @@ private struct TaskLiveActivityElapsedText: View {
         }
     }
 
-    let startedAt: Date
+    let state: PlanBaseTaskActivityAttributes.ContentState
     let style: Style
 
+    @ViewBuilder
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            Text(Self.elapsedText(startedAt: startedAt, now: timeline.date))
+        if state.isFocusSession {
+            if !state.isFocusPaused, let deadline = state.focusDeadline {
+                Text(
+                    timerInterval: Date.now...max(Date.now, deadline),
+                    pauseTime: nil,
+                    countsDown: true,
+                    showsHours: false
+                )
                 .font(style.font.monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(style.minimumScaleFactor)
                 .frame(width: style.timeWidth, alignment: .trailing)
-                .accessibilityLabel("진행 시간")
+                .accessibilityLabel("집중 남은 시간")
+            } else {
+                Text(Self.durationText(state.focusRemainingSecondsAtPause ?? 0))
+                    .font(style.font.monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(style.minimumScaleFactor)
+                    .frame(width: style.timeWidth, alignment: .trailing)
+                    .accessibilityLabel("일시정지된 집중 남은 시간")
+            }
+        } else {
+            TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                Text(Self.elapsedText(startedAt: state.elapsedTimerStartedAt, now: timeline.date))
+                    .font(style.font.monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(style.minimumScaleFactor)
+                    .frame(width: style.timeWidth, alignment: .trailing)
+                    .accessibilityLabel("진행 시간")
+            }
         }
+    }
+
+    private static func durationText(_ interval: TimeInterval) -> String {
+        let seconds = max(0, Int(interval.rounded(.up)))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
     private static func elapsedText(startedAt: Date, now: Date) -> String {
@@ -163,16 +195,22 @@ private struct TaskLiveActivityLockScreen: View {
                 HStack(spacing: 8) {
                     HStack(spacing: 6) {
                         TaskLiveActivityActiveDot(themeID: context.state.themeID)
-                        TaskLiveActivityElapsedText(
-                            startedAt: context.state.elapsedTimerStartedAt,
+                        TaskLiveActivityTimeText(
+                            state: context.state,
                             style: .expanded
                         )
                     }
 
-                    Text(context.state.progressText)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                    if context.state.isFocusSession {
+                        Text(context.state.isFocusPaused ? "일시정지" : "집중 중")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(context.state.progressText)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,7 +220,10 @@ private struct TaskLiveActivityLockScreen: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(minHeight: 88)
-        .widgetURL(PlanBaseDeepLink.boardTodayURL())
+        .widgetURL(
+            context.state.focusSessionID.flatMap(PlanBaseDeepLink.focusURL(sessionID:))
+                ?? PlanBaseDeepLink.boardTodayURL()
+        )
     }
 
     private var redactedTitle: String {
@@ -195,7 +236,46 @@ private struct TaskLiveActivityActions: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            if context.state.hasNextTask {
+            if let focusSessionID = context.state.focusSessionID,
+               let focusRevision = context.state.focusRevision {
+                if context.state.isFocusPaused {
+                    Button(intent: ResumePlanBaseFocusIntent(
+                        sessionID: focusSessionID,
+                        revision: focusRevision
+                    )) {
+                        TaskLiveActivityActionLabel(
+                            systemImage: "play.fill",
+                            themeID: context.state.themeID
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("집중 계속")
+                } else {
+                    Button(intent: PausePlanBaseFocusIntent(
+                        sessionID: focusSessionID,
+                        revision: focusRevision
+                    )) {
+                        TaskLiveActivityActionLabel(
+                            systemImage: "pause.fill",
+                            themeID: context.state.themeID
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("집중 일시정지")
+                }
+
+                Button(intent: StopPlanBaseFocusIntent(
+                    sessionID: focusSessionID,
+                    revision: focusRevision
+                )) {
+                    TaskLiveActivityActionLabel(
+                        systemImage: "stop.fill",
+                        themeID: context.state.themeID
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("집중 종료")
+            } else if context.state.hasNextTask {
                 Button(intent: AdvancePlanBaseTaskIntent(
                     taskID: context.state.taskID,
                     taskSessionID: context.state.taskSessionID
@@ -209,7 +289,9 @@ private struct TaskLiveActivityActions: View {
                 .accessibilityLabel("다음 작업 진행")
             }
 
-            completionControl
+            if !context.state.isFocusSession {
+                completionControl
+            }
         }
     }
 

@@ -48,6 +48,7 @@ extension View {
 
 struct BoardView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openWindow) private var openWindow
     @Query private var selectedDayTaskRows: [Task]
     @Query private var carryoverTaskRows: [Task]
     @Query private var overlappingEventRows: [CalendarEvent]
@@ -442,6 +443,7 @@ struct BoardView: View {
                 onStatusChange: moveTask,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
+                onStartFocus: openFocus,
                 onDelete: deleteTask,
                 progressText: progressText
             )
@@ -456,6 +458,7 @@ struct BoardView: View {
                 onStatusChange: moveTask,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
+                onStartFocus: openFocus,
                 onDelete: deleteTask,
                 progressText: progressText
             )
@@ -470,10 +473,16 @@ struct BoardView: View {
                 onStatusChange: moveTask,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
+                onStartFocus: openFocus,
                 onDelete: deleteTask,
                 progressText: progressText
             )
         }
+    }
+
+    private func openFocus(_ task: Task) {
+        FocusModeSelectionRequest.post(taskID: task.id)
+        openWindow(id: "focus-mode")
     }
 
     private func addQuickTask() {

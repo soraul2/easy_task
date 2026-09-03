@@ -2,7 +2,8 @@ import Foundation
 import SwiftData
 
 public enum BackupCodec {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
+    public static let supportedVersions: ClosedRange<Int> = 1...2
 
     @MainActor
     public static func makePayload(context: ModelContext) throws -> BackupPayload {
@@ -61,7 +62,10 @@ public enum BackupCodec {
                 .map(MemoDrawingDTO.init),
             memoChecklistItems: try context.fetch(FetchDescriptor<MemoChecklistItem>())
                 .filter { $0.supersededAt == nil }
-                .map(MemoChecklistItemDTO.init)
+                .map(MemoChecklistItemDTO.init),
+            focusSessions: try context.fetch(FetchDescriptor<FocusSession>())
+                .filter { $0.supersededAt == nil }
+                .map(FocusSessionDTO.init)
         )
         return try validatedPayload(payload)
     }
@@ -139,6 +143,9 @@ public enum BackupCodec {
             for event in try context.fetch(FetchDescriptor<TaskProgressEvent>()) {
                 context.delete(event)
             }
+            for session in try context.fetch(FetchDescriptor<FocusSession>()) {
+                context.delete(session)
+            }
 
             for dto in payload.calendarEvents {
                 context.insert(CalendarEvent(dto: dto))
@@ -179,6 +186,9 @@ public enum BackupCodec {
             for dto in payload.taskProgressEvents ?? [] {
                 context.insert(TaskProgressEvent(dto: dto))
             }
+            for dto in payload.focusSessions ?? [] {
+                context.insert(FocusSession(dto: dto))
+            }
 
             if payload.taskCompletionActivities == nil {
                 _ = try TaskActivityBackfillService.backfillLegacyCompletions(
@@ -206,7 +216,7 @@ public enum BackupCodec {
 
 private extension BackupCodec {
     static func validatedPayload(_ source: BackupPayload) throws -> BackupPayload {
-        guard source.backupVersion == currentVersion else {
+        guard supportedVersions.contains(source.backupVersion) else {
             throw BackupServiceError.unsupportedVersion(source.backupVersion)
         }
 
@@ -240,6 +250,10 @@ private extension BackupCodec {
         _ = try uniqueIDs(
             (payload.taskProgressEvents ?? []).map(\.id),
             recordType: "TaskProgressEvent"
+        )
+        _ = try uniqueIDs(
+            (payload.focusSessions ?? []).map(\.id),
+            recordType: "FocusSession"
         )
 
         try validateEvents(payload.calendarEvents)
@@ -391,6 +405,7 @@ private extension BackupCodec {
 
         try validateTaskCompletionActivities(payload.taskCompletionActivities ?? [])
         try validateTaskProgressEvents(payload.taskProgressEvents ?? [])
+        try validateFocusSessions(payload.focusSessions ?? [])
 
         return payload
     }
@@ -492,6 +507,33 @@ private extension BackupCodec {
                         value: event.id.uuidString
                     )
                 }
+            }
+        }
+    }
+
+    static func validateFocusSessions(_ sessions: [FocusSessionDTO]) throws {
+        for (index, session) in sessions.enumerated() {
+            let field = "focusSessions[\(index)]"
+            guard FocusSessionOutcome(rawValue: session.outcomeRawValue) != nil else {
+                throw BackupServiceError.invalidEnum(
+                    field: "\(field).outcomeRawValue",
+                    value: session.outcomeRawValue
+                )
+            }
+            try validateDate(session.startedAt, field: "\(field).startedAt")
+            try validateDate(session.endedAt, field: "\(field).endedAt")
+            try validateDate(session.createdAt, field: "\(field).createdAt")
+            try validateDate(session.updatedAt, field: "\(field).updatedAt")
+            guard session.endedAt >= session.startedAt,
+                  session.createdAt <= session.updatedAt,
+                  session.plannedDurationSeconds >= FocusTimerRules.minimumFocusSeconds,
+                  session.plannedDurationSeconds <= FocusTimerRules.maximumFocusSeconds,
+                  session.focusedDurationSeconds >= 0,
+                  session.focusedDurationSeconds <= session.plannedDurationSeconds else {
+                throw BackupServiceError.invalidValue(
+                    field: field,
+                    value: "invalid focus session"
+                )
             }
         }
     }

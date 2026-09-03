@@ -77,12 +77,14 @@ func jsonV1KeepsVersionAndBackfillsWhenActivityFieldIsAbsent() throws {
     try context.save()
 
     var payload = try BackupCodec.makePayload(context: context)
+    payload.backupVersion = 1
     payload.taskCompletionActivities = nil
+    payload.focusSessions = nil
     let data = try BackupCodec.encode(payload)
     let json = try #require(String(data: data, encoding: .utf8))
     let decoded = try BackupCodec.decode(data)
 
-    #expect(BackupCodec.currentVersion == 1)
+    #expect(BackupCodec.currentVersion == 2)
     #expect(!json.contains("taskCompletionActivities"))
     #expect(decoded.taskCompletionActivities == nil)
 

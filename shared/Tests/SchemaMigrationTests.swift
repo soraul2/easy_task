@@ -161,6 +161,16 @@ func schemaV9AddsCompositeMemoModels() {
 }
 
 @Test
+func schemaV10AddsFocusSessionsWithoutChangingFrozenModels() {
+    let modelNames = Set(EasyTaskSchemaV10.models.map { String(reflecting: $0) })
+    let expectedNames = Set(EasyTaskSchemaV9.models.map { String(reflecting: $0) })
+        .union([String(reflecting: FocusSession.self)])
+
+    #expect(EasyTaskSchemaV10.versionIdentifier == Schema.Version(10, 0, 0))
+    #expect(modelNames == expectedNames)
+}
+
+@Test
 @MainActor
 func versionedContainerReopensFileBackedStore() throws {
     try withTemporaryStore { storeURL in
@@ -539,6 +549,34 @@ func versionedV8StoreMigratesToV9WithTextMemoDefaults() throws {
         #expect(MemoRules.mode(for: memo) == .text)
         #expect(try migrated.mainContext.fetchCount(FetchDescriptor<MemoDrawing>()) == 0)
         #expect(try migrated.mainContext.fetchCount(FetchDescriptor<MemoChecklistItem>()) == 0)
+    }
+}
+
+@Test
+@MainActor
+func versionedV9StoreMigratesToV10WithEmptyFocusHistory() throws {
+    try withTemporaryStore { storeURL in
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: EasyTaskSchemaV9.self)
+            let configuration = ModelConfiguration(
+                "PlanBaseV9",
+                schema: schema,
+                url: storeURL,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            container.mainContext.insert(EasyTaskSchemaV9.Memo(
+                content: "V9 focus migration fixture",
+                isPinned: false,
+                preferredMode: .text
+            ))
+            try container.mainContext.save()
+        }
+
+        let migrated = try PlanBaseContainerFactory.makePersistent(storeURL: storeURL)
+        #expect(try migrated.mainContext.fetchCount(FetchDescriptor<Memo>()) == 1)
+        #expect(try migrated.mainContext.fetchCount(FetchDescriptor<FocusSession>()) == 0)
     }
 }
 

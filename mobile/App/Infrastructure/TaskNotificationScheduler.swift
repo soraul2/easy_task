@@ -222,6 +222,257 @@ final class TaskNotificationScheduler {
     }
 }
 
+@MainActor
+final class FocusNotificationScheduler {
+    static let shared = FocusNotificationScheduler()
+    nonisolated static let identifierPrefix = "planbase.focus."
+
+    private let center: any TaskNotificationCenterClient
+    private var isReconciling = false
+    private var needsAnotherPass = false
+
+    init(center: (any TaskNotificationCenterClient)? = nil) {
+        self.center = center ?? SystemTaskNotificationCenterClient()
+    }
+
+    nonisolated static func registerCategories(
+        center: UNUserNotificationCenter = .current()
+    ) {
+        let focusEnded = UNNotificationCategory(
+            identifier: FocusNotificationRules.focusEndedCategoryIdentifier,
+            actions: [
+                UNNotificationAction(
+                    identifier: FocusNotificationRules.startBreakActionIdentifier,
+                    title: "휴식 시작"
+                ),
+                UNNotificationAction(
+                    identifier: FocusNotificationRules.continueFocusActionIdentifier,
+                    title: "계속 집중"
+                )
+            ],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        let breakEnded = UNNotificationCategory(
+            identifier: FocusNotificationRules.breakEndedCategoryIdentifier,
+            actions: [
+                UNNotificationAction(
+                    identifier: FocusNotificationRules.startFocusActionIdentifier,
+                    title: "집중 시작"
+                ),
+                UNNotificationAction(
+                    identifier: FocusNotificationRules.extendBreakActionIdentifier,
+                    title: "5분 더 쉬기"
+                )
+            ],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        center.setNotificationCategories([focusEnded, breakEnded])
+    }
+
+    func reconcile(now: Date = Date()) async {
+#if DEBUG
+        guard !PlanBaseLaunchEnvironment.isUITesting else { return }
+#endif
+        if isReconciling {
+            needsAnotherPass = true
+            return
+        }
+        isReconciling = true
+        defer { isReconciling = false }
+        repeat {
+            needsAnotherPass = false
+            await reconcileOnce(now: now)
+        } while needsAnotherPass
+    }
+
+    func removeDeliveredNotification(identifier: String) {
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
+    }
+
+    private func reconcileOnce(now: Date) async {
+        let pending = await center.pendingNotificationRequests()
+        let ownedPendingIDs = pending.map(\.identifier).filter(Self.isManaged)
+        let delivered = await center.deliveredNotificationRequests()
+        let ownedDeliveredIDs = delivered.map(\.identifier).filter(Self.isManaged)
+
+        let snapshot = try? FocusSessionService.activeSnapshot()
+        let storedToken = try? FocusNotificationActionTokenStore.read()
+        if let storedToken,
+           !FocusNotificationRules.isActionable(storedToken, now: now),
+           now > storedToken.expiresAt {
+            try? FocusNotificationActionTokenStore.clear()
+        }
+
+        if let storedToken,
+           FocusNotificationRules.isActionable(storedToken, now: now),
+           snapshot.map({ FocusNotificationRules.matches(storedToken, snapshot: $0) }) != false {
+            if !ownedPendingIDs.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: ownedPendingIDs)
+            }
+            let staleDelivered = ownedDeliveredIDs.filter {
+                $0 != storedToken.requestIdentifier
+            }
+            if !staleDelivered.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: staleDelivered)
+            }
+            return
+        }
+
+        guard await center.authorizationState() == .authorized,
+              let snapshot,
+              snapshot.runState == .running,
+              let deadline = snapshot.deadline,
+              deadline > now else {
+            if !ownedPendingIDs.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: ownedPendingIDs)
+            }
+            if !ownedDeliveredIDs.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: ownedDeliveredIDs)
+            }
+            try? FocusNotificationActionTokenStore.clear()
+            return
+        }
+
+        let desiredID: String
+        let token: FocusNotificationActionToken
+        do {
+            desiredID = try FocusNotificationRules.requestIdentifier(
+                namespace: Self.identifierPrefix,
+                snapshot: snapshot
+            )
+            if let storedToken,
+               storedToken.requestIdentifier == desiredID,
+               FocusNotificationRules.matches(storedToken, snapshot: snapshot) {
+                token = storedToken
+            } else {
+                token = try FocusNotificationRules.makeToken(
+                    snapshot: snapshot,
+                    requestIdentifier: desiredID
+                )
+            }
+        } catch {
+            print("PlanBase focus notification token failed: \(error)")
+            return
+        }
+
+        let staleIDs = ownedPendingIDs.filter { $0 != desiredID }
+        if !staleIDs.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+        }
+        let staleDeliveredIDs = ownedDeliveredIDs.filter { $0 != desiredID }
+        if !staleDeliveredIDs.isEmpty {
+            center.removeDeliveredNotifications(withIdentifiers: staleDeliveredIDs)
+        }
+        guard !pending.contains(where: { request in
+            request.identifier == desiredID &&
+                (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() == deadline
+        }) else {
+            try? FocusNotificationActionTokenStore.write(token)
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = FocusNotificationRules.title(for: token)
+        content.body = FocusNotificationRules.body(for: token)
+        content.sound = .default
+        content.categoryIdentifier = FocusNotificationRules.categoryIdentifier(
+            for: snapshot.phase ?? .focus
+        )
+        content.userInfo = Self.userInfo(for: token)
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        var components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: deadline
+        )
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        do {
+            try FocusNotificationActionTokenStore.write(token)
+            try await center.add(UNNotificationRequest(
+                identifier: desiredID,
+                content: content,
+                trigger: UNCalendarNotificationTrigger(
+                    dateMatching: components,
+                    repeats: false
+                )
+            ))
+        } catch {
+            if (try? FocusNotificationActionTokenStore.read()?.tokenID) == token.tokenID {
+                try? FocusNotificationActionTokenStore.clear()
+            }
+            print("PlanBase focus notification scheduling failed: \(error)")
+        }
+    }
+
+    private nonisolated static func userInfo(
+        for token: FocusNotificationActionToken
+    ) -> [AnyHashable: Any] {
+        [
+            FocusNotificationRules.routeKindKey: FocusNotificationRules.routeKindValue,
+            FocusNotificationRules.tokenIDKey: token.tokenID.uuidString,
+            FocusNotificationRules.sessionIDKey: token.sessionID.uuidString,
+            FocusNotificationRules.revisionKey: token.revision,
+            FocusNotificationRules.phaseKey: token.phaseRawValue,
+            FocusNotificationRules.deadlineKey: token.deadline.timeIntervalSince1970
+        ]
+    }
+
+    private static func isManaged(_ identifier: String) -> Bool {
+        identifier.hasPrefix(identifierPrefix)
+    }
+}
+
+struct FocusNotificationRoute: Equatable, Sendable {
+    var action: FocusNotificationAction
+    var tokenID: UUID
+    var sessionID: UUID
+    var revision: Int
+    var phase: FocusTimerPhase
+    var deadline: Date
+    var requestIdentifier: String
+
+    init?(
+        userInfo: [AnyHashable: Any],
+        actionIdentifier: String,
+        requestIdentifier: String
+    ) {
+        guard userInfo[FocusNotificationRules.routeKindKey] as? String
+                == FocusNotificationRules.routeKindValue,
+              let tokenValue = userInfo[FocusNotificationRules.tokenIDKey] as? String,
+              let tokenID = UUID(uuidString: tokenValue),
+              let sessionValue = userInfo[FocusNotificationRules.sessionIDKey] as? String,
+              let sessionID = UUID(uuidString: sessionValue),
+              let revision = userInfo[FocusNotificationRules.revisionKey] as? Int,
+              let phaseValue = userInfo[FocusNotificationRules.phaseKey] as? String,
+              let phase = FocusTimerPhase(rawValue: phaseValue),
+              let deadlineValue = userInfo[FocusNotificationRules.deadlineKey] as? TimeInterval else {
+            return nil
+        }
+
+        let action: FocusNotificationAction
+        if actionIdentifier == UNNotificationDefaultActionIdentifier {
+            action = .open
+        } else if actionIdentifier == UNNotificationDismissActionIdentifier {
+            action = .dismiss
+        } else if let mapped = FocusNotificationRules.action(for: actionIdentifier) {
+            action = mapped
+        } else {
+            return nil
+        }
+        self.action = action
+        self.tokenID = tokenID
+        self.sessionID = sessionID
+        self.revision = revision
+        self.phase = phase
+        deadline = Date(timeIntervalSince1970: deadlineValue)
+        self.requestIdentifier = requestIdentifier
+    }
+}
+
 struct TaskNotificationRoute: Equatable, Sendable {
     static let taskIDKey = "taskID"
     static let plannedDayKey = "plannedDayKey"
@@ -260,12 +511,31 @@ final class TaskNotificationRouteStore {
     }
 }
 
+@MainActor
+final class FocusNotificationRouteStore {
+    static let shared = FocusNotificationRouteStore()
+    static let didReceiveRoute = Notification.Name("PlanBaseFocusNotificationRoute")
+    private var pendingRoutes: [FocusNotificationRoute] = []
+
+    func enqueue(_ route: FocusNotificationRoute) {
+        pendingRoutes.append(route)
+        NotificationCenter.default.post(name: Self.didReceiveRoute, object: nil)
+    }
+
+    func consumeAll() -> [FocusNotificationRoute] {
+        defer { pendingRoutes.removeAll() }
+        return pendingRoutes
+    }
+}
+
 final class PlanBaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        FocusNotificationScheduler.registerCategories(center: center)
         return true
     }
 
@@ -274,15 +544,31 @@ final class PlanBaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound])
+        let userInfo = notification.request.content.userInfo
+        if let sessionValue = userInfo[FocusNotificationRules.sessionIDKey] as? String,
+           let sessionID = UUID(uuidString: sessionValue),
+           FocusPresentationVisibilityStore.shared.isVisible(sessionID: sessionID) {
+            completionHandler([.sound])
+        } else {
+            completionHandler([.banner, .sound])
+        }
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
+        let userInfo = response.notification.request.content.userInfo
+        if let route = FocusNotificationRoute(
+            userInfo: userInfo,
+            actionIdentifier: response.actionIdentifier,
+            requestIdentifier: response.notification.request.identifier
+        ) {
+            await FocusNotificationRouteStore.shared.enqueue(route)
+            return
+        }
         let route = TaskNotificationRoute(
-            userInfo: response.notification.request.content.userInfo
+            userInfo: userInfo
         )
         guard let route else { return }
         await TaskNotificationRouteStore.shared.enqueue(route)

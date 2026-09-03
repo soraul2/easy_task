@@ -60,6 +60,16 @@ final class TaskLiveActivityCoordinator {
         now: Date,
         allowStarting: Bool
     ) async throws {
+        if let focus = try FocusSessionService.activeSnapshot() {
+            try await reconcileFocus(
+                focus,
+                context: context,
+                now: now,
+                allowStarting: allowStarting
+            )
+            return
+        }
+
         let dayKey = DayKey.key(for: now)
         let fetchedTasks = try context.fetch(
             BoundedQueryService.widgetPlannedTasksDescriptor(
@@ -134,6 +144,72 @@ final class TaskLiveActivityCoordinator {
         }
     }
 
+    private func reconcileFocus(
+        _ focus: FocusActiveSessionSnapshot,
+        context: ModelContext,
+        now: Date,
+        allowStarting: Bool
+    ) async throws {
+        let reconciliation = try FocusSessionService.reconcile(
+            now: now,
+            in: context
+        )
+        guard case .unchanged(let active) = reconciliation else {
+            await Self.endAllActivities()
+            return
+        }
+
+        let sessionID = "focus:\(active.sessionID.uuidString.lowercased())"
+        let contentState = PlanBaseTaskActivityAttributes.ContentState(
+            taskSessionID: sessionID,
+            taskID: active.taskID,
+            title: active.taskTitleSnapshot,
+            completedCount: 0,
+            totalCount: 0,
+            hasNextTask: false,
+            requiresCompletionConfirmation: false,
+            elapsedTimerStartedAt: active.phaseStartedAt,
+            themeID: UserDefaults.standard.string(forKey: AppTheme.storageKey)
+                ?? AppThemePreset.defaultID,
+            focusSessionID: active.sessionID,
+            focusRevision: active.revision,
+            focusPhaseRawValue: active.phaseRawValue,
+            focusRunStateRawValue: active.runStateRawValue,
+            focusDeadline: active.deadline,
+            focusRemainingSecondsAtPause: active.remainingSecondsAtPause
+        )
+        let content = ActivityContent(
+            state: contentState,
+            staleDate: active.deadline,
+            relevanceScore: 100
+        )
+
+        if await Self.updateExistingFocusActivity(content: content) {
+            markHandled(sessionID)
+            return
+        }
+        guard allowStarting, !handledSessionIDs.contains(sessionID) else { return }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            markHandled(sessionID)
+            return
+        }
+
+        do {
+            _ = try Activity.request(
+                attributes: PlanBaseTaskActivityAttributes(
+                    activityID: active.sessionID,
+                    dayKey: DayKey.key(for: active.phaseStartedAt)
+                ),
+                content: content,
+                pushType: nil
+            )
+            markHandled(sessionID)
+        } catch {
+            markHandled(sessionID)
+            throw error
+        }
+    }
+
     private func makeContentState(
         currentTask: PlanBaseCore.Task,
         tasks: [PlanBaseCore.Task],
@@ -199,6 +275,20 @@ final class TaskLiveActivityCoordinator {
         let activities = Activity<PlanBaseTaskActivityAttributes>.activities
             .sorted { $0.id < $1.id }
         let matching = activities.first { $0.attributes.dayKey == dayKey }
+        for activity in activities where activity.id != matching?.id {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        guard let matching else { return false }
+        await matching.update(content)
+        return true
+    }
+
+    private nonisolated static func updateExistingFocusActivity(
+        content: ActivityContent<PlanBaseTaskActivityAttributes.ContentState>
+    ) async -> Bool {
+        let activities = Activity<PlanBaseTaskActivityAttributes>.activities
+            .sorted { $0.id < $1.id }
+        let matching = activities.first
         for activity in activities where activity.id != matching?.id {
             await activity.end(nil, dismissalPolicy: .immediate)
         }

@@ -24,7 +24,8 @@ enum WatchWidgetSnapshotPublicationService {
         let snapshot = WatchWidgetSnapshot.make(
             tasks: tasks,
             events: events,
-            referenceDate: referenceDate
+            referenceDate: referenceDate,
+            activeFocus: try? FocusSessionService.activeSnapshot()
         )
         let didWrite = try WatchWidgetSnapshotStore.writeIfChanged(
             snapshot,

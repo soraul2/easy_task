@@ -18,6 +18,12 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     public let eventCount: Int
     public let focusTitle: String?
     public let focusKind: LockScreenWidgetFocusKind?
+    public let focusSessionID: UUID?
+    public let focusPhaseRawValue: String?
+    public let focusRunStateRawValue: String?
+    public let focusDeadline: Date?
+    public let focusRemainingSecondsAtPause: TimeInterval?
+    public let focusPlannedSeconds: Int?
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
@@ -28,7 +34,8 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
         doneCount: Int,
         eventCount: Int,
         focusTitle: String? = nil,
-        focusKind: LockScreenWidgetFocusKind? = nil
+        focusKind: LockScreenWidgetFocusKind? = nil,
+        activeFocus: FocusActiveSessionSnapshot? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.generatedAt = generatedAt
@@ -38,13 +45,29 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
         self.doneCount = max(0, doneCount)
         self.eventCount = max(0, eventCount)
 
-        let normalizedTitle = focusTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let normalizedTitle, !normalizedTitle.isEmpty, let focusKind {
+        let validActiveFocus = activeFocus.flatMap {
+            FocusTimerRules.isValid($0) ? $0 : nil
+        }
+        let activeTitle = validActiveFocus?.taskTitleSnapshot
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTitle = activeTitle?.isEmpty == false
+            ? activeTitle
+            : focusTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedKind = validActiveFocus == nil ? focusKind : .doingTask
+        if let normalizedTitle, !normalizedTitle.isEmpty, let normalizedKind {
             self.focusTitle = normalizedTitle
-            self.focusKind = focusKind
+            self.focusKind = normalizedKind
         } else {
             self.focusTitle = nil
             self.focusKind = nil
+        }
+        focusSessionID = validActiveFocus?.sessionID
+        focusPhaseRawValue = validActiveFocus?.phaseRawValue
+        focusRunStateRawValue = validActiveFocus?.runStateRawValue
+        focusDeadline = validActiveFocus?.deadline
+        focusRemainingSecondsAtPause = validActiveFocus?.remainingSecondsAtPause
+        focusPlannedSeconds = validActiveFocus.map {
+            $0.phase == .focus ? $0.plannedFocusSeconds : $0.plannedBreakSeconds
         }
     }
 
@@ -57,7 +80,35 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
     }
 
     public var hasContent: Bool {
-        totalTaskCount > 0 || eventCount > 0
+        hasActiveFocusTimer || totalTaskCount > 0 || eventCount > 0
+    }
+
+    public var hasActiveFocusTimer: Bool {
+        focusSessionID != nil && focusPhase != nil && focusRunState != nil
+    }
+
+    public var focusPhase: FocusTimerPhase? {
+        focusPhaseRawValue.flatMap(FocusTimerPhase.init(rawValue:))
+    }
+
+    public var focusRunState: FocusTimerRunState? {
+        focusRunStateRawValue.flatMap(FocusTimerRunState.init(rawValue:))
+    }
+
+    public func focusRemainingSeconds(at date: Date) -> TimeInterval? {
+        guard hasActiveFocusTimer, let planned = focusPlannedSeconds else { return nil }
+        switch focusRunState {
+        case .running:
+            guard let focusDeadline else { return nil }
+            return min(TimeInterval(planned), max(0, focusDeadline.timeIntervalSince(date)))
+        case .paused:
+            return min(
+                TimeInterval(planned),
+                max(0, focusRemainingSecondsAtPause ?? 0)
+            )
+        case nil:
+            return nil
+        }
     }
 
     public func hasSameContent(as other: WatchWidgetSnapshot) -> Bool {
@@ -69,13 +120,20 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
             && eventCount == other.eventCount
             && focusTitle == other.focusTitle
             && focusKind == other.focusKind
+            && focusSessionID == other.focusSessionID
+            && focusPhaseRawValue == other.focusPhaseRawValue
+            && focusRunStateRawValue == other.focusRunStateRawValue
+            && focusDeadline == other.focusDeadline
+            && focusRemainingSecondsAtPause == other.focusRemainingSecondsAtPause
+            && focusPlannedSeconds == other.focusPlannedSeconds
     }
 
     @MainActor
     public static func make(
         tasks: [Task],
         events: [CalendarEvent],
-        referenceDate: Date = Date()
+        referenceDate: Date = Date(),
+        activeFocus: FocusActiveSessionSnapshot? = nil
     ) -> WatchWidgetSnapshot {
         let dayKey = DayKey.key(for: referenceDate)
         let summary = LockScreenWidgetRules.makeDaySummaries(
@@ -92,7 +150,8 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
             doneCount: summary?.doneCount ?? 0,
             eventCount: summary?.eventCount ?? 0,
             focusTitle: summary?.focusTitle,
-            focusKind: summary?.focusKind
+            focusKind: summary?.focusKind,
+            activeFocus: activeFocus
         )
     }
 }

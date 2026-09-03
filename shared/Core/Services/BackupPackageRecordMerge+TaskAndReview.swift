@@ -478,6 +478,59 @@ extension BackupPackageCodec {
     }
 
     @MainActor
+    static func mergeFocusSessions(
+        _ incoming: [FocusSessionDTO],
+        context: ModelContext,
+        report: inout BackupPackageMergeReport
+    ) throws {
+        var existing = try uniqueByInstanceID(
+            context.fetch(FetchDescriptor<FocusSession>()),
+            recordType: "FocusSession",
+            instanceID: \.instanceID
+        )
+        for dto in incoming {
+            let instanceID = dto.instanceID
+            if let current = existing[instanceID] {
+                guard current.id == dto.id else {
+                    throw BackupPackageError.identityCorruption(
+                        recordType: "FocusSession",
+                        instanceID: instanceID
+                    )
+                }
+                if dto.updatedAt == current.updatedAt {
+                    guard sameFocusSession(dto, current) else {
+                        throw BackupPackageError.identityCorruption(
+                            recordType: "FocusSession",
+                            instanceID: instanceID
+                        )
+                    }
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                guard dto.updatedAt > current.updatedAt else {
+                    report.preservedLocalRecords += 1
+                    continue
+                }
+                current.taskId = dto.taskId
+                current.startedAt = dto.startedAt
+                current.endedAt = dto.endedAt
+                current.plannedDurationSeconds = dto.plannedDurationSeconds
+                current.focusedDurationSeconds = dto.focusedDurationSeconds
+                current.outcomeRawValue = dto.outcomeRawValue
+                current.createdAt = min(current.createdAt, dto.createdAt)
+                current.updatedAt = dto.updatedAt
+                current.supersededAt = nil
+                report.updatedRecords += 1
+            } else {
+                let session = FocusSession(dto: dto)
+                context.insert(session)
+                existing[instanceID] = session
+                report.insertedRecords += 1
+            }
+        }
+    }
+
+    @MainActor
     static func mergeAttachments(
         _ contents: BackupPackageContents,
         context: ModelContext,

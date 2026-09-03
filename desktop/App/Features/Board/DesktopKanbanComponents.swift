@@ -13,6 +13,7 @@ struct KanbanColumn: View {
     var onStatusChange: (Task, TaskStatus) -> Void
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
+    var onStartFocus: (Task) -> Void
     var onDelete: (Task) -> Void
     var progressText: ((Task, Date) -> String?)? = nil
     @State private var isDropTargeted = false
@@ -70,6 +71,10 @@ struct KanbanColumn: View {
                     .accessibilityLabel("\(tasks.count)개 작업")
             }
 
+            if status == .doing, !tasks.isEmpty {
+                doingFocusLauncher
+            }
+
             if isDropTargeted {
                 Label("\(title)로 옮기려면 여기에 놓으세요", systemImage: "arrow.down.circle.fill")
                     .font(.caption.weight(.semibold))
@@ -102,6 +107,7 @@ struct KanbanColumn: View {
                                 onStatusChange: onStatusChange,
                                 onTitleChange: onTitleChange,
                                 onEdit: onEdit,
+                                onStartFocus: onStartFocus,
                                 onDelete: onDelete,
                                 progressText: progressText?(task, timeline.date)
                             )
@@ -141,6 +147,75 @@ struct KanbanColumn: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(title) 컬럼, \(tasks.count)개 작업")
     }
+
+    @ViewBuilder
+    private var doingFocusLauncher: some View {
+        if tasks.count == 1, let task = tasks.first {
+            Button {
+                onStartFocus(task)
+            } label: {
+                doingFocusLauncherLabel(
+                    detail: displayTitle(for: task),
+                    trailingSystemImage: "chevron.right"
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("진행 중인 작업으로 집중 시작")
+        } else {
+            Menu {
+                ForEach(tasks) { task in
+                    Button(displayTitle(for: task)) {
+                        onStartFocus(task)
+                    }
+                }
+            } label: {
+                doingFocusLauncherLabel(
+                    detail: "진행 중인 작업 \(tasks.count)개 중 선택",
+                    trailingSystemImage: "chevron.down"
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel("집중할 진행 중 작업 선택")
+        }
+    }
+
+    private func doingFocusLauncherLabel(
+        detail: String,
+        trailingSystemImage: String
+    ) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: "timer")
+                .foregroundStyle(AppTheme.event)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("집중 시작")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.primaryText)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Image(systemName: trailingSystemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppTheme.secondaryText)
+        }
+        .padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+        .background(AppTheme.panel.opacity(0.76), in: RoundedRectangle(cornerRadius: 11))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11)
+                .stroke(AppTheme.event.opacity(0.50), lineWidth: 1)
+        }
+    }
+
+    private func displayTitle(for task: Task) -> String {
+        let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? "제목 없는 작업" : title
+    }
 }
 
 struct TaskCard: View {
@@ -150,6 +225,7 @@ struct TaskCard: View {
     var onStatusChange: (Task, TaskStatus) -> Void
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
+    var onStartFocus: (Task) -> Void
     var onDelete: (Task) -> Void
     var progressText: String?
     @State private var draftTitle = ""
@@ -213,6 +289,18 @@ struct TaskCard: View {
                     )
                 }
                 Spacer()
+                if status != .done {
+                    Button {
+                        onStartFocus(task)
+                    } label: {
+                        Image(systemName: "timer")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(AppTheme.cardMutedText)
+                    .help("이 작업으로 집중 시작")
+                    .accessibilityLabel("\(task.title) 집중 시작")
+                }
+
                 Button {
                     onEdit(task)
                 } label: {

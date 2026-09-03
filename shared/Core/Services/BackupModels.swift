@@ -17,6 +17,7 @@ public struct BackupPayload: Codable {
     public var taskProgressEvents: [TaskProgressEventDTO]? = nil
     public var memoDrawings: [MemoDrawingDTO]? = nil
     public var memoChecklistItems: [MemoChecklistItemDTO]? = nil
+    public var focusSessions: [FocusSessionDTO]? = nil
 }
 
 public struct TaskDTO: Codable {
@@ -180,6 +181,19 @@ public struct TaskProgressEventDTO: Codable {
     public var kindRawValue: String
     public var originRawValue: String
     public var occurredAt: Date
+    public var createdAt: Date
+    public var updatedAt: Date
+}
+
+public struct FocusSessionDTO: Codable {
+    public var id: UUID
+    public var instanceID: UUID
+    public var taskId: UUID
+    public var startedAt: Date
+    public var endedAt: Date
+    public var plannedDurationSeconds: Int
+    public var focusedDurationSeconds: Int
+    public var outcomeRawValue: String
     public var createdAt: Date
     public var updatedAt: Date
 }

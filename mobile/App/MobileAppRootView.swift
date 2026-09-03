@@ -48,6 +48,8 @@ struct MobileAppRootView: View {
     @State private var isWidgetSnapshotPublisherReady = false
     @State private var showingSyncStatus = false
     @State private var showingThemePicker = false
+    @State private var showingFocusMode = false
+    @State private var initialFocusTaskID: UUID?
     @State private var syncMonitor = CloudKitSyncMonitor()
     @State private var activityImportCoordinator: TaskActivityImportCoordinator?
     @State private var themePreferences = ThemePreferenceStore.shared
@@ -67,7 +69,8 @@ struct MobileAppRootView: View {
         TabView(selection: $selectedTab) {
             MobileBoardView(
                 selectedDate: $selectedBoardDate,
-                actionRequest: $boardActionRequest
+                actionRequest: $boardActionRequest,
+                onStartFocus: presentFocusMode
             )
                 .tabItem {
                     Image(systemName: MobileTab.board.symbol)
@@ -118,6 +121,14 @@ struct MobileAppRootView: View {
         }
         .toolbarBackground(AppTheme.floatingBar, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .overlay(alignment: .bottomTrailing) {
+            FocusModeLauncher {
+                initialFocusTaskID = nil
+                showingFocusMode = true
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 72)
+        }
         .preferredColorScheme(preferredThemeColorScheme)
         .environment(syncMonitor)
         .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
@@ -127,8 +138,10 @@ struct MobileAppRootView: View {
                 await syncMonitor.refreshAccountStatus()
             }
             await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+            await FocusNotificationScheduler.shared.reconcile()
             await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
             handlePendingNotificationRoute()
+            await handlePendingFocusNotificationRoutes()
         }
         .onChange(of: selectedTab) {
             persistArchiveIfNeeded()
@@ -158,8 +171,10 @@ struct MobileAppRootView: View {
                     await syncMonitor.refreshAccountStatus()
                 }
                 await TaskNotificationScheduler.shared.reconcile(context: modelContext)
+                await FocusNotificationScheduler.shared.reconcile()
                 await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
                 handlePendingNotificationRoute()
+                await handlePendingFocusNotificationRoutes()
             }
         }
         .onChange(of: colorScheme) {
@@ -196,6 +211,24 @@ struct MobileAppRootView: View {
         )) { _ in
             reconcileTaskNotifications()
             reconcileLiveActivity()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: FocusActiveSessionStore.didChangeNotification
+        )) { _ in
+            Swift.Task {
+                if await TaskNotificationScheduler.shared.authorizationState() == .notDetermined {
+                    _ = await TaskNotificationScheduler.shared.requestAuthorization()
+                }
+                await FocusNotificationScheduler.shared.reconcile()
+            }
+            reconcileLiveActivity()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: FocusNotificationRouteStore.didReceiveRoute
+        )) { _ in
+            Swift.Task {
+                await handlePendingFocusNotificationRoutes()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: TaskNotificationRouteStore.didReceiveRoute
@@ -245,6 +278,17 @@ struct MobileAppRootView: View {
         .sheet(isPresented: $showingThemePicker) {
             MobileThemePickerSheet(selectedThemeID: $selectedThemeID)
         }
+        .fullScreenCover(
+            isPresented: $showingFocusMode,
+            onDismiss: { initialFocusTaskID = nil }
+        ) {
+            FocusModeView(initialTaskID: initialFocusTaskID)
+        }
+    }
+
+    private func presentFocusMode(taskID: UUID) {
+        initialFocusTaskID = taskID
+        showingFocusMode = true
     }
 
     private func start() {
@@ -627,7 +671,56 @@ struct MobileAppRootView: View {
         selectedTab = .board
     }
 
+    @MainActor
+    private func handlePendingFocusNotificationRoutes() async {
+        let routes = FocusNotificationRouteStore.shared.consumeAll()
+        guard !routes.isEmpty else { return }
+
+        for route in routes {
+            if route.action == .open {
+                initialFocusTaskID = nil
+                showingFocusMode = true
+                continue
+            }
+
+            do {
+                _ = try FocusNotificationActionService.perform(
+                    action: route.action,
+                    tokenID: route.tokenID,
+                    sessionID: route.sessionID,
+                    revision: route.revision,
+                    phase: route.phase,
+                    deadline: route.deadline,
+                    in: modelContext
+                )
+                FocusNotificationScheduler.shared.removeDeliveredNotification(
+                    identifier: route.requestIdentifier
+                )
+                await FocusNotificationScheduler.shared.reconcile()
+                await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
+                if route.action != .dismiss, scenePhase == .active {
+                    initialFocusTaskID = nil
+                    showingFocusMode = true
+                }
+            } catch {
+                if route.action != .dismiss, scenePhase == .active {
+                    initialFocusTaskID = nil
+                    showingFocusMode = true
+                }
+            }
+        }
+    }
+
     private func handleDeepLink(_ url: URL) {
+        if let route = PlanBaseDeepLink.focusRoute(from: url) {
+            if let sessionID = route.sessionID {
+                guard let active = try? FocusSessionService.activeSnapshot(),
+                      active.sessionID == sessionID else { return }
+            }
+            initialFocusTaskID = nil
+            showingFocusMode = true
+            return
+        }
         if let route = PlanBaseDeepLink.calendarRoute(from: url),
            let date = DayKey.date(from: route.resolvedDayKey()) {
             calendarNavigationDate = date

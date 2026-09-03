@@ -32,6 +32,47 @@ private final class PlanBaseTaskIntentCommandExecutor:
     func perform(_ command: PlanBaseTaskIntentCommand) async throws {
         let context = modelContainer.mainContext
         let now = Date()
+
+        switch command {
+        case .pauseFocus(let sessionID, let revision):
+            _ = try FocusSessionService.pause(
+                expectedSessionID: sessionID,
+                expectedRevision: revision,
+                now: now
+            )
+            await TaskLiveActivityCoordinator.shared.reconcile(
+                context: context,
+                now: now
+            )
+            return
+        case .resumeFocus(let sessionID, let revision):
+            _ = try FocusSessionService.resume(
+                expectedSessionID: sessionID,
+                expectedRevision: revision,
+                now: now
+            )
+            await TaskLiveActivityCoordinator.shared.reconcile(
+                context: context,
+                now: now
+            )
+            return
+        case .stopFocus(let sessionID, let revision):
+            _ = try FocusSessionService.endFocus(
+                outcome: .stopped,
+                expectedSessionID: sessionID,
+                expectedRevision: revision,
+                now: now,
+                in: context
+            )
+            await TaskLiveActivityCoordinator.shared.reconcile(
+                context: context,
+                now: now
+            )
+            return
+        case .start, .complete, .advance:
+            break
+        }
+
         let todayDayKey = DayKey.key(for: now)
         let fetchedTasks = try context.fetch(
             BoundedQueryService.widgetPlannedTasksDescriptor(
@@ -115,6 +156,8 @@ private final class PlanBaseTaskIntentCommandExecutor:
                 }
             }
             Self.actionGate.recordAccepted(at: now)
+        case .pauseFocus, .resumeFocus, .stopFocus:
+            return
         }
 
         let themeID = UserDefaults.standard.string(forKey: AppTheme.storageKey)

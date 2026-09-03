@@ -168,7 +168,7 @@ struct MobileArchiveView: View {
                         }
 
                         Button {
-                            backupCoordinator.requestImport()
+                            backupCoordinator.requestImport(context: modelContext)
                         } label: {
                             Label("백업 가져오기", systemImage: "square.and.arrow.down")
                         }
@@ -269,6 +269,20 @@ struct MobileArchiveView: View {
                 message: Text(notice.message),
                 dismissButton: .default(Text("확인"))
             )
+        }
+        .confirmationDialog(
+            "진행 중인 타이머를 종료할까요?",
+            isPresented: $backupCoordinator.isConfirmingFocusTerminationForImport,
+            titleVisibility: .visible
+        ) {
+            Button("종료하고 백업 가져오기", role: .destructive) {
+                backupCoordinator.terminateFocusAndRequestImport(context: modelContext)
+            }
+            Button("취소", role: .cancel) {
+                backupCoordinator.cancelFocusTerminationForImport()
+            }
+        } message: {
+            Text("백업을 병합하기 전에 현재 집중 기록을 안전하게 저장합니다.")
         }
     }
 

@@ -14,6 +14,7 @@ public typealias TaskCompletionActivity = EasyTaskSchemaV7.TaskCompletionActivit
 public typealias TaskProgressEvent = EasyTaskSchemaV8.TaskProgressEvent
 public typealias MemoDrawing = EasyTaskSchemaV9.MemoDrawing
 public typealias MemoChecklistItem = EasyTaskSchemaV9.MemoChecklistItem
+public typealias FocusSession = EasyTaskSchemaV10.FocusSession
 
 public enum TaskStatus: String, CaseIterable, Identifiable {
     case todo

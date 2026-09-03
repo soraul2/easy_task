@@ -5,8 +5,8 @@
 - CloudKit 컨테이너: `iCloud.com.soraul2.easytask`
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
-- 앱 스키마: `EasyTaskSchemaV9`
-- 운영 스키마: V9 Production 배포 완료, Development 양방향 검증 대기
+- 앱 스키마: `EasyTaskSchemaV10`
+- 운영 스키마: V10 Production 배포 완료, FocusSession 실기기 양방향 수렴 검증 대기
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
@@ -53,10 +53,11 @@ CloudKit 모드는 별도의 네트워크 전용 저장소가 아니라 로컬 S
 ```
 
 초기화 코드는 명시적인 인자가 있는 Debug 빌드에서만 실행된다. 완료 후 CloudKit
-Console의 Development 환경에서 모든 V9 record type, `Task.reminderAt`,
+Console의 Development 환경에서 모든 V10 record type, `Task.reminderAt`,
 `TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`,
-`MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`가
-생성됐는지 확인한다. V9을 Production에 배포하기 전에는 V9 앱을 TestFlight에 올리지 않는다.
+`MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`,
+`FocusSession`이 생성됐는지 확인한다. V10을 Production에 배포하기 전에는 V10 앱을
+TestFlight에 올리지 않는다.
 
 ## 검증 순서
 
@@ -97,6 +98,8 @@ PLANBASE_PROBE_KIND=event \
 - `activity`: 2099-12-30의 익명 완료 활동을 사용해 활동일, 원본 종류, 생성과 삭제
   전파를 양방향 확인한다.
 - `progress`: 익명 `started` 진행 이벤트를 사용해 종류, 원본, 생성과 삭제 전파를
+  양방향 확인한다.
+- `focus`: 익명 종료 FocusSession을 사용해 결과, 실제 집중 시간, 생성과 삭제 전파를
   양방향 확인한다.
 
 모든 writer와 cleanup은 로컬 저장만 확인하지 않고 해당 저장으로 시작된 CloudKit export의
@@ -331,6 +334,29 @@ V9 복합 메모와 백업 package V8을 포함한 iOS·macOS TestFlight build 6
 Development 스키마 초기화와 V9 Production 배포 후, iOS·iPadOS·Watch 앱·위젯 및 macOS
 앱·위젯의 build 번호, 서명, CloudKit·App Group·key-value store 권한을 확인했다. 두
 아카이브 모두 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+2026-09-03에는 서명된 macOS Debug 앱의 `--initialize-cloudkit-schema` 실행으로 V10
+Development 스키마 초기화를 완료하고 `CD_FocusSession` 21개 필드를 확인했다. CloudKit
+Console의 배포 diff가 record type 1개 생성, 해당 타입 index 31개 생성, 기본 security role
+3개 수정만 포함하고 삭제·이름 변경이 없음을 검토한 뒤 Production에 배포했다. Production
+record type 목록에서도 `CD_FocusSession` 21개 필드를 다시 확인했다. 실제 기기의
+FocusSession 양방향 생성·삭제 수렴 검증은 후속 운영 인수 게이트로 유지한다. 이어 V10과
+backup package V9을 포함한 iOS·iPadOS·Watch 앱·위젯 및 macOS 앱·위젯의 build 63,
+bundle ID, CloudKit·App Group·key-value store 권한과 포함 구조를 서명 archive에서
+확인했다. iOS와 macOS 아카이브 모두 App Store Connect 업로드에 성공했고 패키지 처리가
+시작됐다.
+
+같은 날 비활성 전역 Focus 버튼을 제거하고 보드의 `doing` 영역에 시작 진입점을 옮긴
+build 64도 iOS 앱·위젯, Watch 앱·위젯과 macOS universal 앱·위젯의 Release archive를
+생성했다. 네 iOS/Watch 번들과 두 macOS 번들의 build 번호, bundle ID, 코드 서명,
+CloudKit·App Group·key-value store 권한과 포함 구조를 다시 확인했다. iOS와 macOS
+아카이브 모두 App Store Connect 업로드에 성공했고 패키지 처리가 시작됐다.
+
+같은 날 Focus와 휴식 종료 알림의 빠른 동작, 60분 action token, stale·중복 실행 방지와
+foreground 중복 banner 억제를 iOS·macOS·Watch에 연결한 build 65를 배포했다. Debug 356개와
+Release 355개 공통 테스트, iOS·macOS·watchOS Debug/Release 전체 회귀 게이트를 통과했고,
+네 iOS/Watch 번들과 두 macOS 번들의 버전, bundle ID, 코드 서명과 공유 권한을 확인했다.
+iOS와 macOS 아카이브 모두 App Store Connect 업로드에 성공해 패키지 처리가 시작됐다.
 
 ## 운영 회귀 조건
 

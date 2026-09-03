@@ -4,10 +4,11 @@ PlanBase는 iPhone, iPad, Apple Watch와 macOS에서 계획을 관리하는 개�
 iOS universal 앱, 독립 실행형 watchOS 앱과 macOS 앱은 같은 SwiftData 모델과 private
 CloudKit 컨테이너를 공유한다.
 
-현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV9`, 위젯 스냅샷 v5,
-백업 package V8이다. V9는 메모의 텍스트·필기·체크리스트 콘텐츠를 추가하며 CloudKit
-Development 초기화와 Production 배포를 완료했다. 마지막 업로드본은 V9/백업 V8을 포함한
-iOS·iPadOS·watchOS 및 macOS TestFlight build 62다.
+현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV10`, 위젯 스냅샷 v5,
+백업 package V9다. V10은 종료된 `FocusSession` 기록을 추가하고 활성 타이머는 기기별
+App Group snapshot으로 분리한다. CloudKit Production은 V10까지 배포됐으며 FocusSession의
+실기기 양방향 수렴 검증이 남아 있다. 마지막 업로드본은 V10/백업 V9, Focus 진입점과
+집중·휴식 종료 알림 빠른 동작을 포함한 iOS·iPadOS·watchOS 및 macOS TestFlight build 65다.
 
 ## 시작하기
 
@@ -15,7 +16,7 @@ Xcode에서 `PlanBase.xcodeproj`를 열고 목적에 맞는 scheme을 선택한�
 
 - `PlanBase-iOS`: iPhone·iPad universal 앱과 캘린더·플래너·잠금 화면 위젯, Live Activity
 - `PlanBase-macOS`: macOS 데스크톱 앱과 네이티브 캘린더·플래너 위젯
-- `PlanBase-watchOS`: 오늘 작업·일정, 빠른 추가·상태 변경과 Watch 컴플리케이션
+- `PlanBase-watchOS`: 오늘 작업·일정, 빠른 추가·상태 변경, 독립 Focus와 Watch 컴플리케이션
 - `PlanBaseCore`: 공통 모델과 서비스의 공개 패키지 제품
 
 ## 구조

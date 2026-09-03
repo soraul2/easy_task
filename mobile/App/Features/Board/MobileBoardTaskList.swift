@@ -9,6 +9,7 @@ struct BoardTaskList: View {
     var selectedStatus: TaskStatus
     var isEmbeddedInScrollView = false
     var onEdit: (TodoTask) -> Void
+    var onStartFocus: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
     var progressText: ((TodoTask, Date) -> String?)? = nil
@@ -60,6 +61,15 @@ struct BoardTaskList: View {
             .listRowBackground(Color.clear)
             .accessibilityIdentifier("board-empty-\(selectedStatus.rawValue)")
         } else {
+            if selectedStatus == .doing {
+                MobileDoingFocusLauncher(
+                    tasks: tasks,
+                    onStartFocus: onStartFocus
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+
             ForEach(tasks) { task in
                 MobileTaskRow(
                     task: task,
@@ -68,6 +78,7 @@ struct BoardTaskList: View {
                         expandedTaskID = shouldExpand ? task.id : nil
                     },
                     onEdit: { onEdit(task) },
+                    onStartFocus: { onStartFocus(task) },
                     onDelete: { onDelete(task) },
                     onStatusChange: { onStatusChange(task, $0) },
                     progressText: progressText?(task, date)
@@ -79,6 +90,86 @@ struct BoardTaskList: View {
     }
 }
 
+private struct MobileDoingFocusLauncher: View {
+    var tasks: [TodoTask]
+    var onStartFocus: (TodoTask) -> Void
+
+    var body: some View {
+        Group {
+            if tasks.count == 1, let task = tasks.first {
+                Button {
+                    onStartFocus(task)
+                } label: {
+                    launcherLabel(
+                        detail: displayTitle(for: task),
+                        trailingSystemImage: "chevron.right"
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                Menu {
+                    ForEach(tasks) { task in
+                        Button(displayTitle(for: task)) {
+                            onStartFocus(task)
+                        }
+                    }
+                } label: {
+                    launcherLabel(
+                        detail: "진행 중인 작업 \(tasks.count)개 중 선택",
+                        trailingSystemImage: "chevron.down"
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .accessibilityIdentifier("board-doing-focus-launcher")
+        .accessibilityLabel(tasks.count == 1
+            ? "진행 중인 작업으로 집중 시작"
+            : "집중할 진행 중 작업 선택")
+    }
+
+    private func launcherLabel(
+        detail: String,
+        trailingSystemImage: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "timer")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(AppTheme.event)
+                .frame(width: 40, height: 40)
+                .background(AppTheme.event.opacity(0.14), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("집중 시작")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.cardText)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.cardMutedText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: trailingSystemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(AppTheme.cardMutedText)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .background(AppTheme.panel.opacity(0.94), in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.event.opacity(0.45), lineWidth: 1)
+        }
+    }
+
+    private func displayTitle(for task: TodoTask) -> String {
+        let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return title.isEmpty ? "제목 없는 작업" : title
+    }
+}
+
 private struct MobileTaskRow: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -86,6 +177,7 @@ private struct MobileTaskRow: View {
     var isChecklistExpanded: Bool
     var onChecklistExpansionChange: (Bool) -> Void
     var onEdit: () -> Void
+    var onStartFocus: () -> Void
     var onDelete: () -> Void
     var onStatusChange: (TaskStatus) -> Void
     var progressText: String?
@@ -97,6 +189,7 @@ private struct MobileTaskRow: View {
         isChecklistExpanded: Bool,
         onChecklistExpansionChange: @escaping (Bool) -> Void,
         onEdit: @escaping () -> Void,
+        onStartFocus: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onStatusChange: @escaping (TaskStatus) -> Void,
         progressText: String? = nil
@@ -105,6 +198,7 @@ private struct MobileTaskRow: View {
         self.isChecklistExpanded = isChecklistExpanded
         self.onChecklistExpansionChange = onChecklistExpansionChange
         self.onEdit = onEdit
+        self.onStartFocus = onStartFocus
         self.onDelete = onDelete
         self.onStatusChange = onStatusChange
         self.progressText = progressText
@@ -308,6 +402,18 @@ private struct MobileTaskRow: View {
 
     private var taskActionButtons: some View {
         HStack(spacing: 8) {
+            if status != .done {
+                Button(action: onStartFocus) {
+                    Image(systemName: "timer")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .background(AppTheme.panel.opacity(0.78), in: Circle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("\(task.title) 집중 시작")
+                .accessibilityLabel("\(task.title) 집중 시작")
+            }
+
             Button(action: onEdit) {
                 Image(systemName: "pencil")
                     .font(.subheadline.weight(.semibold))

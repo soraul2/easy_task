@@ -30,6 +30,10 @@ enum BackupService {
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
+        guard try endActiveFocusForImportIfConfirmed(context: context) else {
+            return .cancelled
+        }
+        try FocusSessionService.requireNoActiveSessionForBackupImport()
 
         if url.pathExtension.lowercased() != "json" {
             let contents = try BackupPackageCodec.read(from: url)
@@ -57,6 +61,40 @@ enum BackupService {
             name: PersistenceCommandService.dataChangedNotification,
             object: context
         )
+    }
+
+    @MainActor
+    private static func endActiveFocusForImportIfConfirmed(
+        context: ModelContext
+    ) throws -> Bool {
+        guard let snapshot = try FocusSessionService.activeSnapshot() else {
+            return true
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "진행 중인 타이머를 종료할까요?"
+        alert.informativeText = "백업을 병합하기 전에 현재 집중 기록을 안전하게 저장합니다."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "종료하고 백업 가져오기")
+        alert.addButton(withTitle: "취소")
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+
+        if snapshot.phase == .breakTime {
+            let current = try FocusSessionService.activeSnapshot()
+            guard current?.sessionID == snapshot.sessionID,
+                  current?.revision == snapshot.revision else {
+                throw FocusSessionServiceError.staleCommand
+            }
+            try FocusActiveSessionStore.clear()
+        } else {
+            _ = try FocusSessionService.endFocus(
+                outcome: .interrupted,
+                expectedSessionID: snapshot.sessionID,
+                expectedRevision: snapshot.revision,
+                in: context
+            )
+        }
+        return true
     }
 
     private static let backupPackageType = UTType(

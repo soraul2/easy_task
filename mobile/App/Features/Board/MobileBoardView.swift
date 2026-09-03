@@ -40,6 +40,7 @@ struct MobileBoardActionRequest: Equatable, Identifiable {
 struct MobileBoardView: View {
     @Binding var selectedDate: Date
     @Binding var actionRequest: MobileBoardActionRequest?
+    let onStartFocus: (UUID) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var selectedDayTaskRows: [TodoTask]
@@ -62,10 +63,12 @@ struct MobileBoardView: View {
 
     init(
         selectedDate: Binding<Date>,
-        actionRequest: Binding<MobileBoardActionRequest?>
+        actionRequest: Binding<MobileBoardActionRequest?>,
+        onStartFocus: @escaping (UUID) -> Void = { _ in }
     ) {
         _selectedDate = selectedDate
         _actionRequest = actionRequest
+        self.onStartFocus = onStartFocus
 
         let dayKey = DayKey.key(for: selectedDate.wrappedValue)
         _selectedDayTaskRows = Query(
@@ -147,7 +150,7 @@ struct MobileBoardView: View {
             .sheet(item: $presentedSheet) { sheet in
                 switch sheet {
                 case .task(let task):
-                    MobileTaskDetailSheet(task: task)
+                    MobileTaskDetailSheet(task: task, onStartFocus: onStartFocus)
                 case .carryover:
                     MobileCarryoverSheet(
                         tasks: carryoverTasks,
@@ -255,6 +258,7 @@ struct MobileBoardView: View {
             selectedStatus: selectedStatus,
             isEmbeddedInScrollView: isEmbeddedInScrollView,
             onEdit: { presentedSheet = .task($0) },
+            onStartFocus: { onStartFocus($0.id) },
             onDelete: deleteTask,
             onStatusChange: requestTaskStatusChange,
             progressText: progressText

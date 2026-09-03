@@ -57,6 +57,19 @@ extension BackupPackageCodec {
             event.createdAt == dto.createdAt
     }
 
+    static func sameFocusSession(
+        _ dto: FocusSessionDTO,
+        _ session: FocusSession
+    ) -> Bool {
+        session.taskId == dto.taskId &&
+            session.startedAt == dto.startedAt &&
+            session.endedAt == dto.endedAt &&
+            session.plannedDurationSeconds == dto.plannedDurationSeconds &&
+            session.focusedDurationSeconds == dto.focusedDurationSeconds &&
+            session.outcomeRawValue == dto.outcomeRawValue &&
+            session.createdAt == dto.createdAt
+    }
+
     static func uniqueByInstanceID<Record>(
         _ records: [Record],
         recordType: String,

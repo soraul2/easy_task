@@ -12,7 +12,7 @@ macOS 앱, iPhone·iPad universal 앱, 독립 실행형 Apple Watch 앱과 각 �
 - 최소 플랫폼: iOS 18, macOS 26, watchOS 11
 - 공통 패키지 제품: `PlanBaseCore`
 - Xcode scheme: `PlanBase-iOS`, `PlanBase-macOS`, `PlanBase-watchOS`
-- 현재 영속 스키마: `EasyTaskSchemaV9`
+- 현재 영속 스키마: `EasyTaskSchemaV10`
 
 의존 방향은 아래와 같다.
 
@@ -50,8 +50,8 @@ desktop/App  mobile/App  mobile/Widget  watch/App·Widget
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI/확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- SwiftData 호환 이름: 동결된 `EasyTaskSchemaV1`~`V8`, 현재
-  `EasyTaskSchemaV9`, `EasyTaskMigrationPlan`
+- SwiftData 호환 이름: 동결된 `EasyTaskSchemaV1`~`V9`, 현재
+  `EasyTaskSchemaV10`, `EasyTaskMigrationPlan`
 - 레거시 저장소, 이미지 폴더, migration marker 이름
 
 호환 상수의 기준 파일은 `shared/Core/Persistence/PlanBaseCompatibility.swift`다. macOS Debug bundle ID `com.soraul2.easytask.macos`는 Release 앱과 개발 데이터를 병행하기 위한 의도된 예외다.
@@ -123,7 +123,7 @@ PlanBase/
 | `PlanBaseCoreTests` | `shared/Tests` | 공통 로직 및 데이터 안전성 테스트 |
 
 `shared/PlanBaseCore/Exports.swift`는 `EasyTaskCore` 전체를 한 줄의
-`@_exported import`로 재노출한다. 현재 V9의 `Task`, `CalendarEvent`, `Memo`,
+`@_exported import`로 재노출한다. 현재 V10의 `Task`, `CalendarEvent`, `Memo`,
 `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`를 비롯한 공개 모델·서비스는 별도 typealias 없이
 `import PlanBaseCore`만으로 사용한다.
 
@@ -161,8 +161,8 @@ PlanBase/
 
 ## 6. 데이터 모델과 핵심 규칙
 
-현재 `EasyTaskSchemaV9`은 V8 모델에 텍스트·필기·체크리스트 복합 메모를 추가한다.
-이미 배포된 V1~V8 정의는 동결되어 있고 다음 모델 변경은 새 버전
+현재 `EasyTaskSchemaV10`은 V9 모델에 종료된 집중 구간인 `FocusSession`을 추가한다.
+이미 배포된 V1~V9 정의는 동결되어 있고 다음 모델 변경은 새 버전
 스키마와 migration stage로만 추가한다.
 
 | 모델 | 역할/주요 연결 |
@@ -180,6 +180,7 @@ PlanBase/
 | `MemoChecklistItem` | `memoId`로 연결된 메모 체크리스트 항목 |
 | `TaskCompletionActivity` | Task 완료 사실을 날짜별로 보존해 활동 스트릭·히트맵을 계산하는 V7 기록 |
 | `TaskProgressEvent` | Task의 `started`/`stopped` 전환 시각을 보존해 누적 진행 시간과 Live Activity를 계산하는 V8 기록 |
+| `FocusSession` | 종료된 집중 구간과 실제 집중 시간을 보존하는 V10 기록. 활성 타이머는 기기 로컬 snapshot으로 관리 |
 
 중요한 규칙은 다음과 같다.
 
@@ -207,7 +208,8 @@ PlanBase/
 | 메모 | `MemoRules`, `MemoService`, `MemoContentService`, `MemoQuerySession`, `MemoEditorSession` | `MemoView`의 텍스트·체크리스트 편집과 필기 미리보기 | `MobileMemoView`의 텍스트·PencilKit 필기·체크리스트 편집 | 현재 표시 없음 |
 | 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | `MobileBackupService`와 문서 picker | 현재 파일 UI 없음 |
 | CloudKit | `PlanBaseContainerFactory`, `CloudKitSyncService`, `CloudKitConvergenceProbe*` | 앱 루트 sync UI/diagnostic args | 앱 루트 sync UI/diagnostic args | `WatchRootView` import 후 재수렴 |
-| 작업 알림·진행 | `TaskReminderRules`, `TaskLifecycleService`, `TaskProgressEvent*` | 로컬 알림·Live Activity 스케줄러 없음 | `TaskNotificationScheduler`, `TaskLiveActivityCoordinator`, app delegate/intent route store | `WatchTodayView` 상태 전환·미래 알림 확인, 로컬 스케줄러 없음 |
+| 작업 알림·진행 | `TaskReminderRules`, `TaskLifecycleService`, `TaskProgressEvent*` | 로컬 알림·Live Activity 스케줄러 없음 | `TaskNotificationScheduler`, `TaskLiveActivityCoordinator`, app delegate/intent route store | `WatchTodayView` 상태 전환·미래 알림 확인 |
+| 집중 모드 | `FocusTimerRules`, `FocusSessionService`, `FocusSessionQueryService`, `FocusActiveSessionStore` | 플로팅 `FocusModeView`, 로컬 종료 알림 | 보드·상세 진입, 전체 화면 `FocusModeView`, 알림·Live Activity | `WatchFocusView`, 로컬 알림·햅틱, Focus 우선 컴플리케이션 |
 | 위젯 | `CalendarWidgetSnapshot`, `WatchWidgetSnapshot`, `PlannerWidgetRules`, `LockScreenWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, 캘린더·플래너·잠금 화면 위젯과 `PlanBaseTaskLiveActivity` | `WatchWidgetSnapshotPublicationService`, `PlanBaseWatchWidget` |
 | 테마 | `AppTheme`, `CalendarEventPalette` | 앱 루트 theme selector | 앱 루트/mobile theme UI 및 위젯 snapshot | 시스템 tint 중심의 작은 화면 UI |
 
@@ -217,7 +219,7 @@ PlanBase/
 
 ### 모델/필드 변경
 
-1. 동결된 V1~V8과 현재 V9을 수정하지 말고 다음 `EasyTaskSchemaV*`를 추가한다.
+1. 동결된 V1~V9과 현재 V10을 수정하지 말고 다음 `EasyTaskSchemaV*`를 추가한다.
 2. `EasyTaskMigrationPlan`의 schema 목록과 stage를 갱신한다.
 3. `PlanBaseContainerFactory.schema`와 `Exports.swift`의 공개 API 재노출을 확인한다.
 4. `DataIntegrityService`, 백업 DTO/codec/merge, CloudKit probe에 영향이 있는지 확인한다.

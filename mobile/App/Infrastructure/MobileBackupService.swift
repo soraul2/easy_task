@@ -216,9 +216,11 @@ final class MobileBackupCoordinator: ObservableObject {
     @Published private(set) var isBusy = false
     @Published var pickerRequest: MobileBackupPickerRequest?
     @Published var notice: MobileBackupNotice?
+    @Published var isConfirmingFocusTerminationForImport = false
 
     private let fileAdapter: any MobileBackupFileAdapter
     private var pendingExportArtifact: MobileBackupExportArtifact?
+    private var focusSnapshotPendingImport: FocusActiveSessionSnapshot?
 
     init(fileAdapter: (any MobileBackupFileAdapter)? = nil) {
         self.fileAdapter = fileAdapter ?? SystemMobileBackupFileAdapter()
@@ -229,6 +231,53 @@ final class MobileBackupCoordinator: ObservableObject {
         isBusy = true
         notice = nil
         pickerRequest = .importBackup
+    }
+
+    func requestImport(context _: ModelContext) {
+        guard !isBusy else { return }
+        notice = nil
+        do {
+            guard let snapshot = try FocusSessionService.activeSnapshot() else {
+                requestImport()
+                return
+            }
+            focusSnapshotPendingImport = snapshot
+            isConfirmingFocusTerminationForImport = true
+        } catch {
+            finishWithFailure(error)
+        }
+    }
+
+    func terminateFocusAndRequestImport(context: ModelContext) {
+        guard let snapshot = focusSnapshotPendingImport else { return }
+        isConfirmingFocusTerminationForImport = false
+        focusSnapshotPendingImport = nil
+
+        do {
+            if snapshot.phase == .breakTime {
+                let current = try FocusSessionService.activeSnapshot()
+                guard current?.sessionID == snapshot.sessionID,
+                      current?.revision == snapshot.revision else {
+                    throw FocusSessionServiceError.staleCommand
+                }
+                try FocusActiveSessionStore.clear()
+            } else {
+                _ = try FocusSessionService.endFocus(
+                    outcome: .interrupted,
+                    expectedSessionID: snapshot.sessionID,
+                    expectedRevision: snapshot.revision,
+                    in: context
+                )
+            }
+            requestImport()
+        } catch {
+            finishWithFailure(error)
+        }
+    }
+
+    func cancelFocusTerminationForImport() {
+        isConfirmingFocusTerminationForImport = false
+        focusSnapshotPendingImport = nil
     }
 
     func requestExport(context: ModelContext) {

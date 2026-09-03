@@ -22,6 +22,7 @@ struct WatchTodayView: View {
     @State private var quickTitle = ""
     @State private var pendingCompletion: PendingWatchCompletion?
     @State private var notice: String?
+    @State private var activeFocus: FocusActiveSessionSnapshot?
 
     init(dayKey: String, startupIssue: String?) {
         self.dayKey = dayKey
@@ -64,50 +65,59 @@ struct WatchTodayView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                summarySection
+        List {
+            summarySection
 
-                if let startupIssue {
-                    Label(startupIssue, systemImage: "exclamationmark.icloud")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-
-                if let notice {
-                    Label(notice, systemImage: "checkmark.circle")
-                        .font(.caption2)
-                        .foregroundStyle(.green)
-                }
-
-                quickAddSection
-                taskSection
-
-                if !events.isEmpty {
-                    eventSection
-                }
-
-                if !doneTasks.isEmpty {
-                    completedSection
-                }
+            if let activeFocus {
+                activeFocusSection(activeFocus)
             }
-            .navigationTitle("오늘")
-            .refreshable {
-                publishWidget(forceWrite: true)
+
+            if let startupIssue {
+                Label(startupIssue, systemImage: "exclamationmark.icloud")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
             }
-            .task(id: contentFingerprint) {
-                publishWidget(forceWrite: false)
+
+            if let notice {
+                Label(notice, systemImage: "checkmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.green)
             }
-            .alert(item: $pendingCompletion) { pending in
-                Alert(
-                    title: Text("알림이 남아 있어요"),
-                    message: Text("\(pending.title)을 완료하면 \(pending.reminderAt.formatted(date: .omitted, time: .shortened)) 알림은 iPhone 동기화 후 정리됩니다."),
-                    primaryButton: .default(Text("완료")) {
-                        completePendingTask(pending)
-                    },
-                    secondaryButton: .cancel(Text("취소"))
-                )
+
+            quickAddSection
+            taskSection
+
+            if !events.isEmpty {
+                eventSection
             }
+
+            if !doneTasks.isEmpty {
+                completedSection
+            }
+        }
+        .navigationTitle("오늘")
+        .refreshable {
+            reloadActiveFocus()
+            publishWidget(forceWrite: true)
+        }
+        .task(id: contentFingerprint) {
+            reloadActiveFocus()
+            publishWidget(forceWrite: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: FocusActiveSessionStore.didChangeNotification
+        )) { _ in
+            reloadActiveFocus()
+        }
+        .alert(item: $pendingCompletion) { pending in
+            Alert(
+                title: Text("알림이 남아 있어요"),
+                message: Text("\(pending.title)을 완료하면 \(pending.reminderAt.formatted(date: .omitted, time: .shortened)) 알림은 iPhone 동기화 후 정리됩니다."),
+                primaryButton: .default(Text("완료")) {
+                    completePendingTask(pending)
+                },
+                secondaryButton: .cancel(Text("취소"))
+            )
         }
     }
 
@@ -142,6 +152,39 @@ struct WatchTodayView: View {
                 Label("오늘 할 일 추가", systemImage: "plus")
             }
             .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+
+    private func activeFocusSection(_ active: FocusActiveSessionSnapshot) -> some View {
+        Section("집중") {
+            NavigationLink(value: WatchFocusDestination(taskID: active.taskID)) {
+                TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                    let remaining = FocusTimerRules.remainingSeconds(
+                        for: active,
+                        now: timeline.date
+                    )
+                    HStack(spacing: 8) {
+                        Image(systemName: active.runState == .paused
+                            ? "pause.circle.fill"
+                            : "timer.circle.fill")
+                            .foregroundStyle(active.phase == .focus ? .blue : .green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(active.taskTitleSnapshot)
+                                .lineLimit(1)
+                                .privacySensitive()
+                            Text(Self.focusClock(remaining))
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .onChange(of: remaining) { _, value in
+                        if value <= 0 {
+                            reconcileActiveFocus()
+                        }
+                    }
+                }
+            }
+            .accessibilityLabel("진행 중인 집중 모드 열기")
         }
     }
 
@@ -278,6 +321,37 @@ struct WatchTodayView: View {
         }
     }
 
+    @MainActor
+    private func reloadActiveFocus() {
+        do {
+            activeFocus = try FocusSessionService.activeSnapshot()
+        } catch {
+            activeFocus = nil
+            showNotice("집중 상태를 불러오지 못했어요")
+        }
+    }
+
+    @MainActor
+    private func reconcileActiveFocus() {
+        do {
+            switch try FocusSessionService.reconcile(in: modelContext) {
+            case .focusEnded, .breakEnded:
+                WKInterfaceDevice.current().play(.notification)
+            case .unchanged, .noActiveSession:
+                break
+            }
+            reloadActiveFocus()
+            publishWidget(forceWrite: true)
+        } catch {
+            showNotice("집중 기록을 저장하지 못했어요")
+        }
+    }
+
+    private static func focusClock(_ seconds: TimeInterval) -> String {
+        let value = max(0, Int(seconds.rounded(.up)))
+        return String(format: "%02d:%02d", value / 60, value % 60)
+    }
+
     private func showNotice(_ message: String) {
         notice = message
     }
@@ -327,6 +401,16 @@ private struct WatchTaskRow: View {
             .buttonStyle(.borderless)
             .tint(status == .doing ? .green : .blue)
             .accessibilityLabel(status.primaryActionTitle)
+
+            if status != .done {
+                NavigationLink(value: WatchFocusDestination(taskID: task.id)) {
+                    Image(systemName: "timer")
+                        .font(.body.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .tint(.blue)
+                .accessibilityLabel("\(task.title) 집중 시작")
+            }
         }
     }
 }

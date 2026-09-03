@@ -216,6 +216,11 @@ public enum DataIntegrityService {
         report.normalizedFields += progressReport.normalizedFields
         report.supersededRecords += progressReport.supersededRecords
 
+        let focusReport = try FocusSessionIntegrityService.reconcile(in: context)
+        report.mergedRecords += focusReport.mergedRecords
+        report.normalizedFields += focusReport.normalizedFields
+        report.supersededRecords += focusReport.supersededRecords
+
         let compatibilityReport = try TaskProgressCompatibilityService.reconcile(
             tasks: tasks,
             in: context

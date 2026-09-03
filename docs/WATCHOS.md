@@ -3,14 +3,17 @@
 ## 범위
 
 `PlanBase-watchOS`는 iPhone 연결 없이 실행할 수 있는 Apple Watch 앱이다. 같은 Apple ID의
-private CloudKit 데이터베이스에서 V8 모델을 열며 다음 기능을 제공한다.
+private CloudKit 데이터베이스에서 V10 모델을 열며 다음 기능을 제공한다.
 
 - 오늘 남은 작업·완료 작업과 겹치는 일정 요약
 - 받아쓰기와 watchOS 텍스트 입력을 이용한 오늘 작업 빠른 추가
 - `할 일 → 진행 중 → 완료`, 완료 작업 재개
 - 미래 알림이 남은 작업의 완료 확인
+- Watch가 독립적으로 소유하는 Task 기반 Focus 시작·일시정지·재개·종료와 5분 휴식
+- Focus/휴식 종료 로컬 알림, 전환 햅틱과 `휴식 시작`·`계속 집중`·`집중 시작`·`5분 더 쉬기`
+  빠른 동작
 - `accessoryCircular`, `accessoryRectangular`, `accessoryInline`, `accessoryCorner`
-  컴플리케이션
+  컴플리케이션의 활성 Focus 우선 표시
 
 기록·회고, 메모, 템플릿, 백업, 첨부 이미지는 Watch MVP 범위에 포함하지 않는다.
 
@@ -18,9 +21,10 @@ private CloudKit 데이터베이스에서 V8 모델을 열며 다음 기능을 �
 
 ```text
 PlanBase-watchOS
-  → PlanBaseContainerFactory / EasyTaskSchemaV9
+  → Focus/focus-active-v1.json (Watch 기기 로컬 활성 상태)
+  → PlanBaseContainerFactory / EasyTaskSchemaV10
   → iCloud.com.soraul2.easytask private database
-  → bounded 오늘 Task·Event query
+  → 종료된 FocusSession 동기화 + bounded 오늘 Task·Event query
   → WatchWidgetSnapshotStore
   → group.com.soraul2.easytask/WatchWidget/watch-widget-v1.json
   → PlanBaseWatchWidgetExtension
@@ -33,6 +37,9 @@ Watch 앱의 상태 변경은 다른 앱과 동일하게 `PersistenceCommandServ
 컴플리케이션 확장은 SwiftData나 CloudKit을 직접 열지 않는다. Watch 앱이 App Group에 쓴
 당일 최소 요약만 읽으며, 앱 활성화·저장·CloudKit import 뒤 타임라인을 갱신한다. iPhone과
 Watch의 App Group 디렉터리는 기기별 로컬 저장소이므로 각각의 앱이 자신의 snapshot을 쓴다.
+따라서 iPhone에서 실행 중인 Focus를 Watch가 활성 타이머로 오인하거나 제어하지 않는다. Watch
+타이머의 deadline은 매초 저장하지 않고 절대 시각에서 계산하며, 앱 재실행·scene 활성화와
+CloudKit import 뒤 공통 `FocusSessionService`로 수렴한다.
 
 ## 배포 식별자
 
@@ -59,13 +66,15 @@ swift test --filter WatchWidgetSnapshotTests
 
 TestFlight 업로드와 실제 기기 인수 상태는 다음과 같다.
 
-- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 62로 통일
+- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 65로 통일
 - [x] Apple Developer의 Watch 앱·위젯 App ID와 iCloud, CloudKit, App Group 권한 확인
 - [x] Release archive의 iOS 앱 아래 `Watch/PlanBaseWatch.app`과 Watch 앱의 `PlugIns` 확인
 - [x] `WKApplication`, companion ID, 네 번들의 배포 서명과 App Store Connect 업로드 확인
+- [x] Watch Focus 화면·로컬 snapshot·종료 알림 빠른 동작·햅틱·컴플리케이션 연결과 simulator 빌드
 - [ ] 실제 Apple Watch에서 iCloud 최초 가져오기, 오프라인 변경 후 iPhone/Mac 수렴 확인
+- [ ] 실제 Apple Watch에서 wrist-down·재실행 뒤 Focus 복원, 종료 알림과 햅틱 확인
 - [ ] 네 가지 컴플리케이션 family의 갤러리, 저휘도 화면, 긴 제목과 큰 글자 확인
 - [ ] 미래 알림 작업 완료 후 iPhone의 로컬 알림 캐시 정리 확인
 
-현재 자동 검증은 snapshot 규칙·저장소, SDK 컴파일과 archive 서명·구조를 다룬다.
+현재 자동 검증은 Focus를 포함한 snapshot 규칙·저장소, SDK 컴파일과 archive 서명·구조를 다룬다.
 실제 기기 CloudKit 수렴은 별도 출시 인수 게이트다.

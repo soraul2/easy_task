@@ -35,6 +35,7 @@ struct AppRootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openWindow) private var openWindow
 
     @State private var selectedTab: AppTab = .board
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
@@ -72,6 +73,9 @@ struct AppRootView: View {
 
             HStack(spacing: 14) {
                 FloatingTabBar(selectedTab: $selectedTab)
+                FocusModeLauncher {
+                    openWindow(id: "focus-mode")
+                }
                 if cloudKitEnabled {
                     CloudKitSyncStatusButton(monitor: syncMonitor)
                 }
@@ -84,6 +88,8 @@ struct AppRootView: View {
         .environment(syncMonitor)
         .task {
             start()
+            await DesktopFocusNotificationScheduler.shared.reconcile()
+            await handlePendingFocusNotificationRoutes()
             if cloudKitEnabled {
                 await syncMonitor.refreshAccountStatus()
             }
@@ -102,7 +108,11 @@ struct AppRootView: View {
                 selectedThemeID = syncedThemeID
             }
             refreshCurrentDay()
+            reconcileFocusSession()
             refreshWidgetSnapshot(forceWrite: true)
+            Swift.Task {
+                await DesktopFocusNotificationScheduler.shared.reconcile()
+            }
             if cloudKitEnabled {
                 Swift.Task { await syncMonitor.refreshAccountStatus() }
             }
@@ -120,6 +130,29 @@ struct AppRootView: View {
             for: CloudKitSyncService.eventChangedNotification
         )) { notification in
             handleCloudKitEvent(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: PersistenceCommandService.dataChangedNotification
+        )) { notification in
+            guard let sourceContext = notification.object as? ModelContext,
+                  sourceContext === modelContext else { return }
+            reconcileFocusSession()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: FocusActiveSessionStore.didChangeNotification
+        )) { _ in
+            Swift.Task {
+                await DesktopFocusNotificationScheduler.shared.reconcile(
+                    requestAuthorizationIfNeeded: true
+                )
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: DesktopFocusNotificationRouteStore.didReceiveRoute
+        )) { _ in
+            Swift.Task {
+                await handlePendingFocusNotificationRoutes()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: NSUbiquitousKeyValueStore.didChangeExternallyNotification
@@ -174,6 +207,7 @@ struct AppRootView: View {
                     saveChanges: false
                 )
             }
+            reconcileFocusSession()
             let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
                 context: modelContext,
                 appSupportFolder: PlanBaseCompatibility.legacyDesktopImageFolderName
@@ -375,12 +409,21 @@ struct AppRootView: View {
                 after: summary,
                 context: modelContext
             )
+            reconcileFocusSession()
         } catch {
             syncMonitor.recordReconciliationFailure(error)
         }
         if shouldRefreshWidget {
             // Imports can finish after startup published an empty local cache.
             refreshWidgetSnapshot(forceWrite: true, delay: .milliseconds(250))
+        }
+    }
+
+    private func reconcileFocusSession() {
+        do {
+            _ = try FocusSessionService.reconcile(in: modelContext)
+        } catch {
+            syncMonitor.recordReconciliationFailure(error)
         }
     }
 
@@ -401,6 +444,41 @@ struct AppRootView: View {
             }
         } catch {
             syncMonitor.recordStartupFailure(error)
+        }
+    }
+
+    @MainActor
+    private func handlePendingFocusNotificationRoutes() async {
+        let routes = DesktopFocusNotificationRouteStore.shared.consumeAll()
+        guard !routes.isEmpty else { return }
+
+        for route in routes {
+            if route.action == .open {
+                openWindow(id: "focus-mode")
+                continue
+            }
+            do {
+                _ = try FocusNotificationActionService.perform(
+                    action: route.action,
+                    tokenID: route.tokenID,
+                    sessionID: route.sessionID,
+                    revision: route.revision,
+                    phase: route.phase,
+                    deadline: route.deadline,
+                    in: modelContext
+                )
+                DesktopFocusNotificationScheduler.shared.removeDeliveredNotification(
+                    identifier: route.requestIdentifier
+                )
+                await DesktopFocusNotificationScheduler.shared.reconcile()
+                if route.action != .dismiss {
+                    openWindow(id: "focus-mode")
+                }
+            } catch {
+                if route.action != .dismiss {
+                    openWindow(id: "focus-mode")
+                }
+            }
         }
     }
 
@@ -437,6 +515,14 @@ struct AppRootView: View {
     }
 
     private func handleDeepLink(_ url: URL) {
+        if let route = PlanBaseDeepLink.focusRoute(from: url) {
+            if let sessionID = route.sessionID {
+                guard let active = try? FocusSessionService.activeSnapshot(),
+                      active.sessionID == sessionID else { return }
+            }
+            openWindow(id: "focus-mode")
+            return
+        }
         if let dayKey = PlanBaseDeepLink.calendarDayKey(from: url),
            let date = DayKey.date(from: dayKey) {
             calendarNavigationDate = date

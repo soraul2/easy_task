@@ -191,6 +191,21 @@ extension TaskProgressEventDTO {
     }
 }
 
+extension FocusSessionDTO {
+    init(session: FocusSession) {
+        id = session.id
+        instanceID = session.instanceID
+        taskId = session.taskId
+        startedAt = session.startedAt
+        endedAt = session.endedAt
+        plannedDurationSeconds = session.plannedDurationSeconds
+        focusedDurationSeconds = session.focusedDurationSeconds
+        outcomeRawValue = session.outcomeRawValue
+        createdAt = session.createdAt
+        updatedAt = session.updatedAt
+    }
+}
+
 extension CalendarEvent {
     convenience init(dto: CalendarEventDTO) {
         self.init(
@@ -404,6 +419,23 @@ extension TaskProgressEvent {
             kind: TaskProgressEventKind(rawValue: dto.kindRawValue) ?? .stopped,
             origin: TaskProgressEventOrigin(rawValue: dto.originRawValue) ?? .compatibilityBoundary,
             occurredAt: dto.occurredAt,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+}
+
+extension FocusSession {
+    convenience init(dto: FocusSessionDTO) {
+        self.init(
+            id: dto.id,
+            instanceID: dto.instanceID,
+            taskId: dto.taskId,
+            startedAt: dto.startedAt,
+            endedAt: dto.endedAt,
+            plannedDurationSeconds: dto.plannedDurationSeconds,
+            focusedDurationSeconds: dto.focusedDurationSeconds,
+            outcome: FocusSessionOutcome(rawValue: dto.outcomeRawValue) ?? .interrupted,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

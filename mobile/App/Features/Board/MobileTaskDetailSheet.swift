@@ -17,6 +17,7 @@ struct MobileTaskDetailSheet: View {
     }
 
     var task: TodoTask
+    private let onStartFocus: (UUID) -> Void
     private let initialReminderEnabled: Bool
     private let initialReminderAt: Date?
     @Environment(\.modelContext) private var modelContext
@@ -43,8 +44,9 @@ struct MobileTaskDetailSheet: View {
     @State private var pendingCompletion: PendingMobileTaskDetailCompletion?
     @FocusState private var isNewChecklistTitleFocused: Bool
 
-    init(task: TodoTask) {
+    init(task: TodoTask, onStartFocus: @escaping (UUID) -> Void = { _ in }) {
         self.task = task
+        self.onStartFocus = onStartFocus
         initialReminderEnabled = task.reminderAt != nil
         initialReminderAt = TaskReminderRules.normalizedDate(task.reminderAt)
         _title = State(initialValue: task.title)
@@ -235,6 +237,18 @@ struct MobileTaskDetailSheet: View {
                                     Label("설정에서 알림 허용", systemImage: "gear")
                                 }
                             }
+                        }
+                    }
+                }
+                if TaskStatus(rawValue: task.status) != .done {
+                    Section("집중") {
+                        Button {
+                            dismiss()
+                            DispatchQueue.main.async {
+                                onStartFocus(task.id)
+                            }
+                        } label: {
+                            Label("이 작업으로 집중 시작", systemImage: "timer")
                         }
                     }
                 }

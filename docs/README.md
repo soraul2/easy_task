@@ -11,11 +11,12 @@
 - [아키텍처](ARCHITECTURE.md): 모듈 경계, 데이터 흐름, 무결성, 백업, 플랫폼 책임
 - [CloudKit 동기화](CLOUDKIT_SYNC.md): entitlement, schema 배포, 실기기 수렴 검증
 - [Apple Watch](WATCHOS.md): 독립 실행형 앱, 컴플리케이션 데이터 흐름과 출시 검증
-- [데이터 기반 계획](DATA_FOUNDATION_PLAN.md): 최초 데이터 안전 전환 순서, 현재 V8 상태와 남은 실기기 인수
+- [데이터 기반 계획](DATA_FOUNDATION_PLAN.md): 최초 데이터 안전 전환 순서, 현재 V10 상태와 남은 실기기 인수
 - [구조 정리 체크리스트](STRUCTURE_CLEANUP_CHECKLIST.md): 2026-07 완료 당시 디렉터리·파일 정리 스냅샷
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [Focus 모드·집중 타이머](plans/active/FOCUS_MODE_PLAN.md)
 - [활동 스트릭·히트맵 및 통계 보기](plans/active/ACTIVITY_STREAK_HEATMAP_PLAN.md)
 - [macOS·iPhone 기능 정합성](plans/active/CROSS_PLATFORM_PARITY_PLAN.md)
 - [캘린더 위젯 밀도](plans/active/CALENDAR_WIDGET_DENSITY_PLAN.md)
