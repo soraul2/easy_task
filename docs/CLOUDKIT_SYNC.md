@@ -364,6 +364,21 @@ iOS와 macOS 아카이브 모두 App Store Connect 업로드에 성공해 패키
 자동 배포 서명 과정의 CloudKit Production 권한과 iOS·macOS 업로드 성공 및 패키지 처리
 시작을 확인했다. 로그와 서명 검증 결과는 `.local/releases/build-66/`에 보관한다.
 
+같은 날 저장한 작업 재사용, 칸반 버튼·테마·큰 글자 화면 개선과 테마 변경 중 초안 유지,
+작업 삭제 안정성 수정을 포함한 build 67도 iOS·macOS 모두 업로드했다. V10 스키마와 백업
+V9은 유지했다. 기능 변경 후 Debug 382개·Release 381개 공통 테스트와 전체 플랫폼 회귀를
+통과했고, build 67의 여섯 앱·위젯 번들 버전·서명·App Group·CloudKit 권한을 재검증했다.
+자동 배포 서명의 CloudKit Production 권한, 두 플랫폼 업로드 성공과 패키지 처리 시작을
+확인했다. TestFlight 설치 가능 상태는 아직 확인하지 않았으며 배포 자료는
+`.local/releases/build-67/`에 보관한다.
+
+같은 날 집중모드 화면과 예상 시간 반영을 포함한 build 68도 두 플랫폼에서 업로드했다.
+V10 스키마와 백업 V9은 유지했다. Debug 385개·Release 384개 공통 테스트와 전체 플랫폼
+회귀를 통과했고, 최종 집중 UI 시나리오를 iPhone·iPad에서 각각 3개씩 재검증했다.
+build 68의 앱·위젯 6개 서명·버전·공유 권한, 자동 배포 서명의 CloudKit Production 권한을
+확인했다. iOS 15:49:03, macOS 15:49:29 KST 업로드 성공 및 패키지 처리 시작을 확인했다.
+TestFlight 설치 가능 상태는 별도 확인 대상이며 자료는 `.local/releases/build-68/`에 보관한다.
+
 ## 운영 회귀 조건
 
 - 두 기기 오프라인 충돌 시나리오 통과

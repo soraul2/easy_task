@@ -34,6 +34,9 @@
 
 ## 완료된 설계·구현 기록
 
+- [집중모드 화면과 예상 시간 반영](plans/completed/FOCUS_EXPERIENCE_POLISH_PLAN.md)
+- [칸반 화면·버튼·테마 완성도 개선](plans/completed/KANBAN_SERVICE_POLISH_PLAN.md)
+- [칸반에서 꺼내 쓰는 저장한 작업](plans/completed/SAVED_TASK_LIBRARY_PLAN.md)
 - [접근성·문구·문서·파일 구조 개선](plans/completed/ACCESSIBILITY_AND_MAINTAINABILITY_PLAN.md)
 - [기록·회고 UI/UX](plans/completed/ARCHIVE_REVIEW_UI_UX_PLAN.md)
 - [캘린더 경험 디자인](plans/completed/CALENDAR_EXPERIENCE_DESIGN_PLAN.md)

@@ -7,8 +7,8 @@ CloudKit 컨테이너를 공유한다.
 현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV10`, 위젯 스냅샷 v5,
 백업 package V9다. V10은 종료된 `FocusSession` 기록을 추가하고 활성 타이머는 기기별
 App Group snapshot으로 분리한다. CloudKit Production은 V10까지 배포됐으며 FocusSession의
-실기기 양방향 수렴 검증이 남아 있다. 마지막 업로드본은 회고 없는 날짜별 활동,
-읽기 전용 작업 기록과 통계 제거를 포함한 iOS·iPadOS·watchOS 및 macOS TestFlight build 66이다.
+실기기 양방향 수렴 검증이 남아 있다. 마지막 업로드본은 집중모드 화면 개선과 작업 예상 시간
+반영까지 포함한 iOS·iPadOS·watchOS 및 macOS TestFlight build 68이다.
 2026-09-04 두 플랫폼의 App Store Connect 업로드 성공과 패키지 처리 시작을 확인했다.
 
 ## 시작하기

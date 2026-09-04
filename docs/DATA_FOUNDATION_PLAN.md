@@ -317,7 +317,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ### Phase 8. 릴리스 안정화
 
-상태: 앱 버전 1.0(build 66) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
+상태: 앱 버전 1.0(build 68) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
 
 - Debug/Release 양쪽 플랫폼 빌드와 UI smoke test를 통과한다.
 - iOS와 macOS launch UI smoke test 타겟을 추가해 앱 시작을 검증한다.
@@ -329,7 +329,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 운영 동기화 태그: `v1.2.0`
 
 위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
-`CURRENT_PROJECT_VERSION = 66`이며, 마지막 App Store Connect 업로드도 build 66이다. 태그는
+`CURRENT_PROJECT_VERSION = 68`이며, 마지막 App Store Connect 업로드도 build 68이다. 태그는
 저장소의 실제 릴리스 절차에서 별도로 확정한다.
 
 2026-09-01 검증 결과:
@@ -366,6 +366,25 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - App Store Connect 전송 과정의 CloudKit Production 권한 확인
 - iOS 13:17:35, macOS 13:17:24 KST 업로드 성공 및 패키지 처리 시작 확인
 - 배포 자료와 로그: `.local/releases/build-66/`. Apple 처리 완료와 TestFlight 설치는 별도 확인 대상
+
+같은 날 build 67 업로드 결과:
+
+- 저장한 작업의 검색·즐겨찾기·날짜별 재사용, 칸반 버튼·테마 대비·큰 글자 화면 개선 포함
+- 테마 변경 중 날짜·입력 유지와 작업 삭제 안정성 개선, iPhone·iPad 및 실제 Mac 흐름 검증
+- 기능 변경 후 Debug 382개·Release 381개 공통 테스트와 전체 플랫폼 회귀 게이트 통과
+- build 67의 iOS/Watch 네 번들과 macOS universal 두 번들의 버전·서명·공유 권한 재검증 통과
+- 배포 서명의 CloudKit Production 권한, iOS 14:52:20 및 macOS 14:52:19 KST 업로드 성공 확인
+- Apple 패키지 처리 시작을 확인했고, TestFlight 설치 가능 상태는 아직 확인하지 않았다.
+- 배포 자료·로그·소스 해시 목록: `.local/releases/build-67/`
+
+같은 날 build 68 업로드 결과:
+
+- 집중모드 UI·예상 시간 기본값 반영, 작업 검색·선택, 큰 글자·가로 화면 및 Mac 창 고정 개선
+- Debug 385개·Release 384개 공통 테스트와 전체 플랫폼 회귀 통과, 최종 집중 UI 테스트 iPhone·iPad 총 6개 통과
+- iOS 앱·위젯, Watch 앱·위젯, macOS universal 앱·위젯의 서명·build 68·공유 권한 검증 통과
+- 자동 배포 서명의 CloudKit Production 권한 확인
+- iOS 15:49:03 및 macOS 15:49:29 KST 업로드 성공, Apple 패키지 처리 시작 확인
+- 배포 자료·로그·소스 해시 목록: `.local/releases/build-68/`. TestFlight 설치 가능 상태는 별도 확인 대상
 
 ## 멀티에이전트 작업 분배
 
