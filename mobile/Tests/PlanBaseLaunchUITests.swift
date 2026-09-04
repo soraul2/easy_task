@@ -7,6 +7,90 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testSavedTaskShortcutExactInputAndSuggestionsOnSelectedDay() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=appleSystem"]
+        app.launch()
+        XCTAssertTrue(app.buttons["다음 날짜"].waitForExistence(timeout: 15))
+        app.buttons["다음 날짜"].tap()
+        let date = app.staticTexts["board-date-title"].label
+        createShortcutFixture(in: app)
+        let input = app.textFields["해당 날짜에 할 일 입력"]
+        input.tap(); input.typeText("/운\n")
+        XCTAssertTrue(app.descendants(matching: .any)["quick-entry-error"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["/운 작업 편집"].exists)
+        let result = app.buttons["빠른 입력 운동 /운동 추가"]
+        XCTAssertTrue(scrollToHittable(result, in: app.scrollViews["board-accessibility-scroll"]))
+        addReferenceScreenshot(named: "shortcut-partial-suggestion")
+        result.tap()
+        let created = app.buttons["빠른 입력 운동 작업 편집"]
+        XCTAssertTrue(created.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["board-date-title"].label, date)
+        XCTAssertTrue(scrollToHittable(input, in: app.scrollViews["board-accessibility-scroll"]))
+        input.tap(); input.typeText("/운동\n")
+        XCTAssertEqual(app.buttons.matching(identifier: "빠른 입력 운동 작업 편집").count, 2)
+        XCTAssertTrue(scrollToHittable(input, in: app.scrollViews["board-accessibility-scroll"]))
+        input.tap(); input.typeText("/없는입력어\n")
+        XCTAssertTrue(app.descendants(matching: .any)["quick-entry-error"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.value as? String, "/없는입력어")
+        XCTAssertFalse(app.buttons["/없는입력어 작업 편집"].exists)
+        addReferenceScreenshot(named: "shortcut-unknown-input")
+        input.tap()
+        input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "/없는입력어".count))
+        input.typeText("일반 작업\n")
+        XCTAssertTrue(app.buttons["일반 작업 작업 편집"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testSavedTaskShortcutLargeTextPickerAndDuplicateValidation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=midnightBlue", "--ui-testing-accessibility-text-size"]
+        app.launch()
+        XCTAssertTrue(app.textFields["해당 날짜에 할 일 입력"].waitForExistence(timeout: 15))
+        createShortcutFixture(in: app)
+        let input = app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(scrollToHittable(input, in: app.scrollViews["board-accessibility-scroll"]))
+        input.tap(); input.typeText("/")
+        let result = app.buttons["빠른 입력 운동 /운동 추가"]
+        XCTAssertTrue(scrollToHittable(result, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertTrue(isHorizontallyContained(result, in: app.windows.firstMatch))
+        addReferenceScreenshot(named: "shortcut-dark-large-text-picker")
+        result.tap()
+        let library = app.buttons["saved-task-library-button"]
+        XCTAssertTrue(scrollToHittable(library, in: app.scrollViews["board-accessibility-scroll"]))
+        library.tap(); app.buttons["saved-task-create"].tap()
+        let title = app.textFields["saved-task-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("중복 입력어 작업")
+        app.buttons["saved-task-keyboard-dismiss"].tap()
+        let alias = app.textFields["saved-task-alias"]
+        XCTAssertTrue(scrollToHittable(alias, in: app)); alias.tap(); alias.typeText("운동")
+        app.buttons["saved-task-editor-save"].tap()
+        let error = app.staticTexts["saved-task-editor-error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(error.label.contains("다른 작업"))
+        addReferenceScreenshot(named: "shortcut-duplicate-validation")
+    }
+
+    @MainActor
+    private func createShortcutFixture(in app: XCUIApplication) {
+        let library = app.buttons["saved-task-library-button"]
+        XCTAssertTrue(scrollToHittable(library, in: app.scrollViews["board-accessibility-scroll"]))
+        library.tap(); app.buttons["saved-task-create"].tap()
+        let title = app.textFields["saved-task-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap(); title.typeText("빠른 입력 운동")
+        app.buttons["saved-task-keyboard-dismiss"].tap()
+        let estimate = app.textFields["saved-task-estimate"]
+        XCTAssertTrue(scrollToHittable(estimate, in: app)); estimate.tap(); estimate.typeText("40")
+        app.buttons["saved-task-keyboard-dismiss"].tap()
+        let alias = app.textFields["saved-task-alias"]
+        XCTAssertTrue(scrollToHittable(alias, in: app)); alias.tap(); alias.typeText("운동")
+        addReferenceScreenshot(named: "shortcut-editor")
+        app.buttons["saved-task-editor-save"].tap()
+        XCTAssertTrue(app.staticTexts["/운동"].waitForExistence(timeout: 5))
+        app.navigationBars["저장한 작업"].buttons["닫기"].tap()
+    }
+
+    @MainActor
     func testKanbanDeleteRequiresConfirmation() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-theme=appleSystem"]

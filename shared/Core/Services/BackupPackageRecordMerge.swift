@@ -221,6 +221,9 @@ extension BackupPackageCodec {
                 current.seedKey = dto.seedKey
                 current.name = dto.name
                 current.isFavorite = dto.isFavorite ?? false
+                if let alias = dto.quickEntryAlias {
+                    current.quickEntryAlias = alias.isEmpty ? nil : alias
+                }
                 current.createdAt = min(current.createdAt, dto.createdAt)
                 current.updatedAt = dto.updatedAt
                 current.supersededAt = nil
@@ -232,6 +235,7 @@ extension BackupPackageCodec {
                     seedKey: dto.seedKey,
                     name: dto.name,
                     isFavorite: dto.isFavorite ?? false,
+                    quickEntryAlias: dto.quickEntryAlias.flatMap { $0.isEmpty ? nil : $0 },
                     createdAt: dto.createdAt,
                     updatedAt: dto.updatedAt
                 )

@@ -23,17 +23,17 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 `v1.0.0-local-mvp`는 데이터 기반 작업 중 문제가 생겼을 때 돌아갈 수 있는
 복구 지점이다.
 
-## 현재 진행 상태 (2026-09-03)
+## 현재 진행 상태 (2026-09-04)
 
-- 현재 소스의 영속 스키마는 `EasyTaskSchemaV10`이고 V1~V9은 동결되어 있다. V10은
-  종료된 Focus 구간 기록 모델을 포함한다.
-- private CloudKit Production에는 V10까지 배포됐으며 FocusSession의 실기기 양방향 수렴
-  검증은 아직 수행하지 않았다.
-- 백업 package V9은 V2~V9을 읽고 Task 알림·체크리스트·복합 메모·활동·진행 이벤트·집중 기록과
+- 현재 소스의 영속 스키마는 `EasyTaskSchemaV11`이고 V1~V10은 동결되어 있다. V10은
+  종료된 Focus 구간 기록 모델, V11은 `TaskTemplate.quickEntryAlias`를 포함한다.
+- private CloudKit Production에는 V11까지 배포됐다. 빠른 입력어는 Development의 독립 저장소
+  왕복 8단계를 통과했다. 입력어·FocusSession의 실기기 쌍 인수는 별도로 남는다.
+- 백업 package V10은 V2~V10을 읽고 빠른 입력어·Task 알림·체크리스트·복합 메모·활동·진행 이벤트·집중 기록과
   회고 첨부를 비파괴 병합한다.
 - bounded query/session, 컨테이너 복구 UI, save/rollback, 이미지 다운샘플·제한 캐시,
   iOS/macOS 실행 UI 테스트와 전체 플랫폼 회귀 게이트가 구현됐다.
-- 앱 버전 `1.0`(build 66)의 iOS·iPadOS·watchOS 및 macOS TestFlight archive는 앱·위젯
+- 앱 버전 `1.0`(build 69, V11)의 iOS·iPadOS·watchOS 및 macOS TestFlight archive는 앱·위젯
   서명과 App Group·CloudKit 권한을 확인한 뒤 App Store Connect에 업로드됐다.
 - 남은 기반 인수 항목은 오프라인 동시 편집, 이미지 추가·삭제 후 재설치,
   iCloud 로그아웃·재로그인과 자동 복구 백업 UX의 실제 기기 시나리오다.
@@ -317,7 +317,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ### Phase 8. 릴리스 안정화
 
-상태: 앱 버전 1.0(build 68) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
+상태: 앱 버전 1.0(build 69) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
 
 - Debug/Release 양쪽 플랫폼 빌드와 UI smoke test를 통과한다.
 - iOS와 macOS launch UI smoke test 타겟을 추가해 앱 시작을 검증한다.
@@ -329,7 +329,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 운영 동기화 태그: `v1.2.0`
 
 위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
-`CURRENT_PROJECT_VERSION = 68`이며, 마지막 App Store Connect 업로드도 build 68이다. 태그는
+`CURRENT_PROJECT_VERSION = 69`이며, 마지막 App Store Connect 업로드도 build 69이다. 태그는
 저장소의 실제 릴리스 절차에서 별도로 확정한다.
 
 2026-09-01 검증 결과:

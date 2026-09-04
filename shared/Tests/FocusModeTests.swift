@@ -257,7 +257,7 @@ func focusHistoryRoundTripsThroughCurrentBackupFormats() throws {
     #expect(payload.focusSessions?.count == 1)
 
     let package = try BackupPackageCodec.makeContents(context: source.mainContext)
-    #expect(package.manifest.formatVersion == 9)
+    #expect(package.manifest.formatVersion == 10)
     #expect(package.records.payload.focusSessions?.count == 1)
 
     let destination = try PlanBaseContainerFactory.makeInMemory()

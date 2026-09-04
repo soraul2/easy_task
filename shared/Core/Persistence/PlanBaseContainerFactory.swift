@@ -41,7 +41,7 @@ public enum PlanBaseContainerFactory {
     }
 
     public static var schema: Schema {
-        Schema(versionedSchema: EasyTaskSchemaV10.self)
+        Schema(versionedSchema: EasyTaskSchemaV11.self)
     }
 
     @MainActor
@@ -242,7 +242,7 @@ public enum PlanBaseContainerFactory {
 
     static func isStoreCompatibleWithCurrentSchema(at storeURL: URL) -> Bool {
         guard let model = NSManagedObjectModel.makeManagedObjectModel(
-            for: EasyTaskSchemaV10.models
+            for: EasyTaskSchemaV11.models
         ),
         let metadata = try? NSPersistentStoreCoordinator.metadataForPersistentStore(
             ofType: NSSQLiteStoreType,
@@ -278,7 +278,8 @@ public enum PlanBaseContainerFactory {
             EasyTaskSchemaV7.models,
             EasyTaskSchemaV8.models,
             EasyTaskSchemaV9.models,
-            EasyTaskSchemaV10.models
+            EasyTaskSchemaV10.models,
+            EasyTaskSchemaV11.models
         ]
         return modelCollections.contains { models in
             guard let model = NSManagedObjectModel.makeManagedObjectModel(for: models) else {

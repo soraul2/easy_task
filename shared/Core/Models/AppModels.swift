@@ -1,7 +1,7 @@
 import Foundation
 
 public typealias CalendarEvent = EasyTaskSchemaV5.CalendarEvent
-public typealias TaskTemplate = EasyTaskSchemaV5.TaskTemplate
+public typealias TaskTemplate = EasyTaskSchemaV11.TaskTemplate
 public typealias TaskTemplateItem = EasyTaskSchemaV5.TaskTemplateItem
 public typealias TemplatePlacement = EasyTaskSchemaV5.TemplatePlacement
 public typealias Task = EasyTaskSchemaV5.Task

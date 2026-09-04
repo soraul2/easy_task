@@ -92,7 +92,8 @@ extension BackupPackageCodec {
     static func sameTemplate(_ dto: TaskTemplateDTO, _ template: TaskTemplate) -> Bool {
         template.seedKey == dto.seedKey &&
             template.name == dto.name &&
-            template.isFavorite == (dto.isFavorite ?? false)
+            template.isFavorite == (dto.isFavorite ?? false) &&
+            (dto.quickEntryAlias == nil || (template.quickEntryAlias ?? "") == dto.quickEntryAlias)
     }
 
     @MainActor

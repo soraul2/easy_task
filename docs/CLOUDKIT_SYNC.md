@@ -5,8 +5,8 @@
 - CloudKit 컨테이너: `iCloud.com.soraul2.easytask`
 - 데이터베이스: private database
 - 앱 타겟: `com.soraul2.easytask`, `com.soraul2.easytask.macos`
-- 앱 스키마: `EasyTaskSchemaV10`
-- 운영 스키마: V10 Production 배포 완료, FocusSession 실기기 양방향 수렴 검증 대기
+- 앱 스키마: `EasyTaskSchemaV11`
+- 운영 스키마: V11 Production 배포 완료. 빠른 입력어의 Development 독립 저장소 왕복 검증 완료. 빠른 입력어·FocusSession 실기기 쌍 인수는 대기
 
 두 앱은 각각의 로컬 SwiftData 복제본을 유지하고 같은 private CloudKit
 컨테이너를 통해 변경을 교환한다. 네트워크가 없어도 로컬 편집은 가능하다.
@@ -53,11 +53,25 @@ CloudKit 모드는 별도의 네트워크 전용 저장소가 아니라 로컬 S
 ```
 
 초기화 코드는 명시적인 인자가 있는 Debug 빌드에서만 실행된다. 완료 후 CloudKit
-Console의 Development 환경에서 모든 V10 record type, `Task.reminderAt`,
+Console의 Development 환경에서 모든 V11 record type, `Task.reminderAt`,
 `TaskChecklistItem`, `TaskTemplateItem.checklistTitles`, `Memo`,
 `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`,
-`FocusSession`이 생성됐는지 확인한다. V10을 Production에 배포하기 전에는 V10 앱을
-TestFlight에 올리지 않는다.
+`FocusSession`과 `CD_TaskTemplate.CD_quickEntryAlias`(String)가 생성됐는지 확인한다.
+V11 변경을 Production에 배포하기 전에는 V11 앱을 TestFlight에 올리지 않는다.
+
+빠른 입력어는 Development에서 입력어 지정·변경·해제와 삭제 전파를 확인하고,
+Production schema 차이에 입력어 필드와 Core Data의 대응 asset 필드 및 인덱스만
+포함되는지 검토한다. 2026-09-04에는 V11 Development 초기화를 재시도해 완료한 뒤,
+동일 Mac의 독립 SwiftData 저장소 두 개로 실제 Development 서버를 거치는 생성·변경·해제·삭제
+8단계를 통과했다. writer의 export 성공을 기다린 뒤 반대 저장소의 import와 입력어,
+예상 시간·체크리스트를 확인했고 진단 UUID에 해당하는 레코드만 정리했다.
+기존 iPhone TestFlight 68은 교체하지 않았다. 이 검증은 서로 다른 물리 기기나 실시간 push
+수신 검증이 아니며, 기기 쌍·오프라인 중복 입력어 및 기존 작업·집중 기록의 현장 인수는 남는다.
+
+배포 diff는 `CD_TaskTemplate`의 `CD_quickEntryAlias` String,
+`CD_quickEntryAlias_ckAsset` Asset 추가와 String의 Queryable/Searchable/Sortable 인덱스
+3개만 포함했다. 기존 필드 삭제나 security role 변경은 없었다. CloudKit Console에서
+Production 배포 완료를 확인했다. 자료는 `.local/releases/build-69/`에 보관한다.
 
 ## 검증 순서
 
@@ -378,6 +392,15 @@ V10 스키마와 백업 V9은 유지했다. Debug 385개·Release 384개 공통 
 build 68의 앱·위젯 6개 서명·버전·공유 권한, 자동 배포 서명의 CloudKit Production 권한을
 확인했다. iOS 15:49:03, macOS 15:49:29 KST 업로드 성공 및 패키지 처리 시작을 확인했다.
 TestFlight 설치 가능 상태는 별도 확인 대상이며 자료는 `.local/releases/build-68/`에 보관한다.
+
+같은 날 저장한 작업의 빠른 입력어를 포함한 build 69를 업로드했다. V11 Development 초기화,
+독립 저장소 두 개의 실제 서버 왕복 8단계와 진단 레코드 정리 후 Production 필드·인덱스를
+배포했다. Production `CD_TaskTemplate`의 21개 필드와 새 입력어 String·대응 asset 필드를
+확인했다. Debug 392개·Release 391개 테스트, 전체 플랫폼 회귀와 iPhone·iPad UI 각 2개 및
+Mac 입력 흐름을 통과했다. 앱·위젯 6개 번들의 build 69·서명·공유 권한과 자동 배포 서명의
+Production 권한을 확인했고, iOS 18:13:30, macOS 18:13:20 KST 업로드 성공 및 패키지 처리
+시작을 확인했다. 설치 가능 상태와 실기기 쌍 인수는 남아 있으며 자료는
+`.local/releases/build-69/`에 보관한다.
 
 ## 운영 회귀 조건
 

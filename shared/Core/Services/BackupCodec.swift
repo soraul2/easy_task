@@ -228,6 +228,13 @@ private extension BackupCodec {
         )
         let eventIDs = try uniqueIDs(payload.calendarEvents.map(\.id), recordType: "CalendarEvent")
         let templateIDs = try uniqueIDs(payload.taskTemplates.map(\.id), recordType: "TaskTemplate")
+        for (index, template) in payload.taskTemplates.enumerated() {
+            do { _ = try SavedTaskShortcutRules.normalizedAlias(template.quickEntryAlias) }
+            catch {
+                throw BackupServiceError.invalidValue(field: "taskTemplates[\(index)].quickEntryAlias",
+                                                     value: template.quickEntryAlias ?? "")
+            }
+        }
         _ = try uniqueIDs(payload.taskTemplateItems.map(\.id), recordType: "TaskTemplateItem")
         let placements = payload.templatePlacements ?? []
         let placementIDs = try uniqueIDs(placements.map(\.id), recordType: "TemplatePlacement")

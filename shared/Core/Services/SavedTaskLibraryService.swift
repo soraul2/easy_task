@@ -5,6 +5,7 @@ public struct SavedTaskEntry: Identifiable {
     public let id: UUID
     public var draft: TemplateTaskDraft
     public var isFavorite: Bool
+    public var quickEntryAlias: String? = nil
 }
 
 /// Single-task templates share the existing sync/backup format. Applying one here
@@ -33,7 +34,8 @@ public enum SavedTaskLibraryService {
                 let item = children.first, !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             else { return nil }
             let draft = TemplateTaskDraft(item: item)
-            return SavedTaskEntry(id: template.id, draft: draft, isFavorite: template.isFavorite)
+            return SavedTaskEntry(id: template.id, draft: draft, isFavorite: template.isFavorite,
+                                  quickEntryAlias: template.quickEntryAlias)
         }
         return filter(values, query: query, favoritesOnly: favoritesOnly)
     }
@@ -44,7 +46,7 @@ public enum SavedTaskLibraryService {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return entries.filter { entry in
             let draft = entry.draft
-            let searchable = [draft.title, draft.note] + draft.tags + draft.checklistTitles
+            let searchable = [draft.title, draft.note, entry.quickEntryAlias ?? ""] + draft.tags + draft.checklistTitles
             return (!favoritesOnly || entry.isFavorite)
                 && (search.isEmpty || searchable.contains { $0.localizedStandardContains(search) })
         }.sorted {
@@ -103,26 +105,34 @@ public enum SavedTaskLibraryService {
     }
 
     @discardableResult
-    public static func create(draft: TemplateTaskDraft, isFavorite: Bool, in context: ModelContext) throws
+    public static func create(draft: TemplateTaskDraft, isFavorite: Bool, quickEntryAlias: String? = nil,
+                              in context: ModelContext) throws
         -> TaskTemplate
     {
         try PersistenceCommandService.perform(in: context) {
             let draft = try normalized(draft)
+            let alias = try validatedAlias(quickEntryAlias, excluding: nil, in: context)
             guard let template = TemplateService.saveTemplate(named: draft.title, from: [draft], in: context)
             else {
                 throw Failure.emptyTitle
             }
             template.isFavorite = isFavorite
+            template.quickEntryAlias = alias
             return template
         }
     }
 
-    public static func update(id: UUID, draft: TemplateTaskDraft, isFavorite: Bool, in context: ModelContext)
+    public static func update(id: UUID, draft: TemplateTaskDraft, isFavorite: Bool,
+                              quickEntryAlias: String? = nil, in context: ModelContext)
         throws
     {
         try PersistenceCommandService.perform(in: context) {
             let (template, item) = try resolve(id, in: context)
             let draft = try normalized(draft)
+            // Existing callers preserve the alias; the editor sends an empty string to clear it.
+            if let quickEntryAlias {
+                template.quickEntryAlias = try validatedAlias(quickEntryAlias, excluding: id, in: context)
+            }
             template.name = draft.title
             template.isFavorite = isFavorite
             template.updatedAt = Date()
@@ -142,6 +152,15 @@ public enum SavedTaskLibraryService {
             template.isFavorite.toggle()
             template.updatedAt = Date()
         }
+    }
+
+    private static func validatedAlias(_ value: String?, excluding id: UUID?, in context: ModelContext) throws -> String? {
+        guard let alias = try SavedTaskShortcutRules.normalizedAlias(value) else { return nil }
+        let entries = try load(in: context)
+        guard !entries.contains(where: {
+            $0.id != id && SavedTaskShortcutRules.aliasKey($0.quickEntryAlias) == alias
+        }) else { throw SavedTaskShortcutRules.Failure.duplicateAlias(alias) }
+        return alias
     }
 
     @discardableResult

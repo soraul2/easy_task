@@ -77,6 +77,8 @@ public struct TaskTemplateDTO: Codable {
     public var updatedAt: Date
     public var instanceID: UUID? = nil
     public var seedKey: String? = nil
+    /// nil means an older export without aliases; an empty string explicitly clears an alias.
+    public var quickEntryAlias: String? = nil
 }
 
 public struct TaskTemplateItemDTO: Codable {

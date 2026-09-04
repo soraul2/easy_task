@@ -64,6 +64,7 @@ extension TaskTemplateDTO {
         updatedAt = template.updatedAt
         instanceID = template.instanceID
         seedKey = template.seedKey
+        quickEntryAlias = template.quickEntryAlias ?? ""
     }
 }
 
@@ -232,6 +233,7 @@ extension TaskTemplate {
             seedKey: dto.seedKey,
             name: dto.name,
             isFavorite: dto.isFavorite ?? false,
+            quickEntryAlias: dto.quickEntryAlias.flatMap { $0.isEmpty ? nil : $0 },
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )

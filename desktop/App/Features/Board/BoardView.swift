@@ -64,6 +64,7 @@ struct BoardView: View {
 
     @Binding var selectedDate: Date
     @State private var quickTitle = ""
+    @State private var quickEntry = SavedTaskQuickEntryController()
     @State private var presentedSheet: BoardSheet?
     @State private var templateName = ""
     @State private var pendingTaskDeletion: PendingDesktopTaskDeletion?
@@ -442,36 +443,52 @@ struct BoardView: View {
     }
 
     private var quickCreate: some View {
-        HStack(spacing: 10) {
-            TextField("해당 날짜에 할 일 입력", text: $quickTitle,
-                      prompt: Text("해당 날짜에 할 일 입력").foregroundStyle(AppTheme.secondaryText))
-                .textFieldStyle(.plain)
-                .font(.system(size: 16))
-                .foregroundStyle(AppTheme.primaryText)
-                .focused($isQuickTitleFocused)
-                .onSubmit(addQuickTask)
-            Button {
-                addQuickTask()
-            } label: {
-                Image(systemName: "plus")
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                TextField("해당 날짜에 할 일 입력", text: $quickTitle,
+                          prompt: Text("해당 날짜에 할 일 입력").foregroundStyle(AppTheme.secondaryText))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .focused($isQuickTitleFocused)
+                    .onSubmit(addQuickTask)
+                    .onKeyPress(.downArrow) { quickEntry.moveSelection(by: 1) ? .handled : .ignored }
+                    .onKeyPress(.upArrow) { quickEntry.moveSelection(by: -1) ? .handled : .ignored }
+                    .onKeyPress(.escape) { quickEntry.dismiss() ? .handled : .ignored }
+                Button {
+                    addQuickTask()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(PlanBaseButtonStyle())
+                .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("작업 추가")
+                Button { presentedSheet = .savedTasks } label: {
+                    Label("저장한 작업", systemImage: "bookmark")
+                }
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
+                .accessibilityIdentifier("saved-task-library-button")
             }
-            .buttonStyle(PlanBaseButtonStyle())
-            .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("작업 추가")
-            Button { presentedSheet = .savedTasks } label: {
-                Label("저장한 작업", systemImage: "bookmark")
+            .padding(14)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        isQuickTitleFocused ? AppTheme.event : AppTheme.border,
+                        lineWidth: isQuickTitleFocused ? 2 : 1.25
+                    )
             }
-            .buttonStyle(PlanBaseButtonStyle(.secondary))
-            .accessibilityIdentifier("saved-task-library-button")
+            SavedTaskQuickEntrySuggestions(controller: quickEntry, onAdd: addSavedQuickTask) {
+                isQuickTitleFocused = false
+                presentedSheet = .savedTasks
+            }
         }
-        .padding(14)
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(
-                    isQuickTitleFocused ? AppTheme.event : AppTheme.border,
-                    lineWidth: isQuickTitleFocused ? 2 : 1.25
-                )
+        .onChange(of: quickTitle) { _, value in quickEntry.update(value, in: modelContext) }
+        .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { _ in
+            quickEntry.refresh(in: modelContext)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
+            quickEntry.refresh(in: modelContext)
         }
     }
 
@@ -542,6 +559,10 @@ struct BoardView: View {
     private func addQuickTask() {
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
+        if SavedTaskShortcutRules.query(in: title) != nil {
+            addSavedQuickTask(nil)
+            return
+        }
 
         let didAdd = performPersistenceCommand(
             failureMessage: "작업을 추가하지 못했습니다."
@@ -561,6 +582,13 @@ struct BoardView: View {
         }
         guard didAdd else { return }
         quickTitle = ""
+    }
+
+    private func addSavedQuickTask(_ id: UUID?) {
+        guard let task = quickEntry.add(input: quickTitle, selectedID: id, on: selectedDate, in: modelContext) else { return }
+        quickTitle = ""
+        savedTaskNotice = "‘\(task.title)’ 추가했어요"
+        isQuickTitleFocused = true
     }
 
     private func moveTask(idString: String, to status: TaskStatus) -> Bool {

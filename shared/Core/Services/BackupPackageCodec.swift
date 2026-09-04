@@ -5,8 +5,8 @@ import SwiftData
 
 public enum BackupPackageCodec {
     public static let formatIdentifier = PlanBaseCompatibility.backupFormatIdentifier
-    public static let currentVersion = 9
-    public static let supportedVersions: ClosedRange<Int> = 2...9
+    public static let currentVersion = 10
+    public static let supportedVersions: ClosedRange<Int> = 2...10
     public static let manifestFileName = "manifest.json"
     public static let recordsFileName = "records.json"
     public static let attachmentsDirectoryName = "attachments"

@@ -12,7 +12,7 @@ macOS 앱, iPhone·iPad universal 앱, 독립 실행형 Apple Watch 앱과 각 �
 - 최소 플랫폼: iOS 18, macOS 26, watchOS 11
 - 공통 패키지 제품: `PlanBaseCore`
 - Xcode scheme: `PlanBase-iOS`, `PlanBase-macOS`, `PlanBase-watchOS`
-- 현재 영속 스키마: `EasyTaskSchemaV10`
+- 현재 영속 스키마: `EasyTaskSchemaV11`
 
 의존 방향은 아래와 같다.
 
@@ -50,8 +50,8 @@ desktop/App  mobile/App  mobile/Widget  watch/App·Widget
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI/확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- SwiftData 호환 이름: 동결된 `EasyTaskSchemaV1`~`V9`, 현재
-  `EasyTaskSchemaV10`, `EasyTaskMigrationPlan`
+- SwiftData 호환 이름: 동결된 `EasyTaskSchemaV1`~`V10`, 현재
+  `EasyTaskSchemaV11`, `EasyTaskMigrationPlan`
 - 레거시 저장소, 이미지 폴더, migration marker 이름
 
 호환 상수의 기준 파일은 `shared/Core/Persistence/PlanBaseCompatibility.swift`다. macOS Debug bundle ID `com.soraul2.easytask.macos`는 Release 앱과 개발 데이터를 병행하기 위한 의도된 예외다.
@@ -123,7 +123,7 @@ PlanBase/
 | `PlanBaseCoreTests` | `shared/Tests` | 공통 로직 및 데이터 안전성 테스트 |
 
 `shared/PlanBaseCore/Exports.swift`는 `EasyTaskCore` 전체를 한 줄의
-`@_exported import`로 재노출한다. 현재 V10의 `Task`, `CalendarEvent`, `Memo`,
+`@_exported import`로 재노출한다. 현재 V11의 `Task`, `CalendarEvent`, `Memo`,
 `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`를 비롯한 공개 모델·서비스는 별도 typealias 없이
 `import PlanBaseCore`만으로 사용한다.
 
@@ -161,8 +161,9 @@ PlanBase/
 
 ## 6. 데이터 모델과 핵심 규칙
 
-현재 `EasyTaskSchemaV10`은 V9 모델에 종료된 집중 구간인 `FocusSession`을 추가한다.
-이미 배포된 V1~V9 정의는 동결되어 있고 다음 모델 변경은 새 버전
+현재 `EasyTaskSchemaV11`은 `TaskTemplate.quickEntryAlias`를 추가한다.
+종료된 집중 구간인 `FocusSession`은 V10에서 추가했다.
+이미 배포된 V1~V10 정의는 동결되어 있고 다음 모델 변경은 새 버전
 스키마와 migration stage로만 추가한다.
 
 | 모델 | 역할/주요 연결 |
@@ -170,7 +171,7 @@ PlanBase/
 | `Task` | 날짜별 칸반 작업, 이벤트·템플릿 배치·알림의 기준 레코드 |
 | `TaskChecklistItem` | `taskId`로 Task에 연결되는 체크리스트 항목 |
 | `CalendarEvent` | 시작/종료 날짜를 가진 캘린더 기간 이벤트 |
-| `TaskTemplate`, `TaskTemplateItem` | 재사용 작업 묶음과 항목 정의 |
+| `TaskTemplate`, `TaskTemplateItem` | 재사용 작업 묶음과 항목 정의. V11 선택 필드 `quickEntryAlias`로 빠른 입력 지원 |
 | `TemplatePlacement` | 특정 날짜에 적용한 템플릿 인스턴스 |
 | `DailyReview` | `dayKey`당 회고 |
 | `DiaryBlock` | 레거시 회고 블록 호환 모델 |
@@ -203,6 +204,7 @@ PlanBase/
 | 보드·작업 | `TaskRules`, `BoardQueryRules`, `BoundedQueryService`, `PersistenceCommandService` | `BoardView`, `DesktopKanbanComponents`, `DesktopBoardSheets`, `DesktopTaskDetailSheet` | `MobileBoardView`, `MobileBoardComponents`, `MobileTaskDetailSheet`, `MobileCarryoverSheet` | `WatchTodayView` 빠른 추가·상태 변경 |
 | 체크리스트 | `TaskChecklistService` | `DesktopTaskDetailSheet`, 진행 카드 UI | `MobileTaskDetailSheet`, `MobileBoardComponents` | 현재 표시 없음 |
 | 템플릿 | `TemplateService`, `TemplateListRules`, 공용 `Template*` components | `DesktopTemplatePlacementSheet`, 보드 sheet | `MobileTemplateLibrarySheet`, `MobileTemplatePlacementSheet`, `MobileTemplateComponents` | 현재 표시 없음 |
+| 저장한 작업·빠른 입력어 | `SavedTaskLibraryService`, `SavedTaskShortcutRules`, `SavedTaskQuickEntryController`, 공용 `SavedTask*` components | `BoardView` | `MobileBoardView`, `BoardQuickAdd` | 현재 입력어 UI 없음 |
 | 캘린더 | `CalendarEventRules`, `CalendarEventTimeline`, `DayKey` | `CalendarView`, `DesktopCalendarGrid`, `DesktopEventEditorSheets` | `MobileCalendarView`, `MobileCalendarGrid`, `MobileCalendarDaySheet`, `MobileEventEditorSheet` | `WatchTodayView` 당일 일정 요약 |
 | 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `DailyReview*`, `TaskActivity*`, `TaskHistoryStatistics*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` | 현재 표시 없음 |
 | 메모 | `MemoRules`, `MemoService`, `MemoContentService`, `MemoQuerySession`, `MemoEditorSession` | `MemoView`의 텍스트·체크리스트 편집과 필기 미리보기 | `MobileMemoView`의 텍스트·PencilKit 필기·체크리스트 편집 | 현재 표시 없음 |
@@ -219,7 +221,7 @@ PlanBase/
 
 ### 모델/필드 변경
 
-1. 동결된 V1~V9과 현재 V10을 수정하지 말고 다음 `EasyTaskSchemaV*`를 추가한다.
+1. 동결된 V1~V10과 현재 V11을 수정하지 말고 다음 `EasyTaskSchemaV*`를 추가한다.
 2. `EasyTaskMigrationPlan`의 schema 목록과 stage를 갱신한다.
 3. `PlanBaseContainerFactory.schema`와 `Exports.swift`의 공개 API 재노출을 확인한다.
 4. `DataIntegrityService`, 백업 DTO/codec/merge, CloudKit probe에 영향이 있는지 확인한다.

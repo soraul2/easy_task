@@ -81,7 +81,7 @@ func schemaV5ContainsEveryFrozenPersistedModel() {
         String(reflecting: Task.self),
         String(reflecting: TaskChecklistItem.self),
         String(reflecting: CalendarEvent.self),
-        String(reflecting: TaskTemplate.self),
+        String(reflecting: EasyTaskSchemaV5.TaskTemplate.self),
         String(reflecting: TaskTemplateItem.self),
         String(reflecting: TemplatePlacement.self),
         String(reflecting: DailyReview.self),
@@ -100,7 +100,7 @@ func schemaV6ContainsEveryFrozenPersistedModel() {
         String(reflecting: Task.self),
         String(reflecting: TaskChecklistItem.self),
         String(reflecting: CalendarEvent.self),
-        String(reflecting: TaskTemplate.self),
+        String(reflecting: EasyTaskSchemaV5.TaskTemplate.self),
         String(reflecting: TaskTemplateItem.self),
         String(reflecting: TemplatePlacement.self),
         String(reflecting: DailyReview.self),
@@ -120,7 +120,7 @@ func schemaV7ContainsEveryCurrentPersistedModel() {
         String(reflecting: Task.self),
         String(reflecting: TaskChecklistItem.self),
         String(reflecting: CalendarEvent.self),
-        String(reflecting: TaskTemplate.self),
+        String(reflecting: EasyTaskSchemaV5.TaskTemplate.self),
         String(reflecting: TaskTemplateItem.self),
         String(reflecting: TemplatePlacement.self),
         String(reflecting: DailyReview.self),
@@ -207,7 +207,7 @@ func appStoreLocationCopiesOnlyRecognizedPlanBaseStore() throws {
             cloudKitDatabase: .none
         )
         let container = try ModelContainer(for: schema, configurations: configuration)
-        try writeFixture(to: container, title: title)
+        try writeFixture(to: container, title: title, frozenTemplates: true)
     }
 
     let destinationURL = try PlanBaseContainerFactory.prepareDefaultStoreLocation(
@@ -444,7 +444,7 @@ func versionedV6StoreMigratesToV7WithEmptyActivities() throws {
                 cloudKitDatabase: .none
             )
             let container = try ModelContainer(for: schema, configurations: configuration)
-            try writeFixture(to: container, title: "V6 활동 이관")
+            try writeFixture(to: container, title: "V6 활동 이관", frozenTemplates: true)
             container.mainContext.insert(EasyTaskSchemaV6.Memo(id: memoID, content: "V6 메모"))
             try container.mainContext.save()
         }
@@ -480,7 +480,7 @@ func versionedV7StoreMigratesToV8WithEmptyProgressEvents() throws {
                 cloudKitDatabase: .none
             )
             let container = try ModelContainer(for: schema, configurations: configuration)
-            try writeFixture(to: container, title: "V7 진행 이벤트 이관")
+            try writeFixture(to: container, title: "V7 진행 이벤트 이관", frozenTemplates: true)
             let occurredAt = Date(timeIntervalSince1970: 1_800_000_000)
             let activityDayKey = DayKey.key(for: occurredAt)
             container.mainContext.insert(TaskCompletionActivity(
@@ -595,7 +595,7 @@ func compatibleV5StoreWithUnknownMigrationChecksumMigratesToCurrentWithoutDataLo
                 cloudKitDatabase: .none
             )
             let container = try ModelContainer(for: schema, configurations: configuration)
-            try writeFixture(to: container, title: title)
+            try writeFixture(to: container, title: title, frozenTemplates: true)
         }
 
         var metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(
@@ -1022,7 +1022,7 @@ private func writeV2Fixture(to container: ModelContainer, title: String) throws 
 }
 
 @MainActor
-private func writeFixture(to container: ModelContainer, title: String) throws {
+private func writeFixture(to container: ModelContainer, title: String, frozenTemplates: Bool = false) throws {
     let context = container.mainContext
     let day = try #require(DayKey.date(from: "2026-07-10"))
     let event = CalendarEvent(title: "\(title) event", startAt: day, endAt: day)
@@ -1055,7 +1055,13 @@ private func writeFixture(to container: ModelContainer, title: String) throws {
     )
 
     context.insert(event)
-    context.insert(template)
+    if frozenTemplates {
+        context.insert(EasyTaskSchemaV5.TaskTemplate(
+            id: template.id, instanceID: template.instanceID, name: template.name,
+            createdAt: template.createdAt, updatedAt: template.updatedAt))
+    } else {
+        context.insert(template)
+    }
     context.insert(templateItem)
     context.insert(placement)
     context.insert(task)

@@ -32,7 +32,7 @@ public extension PlanBaseContainerFactory {
             storeDescription.shouldAddStoreAsynchronously = false
 
             guard let managedObjectModel = NSManagedObjectModel.makeManagedObjectModel(
-                for: EasyTaskSchemaV10.models
+                for: EasyTaskSchemaV11.models
             ) else {
                 throw CloudKitDevelopmentSchemaError.unavailableManagedObjectModel
             }
@@ -57,7 +57,7 @@ public extension PlanBaseContainerFactory {
             }
         }
 
-        print("PlanBase CloudKit Development schema initialization completed for V10.")
+        print("PlanBase CloudKit Development schema initialization completed for V11.")
         return true
     }
 }

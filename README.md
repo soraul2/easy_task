@@ -4,12 +4,16 @@ PlanBase는 iPhone, iPad, Apple Watch와 macOS에서 계획을 관리하는 개�
 iOS universal 앱, 독립 실행형 watchOS 앱과 macOS 앱은 같은 SwiftData 모델과 private
 CloudKit 컨테이너를 공유한다.
 
-현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV10`, 위젯 스냅샷 v5,
-백업 package V9다. V10은 종료된 `FocusSession` 기록을 추가하고 활성 타이머는 기기별
-App Group snapshot으로 분리한다. CloudKit Production은 V10까지 배포됐으며 FocusSession의
-실기기 양방향 수렴 검증이 남아 있다. 마지막 업로드본은 집중모드 화면 개선과 작업 예상 시간
-반영까지 포함한 iOS·iPadOS·watchOS 및 macOS TestFlight build 68이다.
-2026-09-04 두 플랫폼의 App Store Connect 업로드 성공과 패키지 처리 시작을 확인했다.
+현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV11`, 위젯 스냅샷 v5,
+백업 package V10이다. V11은 저장한 작업에 선택적인 빠른 입력어를 추가한다.
+보드에서 `/`로 후보를 찾거나 `/운동`처럼 지정한 입력어로 작업을 바로 추가할 수 있다.
+V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
+
+CloudKit Production은 V11까지 배포됐다. 입력어의 Development 독립 저장소 왕복 8단계와
+Production 필드·인덱스 반영을 확인했다. 마지막 업로드본은 빠른 입력어를 포함한
+iOS·iPadOS·watchOS 및 macOS TestFlight build 69(V11)이다. 2026-09-04 두 플랫폼의
+App Store Connect 업로드 성공과 패키지 처리 시작을 확인했다. 설치 가능 상태와
+빠른 입력어·FocusSession의 실기기 쌍 인수는 별도로 확인한다.
 
 ## 시작하기
 

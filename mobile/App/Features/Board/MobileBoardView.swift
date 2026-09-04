@@ -59,6 +59,7 @@ struct MobileBoardView: View {
     @Query private var templateItems: [TaskTemplateItem]
 
     @State private var quickTitle = ""
+    @State private var quickEntry = SavedTaskQuickEntryController()
     @State private var quickAddFocusRequestID: UUID?
     @State private var selectedStatus: TaskStatus = .todo
     @State private var presentedSheet: MobileBoardSheet?
@@ -243,6 +244,13 @@ struct MobileBoardView: View {
             .onChange(of: displayedTaskIDs) { _, taskIDs in
                 progressSession?.apply(taskIDs: taskIDs)
             }
+            .onChange(of: quickTitle) { _, value in quickEntry.update(value, in: modelContext) }
+            .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { _ in
+                quickEntry.refresh(in: modelContext)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
+                quickEntry.refresh(in: modelContext)
+            }
             .onChange(of: actionRequest) { _, request in
                 handleActionRequest(request)
             }
@@ -280,7 +288,9 @@ struct MobileBoardView: View {
         BoardQuickAdd(
             title: $quickTitle,
             focusRequestID: quickAddFocusRequestID,
+            quickEntry: quickEntry,
             onAdd: addQuickTask,
+            onAddSaved: addSavedQuickTask,
             onOpenSavedTasks: { presentedSheet = .savedTasks },
             onOpenTemplates: { presentedSheet = .templates }
         )
@@ -314,6 +324,10 @@ struct MobileBoardView: View {
     private func addQuickTask() {
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
+        if SavedTaskShortcutRules.query(in: title) != nil {
+            addSavedQuickTask(nil)
+            return
+        }
         do {
             try PersistenceCommandService.perform(in: modelContext) {
                 let nextOrder = try BoundedQueryService.nextOrder(
@@ -334,6 +348,13 @@ struct MobileBoardView: View {
         } catch {
             persistenceFailureMessage = "작업을 추가하지 못했습니다. 다시 시도해 주세요."
         }
+    }
+
+    private func addSavedQuickTask(_ id: UUID?) {
+        guard let task = quickEntry.add(input: quickTitle, selectedID: id, on: selectedDate, in: modelContext) else { return }
+        quickTitle = ""
+        selectedStatus = .todo
+        showBoardNotice("‘\(task.title)’ 추가했어요")
     }
 
     private func deleteTask(_ task: TodoTask) {

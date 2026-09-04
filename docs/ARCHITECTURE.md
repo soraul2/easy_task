@@ -43,7 +43,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 `PlanBaseCore`가 `EasyTaskCore`를 다시 노출한다.
 
 - SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `TaskTemplateItem`, `TemplatePlacement`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`
-- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V9`, 현재 `EasyTaskSchemaV10`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
+- 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V10`, 현재 `EasyTaskSchemaV11`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
 - 동기화 상태: `CloudKitSyncMonitor`, 이벤트별 진행·오류 추적
@@ -54,7 +54,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
 - 위젯 계약: `CalendarWidgetSnapshot`, `CalendarWidgetSnapshotStore`, `LockScreenWidgetRules`, `PlannerWidgetRules`, `PlanBaseDeepLink`
-- 백업: JSON V1~V2 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·복합 메모·진행 이벤트·집중 기록을 포함하는 V9 `BackupPackageCodec`(V2~V9 읽기 호환)
+- 백업: JSON V1~V2 호환 `BackupCodec`, 이미지·Task 알림·체크리스트·복합 메모·진행 이벤트·집중 기록·빠른 입력어를 포함하는 V10 `BackupPackageCodec`(V2~V10 읽기 호환)
 - 회고 첨부: `DiaryAttachmentService`, 레거시 입력용 `DiaryImageFileStore`
 - 한국 특일: 코드 내 기본 목록을 사용하고, 번들에 `SpecialDays.kr.json`이 있으면 이를 우선 사용
 - 테마 토큰: `AppTheme`, `CalendarEventPalette`
@@ -105,7 +105,7 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
-- `PlanBase-watchOS`는 `PlanBaseContainerFactory`로 같은 V10 private CloudKit 저장소를 열어
+- `PlanBase-watchOS`는 `PlanBaseContainerFactory`로 같은 V11 private CloudKit 저장소를 열어
   iPhone 연결 없이 오늘 작업·일정을 조회하고 작업을 생성하거나 상태를 변경한다.
 - 상태 변경은 `PersistenceCommandService`와 `TaskLifecycleService` 경계를 그대로 사용해
   완료 활동과 진행 이벤트를 함께 기록한다.
@@ -138,7 +138,7 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 - CloudKit container: `iCloud.com.soraul2.easytask`
 - App Group: `group.com.soraul2.easytask`
 - 백업 UTI와 확장자: `com.soraul2.easytask.backup-package`, `.easytaskbackup`
-- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V9`, 현재 `EasyTaskSchemaV10`, `EasyTaskMigrationPlan`
+- 동결된 SwiftData 타입: `EasyTaskSchemaV1`~`V10`, 현재 `EasyTaskSchemaV11`, `EasyTaskMigrationPlan`
 - 레거시 저장소·이미지 이관에 사용되는 기존 폴더와 marker 이름
 
 이 값들은 [PlanBaseCompatibility.swift](../shared/Core/Persistence/PlanBaseCompatibility.swift)와
@@ -146,8 +146,16 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
 ## 데이터 흐름
 
-1. iOS, macOS와 watchOS 앱은 `PlanBaseContainerFactory`에서 같은 V10 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
-2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 → V9 → V10 순서로 이동하며 이미 배포된 V1~V9 정의는 수정하지 않는다.
+V11은 `TaskTemplate`만 새 타입으로 교체하고 선택 필드 `quickEntryAlias`를 추가한다.
+`SavedTaskShortcutRules`가 정규화·검색·정확한 일치를 담당하고, 양 플랫폼은 공용
+controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명시적으로 선택한 후보만
+작업을 생성한다. 동기화로 같은 입력어가 생겨도 자동 삭제하거나 임의 선택하지 않는다.
+후보는 `/` 진입 시 불러오고 저장 알림·동기화 이벤트 및 제출 시 다시 확인한다.
+백업 V10은 입력어를 포함하며, 이전 DTO의 필드 부재는 현재 입력어 보존,
+새 DTO의 빈 문자열은 명시적 해제를 의미한다.
+
+1. iOS, macOS와 watchOS 앱은 `PlanBaseContainerFactory`에서 같은 V11 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
+2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 → V9 → V10 → V11 순서로 이동하며 이미 배포된 V1~V10 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.
 4. 사용자는 칸반에서 날짜별 작업을 추가하고 상태를 변경한다.
@@ -159,7 +167,7 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 7. 회고는 날짜별 `DailyReview`로 저장되고 기록 탭에서 완료 작업과 함께 검색된다.
 8. 새 회고 이미지는 `DiaryAttachment.data`에 external storage로 저장되고 파일명 필드는 이관 입력으로만 사용한다.
 9. 메모는 날짜·Task·회고와 독립적으로 텍스트·PencilKit 필기·체크리스트를 함께 보존하며 600ms 자동 저장과 상단 고정을 제공한다.
-10. 백업 V9는 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V9을 읽는다.
+10. 백업 V10은 `manifest.json`, `records.json`, `attachments/`로 구성된 `.easytaskbackup` 패키지이며 V2~V10을 읽는다.
 11. 활성 Focus는 기기별 App Group snapshot으로 복원한다. iPhone은 Live Activity, macOS는 플로팅 창, Watch는 전용 화면과 컴플리케이션으로 같은 기기의 상태를 표시하며 종료 구간만 `FocusSession`으로 저장·동기화한다.
 12. `Task.reminderAt`이 알림 원본이자 설정 기록이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
@@ -211,7 +219,7 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 - 누락되거나 손상된 기존 파일은 참조를 지우지 않고 다음 실행에서 재시도하며, 모두 옮긴 회고만 레거시 참조를 정리한다.
 - 기존 이미지가 10개를 넘으면 처음 10개까지만 옮기고 초과 참조는 보존한다. 배열과 block-only 참조를 함께 표시하며 미해결 레거시 항목은 삭제해 백업 차단을 해소할 수 있다.
 - 미해결 레거시 항목이 남은 동안 canonical 이미지 추가·삭제는 잠그고, 마지막 항목을 정리해 저장할 때 기존 메타데이터와 이미지 블록을 제거한다.
-- 백업 V9은 records와 각 첨부의 크기·SHA-256, MIME, Task/체크리스트 참조, 메모·필기·메모 체크리스트·진행 이벤트·집중 기록 식별자 무결성을 전부 확인한 뒤 비파괴 병합한다.
+- 백업 V10은 records와 각 첨부의 크기·SHA-256, MIME, Task/체크리스트 참조, 메모·필기·메모 체크리스트·진행 이벤트·집중 기록 식별자와 빠른 입력어 무결성을 전부 확인한 뒤 비파괴 병합한다.
 - 회고가 대표 ID로 재연결된 첨부는 병합 전 공통 부분집합과 병합 후 전체 incoming 부분집합의 상대 순서가 일치해야 한다.
 - 다만 로컬 첨부가 백업 후보보다 최신이면 해당 후보는 과거 순서 검증에서 제외해 최신 로컬 정렬을 보존한다.
 - `.easytaskbackup`은 `public.package` 계열의 고정 UTI로 등록해 Finder와 파일 패널에서 하나의 패키지로 다룬다.
@@ -234,16 +242,16 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
 ## 현재 MVP 범위
 
-- V10 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
+- V11 버전 스키마를 사용하며 앱 타겟은 private CloudKit 저장소를 사용한다.
 - 공통 컨테이너는 `iCloud.com.soraul2.easytask`이며 iOS, macOS와 watchOS가 같은 컨테이너를 명시적으로 선택한다.
 - 테스트, 파일 마이그레이션, 복구 도구는 기본 로컬 저장 모드를 유지해 CloudKit에 접근하지 않는다.
 - CloudKit import가 성공적으로 끝나면 공통 무결성 정리를 실행하고, 동기화 모드에서는 Debug 샘플 데이터를 만들지 않는다.
-- CloudKit Production에는 V9의 `MemoDrawing`, `MemoChecklistItem`과 관련 필드까지 배포되어 있다. Development 양방향 수렴 검증은 실제 기기 운영 인수로 남아 있다.
+- CloudKit Production은 V11의 `TaskTemplate.quickEntryAlias`와 Core Data 대응 asset 필드까지 배포됐다. Development 독립 저장소의 생성·변경·해제·삭제 왕복을 통과했으며, 빠른 입력어·FocusSession의 실기기 쌍 인수는 별도 확인 대상이다.
 - macOS, iOS와 watchOS는 같은 모델 스키마를 공유한다.
 - iOS는 iPhone 우선이며 상태 필터와 상태 슬라이더를 중심으로 작업을 변경한다.
 - 양 플랫폼 작업 상세는 제목, 보드 날짜, 상태, 메모, 우선순위, 예상 시간, 태그와 선택형 체크리스트를 편집한다.
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
-- 기본 내보내기는 이미지 원본, Task 알림·체크리스트·복합 메모·진행 이벤트·집중 기록을 포함한 백업 V9이며 패키지 V2~V9과 JSON V1~V2는 가져오기 호환 경로로 유지한다.
+- 기본 내보내기는 이미지 원본, Task 알림·체크리스트·복합 메모·진행 이벤트·집중 기록·빠른 입력어를 포함한 백업 V10이며 패키지 V2~V10과 JSON V1~V2는 가져오기 호환 경로로 유지한다.
 - Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
 - Calendar는 표시 월의 적응형 5/6주 범위(최대 42일) 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.

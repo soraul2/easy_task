@@ -146,7 +146,9 @@ struct BoardEventStrip: View {
 struct BoardQuickAdd: View {
     @Binding var title: String
     let focusRequestID: UUID?
+    let quickEntry: SavedTaskQuickEntryController
     var onAdd: () -> Void
+    var onAddSaved: (UUID) -> Void
     var onOpenSavedTasks: () -> Void
     var onOpenTemplates: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -175,6 +177,15 @@ struct BoardQuickAdd: View {
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(isTitleFocused ? AppTheme.event : AppTheme.border,
                             lineWidth: isTitleFocused ? 2 : 1)
+            }
+            .padding(.horizontal, 16)
+
+            SavedTaskQuickEntrySuggestions(controller: quickEntry, onAdd: { id in
+                onAddSaved(id)
+                if title.isEmpty { isTitleFocused = false }
+            }) {
+                isTitleFocused = false
+                onOpenSavedTasks()
             }
             .padding(.horizontal, 16)
 
@@ -231,6 +242,9 @@ struct BoardQuickAdd: View {
         .focused($isTitleFocused)
         .submitLabel(.done)
         .onSubmit(submit)
+        .onKeyPress(.downArrow) { quickEntry.moveSelection(by: 1) ? .handled : .ignored }
+        .onKeyPress(.upArrow) { quickEntry.moveSelection(by: -1) ? .handled : .ignored }
+        .onKeyPress(.escape) { quickEntry.dismiss() ? .handled : .ignored }
         .accessibilityLabel("해당 날짜에 할 일 입력")
     }
 

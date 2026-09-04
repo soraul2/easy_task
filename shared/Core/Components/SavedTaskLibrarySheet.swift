@@ -47,8 +47,8 @@ public struct SavedTaskLibrarySheet: View {
                             .font(.subheadline)
                             .fixedSize(horizontal: false, vertical: true)
                             .foregroundStyle(AppTheme.secondaryText)
-                        TextField("제목·메모·체크리스트 검색", text: $query,
-                                  prompt: Text("제목·메모·체크리스트 검색").foregroundStyle(AppTheme.secondaryText))
+                        TextField("제목·입력어·메모 검색", text: $query,
+                                  prompt: Text("제목·입력어·메모 검색").foregroundStyle(AppTheme.secondaryText))
                             .textFieldStyle(.roundedBorder)
                             .focused($isSearchFocused)
                             .accessibilityIdentifier("saved-task-search")
@@ -166,6 +166,9 @@ public struct SavedTaskLibrarySheet: View {
                 .accessibilityLabel("\(entry.draft.title) 즐겨찾기 \(entry.isFavorite ? "해제" : "추가")")
                 VStack(alignment: .leading, spacing: 6) {
                     Text(entry.draft.title).font(.headline).foregroundStyle(AppTheme.primaryText)
+                    if let alias = entry.quickEntryAlias, !alias.isEmpty {
+                        Text("/\(alias)").font(.subheadline.monospaced()).foregroundStyle(AppTheme.accent)
+                    }
                     if !entry.draft.note.isEmpty {
                         Text(entry.draft.note).font(.subheadline).foregroundStyle(AppTheme.secondaryText)
                             .lineLimit(2)

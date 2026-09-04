@@ -40,3 +40,4 @@ extension EasyTaskSchemaV9.Memo: IntegrityRecord {}
 extension EasyTaskSchemaV9.MemoDrawing: IntegrityRecord {}
 extension EasyTaskSchemaV9.MemoChecklistItem: IntegrityRecord {}
 extension EasyTaskSchemaV10.FocusSession: IntegrityRecord {}
+extension EasyTaskSchemaV11.TaskTemplate: IntegrityRecord {}
