@@ -20,7 +20,7 @@ struct ThemeSelectorButton: View {
         .overlay {
             Capsule().stroke(AppTheme.border, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 8)
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
         .help("테마 선택")
         .accessibilityLabel("테마 선택")
         .sheet(isPresented: $isPresented) {
@@ -66,6 +66,7 @@ struct ThemePickerSheet: View {
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("테마 닫기")
                 .foregroundStyle(AppTheme.secondaryText)
             }
 
@@ -102,6 +103,8 @@ struct ThemePickerSheet: View {
         .padding(22)
         .frame(minWidth: 620, idealWidth: 720, minHeight: 480, idealHeight: 560)
         .background(AppTheme.panel)
+        .tint(AppTheme.accent)
+        .preferredColorScheme(AppThemePreset.preset(for: selectedThemeID).preferredColorScheme)
     }
 
     private func themeGrid(_ presets: [AppThemePreset]) -> some View {
@@ -182,7 +185,7 @@ struct ThemePresetCard: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(colors.panel.color, in: Capsule())
-                    Text(preset.targetsWCAGTextContrast ? "WCAG 4.5:1" : "소프트 대비")
+                    Text("읽기 편한 대비")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(colors.secondaryText.color)
                     Spacer()
@@ -200,7 +203,9 @@ struct ThemePresetCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("theme-preset-\(preset.id)")
         .accessibilityLabel("\(preset.name) 테마")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(isSelected ? "선택됨" : "")
         .accessibilityHint(isSelected ? "현재 적용된 테마" : "두 번 클릭하여 테마 적용")
     }

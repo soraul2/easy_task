@@ -45,7 +45,7 @@ struct BoardHeader: View {
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.85)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("board-date-title")
-            Text(isTodayBoard ? "오늘 보드" : selectedDayKey)
+            Text(isTodayBoard ? "오늘의 계획" : "이 날짜의 계획")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -147,6 +147,8 @@ struct BoardQuickAdd: View {
     @Binding var title: String
     let focusRequestID: UUID?
     var onAdd: () -> Void
+    var onOpenSavedTasks: () -> Void
+    var onOpenTemplates: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var isTitleFocused: Bool
 
@@ -155,40 +157,36 @@ struct BoardQuickAdd: View {
     }
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    titleField
-                    Button(action: submit) {
-                        Label("작업 추가", systemImage: "plus")
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canAdd)
-                    .accessibilityLabel("작업 추가")
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                titleField
+                    .frame(minHeight: 44)
+                Button(action: submit) {
+                    Image(systemName: "plus")
+                        .frame(minWidth: 20)
                 }
-            } else {
-                HStack(spacing: 8) {
-                    titleField
-                    Button(action: submit) {
-                        Image(systemName: "plus")
-                            .font(.headline)
-                    }
-                    .disabled(!canAdd)
-                    .accessibilityLabel("작업 추가")
+                .buttonStyle(PlanBaseButtonStyle())
+                .disabled(!canAdd)
+                .accessibilityLabel("작업 추가")
+            }
+            .padding(8)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isTitleFocused ? AppTheme.event : AppTheme.border,
+                            lineWidth: isTitleFocused ? 2 : 1)
+            }
+            .padding(.horizontal, 16)
+
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 8) { reuseButtons }
+                } else {
+                    HStack(spacing: 8) { reuseButtons }
                 }
             }
+            .padding(.horizontal, 16)
         }
-        .padding(12)
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    isTitleFocused ? AppTheme.event : AppTheme.border.opacity(0.78),
-                    lineWidth: isTitleFocused ? 2 : 1.25
-                )
-        }
-        .padding(.horizontal, 16)
         .padding(.top, 12)
         .onChange(of: focusRequestID) { _, requestID in
             guard requestID != nil else { return }
@@ -196,12 +194,40 @@ struct BoardQuickAdd: View {
         }
     }
 
+    @ViewBuilder
+    private var reuseButtons: some View {
+        Button {
+            isTitleFocused = false
+            onOpenSavedTasks()
+        } label: {
+            Label("저장한 작업", systemImage: "bookmark")
+                .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityIdentifier("saved-task-library-button")
+        .buttonStyle(PlanBaseButtonStyle(.secondary))
+        Button {
+            isTitleFocused = false
+            onOpenTemplates()
+        } label: {
+            Label("템플릿", systemImage: "square.on.square")
+                .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityIdentifier("template-library-button")
+        .accessibilityLabel("템플릿")
+        .buttonStyle(PlanBaseButtonStyle(.secondary))
+    }
+
     private var titleField: some View {
         TextField(
             dynamicTypeSize.isAccessibilitySize ? "할 일 입력" : "해당 날짜에 할 일 입력",
-            text: $title
+            text: $title,
+            prompt: Text(dynamicTypeSize.isAccessibilitySize ? "할 일 입력" : "해당 날짜에 할 일 입력")
+                .foregroundStyle(AppTheme.secondaryText)
         )
         .textFieldStyle(.plain)
+        .foregroundStyle(AppTheme.primaryText)
         .focused($isTitleFocused)
         .submitLabel(.done)
         .onSubmit(submit)
@@ -314,7 +340,7 @@ private struct BoardStatusFilterButton: View {
                     .lineLimit(1)
             }
             .padding(.horizontal, 11)
-            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .foregroundStyle(isSelected ? AppTheme.primaryText : AppTheme.secondaryText)
             .background(
                 isSelected ? AppTheme.panel : AppTheme.input.opacity(0.72),
@@ -324,14 +350,14 @@ private struct BoardStatusFilterButton: View {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(
                         isSelected ? accent : AppTheme.border.opacity(0.45),
-                        lineWidth: isSelected ? 2 : 1
+                        lineWidth: isSelected ? 1.5 : 1
                     )
                     .allowsHitTesting(false)
             }
             .shadow(
-                color: isSelected ? accent.opacity(0.16) : .clear,
-                radius: 10,
-                y: 5
+                color: isSelected ? accent.opacity(0.06) : .clear,
+                radius: 4,
+                y: 2
             )
             .contentShape(RoundedRectangle(cornerRadius: 14))
         }

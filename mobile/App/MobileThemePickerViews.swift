@@ -43,7 +43,8 @@ struct MobileThemePickerSheet: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
                             VStack(alignment: .leading, spacing: 5) {
-                                Label("테마 미리보기", systemImage: "paintpalette.fill")
+                                Label(AppThemePreset.preset(for: selectedThemeID).name, systemImage: AppThemePreset.preset(for: selectedThemeID).isDarkTheme ? "moon.stars.fill" : "sun.max.fill")
+                                    .accessibilityIdentifier("theme-current-selection")
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(AppTheme.primaryText)
 
@@ -73,15 +74,28 @@ struct MobileThemePickerSheet: View {
             .background(AppTheme.background)
             .navigationTitle("테마")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("완료") { dismiss() }
-                }
-            }
+            .toolbar { doneToolbar }
         }
-        .presentationDetents([.medium, .large])
+        .tint(AppTheme.accent)
+        .preferredColorScheme(AppThemePreset.preset(for: selectedThemeID).preferredColorScheme)
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.background)
+    }
+
+    @ToolbarContentBuilder
+    private var doneToolbar: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .primaryAction) { doneButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .primaryAction) { doneButton }
+        }
+    }
+
+    private var doneButton: some View {
+        Button("완료") { dismiss() }
+            .buttonStyle(PlanBaseButtonStyle())
     }
 
     private func themeGrid(_ presets: [AppThemePreset]) -> some View {
@@ -116,6 +130,7 @@ private enum MobileThemePickerSection: String, CaseIterable, Identifiable {
 }
 
 private struct MobileThemePresetCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var preset: AppThemePreset
     var appearance: AppThemeAppearance
     var isSelected: Bool
@@ -132,13 +147,13 @@ private struct MobileThemePresetCard: View {
                     Text(preset.name)
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(colors.primaryText.color)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Spacer(minLength: 0)
 
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isSelected ? colors.event.color : colors.secondaryText.color)
+                        .foregroundStyle(isSelected ? colors.resolvedAccentForeground.color : colors.secondaryText.color)
                 }
 
                 HStack(spacing: 0) {
@@ -172,7 +187,9 @@ private struct MobileThemePresetCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("theme-preset-\(preset.id)")
         .accessibilityLabel("\(preset.name) 테마")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(isSelected ? "선택됨" : "")
         .accessibilityHint(isSelected ? "현재 적용된 테마" : "두 번 탭하여 테마 적용")
     }

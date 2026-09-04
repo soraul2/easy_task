@@ -42,7 +42,6 @@ struct MobileAppRootView: View {
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
     @State private var boardActionRequest: MobileBoardActionRequest?
     @State private var calendarNavigationDate: Date?
-    @State private var themeRevision = 0
     @State private var activeDayKey = DayKey.today
     @State private var selectedBoardDayKey = DayKey.today
     @State private var isFollowingToday = true
@@ -71,7 +70,8 @@ struct MobileAppRootView: View {
             MobileBoardView(
                 selectedDate: $selectedBoardDate,
                 actionRequest: $boardActionRequest,
-                onStartFocus: presentFocusMode
+                onStartFocus: presentFocusMode,
+                onShowTheme: { showingThemePicker = true }
             )
                 .tabItem {
                     Image(systemName: MobileTab.board.symbol)
@@ -114,7 +114,7 @@ struct MobileAppRootView: View {
                 }
                 .tag(MobileTab.memo)
         }
-        .tint(AppTheme.event)
+        .tint(AppTheme.accent)
         .background(AppTheme.background)
         .background {
             if isWidgetSnapshotPublisherReady {
@@ -133,7 +133,6 @@ struct MobileAppRootView: View {
         }
         .preferredColorScheme(preferredThemeColorScheme)
         .environment(syncMonitor)
-        .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
         .task {
             start()
             if cloudKitEnabled {
@@ -154,7 +153,6 @@ struct MobileAppRootView: View {
         }
         .onChange(of: selectedThemeID) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
-            themeRevision += 1
             refreshWidgetSnapshot(forceWrite: true)
             Swift.Task {
                 await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext)
@@ -181,7 +179,6 @@ struct MobileAppRootView: View {
         }
         .onChange(of: colorScheme) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
-            themeRevision += 1
         }
         .onReceive(NotificationCenter.default.publisher(
             for: CloudKitSyncService.eventChangedNotification
@@ -318,7 +315,6 @@ struct MobileAppRootView: View {
             selectedThemeID = syncedThemeID
         }
         AppTheme.activate(syncedThemeID, colorScheme: colorScheme)
-        themeRevision += 1
         do {
             try PersistenceCommandService.perform(in: modelContext) {
                 _ = try DataIntegrityService.reconcile(

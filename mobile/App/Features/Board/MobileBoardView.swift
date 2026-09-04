@@ -9,6 +9,7 @@ private enum MobileBoardSheet: Identifiable {
     case task(TodoTask)
     case carryover
     case templates
+    case savedTasks
     case review
 
     var id: String {
@@ -16,9 +17,15 @@ private enum MobileBoardSheet: Identifiable {
         case .task(let task): "task-\(task.id)"
         case .carryover: "carryover"
         case .templates: "templates"
+        case .savedTasks: "savedTasks"
         case .review: "review"
         }
     }
+}
+
+private struct PendingMobileTaskDeletion {
+    var taskID: UUID
+    var title: String
 }
 
 private struct PendingMobileTaskCompletion {
@@ -41,8 +48,10 @@ struct MobileBoardView: View {
     @Binding var selectedDate: Date
     @Binding var actionRequest: MobileBoardActionRequest?
     let onStartFocus: (UUID) -> Void
+    let onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var selectedDayTaskRows: [TodoTask]
     @Query private var carryoverTaskRows: [TodoTask]
     @Query private var overlappingEventRows: [CalendarEvent]
@@ -54,6 +63,8 @@ struct MobileBoardView: View {
     @State private var selectedStatus: TaskStatus = .todo
     @State private var presentedSheet: MobileBoardSheet?
     @State private var pendingTaskCompletion: PendingMobileTaskCompletion?
+    @State private var pendingTaskDeletion: PendingMobileTaskDeletion?
+    @State private var persistenceFailureMessage: String?
     @State private var statusNotice: String?
     @State private var statusNoticeToken = UUID()
     @State private var progressSession: TaskProgressEventQuerySession?
@@ -64,11 +75,13 @@ struct MobileBoardView: View {
     init(
         selectedDate: Binding<Date>,
         actionRequest: Binding<MobileBoardActionRequest?>,
-        onStartFocus: @escaping (UUID) -> Void = { _ in }
+        onStartFocus: @escaping (UUID) -> Void = { _ in },
+        onShowTheme: @escaping () -> Void = {}
     ) {
         _selectedDate = selectedDate
         _actionRequest = actionRequest
         self.onStartFocus = onStartFocus
+        self.onShowTheme = onShowTheme
 
         let dayKey = DayKey.key(for: selectedDate.wrappedValue)
         _selectedDayTaskRows = Query(
@@ -87,7 +100,7 @@ struct MobileBoardView: View {
 
     private var boardTasks: [TodoTask] {
         return BoardQueryRules.tasksForBoard(
-            selectedDayTaskRows,
+            selectedDayTaskRows.filter { $0.modelContext != nil },
             selectedDayKey: selectedDayKey
         )
     }
@@ -117,13 +130,21 @@ struct MobileBoardView: View {
                     MobileStatusNotice(message: statusNotice)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 12)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.snappy(duration: 0.18), value: statusNotice)
-            .navigationTitle("")
+            .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: statusNotice)
+            .navigationTitle("칸반")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: onShowTheme) {
+                        Image(systemName: "paintpalette")
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("테마 선택")
+                    .accessibilityIdentifier("board-theme-button")
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { presentedSheet = .carryover } label: {
                         Image(systemName: "tray")
@@ -131,13 +152,6 @@ struct MobileBoardView: View {
                     }
                     .accessibilityLabel("이월함")
                     .accessibilityIdentifier("carryover-button")
-
-                    Button { presentedSheet = .templates } label: {
-                        Image(systemName: "square.on.square")
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .accessibilityLabel("템플릿")
-                    .accessibilityIdentifier("template-library-button")
 
                     Button { presentedSheet = .review } label: {
                         Image(systemName: "book.closed")
@@ -156,6 +170,15 @@ struct MobileBoardView: View {
                         tasks: carryoverTasks,
                         onApplied: showBoardNotice
                     )
+                case .savedTasks:
+                    SavedTaskLibrarySheet(
+                        selectedDate: selectedDate,
+                        onAdded: { message in
+                            selectedStatus = .todo
+                            showBoardNotice(message)
+                        }
+                    )
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
                 case .templates:
                     MobileTemplateLibrarySheet(
                         templates: templates,
@@ -194,6 +217,23 @@ struct MobileBoardView: View {
                         "알림이 중지됩니다. 알림 설정 기록은 계속 유지됩니다."
                 )
             }
+            .alert("작업을 삭제할까요?", isPresented: Binding(
+                get: { pendingTaskDeletion != nil },
+                set: { if !$0 { pendingTaskDeletion = nil } }
+            ), presenting: pendingTaskDeletion) { pending in
+                Button("취소", role: .cancel) {}
+                Button("삭제", role: .destructive) { confirmTaskDeletion(pending) }
+            } message: { pending in
+                Text("‘\(pending.title)’ 작업을 삭제합니다. 삭제한 작업은 되돌릴 수 없어요.")
+            }
+            .alert("저장하지 못했어요", isPresented: Binding(
+                get: { persistenceFailureMessage != nil },
+                set: { if !$0 { persistenceFailureMessage = nil } }
+            )) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text(persistenceFailureMessage ?? "다시 시도해 주세요.")
+            }
             .task {
                 if progressSession == nil {
                     progressSession = TaskProgressEventQuerySession(context: modelContext)
@@ -217,20 +257,16 @@ struct MobileBoardView: View {
 
     @ViewBuilder
     private var boardLayout: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    boardControls
-                    taskList(isEmbeddedInScrollView: true)
-                }
-            }
-            .accessibilityIdentifier("board-accessibility-scroll")
-        } else {
-            VStack(spacing: 0) {
+        ScrollView {
+            LazyVStack(spacing: 0) {
                 boardControls
-                taskList(isEmbeddedInScrollView: false)
+                taskList(isEmbeddedInScrollView: true)
             }
+            .frame(maxWidth: 820)
+            .frame(maxWidth: .infinity)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .accessibilityIdentifier("board-accessibility-scroll")
     }
 
     @ViewBuilder
@@ -244,7 +280,9 @@ struct MobileBoardView: View {
         BoardQuickAdd(
             title: $quickTitle,
             focusRequestID: quickAddFocusRequestID,
-            onAdd: addQuickTask
+            onAdd: addQuickTask,
+            onOpenSavedTasks: { presentedSheet = .savedTasks },
+            onOpenTemplates: { presentedSheet = .templates }
         )
         BoardStatusPicker(
             selectedStatus: $selectedStatus,
@@ -260,9 +298,17 @@ struct MobileBoardView: View {
             onEdit: { presentedSheet = .task($0) },
             onStartFocus: { onStartFocus($0.id) },
             onDelete: deleteTask,
+            onSaveToLibrary: saveToLibrary,
             onStatusChange: requestTaskStatusChange,
             progressText: progressText
         )
+    }
+
+    private func saveToLibrary(_ task: TodoTask) {
+        do {
+            _ = try SavedTaskLibraryService.save(taskID: task.id, in: modelContext)
+            showBoardNotice("저장한 작업에 추가했어요")
+        } catch { persistenceFailureMessage = error.localizedDescription }
     }
 
     private func addQuickTask() {
@@ -286,17 +332,27 @@ struct MobileBoardView: View {
             quickTitle = ""
             selectedStatus = .todo
         } catch {
-            showBoardNotice("작업을 추가하지 못했습니다")
+            persistenceFailureMessage = "작업을 추가하지 못했습니다. 다시 시도해 주세요."
         }
     }
 
     private func deleteTask(_ task: TodoTask) {
+        pendingTaskDeletion = PendingMobileTaskDeletion(taskID: task.id, title: task.title)
+    }
+
+    private func confirmTaskDeletion(_ pending: PendingMobileTaskDeletion) {
+        pendingTaskDeletion = nil
         do {
             try PersistenceCommandService.perform(in: modelContext) {
-                try TaskRules.delete(task, from: modelContext)
+                let candidates = try modelContext.fetch(
+                    BoundedQueryService.taskCandidatesDescriptor(id: pending.taskID))
+                if let task = BoundedQueryService.representativeTask(from: candidates) {
+                    try TaskRules.delete(task, from: modelContext)
+                }
             }
+            showBoardNotice("작업을 삭제했어요")
         } catch {
-            showBoardNotice("작업을 삭제하지 못했습니다")
+            persistenceFailureMessage = "작업을 삭제하지 못했습니다. 다시 시도해 주세요."
         }
     }
 
@@ -340,7 +396,7 @@ struct MobileBoardView: View {
                 }
                 requestTaskStatusChange(task: task, status: .done)
             } catch {
-                showBoardNotice("작업을 다시 불러오지 못했습니다")
+                persistenceFailureMessage = "작업을 다시 불러오지 못했습니다. 다시 시도해 주세요."
             }
         }
     }
@@ -360,7 +416,7 @@ struct MobileBoardView: View {
                 status: .done
             )
         } catch {
-            showBoardNotice("작업을 다시 불러오지 못했습니다")
+            persistenceFailureMessage = "작업을 다시 불러오지 못했습니다. 다시 시도해 주세요."
         }
     }
 
@@ -389,7 +445,7 @@ struct MobileBoardView: View {
             }
             showStatusNotice(task: task, status: status)
         } catch {
-            showBoardNotice("작업 상태를 변경하지 못했습니다")
+            persistenceFailureMessage = "작업 상태를 변경하지 못했습니다. 다시 시도해 주세요."
         }
     }
 

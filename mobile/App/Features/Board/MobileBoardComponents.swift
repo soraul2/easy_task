@@ -10,7 +10,7 @@ struct MobileStatusNotice: View {
     var body: some View {
         Label(message, systemImage: "arrow.right.circle.fill")
             .font(.caption.weight(.bold))
-            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.leading)
             .foregroundStyle(AppTheme.eventText)
             .padding(.horizontal, 14)
@@ -109,13 +109,13 @@ struct MobileTaskStatusSlider: View {
                     }
 
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(AppTheme.panel.opacity(0.92))
+                    .fill(AppTheme.panel)
                     .frame(width: max(segmentWidth - 6, 0), height: 42)
                     .overlay {
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(accentColor.opacity(0.82), lineWidth: 1.5)
                     }
-                    .shadow(color: accentColor.opacity(0.22), radius: 8, x: 0, y: 3)
+                    .shadow(color: accentColor.opacity(0.06), radius: 3, x: 0, y: 1)
                     .offset(x: CGFloat(selectedIndex) * segmentWidth + 3)
                     .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selectedIndex)
 

@@ -41,7 +41,6 @@ struct AppRootView: View {
     @State private var archiveState = ArchiveScreenState()
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
     @State private var calendarNavigationDate: Date?
-    @State private var themeRevision = 0
     @State private var activeDayKey = DayKey.today
     @State private var selectedBoardDayKey = DayKey.today
     @State private var isFollowingToday = true
@@ -66,7 +65,6 @@ struct AppRootView: View {
                 .safeAreaInset(edge: .bottom) {
                     Color.clear.frame(height: bottomContentInset)
                 }
-                .id("\(selectedThemeID)-\(colorScheme)-\(themeRevision)")
 
             if isWidgetSnapshotPublisherReady {
                 CalendarWidgetSnapshotPublisher()
@@ -120,12 +118,10 @@ struct AppRootView: View {
         }
         .onChange(of: selectedThemeID) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
-            themeRevision += 1
             refreshWidgetSnapshot(forceWrite: true)
         }
         .onChange(of: colorScheme) {
             AppTheme.activate(selectedThemeID, colorScheme: colorScheme)
-            themeRevision += 1
         }
         .onReceive(NotificationCenter.default.publisher(
             for: CloudKitSyncService.eventChangedNotification
@@ -199,7 +195,6 @@ struct AppRootView: View {
             selectedThemeID = syncedThemeID
         }
         AppTheme.activate(syncedThemeID, colorScheme: colorScheme)
-        themeRevision += 1
 
         do {
             try PersistenceCommandService.perform(in: modelContext) {

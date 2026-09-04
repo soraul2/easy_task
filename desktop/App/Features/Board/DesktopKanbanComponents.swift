@@ -15,6 +15,7 @@ struct KanbanColumn: View {
     var onEdit: (Task) -> Void
     var onStartFocus: (Task) -> Void
     var onDelete: (Task) -> Void
+    var onSaveToLibrary: (Task) -> Void
     var progressText: ((Task, Date) -> String?)? = nil
     @State private var isDropTargeted = false
 
@@ -109,6 +110,7 @@ struct KanbanColumn: View {
                                 onEdit: onEdit,
                                 onStartFocus: onStartFocus,
                                 onDelete: onDelete,
+                                onSaveToLibrary: onSaveToLibrary,
                                 progressText: progressText?(task, timeline.date)
                             )
                             .draggable(task.instanceID.uuidString)
@@ -227,6 +229,7 @@ struct TaskCard: View {
     var onEdit: (Task) -> Void
     var onStartFocus: (Task) -> Void
     var onDelete: (Task) -> Void
+    var onSaveToLibrary: (Task) -> Void
     var progressText: String?
     @State private var draftTitle = ""
     @State private var isHovered = false
@@ -310,14 +313,16 @@ struct TaskCard: View {
                 .foregroundStyle(AppTheme.cardMutedText)
                 .help("작업 상세 편집")
 
-                Button(role: .destructive) {
-                    onDelete(task)
+                Menu {
+                    Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task) }
+                    Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task) }
                 } label: {
-                    Image(systemName: "trash")
+                    Image(systemName: "ellipsis")
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.cardMutedText)
-                .help("작업 삭제")
+                .help("작업 메뉴")
+                .accessibilityLabel("\(task.title) 작업 메뉴")
             }
 
             HStack(spacing: 8) {
@@ -398,9 +403,7 @@ struct TaskCard: View {
                     Label(status.primaryActionTitle, systemImage: status.primaryActionSystemImage)
                         .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(status == .doing ? AppTheme.event : AppTheme.selectedTab)
+                .buttonStyle(PlanBaseButtonStyle(status == .doing ? .primary : .secondary))
                 .help("\(task.title) 작업을 \(status.primaryActionStatus.title) 상태로 변경")
                 .accessibilityLabel("\(task.title) \(status.primaryActionTitle)")
             }
@@ -424,7 +427,7 @@ struct TaskCard: View {
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .scaleEffect(isLifted && !reduceMotion ? 1.01 : 1.0)
         .offset(y: isLifted && !reduceMotion ? -2 : 0)
-        .shadow(color: .black.opacity(isLifted ? 0.28 : 0.20), radius: isLifted ? 14 : 8, x: 0, y: isLifted ? 10 : 5)
+        .shadow(color: .black.opacity(isLifted ? 0.10 : 0.045), radius: isLifted ? 8 : 4, x: 0, y: isLifted ? 4 : 2)
         .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: isLifted)
         .onHover { hovering in
             isHovered = hovering
@@ -482,6 +485,7 @@ struct TaskCard: View {
 }
 
 private struct TaskCardChecklistSection: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
     @Query private var checklistItems: [TaskChecklistItem]
     @State private var isExpanded = false
@@ -505,7 +509,7 @@ private struct TaskCardChecklistSection: View {
             VStack(alignment: .leading, spacing: 6) {
                 if isExpandable {
                     Button {
-                        withAnimation(.snappy(duration: 0.18)) {
+                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                             isExpanded.toggle()
                         }
                     } label: {
@@ -560,7 +564,7 @@ private struct TaskCardChecklistSection: View {
                         }
                     }
                     .padding(.leading, 2)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                 }
 
                 if let saveErrorMessage {

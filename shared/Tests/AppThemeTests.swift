@@ -1,6 +1,35 @@
 import Foundation
+import Observation
 import Testing
 @testable import EasyTaskCore
+
+@Test
+func unfilledControlsAndPrimaryButtonsRemainReadableInEveryPalette() {
+    for preset in AppThemePreset.all {
+        let colors = preset.colorSet(for: .light)
+        for surface in [colors.backgroundTop, colors.backgroundBottom, colors.panel, colors.input,
+                        colors.floatingBar, colors.todo, colors.doing, colors.done] {
+            #expect(colors.resolvedAccentForeground.contrastRatio(to: surface) >= 4.5)
+        }
+        #expect(colors.resolvedEventForeground.contrastRatio(to: colors.event) >= 4.5)
+    }
+}
+
+@Test @MainActor
+func themeChangesInvalidateObservedColorsWithoutReplacingViewIdentity() async {
+    let previous = AppTheme.current.id
+    defer { AppTheme.activate(previous, colorScheme: .light) }
+    AppTheme.activate("appleSystem", colorScheme: .light)
+    await confirmation("An existing view is notified when the palette changes") { changed in
+        withObservationTracking {
+            _ = AppTheme.colors
+        } onChange: {
+            changed()
+        }
+        AppTheme.activate("midnightBlue", colorScheme: .light)
+    }
+    #expect(AppTheme.colors == AppThemePreset.preset(for: "midnightBlue").colorSet(for: .dark))
+}
 
 @Test
 func appThemePresetsMeetTextContrastTarget() {

@@ -11,6 +11,7 @@ struct BoardTaskList: View {
     var onEdit: (TodoTask) -> Void
     var onStartFocus: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
+    var onSaveToLibrary: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
     var progressText: ((TodoTask, Date) -> String?)? = nil
     @State private var expandedTaskID: UUID?
@@ -70,7 +71,7 @@ struct BoardTaskList: View {
                 .listRowBackground(Color.clear)
             }
 
-            ForEach(tasks) { task in
+            ForEach(tasks.filter { $0.modelContext != nil }) { task in
                 MobileTaskRow(
                     task: task,
                     isChecklistExpanded: expandedTaskID == task.id,
@@ -80,6 +81,7 @@ struct BoardTaskList: View {
                     onEdit: { onEdit(task) },
                     onStartFocus: { onStartFocus(task) },
                     onDelete: { onDelete(task) },
+                    onSaveToLibrary: { onSaveToLibrary(task) },
                     onStatusChange: { onStatusChange(task, $0) },
                     progressText: progressText?(task, date)
                 )
@@ -135,7 +137,7 @@ private struct MobileDoingFocusLauncher: View {
         HStack(spacing: 12) {
             Image(systemName: "timer")
                 .font(.headline.weight(.semibold))
-                .foregroundStyle(AppTheme.event)
+                .foregroundStyle(AppTheme.accent)
                 .frame(width: 40, height: 40)
                 .background(AppTheme.event.opacity(0.14), in: Circle())
 
@@ -170,18 +172,44 @@ private struct MobileDoingFocusLauncher: View {
     }
 }
 
+// A disappearing row can render once more after SwiftData detaches a deleted model.
+// Keep display values independent; actions still resolve through the board's persistence boundary.
+private struct MobileTaskCardContent {
+    let id: UUID
+    let title: String
+    let note: String?
+    let status: String
+    let priority: String?
+    let tags: [String]
+    let estimatedMinutes: Int?
+    let reminderAt: Date?
+
+    init(_ task: TodoTask) {
+        id = task.id
+        title = task.title
+        note = task.note
+        status = task.status
+        priority = task.priority
+        tags = task.tags
+        estimatedMinutes = task.estimatedMinutes
+        reminderAt = task.reminderAt
+    }
+}
+
 private struct MobileTaskRow: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    var task: TodoTask
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var task: MobileTaskCardContent
     var isChecklistExpanded: Bool
     var onChecklistExpansionChange: (Bool) -> Void
     var onEdit: () -> Void
     var onStartFocus: () -> Void
     var onDelete: () -> Void
+    var onSaveToLibrary: () -> Void
     var onStatusChange: (TaskStatus) -> Void
     var progressText: String?
-    @Query private var checklistItems: [TaskChecklistItem]
+    @Query private var checklistItemRows: [TaskChecklistItem]
     @State private var checklistSaveError: String?
 
     init(
@@ -191,18 +219,24 @@ private struct MobileTaskRow: View {
         onEdit: @escaping () -> Void,
         onStartFocus: @escaping () -> Void,
         onDelete: @escaping () -> Void,
+        onSaveToLibrary: @escaping () -> Void,
         onStatusChange: @escaping (TaskStatus) -> Void,
         progressText: String? = nil
     ) {
-        self.task = task
+        self.task = MobileTaskCardContent(task)
         self.isChecklistExpanded = isChecklistExpanded
         self.onChecklistExpansionChange = onChecklistExpansionChange
         self.onEdit = onEdit
         self.onStartFocus = onStartFocus
         self.onDelete = onDelete
+        self.onSaveToLibrary = onSaveToLibrary
         self.onStatusChange = onStatusChange
         self.progressText = progressText
-        _checklistItems = Query(TaskChecklistService.descriptor(taskID: task.id))
+        _checklistItemRows = Query(TaskChecklistService.descriptor(taskID: task.id))
+    }
+
+    private var checklistItems: [TaskChecklistItem] {
+        checklistItemRows.filter { $0.modelContext != nil }
     }
 
     private var status: TaskStatus {
@@ -226,14 +260,14 @@ private struct MobileTaskRow: View {
     }
 
     private var cardFillOpacity: Double {
-        status == .done ? 0.76 : 0.96
+        1
     }
 
     private var shadowOpacity: Double {
         switch status {
-        case .todo: 0.10
-        case .doing: 0.20
-        case .done: 0.12
+        case .todo: 0.025
+        case .doing: 0.05
+        case .done: 0.025
         }
     }
 
@@ -278,7 +312,7 @@ private struct MobileTaskRow: View {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 10) {
-                        taskText
+                        taskTitleButton
                         HStack(spacing: 8) {
                             Spacer(minLength: 0)
                             taskActionButtons
@@ -286,7 +320,7 @@ private struct MobileTaskRow: View {
                     }
                 } else {
                     HStack(alignment: .top) {
-                        taskText
+                        taskTitleButton
                         taskActionButtons
                     }
                 }
@@ -342,17 +376,27 @@ private struct MobileTaskRow: View {
         }
         .shadow(
             color: accentColor.opacity(shadowOpacity),
-            radius: status == .doing ? 18 : 12,
+            radius: 6,
             x: 0,
-            y: 8
+            y: 3
         )
-        .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
+        .shadow(color: .black.opacity(0.025), radius: 2, x: 0, y: 1)
+    }
+
+    private var taskTitleButton: some View {
+        Button(action: onEdit) { taskText.frame(minHeight: 44, alignment: .topLeading).contentShape(Rectangle()) }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("\(task.title) 작업 편집")
+            .accessibilityLabel("\(task.title) 작업 편집")
+            .accessibilityValue(task.note ?? "")
+            .accessibilityHint("제목, 메모와 체크리스트를 확인하고 편집해요")
     }
 
     private var taskText: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(task.title)
                 .font(.headline)
+                .strikethrough(status == .done)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(status == .done
@@ -414,33 +458,27 @@ private struct MobileTaskRow: View {
                 .accessibilityLabel("\(task.title) 집중 시작")
             }
 
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
+            Menu {
+                Button("작업 편집", systemImage: "pencil", action: onEdit)
+                Button("자주 쓰는 작업으로 저장", systemImage: "bookmark", action: onSaveToLibrary)
+                Button("작업 삭제", systemImage: "trash", role: .destructive, action: onDelete)
+            } label: {
+                Image(systemName: "ellipsis")
                     .font(.subheadline.weight(.semibold))
                     .frame(width: 44, height: 44)
                     .background(AppTheme.panel.opacity(0.78), in: Circle())
             }
             .buttonStyle(.borderless)
-            .accessibilityIdentifier("\(task.title) 작업 편집")
-            .accessibilityLabel("\(task.title) 작업 편집")
-
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .background(AppTheme.panel.opacity(0.78), in: Circle())
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("\(task.title) 작업 삭제")
-            .accessibilityLabel("\(task.title) 작업 삭제")
+            .accessibilityIdentifier("\(task.title) 작업 메뉴")
+            .accessibilityLabel("\(task.title) 작업 메뉴")
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(AppTheme.cardMutedText)
     }
 
     private var checklistSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(.snappy(duration: 0.18)) {
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                     onChecklistExpansionChange(!isChecklistExpanded)
                 }
             } label: {
@@ -486,7 +524,7 @@ private struct MobileTaskRow: View {
                                     ? "checkmark.circle.fill"
                                     : "circle")
                                     .foregroundStyle(item.isCompleted
-                                        ? AppTheme.event
+                                        ? AppTheme.accent
                                         : AppTheme.cardMutedText)
                                 Text(item.title)
                                     .font(.subheadline)

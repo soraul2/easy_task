@@ -5,6 +5,7 @@ import PlanBaseCore
 private enum BoardSheet: Identifiable {
     case carryover
     case templates
+    case savedTasks
     case taskDetail(UUID)
     case dailyReview
 
@@ -12,10 +13,16 @@ private enum BoardSheet: Identifiable {
         switch self {
         case .carryover: "carryover"
         case .templates: "templates"
+        case .savedTasks: "savedTasks"
         case .taskDetail(let id): "taskDetail-\(id.uuidString)"
         case .dailyReview: "dailyReview"
         }
     }
+}
+
+private struct PendingDesktopTaskDeletion {
+    var taskID: UUID
+    var title: String
 }
 
 private struct PendingDesktopTaskCompletion {
@@ -59,6 +66,8 @@ struct BoardView: View {
     @State private var quickTitle = ""
     @State private var presentedSheet: BoardSheet?
     @State private var templateName = ""
+    @State private var pendingTaskDeletion: PendingDesktopTaskDeletion?
+    @State private var savedTaskNotice: String?
     @State private var persistenceFailureMessage: String?
     @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
     @State private var progressSession: TaskProgressEventQuerySession?
@@ -158,6 +167,10 @@ struct BoardView: View {
                     onCompleteAll: completeAllCarryoverTasks,
                     onDelete: deleteTask
                 )
+            case .savedTasks:
+                SavedTaskLibrarySheet(selectedDate: selectedDate) {
+                    savedTaskNotice = $0
+                }
             case .templates:
                 TemplateLibrarySheet(
                     templates: templates,
@@ -262,7 +275,30 @@ struct BoardView: View {
                     "알림 설정 기록은 계속 유지됩니다."
             )
         }
+        .alert("작업을 삭제할까요?", isPresented: Binding(
+            get: { pendingTaskDeletion != nil },
+            set: { if !$0 { pendingTaskDeletion = nil } }
+        ), presenting: pendingTaskDeletion) { pending in
+            Button("취소", role: .cancel) {}
+            Button("삭제", role: .destructive) { confirmTaskDeletion(pending) }
+        } message: { pending in
+            Text("‘\(pending.title)’ 작업을 삭제합니다. 삭제한 작업은 되돌릴 수 없어요.")
+        }
         .persistenceFailureAlert(message: boardFailureMessage)
+        .overlay(alignment: .bottom) {
+            if let savedTaskNotice {
+                Text(savedTaskNotice)
+                    .font(.callout)
+                    .padding(12)
+                    .background(AppTheme.panel, in: Capsule())
+                    .padding(.bottom, 18)
+            }
+        }
+        .task(id: savedTaskNotice) {
+            guard savedTaskNotice != nil else { return }
+            do { try await _Concurrency.Task.sleep(for: .seconds(3)) } catch { return }
+            savedTaskNotice = nil
+        }
         .task {
             if progressSession == nil {
                 progressSession = TaskProgressEventQuerySession(context: modelContext)
@@ -407,7 +443,8 @@ struct BoardView: View {
 
     private var quickCreate: some View {
         HStack(spacing: 10) {
-            TextField("해당 날짜에 할 일 입력", text: $quickTitle)
+            TextField("해당 날짜에 할 일 입력", text: $quickTitle,
+                      prompt: Text("해당 날짜에 할 일 입력").foregroundStyle(AppTheme.secondaryText))
                 .textFieldStyle(.plain)
                 .font(.system(size: 16))
                 .foregroundStyle(AppTheme.primaryText)
@@ -418,7 +455,14 @@ struct BoardView: View {
             } label: {
                 Image(systemName: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PlanBaseButtonStyle())
+            .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("작업 추가")
+            Button { presentedSheet = .savedTasks } label: {
+                Label("저장한 작업", systemImage: "bookmark")
+            }
+            .buttonStyle(PlanBaseButtonStyle(.secondary))
+            .accessibilityIdentifier("saved-task-library-button")
         }
         .padding(14)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
@@ -445,6 +489,7 @@ struct BoardView: View {
                 onEdit: editTask,
                 onStartFocus: openFocus,
                 onDelete: deleteTask,
+                onSaveToLibrary: saveToLibrary,
                 progressText: progressText
             )
 
@@ -460,6 +505,7 @@ struct BoardView: View {
                 onEdit: editTask,
                 onStartFocus: openFocus,
                 onDelete: deleteTask,
+                onSaveToLibrary: saveToLibrary,
                 progressText: progressText
             )
 
@@ -475,6 +521,7 @@ struct BoardView: View {
                 onEdit: editTask,
                 onStartFocus: openFocus,
                 onDelete: deleteTask,
+                onSaveToLibrary: saveToLibrary,
                 progressText: progressText
             )
         }
@@ -483,6 +530,13 @@ struct BoardView: View {
     private func openFocus(_ task: Task) {
         FocusModeSelectionRequest.post(taskID: task.id)
         openWindow(id: "focus-mode")
+    }
+
+    private func saveToLibrary(_ task: Task) {
+        do {
+            _ = try SavedTaskLibraryService.save(taskID: task.id, in: modelContext)
+            savedTaskNotice = "저장한 작업에 추가했어요"
+        } catch { persistenceFailureMessage = error.localizedDescription }
     }
 
     private func addQuickTask() {
@@ -639,10 +693,17 @@ struct BoardView: View {
     }
 
     private func deleteTask(_ task: Task) {
-        performPersistenceCommand(
-            failureMessage: "작업을 삭제하지 못했습니다."
-        ) {
-            try TaskRules.delete(task, from: modelContext)
+        pendingTaskDeletion = PendingDesktopTaskDeletion(taskID: task.id, title: task.title)
+    }
+
+    private func confirmTaskDeletion(_ pending: PendingDesktopTaskDeletion) {
+        pendingTaskDeletion = nil
+        performPersistenceCommand(failureMessage: "작업을 삭제하지 못했습니다.") {
+            let candidates = try modelContext.fetch(
+                BoundedQueryService.taskCandidatesDescriptor(id: pending.taskID))
+            if let task = BoundedQueryService.representativeTask(from: candidates) {
+                try TaskRules.delete(task, from: modelContext)
+            }
         }
     }
 

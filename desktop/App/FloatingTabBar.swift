@@ -20,6 +20,7 @@ struct FloatingTabBar: View {
                 .keyboardShortcut(shortcut(for: tab), modifiers: .command)
                 .help(tab.title)
                 .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(tab == selectedTab ? .isSelected : [])
             }
         }
         .padding(8)
@@ -27,7 +28,7 @@ struct FloatingTabBar: View {
         .overlay {
             Capsule().stroke(AppTheme.border, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 8)
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
     }
 
     private func shortcut(for tab: AppTab) -> KeyEquivalent {

@@ -7,6 +7,219 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testKanbanDeleteRequiresConfirmation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=appleSystem"]
+        app.launch()
+        let title = "오늘 처리할 작업 빠르게 추가해보기"
+        let menu = app.buttons["\(title) 작업 메뉴"]
+        XCTAssertTrue(scrollToHittable(menu, in: app.scrollViews["board-accessibility-scroll"]))
+        menu.tap()
+        app.buttons["작업 삭제"].tap()
+        let confirmation = app.alerts["작업을 삭제할까요?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["취소"].tap()
+        XCTAssertTrue(app.buttons["\(title) 작업 편집"].exists)
+        menu.tap()
+        app.buttons["작업 삭제"].tap()
+        confirmation.buttons["삭제"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["board-empty-todo"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["\(title) 작업 편집"].exists)
+        addReferenceScreenshot(named: "kanban-delete-empty-feedback")
+    }
+
+    @MainActor
+    func testKanbanThemeChangePreservesDraftDateAndFilter() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=appleSystem"]
+        app.launch()
+        XCTAssertTrue(app.buttons["다음 날짜"].waitForExistence(timeout: 15))
+        app.buttons["다음 날짜"].tap()
+        let date = app.staticTexts["board-date-title"].label
+        app.buttons["board-status-filter-doing"].tap()
+        let draft = "테마를 바꿔도 이어 쓰는 계획"
+        let field = app.textFields["해당 날짜에 할 일 입력"]
+        field.tap()
+        field.typeText(draft)
+        app.buttons["board-theme-button"].tap()
+        let preset = app.buttons["theme-preset-midnightBlue"]
+        XCTAssertTrue(scrollToHittable(preset, in: app.scrollViews.firstMatch))
+        preset.tap()
+        XCTAssertEqual(preset.value as? String, "선택됨")
+        addReferenceScreenshot(named: "kanban-live-dark-theme-picker")
+        app.navigationBars["테마"].buttons["완료"].tap()
+        XCTAssertEqual(app.staticTexts["board-date-title"].label, date)
+        XCTAssertEqual(field.value as? String, draft)
+        XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-doing"]))
+        addReferenceScreenshot(named: "kanban-live-theme-preserved-draft")
+        app.buttons["saved-task-library-button"].tap()
+        app.buttons["saved-task-create"].tap()
+        let savedTitle = app.textFields["saved-task-title"]
+        XCTAssertTrue(savedTitle.waitForExistence(timeout: 5))
+        savedTitle.tap()
+        savedTitle.typeText("다크 테마에서 저장하는 작업")
+        addReferenceScreenshot(named: "saved-task-editor-dark")
+        app.buttons["saved-task-editor-save"].tap()
+        XCTAssertTrue(app.buttons["다크 테마에서 저장하는 작업 추가"].waitForExistence(timeout: 5))
+        app.buttons["닫기"].tap()
+        XCTAssertEqual(field.value as? String, draft)
+        app.buttons["작업 추가"].tap()
+        XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-todo"]))
+        XCTAssertTrue(app.buttons["\(draft) 작업 편집"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        XCTAssertTrue(app.buttons["board-theme-button"].waitForExistence(timeout: 15))
+        app.buttons["board-theme-button"].tap()
+        XCTAssertEqual(app.staticTexts["theme-current-selection"].label, "Midnight Blue")
+        let white = app.buttons["theme-preset-appleSystem"]
+        XCTAssertTrue(scrollToHittable(white, in: app.scrollViews.firstMatch))
+        white.tap()
+        app.navigationBars["테마"].buttons["완료"].tap()
+    }
+
+    @MainActor
+    func testKanbanEveryThemeVisuals() {
+        let themes = ["appleSystem", "apple2020", "maroonEmber", "navyBlush", "plumNight",
+                      "roseLilac", "forestCream", "tealPaper", "solarBerry", "midnightBlue", "charcoalRose"]
+        for theme in themes {
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-testing", "--ui-testing-theme=\(theme)"]
+            app.launch()
+            let input = app.textFields["해당 날짜에 할 일 입력"]
+            XCTAssertTrue(input.waitForExistence(timeout: 15))
+            XCTAssertGreaterThanOrEqual(input.frame.width, 170)
+            XCTAssertGreaterThanOrEqual(app.buttons["작업 추가"].frame.height + 0.001, 44)
+            XCTAssertGreaterThanOrEqual(app.buttons["작업 추가"].frame.width + 0.001, 44)
+            let title = app.buttons["오늘 처리할 작업 빠르게 추가해보기 작업 편집"]
+            XCTAssertTrue(scrollToHittable(title, in: app.scrollViews["board-accessibility-scroll"]))
+            XCTAssertTrue(isHorizontallyContained(title, in: app.windows.firstMatch))
+            addReferenceScreenshot(named: "kanban-\(theme)-todo")
+            if ["appleSystem", "midnightBlue", "charcoalRose"].contains(theme) {
+                app.buttons["board-status-filter-doing"].tap()
+                XCTAssertTrue(app.buttons["카드 상태 컨트롤 확인 작업 편집"].waitForExistence(timeout: 5))
+                addReferenceScreenshot(named: "kanban-\(theme)-doing")
+                app.buttons["board-status-filter-done"].tap()
+                XCTAssertTrue(app.buttons["완료 영역 접힘 확인 작업 편집"].waitForExistence(timeout: 5))
+                addReferenceScreenshot(named: "kanban-\(theme)-done")
+                app.buttons["saved-task-library-button"].tap()
+                XCTAssertTrue(app.navigationBars["저장한 작업"].waitForExistence(timeout: 5))
+                addReferenceScreenshot(named: "kanban-\(theme)-saved-tasks")
+            }
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testKanbanLandscapeKeepsActionsReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=appleSystem"]
+        app.launch()
+        XCTAssertTrue(app.buttons["board-theme-button"].waitForExistence(timeout: 15))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let title = app.buttons["오늘 처리할 작업 빠르게 추가해보기 작업 편집"]
+        XCTAssertTrue(scrollToHittable(title, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertTrue(isHorizontallyContained(title, in: app.windows.firstMatch))
+        addReferenceScreenshot(named: "kanban-landscape-card")
+        title.tap()
+        XCTAssertTrue(app.buttons["취소"].waitForExistence(timeout: 5))
+        app.buttons["취소"].tap()
+        let saved = app.buttons["saved-task-library-button"]
+        XCTAssertTrue(scrollToHittable(saved, in: app.scrollViews["board-accessibility-scroll"]))
+        saved.tap()
+        XCTAssertTrue(app.navigationBars["저장한 작업"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "kanban-landscape-saved-tasks")
+    }
+
+    @MainActor
+    func testSavedTaskLibrarySaveReuseAndManage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+        let title = "재사용할 주간 보고"
+        let field = app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        field.typeText(title)
+        app.buttons["작업 추가"].tap()
+        let menu = app.buttons["\(title) 작업 메뉴"]
+        XCTAssertTrue(scrollToHittable(menu, in: app))
+        menu.tap()
+        app.buttons["자주 쓰는 작업으로 저장"].tap()
+        let library = app.buttons["saved-task-library-button"]
+        XCTAssertTrue(scrollToHittable(library, in: app))
+        library.tap()
+        let add = app.buttons["\(title) 추가"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        app.buttons["\(title) 즐겨찾기 추가"].tap()
+        app.buttons["\(title) 저장 메뉴"].tap()
+        app.buttons["저장 내용 편집"].tap()
+        let estimate = app.textFields["saved-task-estimate"]
+        XCTAssertTrue(estimate.waitForExistence(timeout: 5))
+        estimate.tap()
+        estimate.typeText("35")
+        let checklist = app.textViews["saved-task-checklist"].exists
+            ? app.textViews["saved-task-checklist"] : app.textFields["saved-task-checklist"]
+        checklist.tap()
+        checklist.typeText("자료 모으기\n초안 검토")
+        addReferenceScreenshot(named: "saved-task-editor-ready")
+        app.buttons["saved-task-editor-save"].tap()
+        XCTAssertTrue(app.staticTexts["체크리스트 2개"].waitForExistence(timeout: 5))
+        let search = app.textFields["saved-task-search"]
+        search.tap()
+        search.typeText("초안")
+        XCTAssertTrue(add.exists)
+        add.tap()
+        XCTAssertTrue(app.buttons["\(title) 추가됨"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["\(title) 추가됨"].isEnabled)
+        addReferenceScreenshot(named: "saved-task-library-added")
+        app.buttons["닫기"].tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 2)
+        // The library survives reopening; removal does not delete placed tasks.
+        library.tap()
+        XCTAssertTrue(app.buttons["\(title) 저장 메뉴"].waitForExistence(timeout: 5))
+        app.buttons["\(title) 저장 메뉴"].tap()
+        app.buttons["저장 목록에서 삭제"].tap()
+        app.alerts.buttons["삭제"].tap()
+        XCTAssertFalse(app.buttons["\(title) 추가"].exists)
+        app.buttons["닫기"].tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 2)
+    }
+
+    @MainActor
+    func testSavedTaskLibraryLargeTextAndSelectedDate() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-accessibility-text-size"]
+        app.launch()
+        let nextDay = app.buttons["다음 날짜"]
+        XCTAssertTrue(nextDay.waitForExistence(timeout: 15))
+        nextDay.tap()
+        let date = app.staticTexts["board-date-title"].label
+        let library = app.buttons["saved-task-library-button"]
+        XCTAssertTrue(scrollToHittable(library, in: app))
+        library.tap()
+        XCTAssertTrue(app.navigationBars["저장한 작업"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["saved-task-target-date"].firstMatch.label.contains(date))
+        addReferenceScreenshot(named: "saved-task-library-large-text-date")
+        app.buttons["saved-task-create"].tap()
+        let title = "필요한 날에 꺼내 쓰는 충분히 긴 작업 제목"
+        let titleField = app.textFields["saved-task-title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText(title)
+        app.buttons["saved-task-editor-save"].tap()
+        let add = app.buttons["\(title) 추가"]
+        XCTAssertTrue(scrollToHittable(add, in: app.scrollViews["saved-task-list"]))
+        XCTAssertTrue(isHorizontallyContained(add, in: app.windows.firstMatch))
+        addReferenceScreenshot(named: "saved-task-library-large-text")
+        add.tap()
+        app.buttons["닫기"].tap()
+        XCTAssertEqual(app.staticTexts["board-date-title"].label, date)
+        XCTAssertTrue(scrollToHittable(app.buttons["\(title) 작업 편집"], in: app))
+    }
+
+    @MainActor
     func testPrimaryTabNavigation() {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -461,7 +674,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(templateButton.waitForExistence(timeout: 5))
         XCTAssertTrue(templateButton.isHittable)
 
-        XCTAssertFalse(app.buttons["테마 선택"].exists)
+        XCTAssertTrue(app.buttons["board-theme-button"].isHittable)
 
         let reviewButton = app.buttons["review-compose-button"]
         XCTAssertTrue(reviewButton.waitForExistence(timeout: 5))
@@ -716,10 +929,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         themeButton.tap()
 
         XCTAssertTrue(app.navigationBars["테마"].waitForExistence(timeout: 5))
-        let appearanceDescription = app.staticTexts.matching(
-            NSPredicate(format: "label ENDSWITH %@", "모드 미리보기")
-        ).firstMatch
-        XCTAssertTrue(appearanceDescription.exists)
+        XCTAssertTrue(app.staticTexts["theme-current-selection"].exists)
 
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "Theme picker current appearance"
@@ -728,16 +938,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
         let themeScrollView = app.scrollViews.firstMatch
         XCTAssertTrue(themeScrollView.exists)
-        let presetNames = [
-            "Apple System",
-            "Maroon Ember",
-            "Navy Blush",
-            "Plum Night",
-            "Rose Lilac",
-            "Forest Cream",
-            "Teal Paper",
-            "Solar Berry"
-        ]
+        let presetNames = ["Clean White", "Apple 2020", "Peach Cream", "Sky Blue", "Lavender Cloud",
+                           "Blush Pink", "Mint Cream", "Aqua Mist", "Sunny Apricot", "Midnight Blue", "Charcoal Rose"]
         for presetName in presetNames {
             XCTAssertTrue(
                 scrollToHittable(

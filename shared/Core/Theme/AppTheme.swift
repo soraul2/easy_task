@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 
 public struct ThemeColorToken: Hashable, Sendable {
@@ -83,6 +84,26 @@ public struct AppThemeColorSet: Hashable, Sendable {
         resolvedEventForeground(on: event)
     }
 
+    /// Unfilled controls need a different accent from filled buttons, especially on dark surfaces.
+    public var resolvedAccentForeground: ThemeColorToken {
+        let surfaces = [backgroundTop, backgroundBottom, panel, input, floatingBar, todo, doing, done]
+        func isReadable(_ color: ThemeColorToken) -> Bool {
+            surfaces.allSatisfy { color.contrastRatio(to: $0) >= 4.5 }
+        }
+        if isReadable(event) { return event }
+        for step in 1...100 {
+            let amount = Double(step) / 100
+            for target in [1.0, 0.0] {
+                let candidate = ThemeColorToken(
+                    red: event.red + (target - event.red) * amount,
+                    green: event.green + (target - event.green) * amount,
+                    blue: event.blue + (target - event.blue) * amount)
+                if isReadable(candidate) { return candidate }
+            }
+        }
+        return primaryText
+    }
+
     public func resolvedCardForeground(on background: ThemeColorToken) -> ThemeColorToken {
         resolvedForeground(
             on: background,
@@ -128,25 +149,38 @@ public struct AppThemeColorSet: Hashable, Sendable {
 }
 
 
+@MainActor @Observable
+private final class AppThemeRuntime {
+    var id: String
+    var appearance: AppThemeAppearance = .light
+    var accent: ThemeColorToken
+
+    init() {
+        let storedID = UserDefaults.standard.string(forKey: AppTheme.storageKey) ?? AppThemePreset.defaultID
+        id = storedID
+        accent = AppThemePreset.preset(for: storedID).colorSet(for: .light).resolvedAccentForeground
+    }
+}
+
 @MainActor
 public enum AppTheme {
     public nonisolated static let storageKey = "todoAppThemeID"
     public nonisolated static let defaultMigrationKey = "todoAppThemeDefaultMigrationVersion"
     public nonisolated static let currentDefaultMigrationVersion = 2
-    private static var activeID = UserDefaults.standard.string(forKey: storageKey) ?? AppThemePreset.defaultID
-    private static var activeAppearance: AppThemeAppearance = .light
+    private static let runtime = AppThemeRuntime()
 
     public static var current: AppThemePreset {
-        AppThemePreset.preset(for: activeID)
+        AppThemePreset.preset(for: runtime.id)
     }
 
     public static var colors: AppThemeColorSet {
-        current.colorSet(for: activeAppearance)
+        current.colorSet(for: runtime.appearance)
     }
 
     public static func activate(_ id: String, colorScheme: ColorScheme) {
-        activeID = id
-        activeAppearance = AppThemeAppearance(colorScheme: colorScheme)
+        runtime.id = id
+        runtime.appearance = AppThemeAppearance(colorScheme: colorScheme)
+        runtime.accent = colors.resolvedAccentForeground
         UserDefaults.standard.set(id, forKey: storageKey)
     }
 
@@ -187,6 +221,7 @@ public enum AppTheme {
     public static var done: Color { colors.done.color }
     public static var doneForeground: Color { colors.resolvedDoneForeground.color }
     public static var event: Color { colors.event.color }
+    public static var accent: Color { runtime.accent.color }
     public static var eventText: Color { colors.resolvedEventForeground.color }
     public static var eventForeground: Color { colors.resolvedEventForeground.color }
     public static var cardText: Color { colors.cardText.color }
