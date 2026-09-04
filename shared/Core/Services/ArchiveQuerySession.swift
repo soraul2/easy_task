@@ -14,22 +14,34 @@ public final class ArchiveQuerySession {
     public private(set) var loadedPageCount = 0
 
     @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored private let dailyService: DailyActivityQueryService
     @ObservationIgnored private var appliedFilter = ArchiveFilter()
+    @ObservationIgnored private var requestedFilter = ArchiveFilter()
     @ObservationIgnored private var nextBeforeDayKey: String?
     @ObservationIgnored private var pendingSearch: Swift.Task<Void, Never>?
+    @ObservationIgnored private var pendingLoad: Swift.Task<Void, Never>?
+    @ObservationIgnored private var generation = 0
+#if DEBUG
+    @ObservationIgnored private var failNextPreviewLoad =
+        ProcessInfo.processInfo.arguments.contains("--ui-testing-archive-fail-once")
+    private enum PreviewFailure: Error { case unavailable }
+#endif
 
-    public init(context: ModelContext) {
+    public init(context: ModelContext, dailyService: DailyActivityQueryService? = nil) {
         self.context = context
+        self.dailyService = dailyService ?? DailyActivityQueryService(context: context)
     }
 
     deinit {
         pendingSearch?.cancel()
+        pendingLoad?.cancel()
     }
 
     public func apply(
         _ filter: ArchiveFilter,
         debounceSearch: Bool
     ) {
+        requestedFilter = filter
         pendingSearch?.cancel()
 
         guard debounceSearch else {
@@ -50,6 +62,10 @@ public final class ArchiveQuerySession {
 
     public func loadNextPage() {
         guard !isLoading, loadedPageCount == 0 || hasMore else { return }
+        if appliedFilter.contentMode == .dailyActivity {
+            loadDaily(pages: 1, appending: true)
+            return
+        }
         isLoading = true
         errorMessage = nil
 
@@ -74,30 +90,108 @@ public final class ArchiveQuerySession {
 
     public func refreshPreservingDepth() {
         pendingSearch?.cancel()
+        if requestedFilter != appliedFilter {
+            resetAndLoad(requestedFilter)
+            return
+        }
         let pagesToReload = max(loadedPageCount, 1)
+        if appliedFilter.contentMode == .dailyActivity {
+            dailyService.invalidate()
+            loadDaily(pages: pagesToReload, appending: false)
+            return
+        }
+        let previousRecords = records
+        let previousAttachments = attachments
+        let previousBlocks = blocks
+        let previousCursor = nextBeforeDayKey
+        let previousHasMore = hasMore
+        let previousPageCount = loadedPageCount
         clearResults()
 
         for _ in 0..<pagesToReload {
             loadNextPage()
             if !hasMore { break }
         }
+        if errorMessage != nil, !previousRecords.isEmpty {
+            records = previousRecords
+            attachments = previousAttachments
+            blocks = previousBlocks
+            nextBeforeDayKey = previousCursor
+            hasMore = previousHasMore
+            loadedPageCount = previousPageCount
+        }
     }
 
     public func retry() {
-        if records.isEmpty {
-            clearResults()
-            loadNextPage()
-        } else {
-            refreshPreservingDepth()
-        }
+        refreshPreservingDepth()
+    }
+
+    public func cancel() {
+        pendingSearch?.cancel()
+        pendingLoad?.cancel()
+        generation += 1
+        isLoading = false
+    }
+
+    public func makeDaySession() -> ArchiveQuerySession {
+        ArchiveQuerySession(context: context, dailyService: dailyService)
     }
 }
 
 private extension ArchiveQuerySession {
     func resetAndLoad(_ filter: ArchiveFilter) {
+        pendingLoad?.cancel()
+        generation += 1
+        isLoading = false
         appliedFilter = filter
         clearResults()
         loadNextPage()
+    }
+
+    func loadDaily(pages: Int, appending: Bool) {
+        pendingLoad?.cancel()
+        generation += 1
+        let requestGeneration = generation
+        let filter = appliedFilter
+        let before = appending ? nextBeforeDayKey : nil
+        isLoading = true
+        errorMessage = nil
+        pendingLoad = Swift.Task { [weak self] in
+            guard let self else { return }
+            do {
+#if DEBUG
+                if failNextPreviewLoad {
+                    failNextPreviewLoad = false
+                    throw PreviewFailure.unavailable
+                }
+#endif
+                var result: [ArchiveQueryPage] = []
+                var cursor = before
+                for _ in 0..<pages {
+                    let page = try await dailyService.page(filter: filter, beforeDayKey: cursor)
+                    try Swift.Task.checkCancellation()
+                    result.append(page)
+                    cursor = page.nextBeforeDayKey
+                    if !page.hasMore { break }
+                }
+                guard requestGeneration == generation else { return }
+                if !appending { clearResults() }
+                for page in result {
+                    append(page)
+                    nextBeforeDayKey = page.nextBeforeDayKey
+                    hasMore = page.hasMore
+                    if !page.records.isEmpty { loadedPageCount += 1 }
+                }
+                isLoading = false
+            } catch is CancellationError {
+                // The current generation owns loading and visible results.
+            } catch {
+                guard requestGeneration == generation else { return }
+                errorMessage = "하루 기록을 불러오지 못했습니다. 다시 시도해 주세요."
+                if records.isEmpty { hasMore = false }
+                isLoading = false
+            }
+        }
     }
 
     func clearResults() {

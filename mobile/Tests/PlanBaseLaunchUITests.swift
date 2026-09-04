@@ -63,12 +63,9 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["최근 16주"].waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "iPhone-Activity-16-Weeks")
 
-        let statisticsSegment = app.segmentedControls.firstMatch.buttons["통계"]
-        XCTAssertTrue(statisticsSegment.waitForExistence(timeout: 5))
-        statisticsSegment.tap()
-        XCTAssertTrue(
-            app.staticTexts["선택 기간 작업 요약"].waitForExistence(timeout: 10)
-        )
+        XCTAssertEqual(app.buttons["archive-overview-disclosure"].label, "완료 활동")
+        XCTAssertFalse(app.segmentedControls["archive-overview-mode"].exists)
+        XCTAssertFalse(app.staticTexts["선택 기간 작업 요약"].exists)
 
         boardTab.tap()
         XCTAssertTrue(
@@ -222,7 +219,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let boardButton = app.buttons.matching(
             NSPredicate(
                 format: "identifier BEGINSWITH %@",
-                "archive-open-board-button-"
+                "archive-open-day-"
             )
         ).firstMatch
         XCTAssertTrue(scrollToHittable(boardButton, in: app))
@@ -268,35 +265,186 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
-    func testArchiveTasksStayCollapsedAndBoardNavigationWorks() {
+    func testArchiveShowsTasksWithoutReviewAndOpensDetail() {
         let app = XCUIApplication()
-        app.launchArguments = [
-            "--ui-testing",
-            "--ui-testing-archive-mode", "activity"
-        ]
+        app.launchArguments = ["--ui-testing", "--ui-testing-event-history-fixtures", "--ui-testing-archive-collapsed"]
         app.launch()
+        app.tabBars.firstMatch.buttons["기록"].tap()
+        let overview = app.buttons["archive-overview-disclosure"]
+        XCTAssertTrue(overview.waitForExistence(timeout: 10))
+        if overview.value as? String == "펼침" { overview.tap() }
 
-        let archiveTab = app.tabBars.firstMatch.buttons["기록"]
-        XCTAssertTrue(archiveTab.waitForExistence(timeout: 15))
-        archiveTab.tap()
-
+        let task = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+            "archive-task-", "UI 검증: 지연 완료"
+        )).firstMatch
+        XCTAssertTrue(task.waitForExistence(timeout: 5))
+        XCTAssertTrue(task.isHittable, "회고나 펼치기 없이 작업이 보여야 합니다")
         let todayDayKey = localDayKey(Date())
-        let disclosure = app.buttons["archive-task-disclosure-\(todayDayKey)"]
-        XCTAssertTrue(scrollToHittable(disclosure, in: app))
-        let completedTaskTitle = app.staticTexts["완료 영역 접힘 확인"]
-        XCTAssertFalse(completedTaskTitle.exists)
+        XCTAssertTrue(app.buttons["archive-add-review-\(todayDayKey)"].exists)
+        addReferenceScreenshot(named: "archive-tasks-without-review")
+        task.tap()
+        XCTAssertTrue(app.navigationBars["작업 기록"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["task-record-title"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["task-record-title"].label, "UI 검증: 지연 완료")
+        XCTAssertTrue(app.staticTexts["task-record-created"].exists)
+        XCTAssertFalse(app.textFields["제목"].exists)
+        addReferenceScreenshot(named: "archive-task-record-read-only")
+        app.navigationBars["작업 기록"].buttons["닫기"].tap()
+        XCTAssertTrue(task.waitForExistence(timeout: 5))
 
-        disclosure.tap()
-        XCTAssertTrue(completedTaskTitle.waitForExistence(timeout: 5))
+        app.tabBars.firstMatch.buttons["칸반"].tap()
+        app.tabBars.firstMatch.buttons["기록"].tap()
+        XCTAssertTrue(task.waitForExistence(timeout: 5))
+        XCTAssertEqual(overview.value as? String, "접힘")
+    }
 
-        let boardButton = app.buttons["archive-open-board-button-\(todayDayKey)"]
-        XCTAssertTrue(boardButton.waitForExistence(timeout: 5))
-        XCTAssertTrue(boardButton.label.hasSuffix("칸반보드 열기"))
-        boardButton.tap()
-        XCTAssertTrue(
-            app.textFields["해당 날짜에 할 일 입력"]
-                .waitForExistence(timeout: 10)
-        )
+    @MainActor
+    func testDailyActivityWithoutReviewSearchAndDateNavigation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-daily-activity-fixtures", "--ui-testing-archive-collapsed"]
+        app.launch()
+        let tab = app.buttons["기록"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 15))
+        tab.tap()
+        let taskPredicate = NSPredicate(format: "identifier BEGINSWITH %@", "archive-task-")
+        let englishPredicate = NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "archive-task-", "영어 공부")
+        let proposal = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "archive-task-", "기획서 초안 마무리"
+        )).firstMatch
+        XCTAssertTrue(proposal.waitForExistence(timeout: 15))
+        XCTAssertTrue(proposal.isHittable)
+        let english = app.buttons.matching(englishPredicate).firstMatch
+        XCTAssertTrue(english.exists)
+        XCTAssertTrue(english.label.contains("진행 상태 30분"))
+        XCTAssertTrue(english.label.contains("집중 25분"))
+        addReferenceScreenshot(named: "daily-activity-no-review-list")
+
+        let today = localDayKey(Date())
+        app.buttons["archive-open-day-\(today)"].tap()
+        let detail = app.descendants(matching: .any)["archive-day-detail"].firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        let allTasks = detail.buttons.matching(taskPredicate)
+        XCTAssertTrue(allTasks.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertEqual(allTasks.count, 4)
+        addReferenceScreenshot(named: "daily-activity-day-detail")
+        app.buttons["이전 날짜"].tap()
+        let focusOnly = detail.buttons.matching(NSPredicate(format: "label CONTAINS %@", "집중해서 책 읽기")).firstMatch
+        XCTAssertTrue(focusOnly.waitForExistence(timeout: 10))
+        XCTAssertTrue(focusOnly.label.contains("집중 25분"))
+        app.buttons["이전 날짜"].tap()
+        let progressOnly = detail.buttons.matching(NSPredicate(format: "label CONTAINS %@", "디자인 초안")).firstMatch
+        XCTAssertTrue(progressOnly.waitForExistence(timeout: 10))
+        XCTAssertTrue(progressOnly.label.contains("진행 상태 45분"))
+        addReferenceScreenshot(named: "daily-activity-progress-only-day")
+        app.navigationBars["하루 기록"].buttons["닫기"].tap()
+
+        let search = app.textFields["archive-search-field"].exists
+            ? app.textFields["archive-search-field"] : app.searchFields.firstMatch
+        search.tap()
+        search.typeText("영어")
+        XCTAssertTrue(app.staticTexts["듣기 연습과 새 표현 정리"].waitForExistence(timeout: 10))
+        XCTAssertTrue(english.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(englishPredicate).count, 1)
+        addReferenceScreenshot(named: "daily-activity-search")
+        search.typeText("없는기록")
+        XCTAssertTrue(app.staticTexts["검색 결과 없음"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "daily-activity-empty-search")
+        app.buttons["검색 조건 초기화"].tap()
+        XCTAssertTrue(proposal.waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testDailyActivityOpensReadOnlyTaskRecordFromDayDetail() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-daily-activity-fixtures", "--ui-testing-archive-collapsed"]
+        app.launch()
+        app.buttons["기록"].firstMatch.tap()
+        let day = app.buttons["archive-open-day-\(localDayKey(Date()))"]
+        XCTAssertTrue(day.waitForExistence(timeout: 15))
+        day.tap()
+        let english = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "archive-task-", "영어 공부")).firstMatch
+        XCTAssertTrue(english.waitForExistence(timeout: 10))
+        english.tap()
+        XCTAssertTrue(app.navigationBars["작업 기록"].waitForExistence(timeout: 10))
+        let dayProgress = app.descendants(matching: .any)["task-record-day-progress"].firstMatch
+        let dayFocus = app.descendants(matching: .any)["task-record-day-focus"].firstMatch
+        XCTAssertTrue(dayProgress.waitForExistence(timeout: 10))
+        XCTAssertTrue(dayProgress.label.contains("30분"))
+        XCTAssertTrue(dayFocus.label.contains("25분"))
+        XCTAssertEqual(app.staticTexts["task-record-title"].label, "영어 공부")
+        XCTAssertFalse(app.textFields["제목"].exists)
+        XCTAssertFalse(app.buttons["이 작업으로 집중 시작"].exists)
+        addReferenceScreenshot(named: "daily-activity-task-record-summary")
+        XCTAssertTrue(scrollToHittable(app.staticTexts["활동 이력"], in: app))
+        XCTAssertTrue(app.staticTexts["첫 진행 시작"].exists)
+        addReferenceScreenshot(named: "daily-activity-task-record-history")
+        app.navigationBars["작업 기록"].buttons["닫기"].tap()
+        XCTAssertTrue(app.navigationBars["하루 기록"].exists)
+        app.buttons["이전 날짜"].tap()
+        let yesterdayTask = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "archive-task-", "집중해서 책 읽기"
+        )).firstMatch
+        XCTAssertTrue(yesterdayTask.waitForExistence(timeout: 10))
+        yesterdayTask.tap()
+        XCTAssertTrue(dayFocus.waitForExistence(timeout: 10))
+        XCTAssertTrue(dayFocus.label.contains("25분"), "이동한 날짜의 활동을 보여야 합니다")
+        addReferenceScreenshot(named: "task-record-after-day-navigation")
+        app.navigationBars["작업 기록"].buttons["닫기"].tap()
+    }
+
+    @MainActor
+    func testDailyActivityLargeTextAndIPadLayout() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-daily-activity-fixtures", "--ui-testing-archive-collapsed", "--ui-testing-accessibility-text-size"]
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        app.launch()
+        app.buttons["기록"].firstMatch.tap()
+        let proposal = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "archive-task-", "기획서 초안 마무리")).firstMatch
+        XCTAssertTrue(proposal.waitForExistence(timeout: 15))
+        XCTAssertTrue(isHorizontallyContained(proposal, in: app.windows.firstMatch))
+        XCTAssertTrue(scrollToHittable(proposal, in: app))
+        addReferenceScreenshot(named: "daily-activity-large-text-portrait")
+        proposal.tap()
+        XCTAssertTrue(app.navigationBars["작업 기록"].waitForExistence(timeout: 10))
+        let recordTitle = app.staticTexts["task-record-title"]
+        XCTAssertTrue(recordTitle.waitForExistence(timeout: 10))
+        XCTAssertTrue(isHorizontallyContained(recordTitle, in: app.windows.firstMatch))
+        XCTAssertFalse(app.textFields["제목"].exists)
+        addReferenceScreenshot(named: "task-record-large-text")
+        app.navigationBars["작업 기록"].buttons["닫기"].tap()
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            XCTAssertTrue(proposal.waitForExistence(timeout: 10))
+            XCTAssertTrue(isHorizontallyContained(proposal, in: app.windows.firstMatch))
+            addReferenceScreenshot(named: "daily-activity-ipad-landscape")
+        }
+        let today = localDayKey(Date())
+        XCTAssertTrue(scrollToHittable(app.buttons["archive-open-day-\(today)"], in: app))
+        app.buttons["archive-open-day-\(today)"].tap()
+        let detail = app.descendants(matching: .any)["archive-day-detail"].firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        let next = app.buttons["다음 날짜"]
+        XCTAssertTrue(next.isHittable)
+        XCTAssertTrue(isHorizontallyContained(next, in: app.windows.firstMatch))
+        addReferenceScreenshot(named: "daily-activity-large-text-detail")
+    }
+
+    @MainActor
+    func testDailyActivityLoadFailureCanRetryWithoutShowingEmptyState() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-daily-activity-fixtures", "--ui-testing-archive-collapsed", "--ui-testing-archive-fail-once"]
+        app.launch()
+        app.buttons["기록"].firstMatch.tap()
+        let retry = app.buttons["다시 시도"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["보관된 기록 없음"].exists)
+        XCTAssertFalse(app.buttons["이전 기록 더 보기"].exists)
+        addReferenceScreenshot(named: "daily-activity-load-error")
+        retry.tap()
+        let task = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "archive-task-", "기획서 초안 마무리")).firstMatch
+        XCTAssertTrue(task.waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -669,7 +817,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.launchArguments = [
             "--ui-testing",
             "--ui-testing-event-history-fixtures",
-            "--ui-testing-archive-mode", "statistics"
+            "--ui-testing-archive-collapsed"
         ]
         app.launch()
 
@@ -680,7 +828,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         archiveTab.tap()
         XCTAssertTrue(app.buttons["기록 필터"].waitForExistence(timeout: 10))
         XCTAssertTrue(
-            app.descendants(matching: .any)["archive-overview"]
+            app.buttons["archive-open-day-\(localDayKey(Date()))"]
                 .waitForExistence(timeout: 10)
         )
         addReferenceScreenshot(named: "event-history-archive")
@@ -714,43 +862,39 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
     @MainActor
     func testEventHistoryDateBasisAndReviewAxes() {
-        let app = launchEventHistoryFixtureApp(archiveMode: "statistics")
+        let app = launchEventHistoryFixtureApp()
         let tabBar = app.tabBars.firstMatch
 
         tabBar.buttons["기록"].tap()
-        let overview = app.descendants(matching: .any)["archive-overview"]
-        XCTAssertTrue(overview.waitForExistence(timeout: 10))
-        XCTAssertTrue(overview.label.contains("계획 작업"))
-        XCTAssertTrue(overview.label.contains("완료 작업"))
-        XCTAssertTrue(overview.label.contains("완료일 기준"))
-
-        let disclosure = app.buttons["그날 완료한 일 펼치기"].firstMatch
-        XCTAssertTrue(disclosure.waitForExistence(timeout: 10))
-        disclosure.tap()
-        XCTAssertTrue(app.staticTexts["UI 검증: 지연 완료"].waitForExistence(timeout: 5))
-        let dateMeaning = app.staticTexts.matching(
-            NSPredicate(
-                format: "label CONTAINS %@ AND label CONTAINS %@",
-                "계획일",
-                "완료일"
-            )
-        ).firstMatch
-        XCTAssertTrue(dateMeaning.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.buttons["archive-open-day-\(localDayKey(Date()))"]
+                .waitForExistence(timeout: 10)
+        )
+        XCTAssertFalse(app.segmentedControls["archive-overview-mode"].exists)
+        XCTAssertFalse(app.staticTexts["선택 기간 작업 요약"].exists)
 
         app.buttons["기록 필터"].tap()
         XCTAssertTrue(app.navigationBars["검색 필터"].waitForExistence(timeout: 5))
-        let dateBasisPicker = app.descendants(matching: .any)[
-            "archive-date-basis-picker"
-        ]
+        app.segmentedControls["archive-content-mode-picker"].buttons["완료 작업"].tap()
+        let dateBasisPicker = app.descendants(matching: .any)["archive-date-basis-picker"]
         XCTAssertTrue(dateBasisPicker.waitForExistence(timeout: 5))
-        let plannedBasis = app.buttons["계획일 기준"].firstMatch
-        XCTAssertTrue(plannedBasis.waitForExistence(timeout: 5))
-        plannedBasis.tap()
         app.navigationBars["검색 필터"].buttons["완료"].tap()
-        XCTAssertTrue(
-            app.buttons["그날 계획한 일 펼치기"].firstMatch
-                .waitForExistence(timeout: 10)
-        )
+
+        let delayed = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+            "archive-task-", "UI 검증: 지연 완료"
+        )).firstMatch
+        XCTAssertTrue(scrollToHittable(delayed, in: app))
+        XCTAssertTrue(delayed.label.contains("계획 9월") || delayed.label.contains("계획"))
+        XCTAssertTrue(delayed.label.contains("완료"))
+
+        app.buttons["적용된 기록 필터 변경"].tap()
+        XCTAssertTrue(dateBasisPicker.waitForExistence(timeout: 5))
+        app.buttons["계획일 기준"].firstMatch.tap()
+        app.navigationBars["검색 필터"].buttons["완료"].tap()
+        XCTAssertTrue(scrollToHittable(delayed, in: app))
+        let plannedKey = localDayKey(Calendar.current.date(byAdding: .day, value: -2, to: Date())!)
+        XCTAssertTrue(app.buttons["archive-open-day-\(plannedKey)"].exists)
 
         tabBar.buttons["칸반"].tap()
         let reviewButton = app.buttons["review-compose-button"]
@@ -834,14 +978,12 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchEventHistoryFixtureApp(
-        archiveMode: String = "activity"
-    ) -> XCUIApplication {
+    private func launchEventHistoryFixtureApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
             "--ui-testing-event-history-fixtures",
-            "--ui-testing-archive-mode", archiveMode
+            "--ui-testing-archive-collapsed"
         ]
         app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))

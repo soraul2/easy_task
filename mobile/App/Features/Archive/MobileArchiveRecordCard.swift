@@ -9,10 +9,13 @@ struct MobileArchiveRecordCard: View {
     var dateBasis: TaskHistoryDateBasis
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
-    var onOpenBoardDate: (Date) -> Void
+    var onOpenDay: () -> Void
+    var onOpenTask: (UUID) -> Void
+    var onEditReview: () -> Void
+    @Binding var tasksExpanded: Bool
+    @Binding var reviewExpanded: Bool
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var tasksExpanded = false
 
     private var presentation: ArchiveDayPresentation {
         ArchiveDayPresentation(record: record)
@@ -21,102 +24,88 @@ struct MobileArchiveRecordCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
-
-            if let review = record.review {
-                reviewContent(review)
-            }
-
-            if !record.tasks.isEmpty {
+            if let entries = record.activityEntries {
+                DailyActivityTaskList(
+                    entries: entries, dayKey: record.dayKey,
+                    matchedTaskIDs: record.matchedTaskIDs,
+                    expanded: $tasksExpanded, onOpenTask: onOpenTask)
+            } else if !record.tasks.isEmpty {
                 taskPreview
+            }
+            Divider().overlay(AppTheme.border)
+            if let review = record.review {
+                DisclosureGroup(isExpanded: $reviewExpanded) {
+                    reviewContent(review).padding(.top, 8)
+                    Button("회고 수정", action: onEditReview)
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.top, 8)
+                } label: {
+                    Label(
+                        review.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? "이날의 회고" : review.title, systemImage: "text.book.closed"
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
+                    .foregroundStyle(AppTheme.secondaryText)
+                }
+            } else {
+                Button(action: onEditReview) {
+                    Label("회고 남기기", systemImage: "square.and.pencil")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("archive-add-review-\(record.dayKey)")
             }
         }
         .padding(16)
         .foregroundStyle(AppTheme.primaryText)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-        .onAppear {
-            if presentation.shouldExpandTaskListForSearch {
-                tasksExpanded = true
-            }
-        }
-        .onChange(of: presentation.shouldExpandTaskListForSearch) { _, shouldExpand in
-            if shouldExpand {
-                tasksExpanded = true
-            }
-        }
-        .onChange(of: dateBasis) {
-            tasksExpanded = presentation.shouldExpandTaskListForSearch
-        }
+        .overlay { RoundedRectangle(cornerRadius: 16).stroke(AppTheme.border, lineWidth: 1) }
+        .onAppear { revealSearchMatches() }
+        .onChange(of: presentation) { _, _ in revealSearchMatches() }
+    }
+
+    private func revealSearchMatches() {
+        if presentation.shouldExpandTaskListForSearch { tasksExpanded = true }
+        if presentation.reviewMatchesSearch { reviewExpanded = true }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 8) {
-                        dateLabel
-                        reviewMatchLabel
-                        detailButton
+        Button(action: onOpenDay) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    if dynamicTypeSize.isAccessibilitySize,
+                        let date = DayKey.date(from: presentation.dayKey)
+                    {
+                        Text(date.formatted(.dateTime.month(.wide).day().locale(Locale(identifier: "ko_KR"))))
+                            .font(.headline)
+                        Text(
+                            date.formatted(
+                                .dateTime.year().weekday(.wide).locale(Locale(identifier: "ko_KR")))
+                        )
+                        .font(.caption2)
+                    } else {
+                        Text(presentation.displayDate).font(.headline)
                     }
-                } else {
-                    HStack(spacing: 8) {
-                        dateLabel
-                        Spacer(minLength: 4)
-                        reviewMatchLabel
-                        detailButton
-                    }
+                    Text(presentation.summaryText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
-            }
-
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: record.review == nil ? "checkmark.circle" : "book.closed")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(
-                        record.review == nil
-                            ? AppTheme.doneForeground
-                            : AppTheme.eventForeground
-                    )
-                    .frame(width: 40, height: 40)
-                    .background(record.review == nil ? AppTheme.done : AppTheme.event, in: Circle())
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(presentation.title)
-                        .font(.headline)
-                        .lineLimit(2)
-
-                    if !presentation.summaryText.isEmpty {
-                        Text(presentation.summaryText)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
-                }
-
                 Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
             }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-    }
-
-    private var dateLabel: some View {
-        Label(presentation.displayDate, systemImage: "calendar")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(AppTheme.secondaryText)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    @ViewBuilder
-    private var reviewMatchLabel: some View {
-        if presentation.reviewMatchesSearch {
-            Label("회고 일치", systemImage: "magnifyingglass")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(AppTheme.eventForeground)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(AppTheme.event, in: Capsule())
-        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("archive-open-day-\(presentation.dayKey)")
+        .accessibilityLabel("\(presentation.displayDate), \(presentation.summaryText)")
+        .accessibilityHint("이 날짜의 전체 활동 기록을 엽니다")
     }
 
     @ViewBuilder
@@ -136,86 +125,53 @@ struct MobileArchiveRecordCard: View {
         }
     }
 
+    private var previewTasks: [Task] {
+        let ordered = record.tasks.sorted { lhs, rhs in
+            let leftMatch = presentation.taskMatchesSearch(lhs.id)
+            let rightMatch = presentation.taskMatchesSearch(rhs.id)
+            if leftMatch != rightMatch { return leftMatch }
+            return false
+        }
+        return tasksExpanded ? ordered : Array(ordered.prefix(3))
+    }
+
     private var taskPreview: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                tasksExpanded.toggle()
-            } label: {
-                HStack(spacing: 8) {
-                    Label(dateBasis.taskSectionTitle, systemImage: "checkmark.circle")
-                    Text("\(record.tasks.count)")
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.selectedTab, in: Capsule())
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .rotationEffect(.degrees(tasksExpanded ? 0 : -90))
-                        .animation(.snappy(duration: 0.18), value: tasksExpanded)
+        VStack(spacing: 0) {
+            ForEach(Array(previewTasks.enumerated()), id: \.element.id) { index, task in
+                Button {
+                    onOpenTask(task.id)
+                } label: {
+                    MobileArchiveTaskRow(
+                        task: task,
+                        isSearchMatch: presentation.taskMatchesSearch(task.id),
+                        matchedChecklistItemIDs: presentation.matchedChecklistItemIDs
+                    )
+                    .contentShape(Rectangle())
                 }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("archive-task-\(task.id.uuidString)")
+                .accessibilityLabel("\(task.title), \(TaskHistoryDatePresentation(task: task).text)")
+                .accessibilityHint("작업의 생성 시각과 활동 기록을 엽니다")
+                if index < previewTasks.count - 1 { Divider().overlay(AppTheme.border) }
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("archive-task-disclosure-\(record.dayKey)")
-            .accessibilityLabel(
-                tasksExpanded
-                    ? "\(dateBasis.taskSectionTitle) 접기"
-                    : "\(dateBasis.taskSectionTitle) 펼치기"
-            )
-
-            if tasksExpanded {
-                VStack(spacing: 0) {
-                    ForEach(Array(record.tasks.enumerated()), id: \.element.id) { index, task in
-                        MobileArchiveTaskRow(
-                            task: task,
-                            isSearchMatch: presentation.taskMatchesSearch(task.id),
-                            matchedChecklistItemIDs: presentation.matchedChecklistItemIDs
-                        )
-                        if index < record.tasks.count - 1 {
-                            Divider()
-                                .overlay(AppTheme.border)
-                        }
-                    }
+            if record.tasks.count > 3 {
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) { tasksExpanded.toggle() }
+                } label: {
+                    Label(
+                        tasksExpanded ? "간략히 보기" : "작업 \(record.tasks.count - 3)개 더 보기",
+                        systemImage: tasksExpanded ? "chevron.up" : "chevron.down"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.secondaryText)
+                .accessibilityIdentifier("archive-task-disclosure-\(record.dayKey)")
             }
         }
     }
 
-    private var detailButton: some View {
-        Button {
-            guard let date = DayKey.date(from: record.dayKey) else { return }
-            onOpenBoardDate(date)
-        } label: {
-            Text("보드 열기")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(.horizontal, 10)
-                .frame(
-                    maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
-                    minHeight: 44,
-                    alignment: .leading
-                )
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(minWidth: 44, minHeight: 44)
-        .accessibilityIdentifier("archive-open-board-button-\(record.dayKey)")
-        .accessibilityLabel("\(presentation.displayDate) 칸반보드 열기")
-        .accessibilityHint("이 날짜의 작업 보드로 이동합니다")
-    }
 }
 
 private struct MobileExpandableReviewText: View {
@@ -261,7 +217,8 @@ private struct MobileArchiveImageCarousel: View {
     var body: some View {
         let items = mixedImageItems
         let safeIndex = items.indices.contains(selectedIndex) ? selectedIndex : 0
-        let selectedAspectRatio = items.indices.contains(safeIndex)
+        let selectedAspectRatio =
+            items.indices.contains(safeIndex)
             ? imageAspectRatios[items[safeIndex].id] ?? 4.0 / 3.0
             : 4.0 / 3.0
 
@@ -343,9 +300,10 @@ private struct MobileArchiveImageCarousel: View {
                 attachmentHash: attachment.sha256
             )
         }
-        let canonicalFileNames = Set(attachments.compactMap {
-            normalizedFileName($0.originalFileName)
-        })
+        let canonicalFileNames = Set(
+            attachments.compactMap {
+                normalizedFileName($0.originalFileName)
+            })
         let canonicalHashes = Set(attachments.map(\.sha256).filter { !$0.isEmpty })
         var seenLegacyFileNames: Set<String> = []
         var seenLegacyHashes: Set<String> = []
@@ -353,17 +311,19 @@ private struct MobileArchiveImageCarousel: View {
         for legacyImage in resolvedLegacyImages {
             let fileNameKey = legacyImage.normalizedFileName
             let hash = legacyImage.attachmentHash
-            let duplicatesCanonical = canonicalFileNames.contains(fileNameKey) ||
-                hash.map(canonicalHashes.contains) == true
-            let duplicatesLegacy = !seenLegacyFileNames.insert(fileNameKey).inserted ||
-                hash.map { !seenLegacyHashes.insert($0).inserted } == true
+            let duplicatesCanonical =
+                canonicalFileNames.contains(fileNameKey) || hash.map(canonicalHashes.contains) == true
+            let duplicatesLegacy =
+                !seenLegacyFileNames.insert(fileNameKey).inserted
+                || hash.map { !seenLegacyHashes.insert($0).inserted } == true
             guard !duplicatesCanonical, !duplicatesLegacy else { continue }
 
-            items.append(MobileArchiveImageItem(
-                id: "legacy-\(fileNameKey)-\(legacyImage.sourceIndex)",
-                data: legacyImage.data,
-                attachmentHash: hash
-            ))
+            items.append(
+                MobileArchiveImageItem(
+                    id: "legacy-\(fileNameKey)-\(legacyImage.sourceIndex)",
+                    data: legacyImage.data,
+                    attachmentHash: hash
+                ))
         }
         return items
     }
@@ -383,7 +343,8 @@ private struct MobileArchiveImageCarousel: View {
 
     private func normalizedFileName(_ fileName: String?) -> String? {
         guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
+            !value.isEmpty
+        else {
             return nil
         }
         return value.lowercased()
@@ -506,7 +467,7 @@ private struct MobileArchiveTaskRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(task.title)
                         .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     if isSearchMatch {
                         Text("일치")
                             .font(.caption2.weight(.bold))
@@ -545,20 +506,23 @@ private struct MobileArchiveTaskRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityLabel(datePresentation.accessibilityLabel)
                         .accessibilityHint(datePresentation.bestEffortExplanation ?? "")
-                    if let estimatedMinutes = task.estimatedMinutes {
-                        Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
-                    }
                     Spacer(minLength: 4)
                     MobileChecklistProgressChip(progress: checklistProgress)
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppTheme.secondaryText)
             }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 2)
         .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSearchMatch ? AppTheme.selectedTab : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            isSearchMatch ? AppTheme.selectedTab : Color.clear, in: RoundedRectangle(cornerRadius: 8)
+        )
         .overlay {
             if isSearchMatch {
                 RoundedRectangle(cornerRadius: 8)

@@ -16,7 +16,7 @@ public enum TaskHistoryDateBasis: String, CaseIterable, Identifiable, Sendable {
     public var taskSectionTitle: String {
         switch self {
         case .completed: "그날 완료한 일"
-        case .planned: "그날 계획한 일"
+        case .planned: "이날로 계획했던 완료 작업"
         }
     }
 }
@@ -148,6 +148,7 @@ public enum ArchiveScope: String, CaseIterable, Identifiable {
 }
 
 public struct ArchiveFilter: Equatable {
+    public var contentMode: ArchiveContentMode
     public var searchText: String
     public var period: ArchivePeriod
     public var scope: ArchiveScope
@@ -157,6 +158,7 @@ public struct ArchiveFilter: Equatable {
 
     public init(
         searchText: String = "",
+        contentMode: ArchiveContentMode = .completionHistory,
         period: ArchivePeriod = .all,
         scope: ArchiveScope = .all,
         dateBasis: TaskHistoryDateBasis = .completed,
@@ -164,6 +166,7 @@ public struct ArchiveFilter: Equatable {
         customEndDate: Date = DayKey.startOfDay(for: Date())
     ) {
         self.searchText = searchText
+        self.contentMode = contentMode
         self.period = period
         self.scope = scope
         self.dateBasis = dateBasis
@@ -179,6 +182,7 @@ public struct ArchiveFilter: Equatable {
     }
 
     public mutating func reset(referenceDate: Date = Date()) {
+        contentMode = .dailyActivity
         searchText = ""
         period = .all
         scope = .all
@@ -193,6 +197,7 @@ public struct ArchiveFilter: Equatable {
 }
 
 public struct ArchiveDayRecord: Identifiable {
+    public var activityEntries: [DailyActivityEntry]?
     public var dayKey: String
     public var tasks: [Task]
     public var review: DailyReview?
@@ -210,7 +215,8 @@ public struct ArchiveDayRecord: Identifiable {
         matchedTaskIDs: Set<UUID> = [],
         matchedChecklistItemIDs: Set<UUID> = [],
         reviewMatchesSearch: Bool = false,
-        hasSearchQuery: Bool = false
+        hasSearchQuery: Bool = false,
+        activityEntries: [DailyActivityEntry]? = nil
     ) {
         self.dayKey = dayKey
         self.tasks = tasks
@@ -219,6 +225,7 @@ public struct ArchiveDayRecord: Identifiable {
         self.matchedChecklistItemIDs = matchedChecklistItemIDs
         self.reviewMatchesSearch = reviewMatchesSearch
         self.hasSearchQuery = hasSearchQuery
+        self.activityEntries = activityEntries
     }
 }
 
@@ -232,6 +239,7 @@ public struct ArchiveDayPresentation: Equatable {
     public var matchedChecklistItemIDs: Set<UUID>
     public var reviewMatchesSearch: Bool
     public var hasSearchQuery: Bool
+    public var activityCompletedCount: Int?
 
     public init(record: ArchiveDayRecord) {
         let reviewTitle = record.review?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -240,18 +248,22 @@ public struct ArchiveDayPresentation: Equatable {
             ? (record.review == nil ? "작업 기록" : "하루 회고")
             : reviewTitle
         displayDate = DayKey.date(from: record.dayKey).map(DayKey.display) ?? record.dayKey
-        taskCount = record.tasks.count
+        taskCount = record.activityEntries?.count ?? record.tasks.count
         hasReview = record.review != nil
         matchedTaskIDs = record.matchedTaskIDs
         matchedChecklistItemIDs = record.matchedChecklistItemIDs
         reviewMatchesSearch = record.reviewMatchesSearch
         hasSearchQuery = record.hasSearchQuery
+        activityCompletedCount = record.activityEntries.map { $0.filter { $0.evidence.completed }.count }
     }
 
     public var summaryText: String {
         var parts: [String] = []
         if taskCount > 0 {
-            parts.append("작업 \(taskCount)")
+            parts.append("작업 \(taskCount)개")
+        }
+        if let activityCompletedCount, activityCompletedCount > 0 {
+            parts.append("이날 완료 \(activityCompletedCount)개")
         }
         if hasReview {
             parts.append("회고")
@@ -452,7 +464,7 @@ public enum ArchiveQueryRules {
         }
     }
 
-    private static func matchesSearch(
+    static func matchesSearch(
         _ task: Task,
         checklistItems: [TaskChecklistItem],
         query: String
@@ -465,7 +477,7 @@ public enum ArchiveQueryRules {
             checklistItems.contains { contains($0.title, query: query) }
     }
 
-    private static func matchesSearch(_ review: DailyReview, query: String) -> Bool {
+    static func matchesSearch(_ review: DailyReview, query: String) -> Bool {
         contains(review.title, query: query) ||
             contains(review.content, query: query) ||
             contains(review.weather, query: query) ||
@@ -473,7 +485,7 @@ public enum ArchiveQueryRules {
             contains(review.dayKey, query: query)
     }
 
-    private static func contains(_ value: String?, query: String) -> Bool {
+    static func contains(_ value: String?, query: String) -> Bool {
         guard let value else { return false }
         return value.range(
             of: query,
@@ -493,7 +505,7 @@ public enum ArchiveQueryRules {
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
-    private static func representativeTasks(_ tasks: [Task]) -> [Task] {
+    static func representativeTasks(_ tasks: [Task]) -> [Task] {
         var representatives: [UUID: Task] = [:]
         for task in tasks where task.supersededAt == nil {
             guard let existing = representatives[task.id] else {

@@ -38,6 +38,7 @@ struct AppRootView: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var selectedTab: AppTab = .board
+    @State private var archiveState = ArchiveScreenState()
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
     @State private var calendarNavigationDate: Date?
     @State private var themeRevision = 0
@@ -241,6 +242,13 @@ struct AppRootView: View {
     }
 
     private func seedDemoDataIfNeeded() throws {
+#if DEBUG
+        if PlanBaseDesktopLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-daily-activity-fixtures") {
+            try DailyActivityPreviewFixtures.seed(in: modelContext)
+            return
+        }
+#endif
 #if DEBUG
         let demoCloudKitEnabled =
             cloudKitEnabled && !PlanBaseDesktopLaunchEnvironment.isUITesting
@@ -505,7 +513,7 @@ struct AppRootView: View {
                 selectedTab = .board
             }
         case .archive:
-            ArchiveView { date in
+            ArchiveView(state: archiveState) { date in
                 selectedBoardDate = date
                 selectedTab = .board
             }

@@ -48,6 +48,12 @@ enum CalendarWidgetSnapshotPublicationService {
         referenceDate: Date = Date(),
         directoryURL: URL? = nil
     ) async throws -> Bool {
+#if DEBUG
+        // In-memory UI fixtures must never overwrite the user's shared widget snapshot.
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"), directoryURL == nil {
+            return false
+        }
+#endif
         nextPublicationSequence += 1
         let publicationSequence = nextPublicationSequence
         let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)

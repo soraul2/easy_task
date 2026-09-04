@@ -94,7 +94,7 @@ func archiveQueryRulesApplyPeriodScopeAndDayLevelSearch() throws {
     let taskPresentation = try ArchiveDayPresentation(record: #require(taskRecords.first))
     #expect(taskPresentation.title == "하루 회고")
     #expect(taskPresentation.displayDate == DayKey.display(recentDay))
-    #expect(taskPresentation.summaryText == "작업 1 · 회고")
+    #expect(taskPresentation.summaryText == "작업 1개 · 회고")
     #expect(taskPresentation.shouldExpandTaskListForSearch)
     #expect(taskPresentation.taskMatchesSearch(recentTask.id))
 

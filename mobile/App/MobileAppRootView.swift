@@ -38,6 +38,7 @@ struct MobileAppRootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedTab: MobileTab = .board
+    @State private var archiveState = ArchiveScreenState()
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
     @State private var boardActionRequest: MobileBoardActionRequest?
     @State private var calendarNavigationDate: Date?
@@ -93,6 +94,7 @@ struct MobileAppRootView: View {
             .tag(MobileTab.calendar)
 
             MobileArchiveView(
+                state: archiveState,
                 onOpenBoardDate: { date in
                     selectedBoardDate = date
                     selectedTab = .board
@@ -390,6 +392,13 @@ struct MobileAppRootView: View {
     }
 
     private func seedDemoDataIfNeeded() throws {
+#if DEBUG
+        if PlanBaseLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-daily-activity-fixtures") {
+            try DailyActivityPreviewFixtures.seed(in: modelContext)
+            return
+        }
+#endif
         guard !PlanBaseLaunchEnvironment.usesEmptyBoardFixture else { return }
         let policy = SeedPolicy.appStartup(
             cloudKitEnabled: cloudKitEnabled &&

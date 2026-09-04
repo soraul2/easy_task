@@ -54,7 +54,6 @@ public final class TaskHistoryStatisticsSession {
                 // A newer filter owns the visible calculation.
             } catch {
                 guard !Swift.Task.isCancelled else { return }
-                statistics = TaskHistoryStatistics()
                 errorMessage = "기간 통계를 계산하지 못했습니다."
                 isLoading = false
             }

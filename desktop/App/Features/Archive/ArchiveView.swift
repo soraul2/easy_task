@@ -1,30 +1,30 @@
 import AppKit
 import Combine
+import PlanBaseCore
 import SwiftData
 import SwiftUI
-import PlanBaseCore
 
 struct ArchiveView: View {
+    @Bindable var state: ArchiveScreenState
     var onOpenBoardDate: (Date) -> Void
 
+    @State private var selectedDay: ArchiveDaySelection?
+    @State private var selectedTask: TaskRecordSelection?
+    @State private var selectedReviewDay: ArchiveDaySelection?
+    @State private var isVisible = false
+    @AppStorage("planbase.archiveShowsOverview") private var showsOverview = false
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
-    @State private var filter = ArchiveFilter()
     @State private var message: String?
-    @State private var querySession: ArchiveQuerySession?
-    @State private var statisticsSession: TaskHistoryStatisticsSession?
-    @State private var activitySession: ActivityOverviewSession?
-    @State private var selectedActivityDayKey: String?
-    @AppStorage(ArchiveOverviewMode.storageKey) private var overviewModeRaw =
-        ArchiveOverviewMode.activity.rawValue
     @State private var showingFilter = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
         let attachmentIndex = DiaryAttachmentIndex(
-            attachments: querySession?.attachments ?? [],
-            blocks: querySession?.blocks ?? []
+            attachments: state.querySession?.attachments ?? [],
+            blocks: state.querySession?.blocks ?? []
         )
-        let archiveGroups = querySession?.records ?? []
+        let archiveGroups = state.querySession?.records ?? []
 
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -35,32 +35,28 @@ struct ArchiveView: View {
                 .padding(.bottom, 12)
 
             ArchiveSearchToolbar(
-                text: $filter.searchText,
-                period: $filter.period,
-                scope: $filter.scope,
-                dateBasis: $filter.dateBasis,
-                startDate: $filter.customStartDate,
-                endDate: $filter.customEndDate,
+                text: $state.filter.searchText,
+                period: $state.filter.period,
+                scope: $state.filter.scope,
+                contentMode: $state.filter.contentMode,
+                dateBasis: $state.filter.dateBasis,
+                startDate: $state.filter.customStartDate,
+                endDate: $state.filter.customEndDate,
                 showingFilter: $showingFilter,
                 searchFocused: $searchFocused
             )
-                .frame(maxWidth: 760)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 28)
-                .padding(.bottom, 14)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 14)
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if overviewMode == .activity, let activitySession {
+                    if showsOverview, let activitySession = state.activitySession {
                         ArchiveActivityOverview(
                             session: activitySession,
-                            selectedDayKey: $selectedActivityDayKey
-                        )
-                    } else if let statisticsSession {
-                        ArchiveStatisticsOverview(
-                            statistics: statisticsSession.statistics,
-                            presentation: TaskHistoryStatisticsPresentation(filter: filter),
-                            isLoading: statisticsSession.isLoading
+                            selectedDayKey: $state.selectedActivityDayKey,
+                            onOpenDay: openDay
                         )
                     }
 
@@ -68,32 +64,42 @@ struct ArchiveView: View {
                         ArchiveMessageView(message: message)
                     }
 
-                    if querySession?.isLoading == true && archiveGroups.isEmpty {
+                    if state.querySession?.isLoading == true && archiveGroups.isEmpty {
                         ForEach(0..<3, id: \.self) { _ in
                             ArchiveSkeletonCard()
                         }
-                    } else if archiveGroups.isEmpty {
+                    } else if archiveGroups.isEmpty && state.querySession?.errorMessage == nil {
                         emptyState
                     } else {
                         ForEach(archiveGroups) { group in
                             ArchiveDayGroupView(
                                 group: group,
-                                dateBasis: filter.dateBasis,
+                                dateBasis: state.filter.dateBasis,
                                 attachments: group.review.map {
                                     attachmentIndex.activeAttachments(for: $0.id)
                                 } ?? [],
                                 legacyFileNames: group.review.map {
                                     attachmentIndex.unresolvedLegacyImageFileNames(for: $0)
                                 } ?? [],
-                                onOpenBoardDate: onOpenBoardDate
+                                onOpenDay: { openDay(group.dayKey) },
+                                onOpenTask: { id in
+                                    selectedTask = TaskRecordSelection(taskID: id, dayKey: group.dayKey)
+                                },
+                                onEditReview: {
+                                    if let date = DayKey.date(from: group.dayKey) {
+                                        selectedReviewDay = ArchiveDaySelection(date: date)
+                                    }
+                                },
+                                isTaskListExpanded: expandedBinding(for: group.dayKey, reviews: false),
+                                reviewExpanded: expandedBinding(for: group.dayKey, reviews: true)
                             )
                         }
 
-                        if querySession?.hasMore == true {
+                        if state.querySession?.hasMore == true {
                             Button {
-                                querySession?.loadNextPage()
+                                state.querySession?.loadNextPage()
                             } label: {
-                                if querySession?.isLoading == true {
+                                if state.querySession?.isLoading == true {
                                     ProgressView()
                                         .controlSize(.small)
                                 } else {
@@ -102,81 +108,108 @@ struct ArchiveView: View {
                             }
                             .buttonStyle(.bordered)
                             .frame(maxWidth: .infinity)
-                            .disabled(querySession?.isLoading == true)
+                            .disabled(state.querySession?.isLoading == true)
                         }
                     }
 
-                    if let errorMessage = querySession?.errorMessage {
+                    if let errorMessage = state.querySession?.errorMessage {
                         VStack(spacing: 8) {
                             Text(errorMessage)
                                 .font(.callout)
                                 .foregroundStyle(AppTheme.secondaryText)
                             Button("다시 시도") {
-                                querySession?.retry()
+                                state.querySession?.retry()
                             }
                             .buttonStyle(.bordered)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
+                .scrollTargetLayout()
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
             }
+            .scrollPosition(id: $state.scrollDayKey, anchor: .top)
         }
         .task {
-            guard querySession == nil else { return }
-            let session = ArchiveQuerySession(context: modelContext)
-            let statistics = TaskHistoryStatisticsSession(context: modelContext)
-            let activity = ActivityOverviewSession(context: modelContext)
-            querySession = session
-            statisticsSession = statistics
-            activitySession = activity
-            session.apply(filter, debounceSearch: false)
-            if let launchMode = uiTestingOverviewMode {
-                overviewModeRaw = launchMode.rawValue
-            }
-            if overviewMode == .activity {
-                activity.apply(weekCount: TaskActivityRules.regularWeekCount)
+            isVisible = true
+            if state.querySession == nil {
+                state.querySession = ArchiveQuerySession(context: modelContext)
+                state.activitySession = ActivityOverviewSession(context: modelContext)
+                state.querySession?.apply(state.filter, debounceSearch: false)
+                if uiTestingShowsActivity {
+                    showsOverview = true
+                }
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-archive-collapsed") {
+                    showsOverview = false
+                }
             } else {
-                statistics.apply(filter)
+                state.querySession?.refreshPreservingDepth()
+            }
+            refreshOverview()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, isVisible {
+                state.querySession?.refreshPreservingDepth()
+                refreshOverview()
+            } else if phase != .active {
+                state.querySession?.cancel()
+                state.activitySession?.cancel()
             }
         }
-        .onChange(of: filter) { oldFilter, newFilter in
-            querySession?.apply(
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            guard isVisible else { return }
+            state.querySession?.refreshPreservingDepth()
+            refreshOverview()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            guard isVisible else { return }
+            state.querySession?.refreshPreservingDepth()
+            refreshOverview()
+        }
+        .onChange(of: showsOverview) { _, _ in refreshOverview() }
+        .onChange(of: state.filter) { oldFilter, newFilter in
+            state.querySession?.apply(
                 newFilter,
                 debounceSearch: shouldDebounceSearch(
                     from: oldFilter,
                     to: newFilter
                 )
             )
-            if overviewMode == .statistics,
-               shouldRefreshStatistics(from: oldFilter, to: newFilter) {
-                statisticsSession?.apply(newFilter)
-            }
         }
-        .onChange(of: overviewModeRaw) { _, _ in
-            selectedActivityDayKey = nil
-            if overviewMode == .activity {
-                activitySession?.apply(weekCount: TaskActivityRules.regularWeekCount)
-            } else {
-                activitySession?.cancel()
-                statisticsSession?.apply(filter)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: PersistenceCommandService.dataChangedNotification
-        )) { notification in
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: PersistenceCommandService.dataChangedNotification
+            )
+        ) { notification in
             guard let sourceContext = notification.object as? ModelContext,
-                  sourceContext === modelContext else { return }
-            querySession?.refreshPreservingDepth()
-            if overviewMode == .statistics {
-                statisticsSession?.apply(filter)
+                sourceContext === modelContext
+            else { return }
+            state.querySession?.refreshPreservingDepth()
+        }
+        .sheet(item: $selectedDay) { selection in
+            ArchiveSingleDaySheet(
+                date: selection.date,
+                session: state.querySession?.makeDaySession() ?? ArchiveQuerySession(context: modelContext),
+                onOpenBoardDate: onOpenBoardDate)
+        }
+        .sheet(item: $selectedTask) { selection in
+            TaskRecordSheet(selection: selection)
+        }
+        .sheet(
+            item: $selectedReviewDay,
+            onDismiss: {
+                state.querySession?.refreshPreservingDepth()
             }
+        ) { selection in
+            DailyReviewSheet(selectedDate: selection.date)
         }
         .onDisappear {
-            activitySession?.cancel()
+            isVisible = false
+            state.activitySession?.cancel()
+            state.querySession?.cancel()
         }
         .background {
             Button("") {
@@ -195,22 +228,29 @@ struct ArchiveView: View {
                 Text("기록")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(AppTheme.primaryText)
-                Text("날짜별 회고와 \(filter.dateBasis.taskSectionTitle)을 함께 봅니다.")
+                Text("회고 없이도, 그날 한 일을 한눈에.")
                     .font(.callout)
                     .foregroundStyle(AppTheme.secondaryText)
             }
 
             Spacer()
 
-            Picker("기록 요약", selection: overviewModeBinding) {
-                ForEach(ArchiveOverviewMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
+            Button {
+                openDay(DayKey.today)
+            } label: {
+                Label("날짜 찾기", systemImage: "calendar")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 150)
-            .accessibilityIdentifier("archive-overview-mode")
+            .buttonStyle(.bordered)
+            .accessibilityLabel("날짜로 기록 찾기")
+
+            Button {
+                withAnimation(.snappy) { showsOverview.toggle() }
+            } label: {
+                Label("완료 활동", systemImage: "chart.bar.xaxis")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("archive-overview-disclosure")
+            .accessibilityValue(showsOverview ? "펼침" : "접힘")
 
             Menu {
                 Button {
@@ -238,18 +278,24 @@ struct ArchiveView: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: filter.hasActiveCriteria ? "magnifyingglass" : "book.pages")
+            Image(systemName: state.filter.hasActiveCriteria ? "magnifyingglass" : "book.pages")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
-            Text(filter.hasActiveCriteria ? "검색 결과 없음" : "보관된 기록 없음")
+            Text(state.filter.hasActiveCriteria ? "검색 결과 없음" : "보관된 기록 없음")
                 .font(.headline)
                 .foregroundStyle(AppTheme.primaryText)
-            Text(filter.hasActiveCriteria
-                ? "\(filter.dateBasis.title), 기간, 키워드, 검색 대상을 조정해보세요."
-                : "완료한 작업이나 회고를 작성하면 이곳에 표시됩니다.")
-                .font(.callout)
-                .foregroundStyle(AppTheme.secondaryText)
-                .multilineTextAlignment(.center)
+            Text(
+                state.filter.hasActiveCriteria
+                    ? "기간, 키워드, 검색 대상을 조정해보세요."
+                    : "작업을 진행하거나 완료하면 날짜별로 모여요. 종료한 집중 기록과 회고도 함께 볼 수 있어요."
+            )
+            .font(.callout)
+            .foregroundStyle(AppTheme.secondaryText)
+            .multilineTextAlignment(.center)
+            if state.filter.hasActiveCriteria {
+                Button("검색 조건 초기화") { state.filter.reset() }
+                    .buttonStyle(.bordered)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 180)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
@@ -259,46 +305,59 @@ struct ArchiveView: View {
         }
     }
 
+    private func refreshOverview() {
+        guard showsOverview else {
+            state.activitySession?.cancel()
+            return
+        }
+        state.activitySession?.apply(weekCount: TaskActivityRules.regularWeekCount)
+    }
+
+    private func expandedBinding(for day: String, reviews: Bool) -> Binding<Bool> {
+        Binding(
+            get: {
+                (reviews ? state.expandedReviewDays : state.expandedTaskDays).contains(day)
+            },
+            set: { expanded in
+                if reviews {
+                    if expanded {
+                        state.expandedReviewDays.insert(day)
+                    } else {
+                        state.expandedReviewDays.remove(day)
+                    }
+                } else {
+                    if expanded {
+                        state.expandedTaskDays.insert(day)
+                    } else {
+                        state.expandedTaskDays.remove(day)
+                    }
+                }
+            })
+    }
+
+    private func openDay(_ key: String) {
+        if let date = DayKey.date(from: key) { selectedDay = ArchiveDaySelection(date: date) }
+    }
+
     private func shouldDebounceSearch(
         from oldFilter: ArchiveFilter,
         to newFilter: ArchiveFilter
     ) -> Bool {
-        oldFilter.searchText != newFilter.searchText &&
-            oldFilter.period == newFilter.period &&
-            oldFilter.scope == newFilter.scope &&
-            oldFilter.dateBasis == newFilter.dateBasis &&
-            oldFilter.customStartDate == newFilter.customStartDate &&
-            oldFilter.customEndDate == newFilter.customEndDate
+        oldFilter.searchText != newFilter.searchText && oldFilter.period == newFilter.period
+            && oldFilter.scope == newFilter.scope && oldFilter.contentMode == newFilter.contentMode
+            && oldFilter.dateBasis == newFilter.dateBasis
+            && oldFilter.customStartDate == newFilter.customStartDate
+            && oldFilter.customEndDate == newFilter.customEndDate
     }
 
-    private var overviewMode: ArchiveOverviewMode {
-        ArchiveOverviewMode(rawValue: overviewModeRaw) ?? .activity
-    }
-
-    private var overviewModeBinding: Binding<ArchiveOverviewMode> {
-        Binding(
-            get: { overviewMode },
-            set: { overviewModeRaw = $0.rawValue }
-        )
-    }
-
-    private var uiTestingOverviewMode: ArchiveOverviewMode? {
+    private var uiTestingShowsActivity: Bool {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "--ui-testing-archive-mode") else {
-            return nil
+            return false
         }
         let valueIndex = arguments.index(after: index)
-        guard arguments.indices.contains(valueIndex) else { return nil }
-        return ArchiveOverviewMode(rawValue: arguments[valueIndex])
-    }
-
-    private func shouldRefreshStatistics(
-        from oldFilter: ArchiveFilter,
-        to newFilter: ArchiveFilter
-    ) -> Bool {
-        oldFilter.period != newFilter.period ||
-            oldFilter.customStartDate != newFilter.customStartDate ||
-            oldFilter.customEndDate != newFilter.customEndDate
+        guard arguments.indices.contains(valueIndex) else { return false }
+        return arguments[valueIndex] == "activity"
     }
 
     private func exportBackup() {
@@ -319,7 +378,7 @@ struct ArchiveView: View {
             switch try BackupService.importBackup(context: modelContext) {
             case .completed(let completionMessage):
                 message = completionMessage
-                querySession?.refreshPreservingDepth()
+                state.querySession?.refreshPreservingDepth()
             case .cancelled:
                 message = nil
             }
@@ -332,6 +391,7 @@ struct ArchiveView: View {
 private struct ArchiveActivityOverview: View {
     @Bindable var session: ActivityOverviewSession
     @Binding var selectedDayKey: String?
+    var onOpenDay: (String) -> Void
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
     @State private var themePreferences = ThemePreferenceStore.shared
 
@@ -368,16 +428,20 @@ private struct ArchiveActivityOverview: View {
                     palette: AppTheme.activityHeatmapPalette,
                     mark: themePreferences.activityMark(for: selectedThemeID),
                     selectedDayKey: selectedDayKey,
-                    onSelectDay: { selectedDayKey = $0 }
+                    onSelectDay: { key in
+                        selectedDayKey = key
+                        if let key { onOpenDay(key) }
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
                 activityLegend
 
                 if let selectedDayKey,
-                   let day = session.overview.days.first(where: {
-                       $0.dayKey == selectedDayKey
-                   }) {
+                    let day = session.overview.days.first(where: {
+                        $0.dayKey == selectedDayKey
+                    })
+                {
                     Text(selectionSummary(day))
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
@@ -434,92 +498,40 @@ private struct ArchiveActivityOverview: View {
     }
 }
 
-private struct ArchiveStatisticsOverview: View {
-    var statistics: TaskHistoryStatistics
-    var presentation: TaskHistoryStatisticsPresentation
-    var isLoading: Bool
+private struct ArchiveSingleDaySheet: View {
+    var date: Date
+    var session: ArchiveQuerySession
+    var onOpenBoardDate: (Date) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedTask: TaskRecordSelection?
+    @State private var reviewDay: ArchiveDaySelection?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("선택 기간 작업 요약")
-                        .font(.headline)
-                        .foregroundStyle(AppTheme.primaryText)
-                    Text(presentation.populationTitle)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText)
+        NavigationStack {
+            ArchiveDayDetailContent(
+                date: date, session: session,
+                onOpenTask: { selectedTask = $0 },
+                onEditReview: { reviewDay = ArchiveDaySelection(date: $0) },
+                onOpenBoard: { date in
+                    dismiss()
+                    onOpenBoardDate(date)
                 }
-                Spacer()
-                if isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("작업 통계 계산 중")
+            )
+            .navigationTitle("하루 기록")
+
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("닫기") { dismiss() }
                 }
             }
-
-            Text(presentation.meaningDescription)
-                .font(.caption)
-                .foregroundStyle(AppTheme.secondaryText)
-
-            Divider()
-
-            HStack(spacing: 18) {
-                statisticValue("계획 작업", statistics.plannedTaskCount)
-                statisticValue("완료 작업", statistics.completedTaskCount)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("계획 대비 완료율")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText)
-                    if let rate = statistics.plannedCompletionRate {
-                        Text(rate, format: .percent.precision(.fractionLength(0)))
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(AppTheme.primaryText)
-                    } else {
-                        Text("—")
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
-                }
-
-                Spacer()
-
-                Text(
-                    "계획일 내 \(statistics.completedOnOrBeforePlannedDayCount) · " +
-                        "지연 완료 \(statistics.delayedCompletionCount) · " +
-                        "미완료 \(statistics.incompleteCount)"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-            }
         }
-        .padding(14)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
+        .frame(minWidth: 620, idealWidth: 740, minHeight: 620)
+        .sheet(item: $selectedTask) { selection in
+            TaskRecordSheet(selection: selection)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(presentation.populationTitle). \(presentation.meaningDescription) " +
-                "계획 작업 \(statistics.plannedTaskCount)개, " +
-                "완료 작업 \(statistics.completedTaskCount)개, " +
-                "계획일 내 완료 \(statistics.completedOnOrBeforePlannedDayCount)개, " +
-                "지연 완료 \(statistics.delayedCompletionCount)개, " +
-                "미완료 \(statistics.incompleteCount)개."
-        )
-        .accessibilityIdentifier("archive-overview")
-    }
-
-    private func statisticValue(_ title: String, _ value: Int) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(AppTheme.secondaryText)
-            Text(value, format: .number)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(AppTheme.primaryText)
+        .sheet(item: $reviewDay, onDismiss: { session.refreshPreservingDepth() }) { selection in
+            DailyReviewSheet(selectedDate: selection.date)
         }
     }
 }

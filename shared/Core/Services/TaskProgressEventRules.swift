@@ -18,15 +18,21 @@ public struct TaskProgressProjection: Equatable, Sendable {
     public var intervals: [TaskProgressInterval]
     public var currentStartedAt: Date?
     public var hasUnknownDuration: Bool
+    public var recordedStarts: [Date]
+    public var unknownIntervalStarts: [Date]
 
     public init(
         intervals: [TaskProgressInterval] = [],
         currentStartedAt: Date? = nil,
-        hasUnknownDuration: Bool = false
+        hasUnknownDuration: Bool = false,
+        recordedStarts: [Date] = [],
+        unknownIntervalStarts: [Date] = []
     ) {
         self.intervals = intervals
         self.currentStartedAt = currentStartedAt
         self.hasUnknownDuration = hasUnknownDuration
+        self.recordedStarts = recordedStarts
+        self.unknownIntervalStarts = unknownIntervalStarts
     }
 
     public var recordedDuration: TimeInterval {
@@ -58,6 +64,12 @@ public enum TaskProgressEventRules {
     public static func projection(
         for events: [TaskProgressEvent]
     ) -> TaskProgressProjection {
+        projection(snapshots: events.map(TaskProgressEventSnapshot.init))
+    }
+
+    public static func projection(
+        snapshots events: [TaskProgressEventSnapshot]
+    ) -> TaskProgressProjection {
         let representatives = Dictionary(grouping: events.filter { $0.supersededAt == nil }, by: \.id)
             .compactMap { _, candidates in
                 candidates.max(by: eventIsOlder)
@@ -71,6 +83,8 @@ public enum TaskProgressEventRules {
         var intervals: [TaskProgressInterval] = []
         var activeStart: Date?
         var hasUnknownDuration = false
+        var recordedStarts: [Date] = []
+        var unknownIntervalStarts: [Date] = []
 
         for event in representatives {
             guard let kind = TaskProgressEventKind(rawValue: event.kindRawValue),
@@ -82,6 +96,7 @@ public enum TaskProgressEventRules {
             case .started:
                 if activeStart == nil {
                     activeStart = event.occurredAt
+                    recordedStarts.append(event.occurredAt)
                 }
             case .stopped:
                 guard let startedAt = activeStart,
@@ -90,6 +105,7 @@ public enum TaskProgressEventRules {
                 }
                 if origin == .compatibilityBoundary {
                     hasUnknownDuration = true
+                    unknownIntervalStarts.append(startedAt)
                 } else {
                     intervals.append(TaskProgressInterval(
                         startedAt: startedAt,
@@ -103,7 +119,9 @@ public enum TaskProgressEventRules {
         return TaskProgressProjection(
             intervals: intervals,
             currentStartedAt: activeStart,
-            hasUnknownDuration: hasUnknownDuration
+            hasUnknownDuration: hasUnknownDuration,
+            recordedStarts: recordedStarts,
+            unknownIntervalStarts: unknownIntervalStarts
         )
     }
 
@@ -181,16 +199,16 @@ public enum TaskProgressEventRules {
     }
 
     private static func eventIsOlder(
-        _ lhs: TaskProgressEvent,
-        _ rhs: TaskProgressEvent
+        _ lhs: TaskProgressEventSnapshot,
+        _ rhs: TaskProgressEventSnapshot
     ) -> Bool {
         if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
     private static func eventComesBefore(
-        _ lhs: TaskProgressEvent,
-        _ rhs: TaskProgressEvent
+        _ lhs: TaskProgressEventSnapshot,
+        _ rhs: TaskProgressEventSnapshot
     ) -> Bool {
         if lhs.occurredAt != rhs.occurredAt { return lhs.occurredAt < rhs.occurredAt }
         if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }

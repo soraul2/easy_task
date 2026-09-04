@@ -9,118 +9,90 @@ struct ArchiveDayGroupView: View {
     var dateBasis: TaskHistoryDateBasis
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
-    var onOpenBoardDate: (Date) -> Void
-    @State private var isTaskListExpanded = false
+    var onOpenDay: () -> Void
+    var onOpenTask: (UUID) -> Void
+    var onEditReview: () -> Void
+    @Binding var isTaskListExpanded: Bool
+    @Binding var reviewExpanded: Bool
 
     private var presentation: ArchiveDayPresentation {
         ArchiveDayPresentation(record: group)
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            timelineIcon
-
-            VStack(alignment: .leading, spacing: 12) {
-                header
-
-                if let review = group.review {
-                    reviewContent(review)
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            if let entries = group.activityEntries {
+                DailyActivityTaskList(
+                    entries: entries, dayKey: group.dayKey,
+                    matchedTaskIDs: group.matchedTaskIDs,
+                    expanded: $isTaskListExpanded, onOpenTask: onOpenTask)
+            } else if !group.tasks.isEmpty {
+                taskPreview
+            }
+            Divider().overlay(AppTheme.border)
+            if let review = group.review {
+                DisclosureGroup(isExpanded: $reviewExpanded) {
+                    reviewContent(review).padding(.top, 8)
+                    Button("회고 수정", action: onEditReview)
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.top, 8)
+                } label: {
+                    Label(
+                        review.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? "이날의 회고" : review.title, systemImage: "text.book.closed"
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
+                    .foregroundStyle(AppTheme.secondaryText)
                 }
-
-                if !group.tasks.isEmpty {
-                    taskPreview
+            } else {
+                Button(action: onEditReview) {
+                    Label("회고 남기기", systemImage: "square.and.pencil")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("archive-add-review-\(group.dayKey)")
             }
         }
-        .padding(18)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-        .onAppear {
-            if presentation.shouldExpandTaskListForSearch {
-                isTaskListExpanded = true
-            }
-        }
-        .onChange(of: presentation.shouldExpandTaskListForSearch) { _, shouldExpand in
-            if shouldExpand {
-                isTaskListExpanded = true
-            }
-        }
+        .padding(20)
+        .foregroundStyle(AppTheme.primaryText)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).stroke(AppTheme.border, lineWidth: 1) }
+        .onAppear { revealSearchMatches() }
+        .onChange(of: presentation) { _, _ in revealSearchMatches() }
+    }
+
+    private func revealSearchMatches() {
+        if presentation.shouldExpandTaskListForSearch { isTaskListExpanded = true }
+        if presentation.reviewMatchesSearch { reviewExpanded = true }
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 7) {
-                titleLine
-                if !presentation.summaryText.isEmpty || presentation.reviewMatchesSearch {
-                    metadataBadges
+        Button(action: onOpenDay) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(presentation.displayDate)
+                        .font(.system(size: 17, weight: .bold))
+                    Text(presentation.summaryText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
-            }
-
-            Spacer(minLength: 8)
-
-            Button {
-                openBoard()
-            } label: {
-                Image(systemName: "rectangle.3.group")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 30, height: 28)
-                        .calendarToolbarButtonBackground()
-            }
-            .buttonStyle(.plain)
-            .help("\(group.dayKey) 칸반보드로 이동")
-        }
-    }
-
-    private var titleLine: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(presentation.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(1)
-                Text("›")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                Text(presentation.displayDate)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .fixedSize()
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(presentation.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(2)
-                Text(presentation.displayDate)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-            }
-        }
-        .foregroundStyle(AppTheme.primaryText)
-    }
-
-    private var metadataBadges: some View {
-        HStack(spacing: 6) {
-            if !presentation.summaryText.isEmpty {
-                Text(presentation.summaryText)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(AppTheme.selectedTab, in: Capsule())
             }
-
-            if presentation.reviewMatchesSearch {
-                Label("회고 일치", systemImage: "magnifyingglass")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.eventForeground)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(AppTheme.event, in: Capsule())
-            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("archive-open-day-\(presentation.dayKey)")
+        .accessibilityLabel("\(presentation.displayDate), \(presentation.summaryText)")
+        .accessibilityHint("이 날짜의 전체 활동 기록을 엽니다")
     }
 
     private func reviewContent(_ review: DailyReview) -> some View {
@@ -142,80 +114,53 @@ struct ArchiveDayGroupView: View {
         }
     }
 
+    private var previewTasks: [Task] {
+        let ordered = group.tasks.sorted { lhs, rhs in
+            let leftMatch = presentation.taskMatchesSearch(lhs.id)
+            let rightMatch = presentation.taskMatchesSearch(rhs.id)
+            if leftMatch != rightMatch { return leftMatch }
+            return false
+        }
+        return isTaskListExpanded ? ordered : Array(ordered.prefix(3))
+    }
+
     private var taskPreview: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.snappy(duration: 0.18)) {
-                    isTaskListExpanded.toggle()
+        VStack(spacing: 0) {
+            ForEach(Array(previewTasks.enumerated()), id: \.element.id) { index, task in
+                Button {
+                    onOpenTask(task.id)
+                } label: {
+                    ArchiveTaskRow(
+                        task: task,
+                        isSearchMatch: presentation.taskMatchesSearch(task.id),
+                        matchedChecklistItemIDs: presentation.matchedChecklistItemIDs
+                    )
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Label(dateBasis.taskSectionTitle, systemImage: "checkmark.circle")
-                    Text("\(group.tasks.count)")
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.selectedTab, in: Capsule())
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .rotationEffect(.degrees(isTaskListExpanded ? 0 : -90))
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-                .padding(.horizontal, 10)
-                .frame(height: 34)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("archive-task-\(task.id.uuidString)")
+                .accessibilityLabel("\(task.title), \(TaskHistoryDatePresentation(task: task).text)")
+                .accessibilityHint("작업의 생성 시각과 활동 기록을 엽니다")
+                if index < previewTasks.count - 1 { Divider().overlay(AppTheme.border) }
             }
-            .buttonStyle(.plain)
-            .help(
-                isTaskListExpanded
-                    ? "\(dateBasis.taskSectionTitle) 접기"
-                    : "\(dateBasis.taskSectionTitle) 펼치기"
-            )
-
-            if isTaskListExpanded {
-                VStack(spacing: 0) {
-                    ForEach(Array(group.tasks.enumerated()), id: \.element.id) { index, task in
-                        ArchiveTaskRow(
-                            task: task,
-                            isSearchMatch: presentation.taskMatchesSearch(task.id),
-                            matchedChecklistItemIDs: presentation.matchedChecklistItemIDs
-                        )
-                        if index < group.tasks.count - 1 {
-                            Divider()
-                                .overlay(AppTheme.border)
-                        }
-                    }
+            if group.tasks.count > 3 {
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) { isTaskListExpanded.toggle() }
+                } label: {
+                    Label(
+                        isTaskListExpanded ? "간략히 보기" : "작업 \(group.tasks.count - 3)개 더 보기",
+                        systemImage: isTaskListExpanded ? "chevron.up" : "chevron.down"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.secondaryText)
+                .accessibilityIdentifier("archive-task-disclosure-\(group.dayKey)")
             }
         }
     }
 
-    private var timelineIcon: some View {
-        VStack(spacing: 8) {
-            Image(systemName: group.review == nil ? "checkmark.circle" : "book.closed")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(group.review == nil ? AppTheme.doneForeground : AppTheme.eventForeground)
-                .frame(width: 36, height: 36)
-                .background(group.review == nil ? AppTheme.done : AppTheme.event, in: Circle())
-
-            Rectangle()
-                .fill(AppTheme.border)
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-        }
-        .frame(width: 40)
-    }
-
-    private func openBoard() {
-        guard let date = DayKey.date(from: group.dayKey) else { return }
-        onOpenBoardDate(date)
-    }
 }
 
 private struct ArchiveReviewImagePreview: View {
@@ -305,9 +250,10 @@ private struct ArchiveReviewImagePreview: View {
     private func resolveLegacyItems() async {
         resolvedLegacyItems = []
         guard !legacyFileNames.isEmpty else { return }
-        let canonicalFileNames = Set(attachments.compactMap {
-            normalizedFileName($0.originalFileName)
-        })
+        let canonicalFileNames = Set(
+            attachments.compactMap {
+                normalizedFileName($0.originalFileName)
+            })
         let canonicalHashes = Set(attachments.map(\.sha256).filter { !$0.isEmpty })
         let resolved = await DiaryImageStore.resolveLegacyImages(
             fileNames: legacyFileNames,
@@ -333,7 +279,8 @@ private struct ArchiveReviewImagePreview: View {
 
     private func normalizedFileName(_ fileName: String?) -> String? {
         guard let value = fileName?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
+            !value.isEmpty
+        else {
             return nil
         }
         return value.lowercased()
@@ -446,7 +393,7 @@ private struct ArchiveTaskRow: View {
                     Text(task.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     if isSearchMatch {
                         Text("일치")
                             .font(.caption2.weight(.bold))
@@ -484,19 +431,20 @@ private struct ArchiveTaskRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityLabel(datePresentation.accessibilityLabel)
                         .accessibilityHint(datePresentation.bestEffortExplanation ?? "")
-                    if let estimatedMinutes = task.estimatedMinutes {
-                        Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
-                    }
                     TaskChecklistProgressLabel(taskID: task.id)
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppTheme.secondaryText)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.secondaryText)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 2)
         .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(isSearchMatch ? AppTheme.selectedTab : Color.clear, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             if isSearchMatch {
