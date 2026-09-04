@@ -48,7 +48,7 @@ public struct FocusModeLauncher: View {
                         }
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 13)
-                        .frame(minHeight: 40)
+                        .frame(minHeight: 44)
                         .foregroundStyle(AppTheme.primaryText)
                         .background(AppTheme.floatingBar, in: Capsule())
                         .overlay {
@@ -58,7 +58,8 @@ public struct FocusModeLauncher: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("진행 중인 집중 모드 열기")
+                .accessibilityLabel(snapshot.phase == .focus ? "진행 중인 집중 모드 열기" : "진행 중인 휴식 열기")
+                .accessibilityIdentifier("focus-active-launcher")
             }
         }
         .onAppear(perform: reload)
@@ -78,6 +79,9 @@ public struct FocusModeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("planbase.focusAlwaysOnTop") private var alwaysOnTop = true
 
     @State private var snapshot: FocusActiveSessionSnapshot?
     @State private var candidates: [FocusTaskCandidate] = []
@@ -88,6 +92,12 @@ public struct FocusModeView: View {
     @State private var todaySummary = FocusDaySummary()
     @State private var errorMessage: String?
     @State private var visibleFocusSessionID: UUID?
+    @State private var durationTaskID: UUID?
+    @State private var showingTaskPicker = false
+    @State private var taskSearch = ""
+    @State private var pendingEnd: FocusActiveSessionSnapshot?
+    @State private var pendingTaskCompletion: FocusActiveSessionSnapshot?
+    @State private var pendingReminderAt: Date?
 
     public init(initialTaskID: UUID? = nil) {
         _selectedTaskID = State(initialValue: initialTaskID)
@@ -98,26 +108,46 @@ public struct FocusModeView: View {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
 
-                Group {
-                    if let snapshot {
-                        timerView(snapshot)
-                    } else if let completion {
-                        completionView(completion)
-                    } else {
-                        setupView
+                ScrollView {
+                    Group {
+                        if let snapshot {
+                            timerView(snapshot)
+                        } else if let completion {
+                            completionView(completion)
+                        } else {
+                            setupView
+                        }
                     }
+                    .frame(maxWidth: 540)
+                    .padding(20)
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: 620)
-                .padding(24)
+                .id(screenIdentity)
+                .accessibilityIdentifier("focus-content-scroll")
             }
             .foregroundStyle(AppTheme.primaryText)
             .navigationTitle("집중 모드")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("닫기", action: close)
+                        .accessibilityIdentifier("focus-close")
                 }
+                #if os(macOS)
+                ToolbarItem(placement: .primaryAction) {
+                    Toggle(isOn: $alwaysOnTop) {
+                        Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                    }
+                    .toggleStyle(.button)
+                    .help("항상 위에 표시")
+                    .accessibilityLabel("항상 위에 표시")
+                }
+                #endif
             }
         }
+        .preferredColorScheme(AppTheme.current.preferredColorScheme)
+        .frame(minWidth: pickerMinimumWidth)
+        .tint(AppTheme.accent)
+        .sheet(isPresented: $showingTaskPicker) { taskPicker }
         .task {
             load()
         }
@@ -148,6 +178,29 @@ public struct FocusModeView: View {
             updatePresentationVisibility()
         }
         .onDisappear(perform: clearPresentationVisibility)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { reconcile(); loadCandidates() }
+        }
+        .alert("집중을 마칠까요?", isPresented: Binding(
+            get: { pendingEnd != nil }, set: { if !$0 { pendingEnd = nil } }
+        ), presenting: pendingEnd) { active in
+            Button("계속 집중", role: .cancel) {}
+            Button("집중 마치기") { end(active) }
+        } message: { _ in
+            Text("지금까지 집중한 시간을 기록합니다. 작업은 진행 중으로 남아요.")
+        }
+        .alert("작업도 완료할까요?", isPresented: Binding(
+            get: { pendingTaskCompletion != nil }, set: { if !$0 { pendingTaskCompletion = nil } }
+        ), presenting: pendingTaskCompletion) { active in
+            Button("취소", role: .cancel) {}
+            Button("작업 완료") { completeTask(active) }
+        } message: { _ in
+            if let pendingReminderAt {
+                Text("집중을 마치고 작업을 완료합니다. \(pendingReminderAt.formatted(date: .abbreviated, time: .shortened)) 알림이 중지되며 알림 설정 기록은 유지됩니다.")
+            } else {
+                Text("지금까지 집중한 시간을 기록하고 작업을 완료 상태로 바꿉니다.")
+            }
+        }
         .alert("집중 모드를 실행할 수 없습니다", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -158,309 +211,337 @@ public struct FocusModeView: View {
         }
     }
 
+    private var selectedTask: FocusTaskCandidate? {
+        candidates.first { $0.id == selectedTaskID }
+    }
+
+    private var screenIdentity: String {
+        if let snapshot { return snapshot.phase == .focus ? "focus" : "break" }
+        return completion == nil ? "setup" : "completion"
+    }
+
     private var setupView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Label("지금 한 가지에만 집중해요", systemImage: "scope")
-                        .font(.title2.bold())
-                    Text("작업을 고르면 진행 중 상태로 바뀌고 25분 타이머가 시작됩니다.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("한 가지에 집중할 시간", systemImage: "scope")
+                    .font(.title2.bold())
+                Text("작업과 시간을 확인하고 시작하세요.")
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            if let selectedTask {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("집중할 작업").font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        Spacer()
+                        Button("변경") { showingTaskPicker = true }
+                            .buttonStyle(PlanBaseButtonStyle(.secondary))
+                            .accessibilityIdentifier("focus-change-task")
+                    }
+                    Text(selectedTask.title).font(.title3.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("focus-selected-task")
+                    Text(taskSubtitle(selectedTask))
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
                 }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 20))
+                .overlay { RoundedRectangle(cornerRadius: 20).stroke(AppTheme.border, lineWidth: 1) }
+            } else {
+                ContentUnavailableView("집중할 작업이 없어요", systemImage: "checkmark.circle",
+                    description: Text("보드에서 할 일을 만든 뒤 다시 열어 주세요."))
+                if !candidates.isEmpty {
+                    Button("다른 작업 선택") { showingTaskPicker = true }
+                        .buttonStyle(PlanBaseButtonStyle(.secondary))
+                }
+            }
 
-                Label(
-                    "오늘 \(todaySummary.sessionCount)회 · " +
-                        "\(FocusModeFormatting.minutes(todaySummary.focusedDurationSeconds)) 집중",
-                    systemImage: "chart.bar.fill"
-                )
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-                .padding(.horizontal, 14)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("작업")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-
-                    if candidates.isEmpty {
-                        ContentUnavailableView(
-                            "집중할 작업이 없어요",
-                            systemImage: "checkmark.circle",
-                            description: Text("보드에서 할 일을 만든 뒤 다시 열어 주세요.")
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 180)
-                    } else {
-                        ForEach(candidates) { candidate in
-                            Button {
-                                selectedTaskID = candidate.id
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: candidate.status == .doing
-                                        ? "play.circle.fill"
-                                        : "circle")
-                                        .foregroundStyle(candidate.status == .doing
-                                            ? AppTheme.event
-                                            : AppTheme.secondaryText)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(candidate.title)
-                                            .font(.body.weight(.semibold))
-                                            .lineLimit(2)
-                                        Text(candidate.status == .doing ? "진행 중" : candidate.dayKey)
-                                            .font(.caption)
-                                            .foregroundStyle(AppTheme.secondaryText)
-                                    }
-                                    Spacer()
-                                    Image(systemName: selectedTaskID == candidate.id
-                                        ? "checkmark.circle.fill"
-                                        : "circle")
-                                        .foregroundStyle(AppTheme.event)
-                                }
-                                .padding(14)
-                                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 14))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(
-                                            selectedTaskID == candidate.id
-                                                ? AppTheme.event
-                                                : AppTheme.border,
-                                            lineWidth: selectedTaskID == candidate.id ? 2 : 1
-                                        )
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
+            VStack(alignment: .leading, spacing: 12) {
+                Text("이번 집중 시간").font(.headline)
+                if dynamicTypeSize.isAccessibilitySize {
+                    durationControls(vertical: true)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        durationControls(vertical: false).fixedSize(horizontal: true, vertical: false)
+                        durationControls(vertical: true)
                     }
                 }
-
-                HStack(spacing: 12) {
-                    durationControl(
-                        title: "집중",
-                        selection: $focusMinutes,
-                        range: (FocusTimerRules.minimumFocusSeconds / 60)...(FocusTimerRules.maximumFocusSeconds / 60)
-                    )
-                    durationControl(
-                        title: "휴식",
-                        selection: $breakMinutes,
-                        range: (FocusTimerRules.minimumBreakSeconds / 60)...(FocusTimerRules.maximumBreakSeconds / 60)
-                    )
+                ViewThatFits(in: .horizontal) {
+                    presetButtons(vertical: false)
+                    presetButtons(vertical: true)
                 }
-
-                HStack(spacing: 8) {
-                    Text("빠른 설정")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                    ForEach([15, 25, 50], id: \.self) { minutes in
-                        Button("\(minutes)분") { focusMinutes = minutes }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                if let estimate = selectedTask?.estimatedMinutes, estimate > 0 {
+                    let suggested = FocusTimerRules.suggestedFocusMinutes(estimatedMinutes: estimate)
+                    Button {
+                        focusMinutes = suggested
+                    } label: {
+                        Label(focusMinutes == suggested ? "작업 예상 시간 반영" : "예상 시간으로 맞추기",
+                              systemImage: focusMinutes == suggested ? "checkmark.circle.fill" : "arrow.uturn.backward")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    .accessibilityIdentifier("focus-use-estimate")
+                    Text(estimate == suggested
+                         ? "예상 \(estimate)분을 기본으로 설정했어요. 이번 집중 시간은 자유롭게 바꿀 수 있어요."
+                         : "작업 예상은 \(estimate)분이에요. 한 번의 집중은 5~120분 범위에서 설정해요.")
+                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("focus-estimate-explanation")
+                } else {
+                    Text("예상 시간이 없는 작업은 25분으로 시작해요.")
+                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
                 }
+            }
 
+            VStack(spacing: 10) {
                 Button(action: beginFocus) {
-                    Label("집중 시작", systemImage: "play.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 50)
+                    Label("\(focusMinutes)분 집중 시작", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity, minHeight: 36)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.event)
+                .buttonStyle(PlanBaseButtonStyle())
                 .disabled(selectedTaskID == nil)
+                .accessibilityIdentifier("focus-start")
+                Text("시작하면 작업이 진행 중으로 바뀌어요. 휴식은 자동으로 시작하지 않아요.")
+                    .font(.caption).foregroundStyle(AppTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            if todaySummary.focusedDurationSeconds > 0 {
+                Label("오늘 \(FocusModeFormatting.minutes(todaySummary.focusedDurationSeconds)) 집중했어요",
+                      systemImage: "clock.badge.checkmark")
+                    .font(.caption).foregroundStyle(AppTheme.secondaryText)
             }
         }
     }
 
-    private func timerView(_ active: FocusActiveSessionSnapshot) -> some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let remaining = FocusTimerRules.remainingSeconds(
-                for: active,
-                now: timeline.date
-            )
-            let planned = active.phase == .focus
-                ? active.plannedFocusSeconds
-                : active.plannedBreakSeconds
-            let progress = planned > 0
-                ? 1 - remaining / TimeInterval(planned)
-                : 0
+    private func durationControls(vertical: Bool) -> some View {
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
+            FocusDurationControl(title: "집중", identifier: "focus-duration", minutes: $focusMinutes,
+                range: (FocusTimerRules.minimumFocusSeconds / 60)...(FocusTimerRules.maximumFocusSeconds / 60))
+            FocusDurationControl(title: "휴식", identifier: "focus-break-duration", minutes: $breakMinutes,
+                range: (FocusTimerRules.minimumBreakSeconds / 60)...(FocusTimerRules.maximumBreakSeconds / 60))
+        }
+    }
 
-            VStack(spacing: 28) {
-                VStack(spacing: 8) {
-                    Text(active.phase == .focus ? "FOCUS" : "BREAK")
-                        .font(.caption.weight(.bold))
-                        .tracking(2.4)
-                        .foregroundStyle(AppTheme.event)
-                    Text(active.taskTitleSnapshot)
-                        .font(.title2.bold())
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
+    private func presetButtons(vertical: Bool) -> some View {
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
+            ForEach([15, 25, 50], id: \.self) { minutes in
+                Button { focusMinutes = minutes } label: {
+                    Text("\(minutes)분").frame(maxWidth: .infinity, minHeight: 28)
                 }
+                .buttonStyle(PlanBaseButtonStyle(focusMinutes == minutes ? .primary : .secondary))
+                .accessibilityAddTraits(focusMinutes == minutes ? .isSelected : [])
+                .accessibilityIdentifier("focus-preset-\(minutes)")
+            }
+        }
+    }
 
-                ZStack {
-                    Circle()
-                        .stroke(AppTheme.border.opacity(0.65), lineWidth: 16)
-                    Circle()
-                        .trim(from: 0, to: min(1, max(0, progress)))
-                        .stroke(
-                            AppTheme.event,
-                            style: StrokeStyle(lineWidth: 16, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .animation(reduceMotion ? nil : .linear(duration: 1), value: progress)
-                    VStack(spacing: 7) {
-                        Text(FocusModeFormatting.clock(remaining))
-                            .font(.system(size: 54, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .minimumScaleFactor(0.7)
-                        Text(active.runState == .paused ? "일시정지" : "진행 중")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
+    private var taskPicker: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(AppTheme.secondaryText)
+                    TextField("작업 제목 검색", text: $taskSearch)
+                        .textFieldStyle(.plain)
+                        .accessibilityLabel("작업 제목 검색")
+                        .accessibilityIdentifier("focus-task-search")
+                    if !taskSearch.isEmpty {
+                        Button { taskSearch = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .accessibilityLabel("검색어 지우기")
                     }
                 }
-                .frame(width: 260, height: 260)
-                .onChange(of: remaining) { _, value in
-                    if value <= 0 { reconcile() }
-                }
+                .padding(.leading, 14)
+                .padding(.trailing, taskSearch.isEmpty ? 14 : 0)
+                .frame(minHeight: 48)
+                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
 
-                HStack(spacing: 12) {
-                    Button {
-                        togglePause(active)
-                    } label: {
-                        Label(
-                            active.runState == .paused ? "계속" : "일시정지",
-                            systemImage: active.runState == .paused ? "play.fill" : "pause.fill"
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.event)
-
-                    Button(role: .destructive) {
-                        end(active)
-                    } label: {
-                        Label(active.phase == .focus ? "종료" : "건너뛰기", systemImage: "stop.fill")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                if active.phase == .focus {
-                    Button {
-                        completeTask(active)
-                    } label: {
-                        Label("작업도 완료하기", systemImage: "checkmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(AppTheme.secondaryText)
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        if filteredCandidates.isEmpty {
+                            ContentUnavailableView("일치하는 작업이 없어요", systemImage: "magnifyingglass",
+                                                   description: Text("다른 제목으로 검색해 보세요."))
+                        }
+                        ForEach(filteredCandidates) { candidate in
+                            Button {
+                                selectedTaskID = candidate.id
+                                applySuggestedDurationIfNeeded()
+                                showingTaskPicker = false
+                            } label: {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(candidate.title).font(.headline)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text(taskSubtitle(candidate)).font(.caption)
+                                            .foregroundStyle(AppTheme.secondaryText)
+                                    }
+                                    Spacer(minLength: 4)
+                                    Image(systemName: selectedTaskID == candidate.id ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(AppTheme.accent)
+                                }
+                                .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 14))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(selectedTaskID == candidate.id ? .isSelected : [])
+                        }
+                    }.padding(20)
                 }
             }
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
+            .navigationTitle("집중할 작업")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("닫기") { showingTaskPicker = false }
+                }
+            }
+        }
+        .preferredColorScheme(AppTheme.current.preferredColorScheme)
+        .frame(minWidth: pickerMinimumWidth, minHeight: 420)
+    }
+
+    private var filteredCandidates: [FocusTaskCandidate] {
+        let query = taskSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        return candidates.filter { query.isEmpty || $0.title.localizedStandardContains(query) }
+    }
+
+    private var pickerMinimumWidth: CGFloat? {
+        #if os(macOS)
+        400
+        #else
+        nil
+        #endif
+    }
+
+    private func taskSubtitle(_ task: FocusTaskCandidate) -> String {
+        let status = task.status == .doing ? "진행 중" : "할 일"
+        let date = DayKey.date(from: task.dayKey).map {
+            $0.formatted(.dateTime.month().day().locale(Locale(identifier: "ko_KR")))
+        } ?? task.dayKey
+        let estimate = task.estimatedMinutes.flatMap { $0 > 0 ? " · 예상 \($0)분" : nil } ?? ""
+        return "\(status) · \(date)\(estimate)"
+    }
+
+    private func timerView(_ active: FocusActiveSessionSnapshot) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            let remaining = FocusTimerRules.remainingSeconds(for: active, now: timeline.date)
+            let planned = active.phase == .focus ? active.plannedFocusSeconds : active.plannedBreakSeconds
+            VStack(spacing: 22) {
+                VStack(spacing: 10) {
+                    Label(active.phase == .focus ? "집중하는 시간" : "쉬어가는 시간",
+                          systemImage: active.phase == .focus ? "scope" : "cup.and.saucer")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.accent)
+                    Text(active.taskTitleSnapshot).font(.title2.bold())
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    Text("이번 \(active.phase == .focus ? "집중" : "휴식") \(planned / 60)분")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                }
+                FocusTimerDial(seconds: remaining,
+                    progress: planned > 0 ? 1 - remaining / Double(planned) : 0,
+                    paused: active.runState == .paused, isBreak: active.phase == .breakTime)
+                if active.runState == .running, let deadline = active.deadline {
+                    Text("\(deadline.formatted(.dateTime.hour().minute().locale(Locale(identifier: "ko_KR")))) 종료 예정")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                } else {
+                    Text("멈춘 시간은 집중 기록에 포함되지 않아요.")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                timerActions(active)
+                if active.phase == .focus {
+                    Button { requestTaskCompletion(active) } label: {
+                        Label("작업도 완료하기", systemImage: "checkmark.circle")
+                            .frame(maxWidth: .infinity, minHeight: 28)
+                    }
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    .accessibilityIdentifier("focus-complete-task")
+                }
+                Text("화면을 닫아도 타이머는 계속돼요.")
+                    .font(.caption).foregroundStyle(AppTheme.secondaryText)
+            }
             .frame(maxWidth: .infinity)
+            .onChange(of: remaining) { _, value in if value <= 0 { reconcile() } }
+        }
+    }
+
+    private func timerActions(_ active: FocusActiveSessionSnapshot) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+        return layout {
+            Button { togglePause(active) } label: {
+                Label(active.runState == .paused ? (active.phase == .focus ? "다시 집중" : "휴식 계속") : "일시정지",
+                      systemImage: active.runState == .paused ? "play.fill" : "pause.fill")
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(PlanBaseButtonStyle())
+            .accessibilityIdentifier("focus-pause-resume")
+            Button {
+                if active.phase == .focus { pendingEnd = active } else { end(active) }
+            } label: {
+                Label(active.phase == .focus ? "집중 마치기" : "휴식 건너뛰기", systemImage: "stop")
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(PlanBaseButtonStyle(.secondary))
+            .accessibilityIdentifier("focus-stop")
         }
     }
 
     private func completionView(_ completed: FocusCompletionPresentation) -> some View {
         VStack(spacing: 22) {
-            Image(systemName: completed.kind == .focus ? "checkmark.circle.fill" : "cup.and.saucer.fill")
-                .font(.system(size: 66))
-                .foregroundStyle(completed.kind == .focus ? AppTheme.done : AppTheme.event)
-            VStack(spacing: 7) {
-                Text(completionTitle(completed))
-                    .font(.title.bold())
-                Text(completed.title)
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                Text(completionSubtitle(completed))
-                    .foregroundStyle(AppTheme.secondaryText)
+            Image(systemName: completed.kind == .focus ? "checkmark.circle" : "cup.and.saucer")
+                .font(.system(size: 46, weight: .medium)).foregroundStyle(AppTheme.accent)
+                .padding(22).background(AppTheme.panel, in: Circle())
+            VStack(spacing: 10) {
+                Text(completionTitle(completed)).font(.title.bold())
+                    .accessibilityIdentifier("focus-completion-title")
+                Text(completed.title).font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(completionSubtitle(completed)).font(.title3.weight(.semibold))
+                    .foregroundStyle(AppTheme.accent)
             }
-
+            .multilineTextAlignment(.center)
             if completed.kind == .focus {
-                Button {
-                    beginBreak(completed)
-                } label: {
+                Text(completionDetail(completed))
+                    .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                Button { beginBreak(completed) } label: {
                     Label("\(completed.breakMinutes)분 휴식 시작", systemImage: "cup.and.saucer.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.event)
-
-                Button {
-                    beginAgain(completed)
-                } label: {
-                    Label("계속 집중", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-            } else {
-                Button {
-                    beginAgain(completed)
-                } label: {
-                    Label("집중 시작", systemImage: "play.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.event)
-
-                Button {
-                    extendBreak(completed)
-                } label: {
-                    Label("5분 더 쉬기", systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.bordered)
+                .buttonStyle(PlanBaseButtonStyle())
+                .accessibilityIdentifier("focus-start-break")
             }
-
-            Button("다른 작업 선택") {
-                selectAnotherTask()
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppTheme.secondaryText)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func durationControl(
-        title: String,
-        selection: Binding<Int>,
-        range: ClosedRange<Int>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-
-            HStack(spacing: 5) {
-                Button {
-                    selection.wrappedValue = max(
-                        range.lowerBound,
-                        selection.wrappedValue - 1
-                    )
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 34, height: 34)
+            if candidates.contains(where: { $0.id == completed.taskID }) {
+                Button { beginAgain(completed) } label: {
+                    Label(completed.kind == .focus ? "\(completed.focusMinutes)분 더 집중" : "\(completed.focusMinutes)분 집중 시작",
+                          systemImage: "play.fill")
+                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
-                .buttonStyle(.plain)
-                .disabled(selection.wrappedValue <= range.lowerBound)
-
-                Text("\(selection.wrappedValue)분")
-                    .font(.body.monospacedDigit().weight(.semibold))
-                    .frame(maxWidth: .infinity)
-
-                Button {
-                    selection.wrappedValue = min(
-                        range.upperBound,
-                        selection.wrappedValue + 1
-                    )
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 34, height: 34)
-                }
-                .buttonStyle(.plain)
-                .disabled(selection.wrappedValue >= range.upperBound)
+                .buttonStyle(PlanBaseButtonStyle(completed.kind == .breakTime ? .primary : .secondary))
+                .accessibilityIdentifier("focus-start-again")
             }
-            .frame(maxWidth: .infinity, minHeight: 42)
-            .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+            if completed.kind == .breakTime {
+                Button { extendBreak(completed) } label: {
+                    Label("5분 더 쉬기", systemImage: "plus.circle").frame(maxWidth: .infinity, minHeight: 28)
+                }
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
+            }
+            Button { selectAnotherTask() } label: {
+                Text("다른 작업 선택").frame(maxWidth: .infinity, minHeight: 28)
+            }
+            .buttonStyle(PlanBaseButtonStyle(.secondary))
+            .accessibilityIdentifier("focus-another-task")
         }
         .frame(maxWidth: .infinity)
     }
@@ -477,46 +558,27 @@ public struct FocusModeView: View {
 
     @MainActor
     private func loadCandidates() {
-        let done = TaskStatus.done.rawValue
-        var descriptor = FetchDescriptor<Task>(
-            predicate: #Predicate<Task> { task in
-                task.supersededAt == nil &&
-                    task.archivedAt == nil &&
-                    task.status != done
-            },
-            sortBy: [
-                SortDescriptor(\Task.updatedAt, order: .reverse),
-                SortDescriptor(\Task.instanceID, order: .reverse)
-            ]
-        )
-        descriptor.fetchLimit = 100
         do {
-            let tasks = try modelContext.fetch(descriptor)
-            var seen: Set<UUID> = []
-            candidates = tasks.compactMap { task in
-                guard seen.insert(task.id).inserted else { return nil }
-                return FocusTaskCandidate(
-                    id: task.id,
-                    title: task.title,
-                    dayKey: task.plannedDayKey,
-                    status: TaskStatus(rawValue: task.status) ?? .todo,
-                    updatedAt: task.updatedAt
-                )
+            candidates = try FocusTaskQueryService.candidates(
+                selectedTaskID: selectedTaskID ?? snapshot?.taskID ?? completion?.taskID,
+                in: modelContext
+            )
+            if selectedTaskID == nil { selectedTaskID = candidates.first?.id }
+            if !candidates.contains(where: { $0.id == selectedTaskID }) {
+                selectedTaskID = nil
             }
-            .sorted { lhs, rhs in
-                if lhs.status != rhs.status { return lhs.status == .doing }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-            if selectedTaskID.map({ selectedID in
-                candidates.contains(where: { $0.id == selectedID })
-            }) != true {
-                selectedTaskID = candidates.first?.id
-            }
+            applySuggestedDurationIfNeeded()
             todaySummary = try FocusSessionQueryService.summary(in: modelContext)
         } catch {
             present(error)
         }
+    }
+
+    private func applySuggestedDurationIfNeeded() {
+        guard snapshot == nil, completion == nil,
+              let selectedTask, durationTaskID != selectedTask.id else { return }
+        focusMinutes = FocusTimerRules.suggestedFocusMinutes(estimatedMinutes: selectedTask.estimatedMinutes)
+        durationTaskID = selectedTask.id
     }
 
     @MainActor
@@ -557,10 +619,20 @@ public struct FocusModeView: View {
     @MainActor
     private func end(_ active: FocusActiveSessionSnapshot) {
         do {
+            guard let current = try FocusSessionService.activeSnapshot(),
+                  current.sessionID == active.sessionID, current.revision == active.revision else {
+                reloadSnapshot()
+                return
+            }
             if active.phase == .breakTime {
                 try FocusActiveSessionStore.clear()
                 snapshot = nil
-                completion = nil
+                completion = FocusCompletionPresentation(
+                    sessionID: active.sessionID, kind: .breakTime, taskID: active.taskID,
+                    title: active.taskTitleSnapshot, focusedSeconds: 0,
+                    focusMinutes: active.plannedFocusSeconds / 60,
+                    breakMinutes: active.plannedBreakSeconds / 60, outcome: .stopped
+                )
                 return
             }
             let record = try FocusSessionService.endFocus(
@@ -577,8 +649,22 @@ public struct FocusModeView: View {
     }
 
     @MainActor
+    private func requestTaskCompletion(_ active: FocusActiveSessionSnapshot) {
+        do {
+            guard let task = BoundedQueryService.representativeTask(from: try modelContext.fetch(
+                BoundedQueryService.taskCandidatesDescriptor(id: active.taskID)
+            )) else { reconcile(); return }
+            pendingReminderAt = TaskReminderRules.upcomingReminderDate(for: task)
+            pendingTaskCompletion = active
+        } catch { present(error) }
+    }
+
+    @MainActor
     private func completeTask(_ active: FocusActiveSessionSnapshot) {
         do {
+            guard let current = try FocusSessionService.activeSnapshot(),
+                  current.sessionID == active.sessionID, current.taskID == active.taskID,
+                  current.phase == .focus else { reconcile(); return }
             guard let task = try BoundedQueryService.representativeTask(
                 from: modelContext.fetch(
                     BoundedQueryService.taskCandidatesDescriptor(id: active.taskID)
@@ -771,19 +857,38 @@ public struct FocusModeView: View {
     }
 
     private func completionTitle(_ completed: FocusCompletionPresentation) -> String {
-        if completed.kind == .breakTime { return "휴식 완료" }
-        return completed.outcome == .completed ? "집중 완료" : "집중 기록 저장됨"
+        if completed.kind == .breakTime {
+            return completed.outcome == .stopped ? "다시 시작할 준비" : "휴식 완료"
+        }
+        if completed.outcome == .taskCompleted { return "작업까지 완료했어요" }
+        return completed.outcome == .completed ? "집중을 채웠어요" : "집중을 마쳤어요"
     }
 
     private func completionSubtitle(_ completed: FocusCompletionPresentation) -> String {
         if completed.kind == .breakTime { return "다시 집중할 준비가 됐나요?" }
-        return "\(FocusModeFormatting.minutes(completed.focusedSeconds)) 집중했어요"
+        return completed.focusedSeconds > 0
+            ? "\(FocusModeFormatting.minutes(completed.focusedSeconds)) 집중했어요"
+            : "기록할 집중 시간이 없어요"
+    }
+
+    private func completionDetail(_ completed: FocusCompletionPresentation) -> String {
+        if completed.outcome == .taskCompleted {
+            return completed.focusedSeconds > 0 ? "작업을 완료하고 집중 기록도 남겼어요." : "작업을 완료했어요."
+        }
+        if completed.outcome == .interrupted {
+            return "작업 상태가 바뀌어 집중을 마쳤어요. 현재 상태는 보드에서 확인할 수 있어요."
+        }
+        return completed.focusedSeconds > 0
+            ? "집중한 시간은 기록에 남고, 작업은 진행 중으로 유지돼요."
+            : "타이머만 종료했어요. 작업은 진행 중으로 유지돼요."
     }
 
     private func selectAnotherTask() {
         try? FocusNotificationActionTokenStore.clear()
         completion = nil
+        durationTaskID = nil
         loadCandidates()
+        showingTaskPicker = !candidates.isEmpty
     }
 
     private func close() {
@@ -816,14 +921,6 @@ public struct FocusModeView: View {
     private func present(_ error: Error) {
         errorMessage = error.localizedDescription
     }
-}
-
-private struct FocusTaskCandidate: Identifiable {
-    let id: UUID
-    let title: String
-    let dayKey: String
-    let status: TaskStatus
-    let updatedAt: Date
 }
 
 private struct FocusCompletionPresentation {

@@ -307,6 +307,9 @@ private extension FocusNotificationActionTokenStore {
         if let directoryURL {
             return directoryURL.appendingPathComponent(fileName)
         }
+        if let testing = FocusModeConstants.uiTestingDirectory {
+            return testing.appendingPathComponent(fileName)
+        }
         guard let groupURL = fileManager.containerURL(
             forSecurityApplicationGroupIdentifier: FocusModeConstants.appGroupIdentifier
         ) else {

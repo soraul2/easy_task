@@ -18,6 +18,8 @@ struct WatchFocusView: View {
 
     @State private var taskTitle: String?
     @State private var focusMinutes = FocusTimerRules.defaultFocusSeconds / 60
+    @State private var estimatedMinutes: Int?
+    @State private var hasAppliedEstimate = false
     @State private var snapshot: FocusActiveSessionSnapshot?
     @State private var completion: WatchFocusCompletion?
     @State private var errorMessage: String?
@@ -82,6 +84,15 @@ struct WatchFocusView: View {
                 }
                 .accessibilityLabel("집중 시간")
                 .accessibilityValue("\(focusMinutes)분")
+
+                if let estimatedMinutes, estimatedMinutes > 0 {
+                    Text("작업 예상 \(estimatedMinutes)분")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    if estimatedMinutes < 5 || estimatedMinutes > 120 {
+                        Text("집중 시간은 5~120분으로 설정해요.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
 
                 Button(action: beginFocus) {
                     Label("집중 시작", systemImage: "play.fill")
@@ -289,6 +300,11 @@ struct WatchFocusView: View {
             throw FocusSessionServiceError.taskUnavailable
         }
         taskTitle = task.title
+        estimatedMinutes = task.estimatedMinutes
+        if !hasAppliedEstimate {
+            focusMinutes = FocusTimerRules.suggestedFocusMinutes(estimatedMinutes: task.estimatedMinutes)
+            hasAppliedEstimate = true
+        }
     }
 
     @MainActor

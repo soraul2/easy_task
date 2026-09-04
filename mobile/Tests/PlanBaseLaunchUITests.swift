@@ -288,6 +288,133 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testFocusEstimatePauseResumeAndBreakFlow() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=appleSystem"]
+        app.launch()
+        let entry = app.buttons["오늘 처리할 작업 빠르게 추가해보기 집중 시작"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 15))
+        XCTAssertTrue(scrollToHittable(entry, in: app.scrollViews["board-accessibility-scroll"]))
+        entry.tap()
+        let scroll = app.scrollViews["focus-content-scroll"]
+        let duration = app.staticTexts["focus-duration-value"]
+        XCTAssertTrue(duration.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["focus-selected-task"].label, "오늘 처리할 작업 빠르게 추가해보기")
+        XCTAssertEqual(duration.label, "30분")
+        addReferenceScreenshot(named: "focus-light-estimate-setup")
+        let preset = app.buttons["focus-preset-15"]
+        XCTAssertTrue(scrollToHittable(preset, in: scroll)); preset.tap()
+        XCTAssertEqual(duration.label, "15분")
+        let estimate = app.buttons["focus-use-estimate"]
+        XCTAssertTrue(scrollToHittable(estimate, in: scroll)); estimate.tap()
+        XCTAssertEqual(duration.label, "30분")
+        let start = app.buttons["focus-start"]
+        XCTAssertTrue(scrollToHittable(start, in: scroll)); start.tap()
+        let timer = app.descendants(matching: .any)["focus-timer"].firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["이번 집중 30분"].exists)
+        addReferenceScreenshot(named: "focus-light-running")
+        let pause = app.buttons["focus-pause-resume"]
+        XCTAssertTrue(scrollToHittable(pause, in: scroll)); pause.tap()
+        XCTAssertTrue(app.staticTexts["멈춘 시간은 집중 기록에 포함되지 않아요."].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "focus-light-paused")
+        app.buttons["focus-close"].tap()
+        let reopen = app.buttons["focus-active-launcher"]
+        XCTAssertTrue(reopen.waitForExistence(timeout: 10)); reopen.tap()
+        XCTAssertTrue(app.staticTexts["멈춘 시간은 집중 기록에 포함되지 않아요."].waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToHittable(pause, in: scroll)); pause.tap()
+        let stop = app.buttons["focus-stop"]
+        XCTAssertTrue(scrollToHittable(stop, in: scroll)); stop.tap()
+        XCTAssertTrue(app.alerts["집중을 마칠까요?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["계속 집중"].tap()
+        XCTAssertTrue(timer.exists)
+        stop.tap(); app.alerts.buttons["집중 마치기"].tap()
+        XCTAssertTrue(app.staticTexts["focus-completion-title"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "focus-light-completed")
+        let rest = app.buttons["focus-start-break"]
+        XCTAssertTrue(scrollToHittable(rest, in: scroll)); rest.tap()
+        XCTAssertTrue(app.staticTexts["이번 휴식 5분"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "focus-light-break")
+        XCTAssertTrue(scrollToHittable(stop, in: scroll)); stop.tap()
+        let again = app.buttons["focus-start-again"]
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        XCTAssertTrue(again.label.contains("30분"))
+    }
+
+    @MainActor
+    func testFocusDarkLargeTextAndLandscape() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=midnightBlue", "--ui-testing-accessibility-text-size"]
+        app.launch()
+        let entry = app.buttons["오늘 처리할 작업 빠르게 추가해보기 집중 시작"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 15))
+        XCTAssertTrue(scrollToHittable(entry, in: app.scrollViews["board-accessibility-scroll"]))
+        entry.tap()
+        let scroll = app.scrollViews["focus-content-scroll"]
+        XCTAssertTrue(app.staticTexts["focus-selected-task"].waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "focus-dark-AX5-setup")
+        let start = app.buttons["focus-start"]
+        XCTAssertTrue(scrollToHittable(start, in: scroll))
+        XCTAssertTrue(isHorizontallyContained(start, in: app.windows.firstMatch))
+        start.tap()
+        let timer = app.descendants(matching: .any)["focus-timer"].firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 10))
+        XCTAssertGreaterThanOrEqual(timer.frame.minY, scroll.frame.minY - 1,
+                                    "집중을 시작하면 화면 위쪽부터 타이머를 보여줘야 합니다")
+        addReferenceScreenshot(named: "focus-dark-AX5-running")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let pause = app.buttons["focus-pause-resume"]
+        XCTAssertTrue(scrollToHittable(pause, in: scroll))
+        XCTAssertTrue(isHorizontallyContained(pause, in: app.windows.firstMatch))
+        XCTAssertLessThanOrEqual(pause.frame.maxY, app.buttons["focus-stop"].frame.minY + 1,
+                                 "큰 글자에서는 주요 버튼을 세로로 배치해야 합니다")
+        pause.tap()
+        addReferenceScreenshot(named: "focus-dark-AX5-landscape-paused")
+        let complete = app.buttons["focus-complete-task"]
+        XCTAssertTrue(scrollToHittable(complete, in: scroll)); complete.tap()
+        XCTAssertTrue(app.alerts["작업도 완료할까요?"].waitForExistence(timeout: 5))
+        app.alerts.buttons["작업 완료"].tap()
+        XCTAssertTrue(app.staticTexts["작업까지 완료했어요"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["focus-start-again"].exists)
+        addReferenceScreenshot(named: "focus-dark-AX5-task-completed")
+    }
+
+    @MainActor
+    func testFocusTaskPickerDefaultAndEstimateOverride() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-theme=charcoalRose"]
+        app.launch()
+        let field = app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap(); field.typeText("예상 없는 집중 작업")
+        app.buttons["작업 추가"].tap()
+        let entry = app.buttons["예상 없는 집중 작업 집중 시작"]
+        XCTAssertTrue(scrollToHittable(entry, in: app.scrollViews["board-accessibility-scroll"]))
+        entry.tap()
+        let duration = app.staticTexts["focus-duration-value"]
+        XCTAssertTrue(duration.waitForExistence(timeout: 10))
+        XCTAssertEqual(duration.label, "25분")
+        app.buttons["focus-change-task"].tap()
+        let search = app.textFields["focus-task-search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap(); search.typeText("카드 상태 컨트롤")
+        let task = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "카드 상태 컨트롤 확인")).firstMatch
+        XCTAssertTrue(task.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "focus-task-picker-search")
+        task.tap()
+        XCTAssertEqual(duration.label, "45분")
+        let scroll = app.scrollViews["focus-content-scroll"]
+        let preset = app.buttons["focus-preset-15"]
+        XCTAssertTrue(scrollToHittable(preset, in: scroll)); preset.tap()
+        XCTAssertTrue(scrollToHittable(app.buttons["focus-change-task"], in: scroll))
+        app.buttons["focus-change-task"].tap()
+        app.navigationBars["집중할 작업"].buttons["닫기"].tap()
+        XCTAssertEqual(duration.label, "15분")
+        addReferenceScreenshot(named: "focus-charcoal-custom-duration")
+    }
+
+    @MainActor
     func testInactiveFocusEntryLivesInsideDoingList() {
         let app = XCUIApplication()
         app.launchArguments = [

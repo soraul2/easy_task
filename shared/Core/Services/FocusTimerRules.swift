@@ -131,6 +131,14 @@ public enum FocusTimerRules {
     public static let minimumBreakSeconds = 60
     public static let maximumBreakSeconds = 30 * 60
 
+    /// A task estimate is a starting suggestion, not a deduction from time spent in `doing`.
+    public static func suggestedFocusMinutes(estimatedMinutes: Int?) -> Int {
+        guard let estimatedMinutes, estimatedMinutes > 0 else {
+            return defaultFocusSeconds / 60
+        }
+        return min(max(estimatedMinutes, minimumFocusSeconds / 60), maximumFocusSeconds / 60)
+    }
+
     public static func normalizedFocusSeconds(_ seconds: Int) -> Int {
         min(max(seconds, minimumFocusSeconds), maximumFocusSeconds)
     }

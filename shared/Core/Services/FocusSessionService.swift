@@ -41,7 +41,7 @@ public enum FocusSessionService {
     @MainActor
     public static func beginFocus(
         taskID: UUID,
-        focusSeconds: Int = FocusTimerRules.defaultFocusSeconds,
+        focusSeconds: Int? = nil,
         breakSeconds: Int = FocusTimerRules.defaultBreakSeconds,
         now: Date = Date(),
         in context: ModelContext,
@@ -63,7 +63,9 @@ public enum FocusSessionService {
         let snapshot = FocusTimerRules.startFocus(
             taskID: task.id,
             taskTitle: task.title,
-            focusSeconds: focusSeconds,
+            focusSeconds: focusSeconds ?? FocusTimerRules.suggestedFocusMinutes(
+                estimatedMinutes: task.estimatedMinutes
+            ) * 60,
             breakSeconds: breakSeconds,
             now: now
         )

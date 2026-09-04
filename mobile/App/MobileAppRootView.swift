@@ -36,6 +36,7 @@ struct MobileAppRootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var selectedTab: MobileTab = .board
     @State private var archiveState = ArchiveScreenState()
@@ -215,6 +216,9 @@ struct MobileAppRootView: View {
             for: FocusActiveSessionStore.didChangeNotification
         )) { _ in
             Swift.Task {
+#if DEBUG
+                guard !PlanBaseLaunchEnvironment.isUITesting else { return }
+#endif
                 if await TaskNotificationScheduler.shared.authorizationState() == .notDetermined {
                     _ = await TaskNotificationScheduler.shared.requestAuthorization()
                 }
@@ -282,10 +286,12 @@ struct MobileAppRootView: View {
             onDismiss: { initialFocusTaskID = nil }
         ) {
             FocusModeView(initialTaskID: initialFocusTaskID)
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
 
     private func presentFocusMode(taskID: UUID) {
+        FocusModeSelectionRequest.post(taskID: taskID)
         initialFocusTaskID = taskID
         showingFocusMode = true
     }

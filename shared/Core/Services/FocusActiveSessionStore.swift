@@ -4,6 +4,17 @@ public enum FocusModeConstants {
     public static let appGroupIdentifier = PlanBaseCompatibility.applicationGroupIdentifier
     public static let directoryName = "Focus"
     public static let activeSnapshotFileName = "focus-active-v1.json"
+
+    static var uiTestingDirectory: URL? {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return FileManager.default.temporaryDirectory.appendingPathComponent(
+                "PlanBaseFocusUITests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true
+            )
+        }
+#endif
+        return nil
+    }
 }
 
 public enum FocusActiveSessionStoreError: LocalizedError, Equatable {
@@ -112,6 +123,7 @@ private extension FocusActiveSessionStore {
         fileManager: FileManager
     ) throws -> URL {
         if let directoryURL { return directoryURL }
+        if let testing = FocusModeConstants.uiTestingDirectory { return testing }
         guard let groupURL = fileManager.containerURL(
             forSecurityApplicationGroupIdentifier: FocusModeConstants.appGroupIdentifier
         ) else {

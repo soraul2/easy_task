@@ -86,6 +86,7 @@ struct PlanBaseDesktopApp: App {
             }
         }
         .defaultSize(width: 480, height: 700)
+        .windowResizability(.contentMinSize)
     }
 
     private static func openPersistentStore() -> PersistenceState {
@@ -127,19 +128,22 @@ struct PlanBaseDesktopApp: App {
 }
 
 private struct FocusFloatingWindowConfigurator: NSViewRepresentable {
+    @AppStorage("planbase.focusAlwaysOnTop") private var alwaysOnTop = true
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async { configure(view.window) }
+        let pinned = alwaysOnTop
+        DispatchQueue.main.async { configure(view.window, pinned: pinned) }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { configure(nsView.window) }
+        let pinned = alwaysOnTop
+        DispatchQueue.main.async { configure(nsView.window, pinned: pinned) }
     }
 
-    private func configure(_ window: NSWindow?) {
+    private func configure(_ window: NSWindow?, pinned: Bool) {
         guard let window else { return }
-        window.level = .floating
+        window.level = pinned ? .floating : .normal
         window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
         window.setFrameAutosaveName("PlanBaseFocusModeWindow")
     }
