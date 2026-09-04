@@ -54,7 +54,8 @@ public struct TaskHistoryStatisticsPresentation: Equatable, Sendable {
                 ? lowerText
                 : "\(lowerText)–\(upperText)"
         }
-        populationTitle = "\(periodTitle) 전체 작업 · 목록은 \(filter.dateBasis.title)"
+        let listTitle = filter.contentMode == .dailyActivity ? "하루 활동" : filter.dateBasis.title
+        populationTitle = "\(periodTitle) 전체 작업 · 목록은 \(listTitle)"
         meaningDescription =
             "계획 작업과 계획 대비 완료율은 계획일 기준, 완료 작업은 완료일 기준입니다."
     }

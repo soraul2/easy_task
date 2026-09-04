@@ -139,10 +139,10 @@ extension BoundedQueryService {
         )
     }
 }
-private extension BoundedQueryService {
+extension BoundedQueryService {
     static let archiveScanWindowDays = 30
 
-struct ArchiveDayKeyExtent {
+    struct ArchiveDayKeyExtent {
         var lowerBound: String
         var upperBound: String
     }
@@ -238,7 +238,6 @@ struct ArchiveDayKeyExtent {
         let activeVersions = try context.fetch(FetchDescriptor<Task>(
             predicate: #Predicate<Task> { task in
                 task.supersededAt == nil &&
-                    task.status == doneStatus &&
                     candidateIDs.contains(task.id)
             }
         ))
@@ -256,7 +255,7 @@ struct ArchiveDayKeyExtent {
         }
         return Array(representatives.values).filter {
             let key = TaskHistoryDateRules.dayKey(for: $0, basis: basis)
-            return startDayKey <= key && key <= endDayKey
+            return $0.status == doneStatus && startDayKey <= key && key <= endDayKey
         }
     }
 

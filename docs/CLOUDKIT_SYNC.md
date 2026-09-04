@@ -358,6 +358,12 @@ Release 355개 공통 테스트, iOS·macOS·watchOS Debug/Release 전체 회귀
 네 iOS/Watch 번들과 두 macOS 번들의 버전, bundle ID, 코드 서명과 공유 권한을 확인했다.
 iOS와 macOS 아카이브 모두 App Store Connect 업로드에 성공해 패키지 처리가 시작됐다.
 
+2026-09-04에는 회고 없는 날짜별 활동, 통계 제거 및 읽기 전용 작업 기록을 포함한 build 66을
+업로드했다. V10 스키마와 백업 V9은 변경하지 않았다. Debug 374개·Release 373개 테스트와
+전체 플랫폼 회귀 게이트, 여섯 앱·위젯 번들의 서명·버전·공유 권한 확인을 통과했다.
+자동 배포 서명 과정의 CloudKit Production 권한과 iOS·macOS 업로드 성공 및 패키지 처리
+시작을 확인했다. 로그와 서명 검증 결과는 `.local/releases/build-66/`에 보관한다.
+
 ## 운영 회귀 조건
 
 - 두 기기 오프라인 충돌 시나리오 통과

@@ -9,25 +9,46 @@ struct MobileArchiveFilterSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("날짜 기준") {
-                    ViewThatFits(in: .horizontal) {
-                        Picker("날짜 기준", selection: $filter.dateBasis) {
-                            ForEach(TaskHistoryDateBasis.allCases) { basis in
-                                Text(basis.title).tag(basis)
-                            }
+                Section("기록 보기") {
+                    Picker("기록 보기", selection: $filter.contentMode) {
+                        ForEach(ArchiveContentMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
                         }
-                        .pickerStyle(.segmented)
-
-                        Picker("날짜 기준", selection: $filter.dateBasis) {
-                            ForEach(TaskHistoryDateBasis.allCases) { basis in
-                                Text(basis.title).tag(basis)
-                            }
-                        }
-                        .pickerStyle(.menu)
                     }
-                    .accessibilityIdentifier("archive-date-basis-picker")
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("archive-content-mode-picker")
+                    Text(
+                        filter.contentMode == .dailyActivity
+                            ? "진행·완료·집중 기록이 있는 날을 보여줍니다. 회고는 선택이에요."
+                            : "완료한 작업을 선택한 날짜 기준으로 모아봅니다."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
                 }
                 .listRowBackground(AppTheme.panel)
+
+                if filter.contentMode == .completionHistory {
+                    Section("날짜 기준") {
+                        ViewThatFits(in: .horizontal) {
+                            Picker("날짜 기준", selection: $filter.dateBasis) {
+                                ForEach(TaskHistoryDateBasis.allCases) { basis in
+                                    Text(basis.title).tag(basis)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Picker("날짜 기준", selection: $filter.dateBasis) {
+                                ForEach(TaskHistoryDateBasis.allCases) { basis in
+                                    Text(basis.title).tag(basis)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        .accessibilityIdentifier("archive-date-basis-picker")
+                    }
+                    .listRowBackground(AppTheme.panel)
+
+                }
 
                 Section("기간") {
                     Picker("조회 기간", selection: $filter.period) {
@@ -72,7 +93,7 @@ struct MobileArchiveFilterSheet: View {
                     Button("초기화") {
                         filter.reset()
                     }
-                    .disabled(!filter.hasActiveCriteria)
+                    .disabled(!filter.hasActiveCriteria && filter.contentMode == .dailyActivity)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {

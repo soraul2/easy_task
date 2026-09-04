@@ -4,6 +4,26 @@ import Testing
 
 @Test
 @MainActor
+func archiveRefreshDuringDebounceKeepsRequestedSearch() async throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let date = DayKey.startOfDay(for: Date())
+    for title in ["alpha", "beta"] {
+        let task = Task(title: title, status: .done, plannedAt: date, order: 100)
+        task.completedDayKey = DayKey.key(for: date)
+        context.insert(task)
+    }
+    try context.save()
+    let session = ArchiveQuerySession(context: context)
+    session.apply(ArchiveFilter(searchText: "alpha"), debounceSearch: false)
+    session.apply(ArchiveFilter(searchText: "beta"), debounceSearch: true)
+    session.refreshPreservingDepth()
+    try await Swift.Task.sleep(for: .milliseconds(350))
+    #expect(session.records.first?.matchedTaskIDs == Set(session.records.flatMap(\.tasks).filter { $0.title == "beta" }.map(\.id)))
+}
+
+@Test
+@MainActor
 func archiveSessionAppliesOnlyTheLatestDebouncedSearch() async throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext

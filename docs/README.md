@@ -16,6 +16,8 @@
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [회고 없이도 보이는 하루 기록](plans/active/ARCHIVE_DAILY_ACTIVITY_PLAN.md)
+- [하루 기록 구현 검증](plans/active/ARCHIVE_DAILY_ACTIVITY_VALIDATION.md)
 - [Focus 모드·집중 타이머](plans/active/FOCUS_MODE_PLAN.md)
 - [활동 스트릭·히트맵 및 통계 보기](plans/active/ACTIVITY_STREAK_HEATMAP_PLAN.md)
 - [macOS·iPhone 기능 정합성](plans/active/CROSS_PLATFORM_PARITY_PLAN.md)

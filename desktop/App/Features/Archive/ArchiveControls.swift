@@ -5,6 +5,7 @@ struct ArchiveSearchToolbar: View {
     @Binding var text: String
     @Binding var period: ArchivePeriod
     @Binding var scope: ArchiveScope
+    @Binding var contentMode: ArchiveContentMode
     @Binding var dateBasis: TaskHistoryDateBasis
     @Binding var startDate: Date
     @Binding var endDate: Date
@@ -12,7 +13,7 @@ struct ArchiveSearchToolbar: View {
     @FocusState.Binding var searchFocused: Bool
 
     private var hasActiveFilterOptions: Bool {
-        period != .all || scope != .all || dateBasis != .completed
+        period != .all || scope != .all || contentMode != .dailyActivity
     }
 
     var body: some View {
@@ -29,16 +30,17 @@ struct ArchiveSearchToolbar: View {
                             ? "line.3.horizontal.decrease.circle.fill"
                             : "line.3.horizontal.decrease.circle"
                     )
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 12)
-                        .frame(height: 44)
-                        .calendarToolbarButtonBackground()
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 12)
+                    .frame(height: 44)
+                    .calendarToolbarButtonBackground()
                 }
                 .buttonStyle(.plain)
                 .popover(isPresented: $showingFilter, arrowEdge: .top) {
                     ArchiveFilterPopover(
                         period: $period,
                         scope: $scope,
+                        contentMode: $contentMode,
                         dateBasis: $dateBasis,
                         startDate: $startDate,
                         endDate: $endDate
@@ -58,15 +60,17 @@ struct ArchiveSearchToolbar: View {
                             scope = .all
                         }
                     }
-                    if dateBasis != .completed {
+                    if contentMode != .dailyActivity {
                         ArchiveFilterChip(title: dateBasis.title) {
                             dateBasis = .completed
+                            contentMode = .dailyActivity
                         }
                     }
                     Button("모두 지우기") {
                         period = .all
                         scope = .all
                         dateBasis = .completed
+                        contentMode = .dailyActivity
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
@@ -81,6 +85,7 @@ struct ArchiveSearchToolbar: View {
 private struct ArchiveFilterPopover: View {
     @Binding var period: ArchivePeriod
     @Binding var scope: ArchiveScope
+    @Binding var contentMode: ArchiveContentMode
     @Binding var dateBasis: TaskHistoryDateBasis
     @Binding var startDate: Date
     @Binding var endDate: Date
@@ -92,11 +97,12 @@ private struct ArchiveFilterPopover: View {
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
                 Spacer()
-                if period != .all || scope != .all || dateBasis != .completed {
+                if period != .all || scope != .all || contentMode != .dailyActivity {
                     Button("초기화") {
                         period = .all
                         scope = .all
                         dateBasis = .completed
+                        contentMode = .dailyActivity
                     }
                     .buttonStyle(.plain)
                     .font(.caption.weight(.semibold))
@@ -104,14 +110,29 @@ private struct ArchiveFilterPopover: View {
                 }
             }
 
-            FilterPicker(title: "날짜 기준") {
-                Picker("날짜 기준", selection: $dateBasis) {
-                    ForEach(TaskHistoryDateBasis.allCases) { basis in
-                        Text(basis.title).tag(basis)
+            FilterPicker(title: "기록 보기") {
+                Picker("기록 보기", selection: $contentMode) {
+                    ForEach(ArchiveContentMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 230)
+                .frame(width: 260)
+            }
+            if contentMode == .completionHistory {
+                FilterPicker(title: "날짜 기준") {
+                    Picker("날짜 기준", selection: $dateBasis) {
+                        ForEach(TaskHistoryDateBasis.allCases) { basis in
+                            Text(basis.title).tag(basis)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 230)
+                }
+
+                Text("완료한 작업을 선택한 날짜 기준으로 모아봅니다.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
             }
 
             FilterPicker(title: "기간") {
