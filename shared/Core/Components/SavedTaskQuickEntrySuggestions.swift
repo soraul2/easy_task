@@ -16,6 +16,8 @@ public struct SavedTaskQuickEntrySuggestions: View {
 
     public var body: some View {
         if controller.isPresented {
+            let suggestions = controller.suggestions
+            let duplicateAliases = duplicatedAliases(in: controller.entries)
             VStack(alignment: .leading, spacing: 10) {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: 4) {
@@ -35,7 +37,7 @@ public struct SavedTaskQuickEntrySuggestions: View {
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("quick-entry-error")
                 }
-                if controller.suggestions.isEmpty {
+                if suggestions.isEmpty {
                     Text(controller.entries.isEmpty ? "저장한 작업이 없어요. 입력어 관리에서 작업을 저장해 주세요." : "일치하는 작업이 없어요. 입력어 또는 제목을 확인해 주세요.")
                         .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -44,7 +46,7 @@ public struct SavedTaskQuickEntrySuggestions: View {
                     #if os(macOS)
                     ScrollViewReader { proxy in
                         ScrollView {
-                            suggestionRows
+                            suggestionRows(suggestions, duplicateAliases: duplicateAliases)
                         }
                         .frame(maxHeight: dynamicTypeSize.isAccessibilitySize ? 320 : 220)
                         .accessibilityElement(children: .contain)
@@ -56,7 +58,7 @@ public struct SavedTaskQuickEntrySuggestions: View {
                     #else
                     // The board already scrolls. A second scroll region can trap touch gestures
                     // when large text places the candidate below the keyboard or tab bar.
-                    suggestionRows
+                    suggestionRows(suggestions, duplicateAliases: duplicateAliases)
                     #endif
                 }
                 Text(footer)
@@ -80,10 +82,22 @@ public struct SavedTaskQuickEntrySuggestions: View {
         .accessibilityIdentifier("quick-entry-manage")
     }
 
-    private var suggestionRows: some View {
+    private func suggestionRows(_ entries: [SavedTaskEntry], duplicateAliases: Set<String>) -> some View {
         LazyVStack(spacing: 6) {
-            ForEach(controller.suggestions) { entry in row(entry).id(entry.id) }
+            ForEach(entries) { entry in row(entry, duplicateAliases: duplicateAliases).id(entry.id) }
         }
+    }
+
+    private func duplicatedAliases(in entries: [SavedTaskEntry]) -> Set<String> {
+        // Compute once per view update instead of scanning the entire library
+        // for every row. It stays fresh after edits/imports without a retained cache.
+        var seen = Set<String>()
+        var duplicates = Set<String>()
+        for entry in entries {
+            guard let alias = SavedTaskShortcutRules.aliasKey(entry.quickEntryAlias) else { continue }
+            if !seen.insert(alias).inserted { duplicates.insert(alias) }
+        }
+        return duplicates
     }
 
     private var footer: String {
@@ -94,12 +108,10 @@ public struct SavedTaskQuickEntrySuggestions: View {
         #endif
     }
 
-    private func row(_ entry: SavedTaskEntry) -> some View {
+    private func row(_ entry: SavedTaskEntry, duplicateAliases: Set<String>) -> some View {
         let selected = controller.highlightedID == entry.id
         let alias = SavedTaskShortcutRules.aliasKey(entry.quickEntryAlias)
-        let duplicate = alias != nil && controller.entries.filter {
-            SavedTaskShortcutRules.aliasKey($0.quickEntryAlias) == alias
-        }.count > 1
+        let duplicate = alias.map { duplicateAliases.contains($0) } ?? false
         return Button { onAdd(entry.id) } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 5) {

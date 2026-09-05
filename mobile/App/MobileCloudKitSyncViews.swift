@@ -3,6 +3,7 @@ import PlanBaseCore
 import SwiftUI
 
 struct MobileCloudKitSyncStatusButton: View {
+    let sheetTextSize: DynamicTypeSize
     @Environment(CloudKitSyncMonitor.self) private var monitor
     @State private var isPresented = false
 
@@ -30,6 +31,7 @@ struct MobileCloudKitSyncStatusButton: View {
                     ? nil
                     : "이 앱 빌드에 iCloud와 위젯 공유 권한이 없습니다. 새 빌드로 업데이트해 주세요."
             )
+            .environment(\.dynamicTypeSize, sheetTextSize)
         }
     }
 }
@@ -67,8 +69,8 @@ struct MobileCloudKitSyncStatusSheet: View {
 
                 if let configurationIssue {
                     Section("빌드 권한") {
-                        Text(configurationIssue)
-                            .foregroundStyle(.red)
+                        Label(configurationIssue, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(AppTheme.primaryText)
                     }
                     .listRowBackground(AppTheme.panel)
                 }
@@ -83,8 +85,8 @@ struct MobileCloudKitSyncStatusSheet: View {
 
                 if let errorDescription = monitor.lastErrorDescription {
                     Section("확인 필요") {
-                        Text(errorDescription)
-                            .foregroundStyle(.red)
+                        Label(errorDescription, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(AppTheme.primaryText)
                     }
                     .listRowBackground(AppTheme.panel)
                 }
@@ -111,7 +113,7 @@ struct MobileCloudKitSyncStatusSheet: View {
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .foregroundStyle(AppTheme.primaryText)
-            .tint(AppTheme.event)
+            .tint(AppTheme.accent)
             .navigationTitle("iCloud 동기화")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -120,7 +122,7 @@ struct MobileCloudKitSyncStatusSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.background)
     }

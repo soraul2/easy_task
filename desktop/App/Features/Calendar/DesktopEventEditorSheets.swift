@@ -2,6 +2,37 @@ import AppKit
 import SwiftUI
 import PlanBaseCore
 
+private struct DesktopEventSaveFailureView: View {
+    var message: String
+    var retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(message)
+                    .foregroundStyle(AppTheme.primaryText)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .accessibilityHidden(true)
+            }
+            .font(.caption.weight(.semibold))
+            .accessibilityElement(children: .combine)
+            .accessibilityValue("오류")
+
+            Text("입력한 내용은 이 화면에 그대로 남아 있어요.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+
+            Button(action: retry) {
+                Label("다시 시도", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(PlanBaseButtonStyle(.primary))
+            .accessibilityLabel("일정 저장 다시 시도")
+        }
+    }
+}
+
 struct AddEventSheet: View {
     @Binding var title: String
     @Binding var startDate: Date
@@ -14,9 +45,24 @@ struct AddEventSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var message: String?
+    @State private var initialDraft: CalendarEventReuseDraft?
+    @State private var showsDiscardConfirmation = false
     @State private var recommendationSession: CalendarEventRecommendationSession?
     @State private var selectedRecommendationIndex: Int?
     @State private var recommendationFeedback: String?
+
+    private var currentDraft: CalendarEventReuseDraft {
+        CalendarEventReuseDraft(title: title, startAt: startDate, endAt: endDate, note: note, color: color)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        initialDraft.map { $0 != currentDraft } ?? false
+    }
+
+    private func requestDismiss() {
+        if hasUnsavedChanges { showsDiscardConfirmation = true }
+        else { dismiss() }
+    }
 
     private var canAdd: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -25,7 +71,7 @@ struct AddEventSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                Text(isDuplicate ? "이벤트 복제" : "이벤트 추가")
+                Text(isDuplicate ? "일정 복제" : "일정 추가")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -71,24 +117,14 @@ struct AddEventSheet: View {
             EventNoteEditor(text: $note)
 
             if let message {
-                Label(message, systemImage: "exclamationmark.circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
+                DesktopEventSaveFailureView(message: message, retry: attemptAdd)
             }
 
             HStack {
                 Spacer()
-                Button("취소") {
-                    dismiss()
-                }
+                Button("취소", action: requestDismiss)
                 .keyboardShortcut(.cancelAction)
-                Button {
-                    if let failureMessage = onAdd() {
-                        message = failureMessage
-                    } else {
-                        dismiss()
-                    }
-                } label: {
+                Button(action: attemptAdd) {
                     Label(
                         isDuplicate ? "복제 추가" : "추가",
                         systemImage: isDuplicate ? "doc.on.doc" : "plus"
@@ -103,6 +139,12 @@ struct AddEventSheet: View {
         .frame(width: 440)
         .background(AppTheme.panel)
         .environment(\.locale, Locale(identifier: "ko_KR"))
+        .onAppear { if initialDraft == nil { initialDraft = currentDraft } }
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            onDiscard: { dismiss() }
+        )
         .task {
             guard recommendationSession == nil else { return }
             let session = CalendarEventRecommendationSession(context: modelContext)
@@ -119,6 +161,15 @@ struct AddEventSheet: View {
                 title: title,
                 excludingEventID: excludingEventID
             )
+        }
+    }
+
+    private func attemptAdd() {
+        message = nil
+        if let failureMessage = onAdd() {
+            message = failureMessage
+        } else {
+            dismiss()
         }
     }
 
@@ -157,7 +208,12 @@ struct EventEditorSheet: View {
     @State private var draftEndDate: Date
     @State private var draftColor: String
     @State private var draftNote: String
+    @State private var initialDraft: CalendarEventReuseDraft
+    @State private var showsDiscardConfirmation = false
+    @State private var showingDeleteConfirmation = false
+    @State private var linkedTaskCount = 0
     @State private var message: String?
+    @State private var canRetrySave = false
     @State private var recommendationSession: CalendarEventRecommendationSession?
     @State private var selectedRecommendationIndex: Int?
     @State private var recommendationFeedback: String?
@@ -167,12 +223,26 @@ struct EventEditorSheet: View {
         onDelete: @escaping (CalendarEvent) -> String?
     ) {
         self.event = event
+        _initialDraft = State(initialValue: CalendarEventReuseDraft(
+            title: event.title, startAt: event.startAt, endAt: event.endAt,
+            note: event.note ?? "", color: event.color ?? CalendarEventPalette.defaultColor
+        ))
         self.onDelete = onDelete
         _draftTitle = State(initialValue: event.title)
         _draftStartDate = State(initialValue: event.startAt)
         _draftEndDate = State(initialValue: event.endAt)
         _draftColor = State(initialValue: event.color ?? CalendarEventPalette.defaultColor)
         _draftNote = State(initialValue: event.note ?? "")
+    }
+
+    private var currentDraft: CalendarEventReuseDraft {
+        CalendarEventReuseDraft(title: draftTitle, startAt: draftStartDate, endAt: draftEndDate,
+                               note: draftNote, color: draftColor)
+    }
+
+    private func requestDismiss() {
+        if currentDraft != initialDraft { showsDiscardConfirmation = true }
+        else { dismiss() }
     }
 
     private var canSave: Bool {
@@ -182,7 +252,7 @@ struct EventEditorSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                Text("이벤트 편집")
+                Text("일정 편집")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -221,27 +291,23 @@ struct EventEditorSheet: View {
             EventNoteEditor(text: $draftNote)
 
             if let message {
-                Label(message, systemImage: "exclamationmark.circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
+                if canRetrySave {
+                    DesktopEventSaveFailureView(message: message, retry: save)
+                } else {
+                    Label(message, systemImage: "exclamationmark.circle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.red)
+                }
             }
 
             HStack {
-                Button(role: .destructive) {
-                    if let failureMessage = onDelete(event) {
-                        message = failureMessage
-                    } else {
-                        dismiss()
-                    }
-                } label: {
+                Button(role: .destructive, action: requestDeletion) {
                     Label("삭제", systemImage: "trash")
                 }
 
                 Spacer()
 
-                Button("취소") {
-                    dismiss()
-                }
+                Button("취소", action: requestDismiss)
                 .keyboardShortcut(.cancelAction)
 
                 Button {
@@ -258,6 +324,25 @@ struct EventEditorSheet: View {
         .frame(width: 440)
         .background(AppTheme.panel)
         .environment(\.locale, Locale(identifier: "ko_KR"))
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: currentDraft != initialDraft,
+            onDiscard: { dismiss() }
+        )
+        .alert("일정을 삭제할까요?", isPresented: $showingDeleteConfirmation) {
+            Button("취소", role: .cancel) {}
+            Button("삭제", role: .destructive) {
+                canRetrySave = false
+                if let failureMessage = onDelete(event) { message = failureMessage }
+                else { dismiss() }
+            }
+        } message: {
+            if linkedTaskCount > 0 {
+                Text("연결된 작업 \(linkedTaskCount)개의 일정 연결도 함께 해제됩니다.")
+            } else {
+                Text("삭제한 일정은 되돌릴 수 없습니다.")
+            }
+        }
         .task {
             guard recommendationSession == nil else { return }
             let session = CalendarEventRecommendationSession(context: modelContext)
@@ -277,7 +362,19 @@ struct EventEditorSheet: View {
         }
     }
 
+    private func requestDeletion() {
+        canRetrySave = false
+        do {
+            linkedTaskCount = try BoundedQueryService.tasksLinked(toEventID: event.id, in: modelContext).count
+            showingDeleteConfirmation = true
+        } catch {
+            message = "일정 정보를 불러오지 못했어요."
+        }
+    }
+
     private func save() {
+        message = nil
+        canRetrySave = false
         do {
             let didUpdate = try PersistenceCommandService.perform(in: modelContext) {
                 CalendarEventRules.update(
@@ -290,12 +387,13 @@ struct EventEditorSheet: View {
                 )
             }
             guard didUpdate else {
-                message = "이벤트 정보를 확인해 주세요."
+                message = "일정 정보를 확인해 주세요."
                 return
             }
             dismiss()
         } catch {
-            message = "이벤트를 저장하지 못했어요."
+            message = "일정을 저장하지 못했어요."
+            canRetrySave = true
         }
     }
 
@@ -334,7 +432,7 @@ private struct DesktopEventTitleEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("이벤트 제목", text: $title)
+            TextField("일정 제목", text: $title)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(AppTheme.primaryText)
@@ -532,7 +630,7 @@ private struct EventNoteEditor: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(AppTheme.border, lineWidth: 1)
                 }
-                .accessibilityLabel("이벤트 메모")
+                .accessibilityLabel("일정 메모")
         }
     }
 }
@@ -689,10 +787,15 @@ struct EventColorSelector: View {
                                     .foregroundStyle(AppTheme.eventText)
                             }
                         }
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(option.title)
                 .accessibilityLabel(option.title)
+                .accessibilityValue(selection == option.rawValue ? "선택됨" : "선택 안 됨")
+                .accessibilityAddTraits(selection == option.rawValue ? .isSelected : [])
             }
         }
     }

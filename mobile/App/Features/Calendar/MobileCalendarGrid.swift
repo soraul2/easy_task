@@ -40,7 +40,7 @@ struct CalendarHeader: View {
         HStack(spacing: 2) {
             Button { moveMonth(by: -1) } label: {
                 Image(systemName: "chevron.left")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -57,7 +57,7 @@ struct CalendarHeader: View {
 
             Button { moveMonth(by: 1) } label: {
                 Image(systemName: "chevron.right")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -92,7 +92,7 @@ struct CalendarHeader: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -102,12 +102,12 @@ struct CalendarHeader: View {
                 onAddEvent()
             } label: {
                 Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("이벤트 추가")
+            .accessibilityLabel("일정 추가")
         }
     }
 
@@ -137,7 +137,7 @@ struct CalendarWeekdayHeader: View {
                     .dynamicTypeSize(.xSmall ... .xxxLarge)
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: .infinity)
-                    .foregroundStyle(index == 0 ? Color(red: 0.98, green: 0.40, blue: 0.42) : AppTheme.secondaryText)
+                    .foregroundStyle(index == 0 ? AppTheme.calendarHolidayText : AppTheme.secondaryText)
                     .background(AppTheme.panel.opacity(0.92))
                     .overlay(alignment: .trailing) {
                         if index < symbols.count - 1 {
@@ -198,19 +198,10 @@ struct CalendarTemplatePlacementStatus: View {
 
 struct CalendarNoticeBanner: View {
     var message: String
+    var tone: MobileNoticeTone = .success
 
     var body: some View {
-        Label(message, systemImage: "checkmark.circle.fill")
-            .font(.caption.weight(.bold))
-            .lineLimit(2)
-            .multilineTextAlignment(.leading)
-            .foregroundStyle(AppTheme.eventText)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.event.opacity(0.95), in: RoundedRectangle(cornerRadius: 12))
-            .shadow(color: .black.opacity(0.16), radius: 12, y: 6)
-            .accessibilityAddTraits(.isStaticText)
+        MobileNoticeBanner(message: message, tone: tone)
     }
 }
 
@@ -265,8 +256,8 @@ struct MobileMonthDayCell: View {
 
     private var dayForeground: Color {
         if isPlacementSelected || isSelected || isToday { return AppTheme.eventText }
-        if hasPublicHoliday, isCurrentMonth { return Color(red: 0.98, green: 0.40, blue: 0.42) }
-        return isCurrentMonth ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.45)
+        if hasPublicHoliday, isCurrentMonth { return AppTheme.calendarHolidayText }
+        return isCurrentMonth ? AppTheme.primaryText : AppTheme.secondaryText
     }
 
     private var accessibilityLabel: String {
@@ -274,8 +265,8 @@ struct MobileMonthDayCell: View {
         if isSelected { parts.append("선택됨") }
         if isPlacementSelected { parts.append("배치 선택됨") }
         if let specialDay = specialDays.first { parts.append(specialDay.name) }
-        if !events.isEmpty { parts.append("이벤트 \(events.count)개") }
-        if hiddenEventCount > 0 { parts.append("숨겨진 이벤트 \(hiddenEventCount)개") }
+        if !events.isEmpty { parts.append("일정 \(events.count)개") }
+        if hiddenEventCount > 0 { parts.append("숨겨진 일정 \(hiddenEventCount)개") }
         if !templatePlacements.isEmpty { parts.append("템플릿 배치 \(templatePlacements.count)개") }
         return parts.joined(separator: ", ")
     }
@@ -372,11 +363,11 @@ struct MobileMonthDayCell: View {
 
     private func specialDayForeground(_ specialDay: SpecialDay) -> Color {
         if !isCurrentMonth {
-            return AppTheme.secondaryText.opacity(0.40)
+            return AppTheme.secondaryText
         }
 
         if specialDay.isPublicHoliday {
-            return Color(red: 0.98, green: 0.40, blue: 0.42)
+            return AppTheme.calendarHolidayText
         }
 
         return AppTheme.secondaryText

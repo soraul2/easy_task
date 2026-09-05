@@ -23,9 +23,9 @@ struct PlanBaseCalendarWidget: Widget {
 
     private var widgetDescription: String {
 #if os(macOS)
-        "오늘의 이벤트와 월간 일정을 앱 테마로 바탕화면에서 확인합니다."
+        "오늘의 일정과 월간 일정을 앱 테마로 바탕화면에서 확인합니다."
 #else
-        "오늘의 이벤트와 월간 일정을 앱 테마로 홈 화면에서 확인합니다."
+        "오늘의 일정과 월간 일정을 앱 테마로 홈 화면에서 확인합니다."
 #endif
     }
 }

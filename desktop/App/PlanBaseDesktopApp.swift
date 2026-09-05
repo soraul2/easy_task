@@ -46,44 +46,29 @@ struct PlanBaseDesktopApp: App {
                     }
                     .modelContainer(modelContainer)
                 case .failed(let details):
-                    ContentUnavailableView {
-                        Label(
-                            "저장소를 열 수 없습니다",
-                            systemImage: "externaldrive.badge.exclamationmark"
-                        )
-                    } description: {
-                        VStack(spacing: 8) {
-                            Text("기존 저장소는 그대로 유지됩니다. 잠시 후 다시 시도해 주세요.")
-                            Text(details)
-                                .font(.caption)
-                                .textSelection(.enabled)
-                        }
-                    } actions: {
-                        Button {
-                            persistenceState = Self.openPersistentStore()
-                        } label: {
-                            Label("다시 시도", systemImage: "arrow.clockwise")
-                        }
-                        .buttonStyle(.borderedProminent)
+                    PlanBaseRecoveryView(details: details) {
+                        persistenceState = Self.openPersistentStore()
                     }
                 }
             }
             .frame(minWidth: 900, minHeight: 680)
+            .environment(\.locale, Locale(identifier: "ko_KR"))
         }
 
         Window("집중 모드", id: "focus-mode") {
-            switch persistenceState {
-            case .ready(let modelContainer):
-                FocusModeView()
-                    .modelContainer(modelContainer)
-                    .background(FocusFloatingWindowConfigurator())
-            case .failed(let details):
-                ContentUnavailableView(
-                    "집중 모드를 열 수 없습니다",
-                    systemImage: "externaldrive.badge.exclamationmark",
-                    description: Text(details)
-                )
+            Group {
+                switch persistenceState {
+                case .ready(let modelContainer):
+                    FocusModeView()
+                        .modelContainer(modelContainer)
+                        .background(FocusFloatingWindowConfigurator())
+                case .failed(let details):
+                    PlanBaseRecoveryView(details: details) {
+                        persistenceState = Self.openPersistentStore()
+                    }
+                }
             }
+            .environment(\.locale, Locale(identifier: "ko_KR"))
         }
         .defaultSize(width: 480, height: 700)
         .windowResizability(.contentMinSize)

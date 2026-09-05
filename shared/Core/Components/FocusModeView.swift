@@ -147,7 +147,9 @@ public struct FocusModeView: View {
         .preferredColorScheme(AppTheme.current.preferredColorScheme)
         .frame(minWidth: pickerMinimumWidth)
         .tint(AppTheme.accent)
-        .sheet(isPresented: $showingTaskPicker) { taskPicker }
+        .sheet(isPresented: $showingTaskPicker) {
+            taskPicker.environment(\.dynamicTypeSize, dynamicTypeSize)
+        }
         .task {
             load()
         }
@@ -625,7 +627,10 @@ public struct FocusModeView: View {
                 return
             }
             if active.phase == .breakTime {
-                try FocusActiveSessionStore.clear()
+                try FocusSessionService.endBreak(
+                    expectedSessionID: active.sessionID,
+                    expectedRevision: active.revision
+                )
                 snapshot = nil
                 completion = FocusCompletionPresentation(
                     sessionID: active.sessionID, kind: .breakTime, taskID: active.taskID,

@@ -22,6 +22,7 @@ struct WatchTodayView: View {
     @State private var quickTitle = ""
     @State private var pendingCompletion: PendingWatchCompletion?
     @State private var notice: String?
+    @State private var noticeIsError = false
     @State private var activeFocus: FocusActiveSessionSnapshot?
 
     init(dayKey: String, startupIssue: String?) {
@@ -79,9 +80,10 @@ struct WatchTodayView: View {
             }
 
             if let notice {
-                Label(notice, systemImage: "checkmark.circle")
+                Label(notice, systemImage: noticeIsError ? "exclamationmark.circle" : "checkmark.circle")
                     .font(.caption2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(noticeIsError ? .orange : .green)
+                    .accessibilityValue(noticeIsError ? "오류" : "")
             }
 
             quickAddSection
@@ -256,7 +258,7 @@ struct WatchTodayView: View {
             showNotice("할 일을 추가했어요")
             publishWidget(forceWrite: true)
         } catch {
-            showNotice("추가하지 못했어요")
+            showNotice("추가하지 못했어요", isError: true)
         }
     }
 
@@ -283,12 +285,12 @@ struct WatchTodayView: View {
                 BoundedQueryService.taskCandidatesDescriptor(id: pending.taskID)
             )
             guard let task = BoundedQueryService.representativeTask(from: candidates) else {
-                showNotice("작업이 변경되었어요")
+                showNotice("작업이 변경되었어요. 목록을 확인해 주세요.", isError: true)
                 return
             }
             changeStatus(of: task, to: .done)
         } catch {
-            showNotice("작업을 불러오지 못했어요")
+            showNotice("작업을 불러오지 못했어요", isError: true)
         }
     }
 
@@ -306,7 +308,7 @@ struct WatchTodayView: View {
             showNotice(status.transitionNotice)
             publishWidget(forceWrite: true)
         } catch {
-            showNotice("상태를 바꾸지 못했어요")
+            showNotice("상태를 바꾸지 못했어요", isError: true)
         }
     }
 
@@ -327,7 +329,7 @@ struct WatchTodayView: View {
             activeFocus = try FocusSessionService.activeSnapshot()
         } catch {
             activeFocus = nil
-            showNotice("집중 상태를 불러오지 못했어요")
+            showNotice("집중 상태를 불러오지 못했어요", isError: true)
         }
     }
 
@@ -343,7 +345,7 @@ struct WatchTodayView: View {
             reloadActiveFocus()
             publishWidget(forceWrite: true)
         } catch {
-            showNotice("집중 기록을 저장하지 못했어요")
+            showNotice("집중 기록을 저장하지 못했어요", isError: true)
         }
     }
 
@@ -352,8 +354,9 @@ struct WatchTodayView: View {
         return String(format: "%02d:%02d", value / 60, value % 60)
     }
 
-    private func showNotice(_ message: String) {
+    private func showNotice(_ message: String, isError: Bool = false) {
         notice = message
+        noticeIsError = isError
     }
 }
 

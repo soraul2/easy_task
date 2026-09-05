@@ -29,15 +29,26 @@ struct PlanBaseCalendarWidgetView: View {
         }
     }
 
+    private var contentTopPadding: CGFloat {
+        if family == .systemSmall { return contentPadding }
+#if os(macOS)
+        return 4
+#else
+        return 0
+#endif
+    }
+
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 4) {
             calendarContent
 
-            if entry.availability != .available {
+            if entry.availability != .available && family != .systemSmall {
                 CalendarWidgetRefreshBadge(entry: entry, theme: theme)
             }
         }
-        .padding(contentPadding)
+        .padding(.horizontal, contentPadding)
+        .padding(.bottom, contentPadding)
+        .padding(.top, contentTopPadding)
         .containerBackground(for: .widget) {
             theme.background
         }
@@ -89,6 +100,7 @@ private struct CalendarWidgetRefreshBadge: View {
 }
 
 private struct TodayCalendarWidget: View {
+    @Environment(\.redactionReasons) private var redactionReasons
     let entry: PlanBaseCalendarEntry
     let theme: CalendarWidgetTheme
 
@@ -115,7 +127,7 @@ private struct TodayCalendarWidget: View {
                     .font(.system(size: 27, weight: .bold, design: .rounded))
                     .foregroundStyle(theme.primaryText)
 
-                Text(entry.date, format: .dateTime.month(.wide).weekday(.abbreviated))
+                Text("\(entry.date, format: .dateTime.month(.wide)) · \(entry.date, format: .dateTime.weekday(.abbreviated))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(theme.secondaryText)
                     .lineLimit(1)
@@ -128,11 +140,18 @@ private struct TodayCalendarWidget: View {
                         .foregroundStyle(theme.accentForeground)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(theme.accent, in: Capsule())
+                        .background(theme.accentFill, in: Capsule())
                 }
             }
 
-            if events.isEmpty {
+            if entry.availability != .available {
+                Spacer(minLength: 0)
+                Label(entry.availability.calendarMessage, systemImage: "arrow.clockwise")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            } else if events.isEmpty {
                 Spacer(minLength: 0)
                 Label("오늘 일정이 없어요", systemImage: "calendar")
                     .font(.caption)
@@ -165,12 +184,18 @@ private struct TodayCalendarWidget: View {
     }
 
     private var todayAccessibilityLabel: String {
+        guard entry.availability == .available else {
+            return "\(DayKey.display(entry.date)), \(entry.availability.calendarMessage)"
+        }
         guard !events.isEmpty else {
             return "\(DayKey.display(entry.date)), 오늘 일정이 없어요"
         }
         let totalCount = entry.snapshot.totalEventCount(onDayKey: dayKey)
+        if redactionReasons.contains(.privacy) {
+            return "\(DayKey.display(entry.date)), 일정 \(totalCount)개"
+        }
         let overflowText = hiddenEventCount > 0 ? ", 외 \(hiddenEventCount)개" : ""
-        return "\(DayKey.display(entry.date)), 이벤트 \(totalCount)개, \(events.map(\.title).joined(separator: ", "))\(overflowText)"
+        return "\(DayKey.display(entry.date)), 일정 \(totalCount)개, \(events.map(\.title).joined(separator: ", "))\(overflowText)"
     }
 }
 
@@ -190,6 +215,7 @@ private struct MonthCalendarWidget: View {
         VStack(alignment: .leading, spacing: 1) {
             CalendarWidgetMonthHeader(
                 monthSelection: entry.monthSelection,
+                allowsMonthNavigation: entry.availability == .available,
                 theme: theme,
                 style: .compact
             )
@@ -200,6 +226,7 @@ private struct MonthCalendarWidget: View {
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
                     snapshot: entry.snapshot,
+                    availability: entry.availability,
                     month: month,
                     dates: dates,
                     theme: theme,
@@ -227,6 +254,7 @@ private struct LargeMonthCalendarWidget: View {
         VStack(alignment: .leading, spacing: 2) {
             CalendarWidgetMonthHeader(
                 monthSelection: entry.monthSelection,
+                allowsMonthNavigation: entry.availability == .available,
                 theme: theme,
                 style: .expanded
             )
@@ -237,6 +265,7 @@ private struct LargeMonthCalendarWidget: View {
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
                     snapshot: entry.snapshot,
+                    availability: entry.availability,
                     month: month,
                     dates: dates,
                     theme: theme,
@@ -264,6 +293,7 @@ private struct ExtraLargeMonthCalendarWidget: View {
         VStack(alignment: .leading, spacing: 3) {
             CalendarWidgetMonthHeader(
                 monthSelection: entry.monthSelection,
+                allowsMonthNavigation: entry.availability == .available,
                 theme: theme,
                 style: .extraLarge
             )
@@ -274,6 +304,7 @@ private struct ExtraLargeMonthCalendarWidget: View {
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
                     snapshot: entry.snapshot,
+                    availability: entry.availability,
                     month: month,
                     dates: dates,
                     theme: theme,
@@ -287,6 +318,7 @@ private struct ExtraLargeMonthCalendarWidget: View {
 
 private struct CalendarWidgetMonthHeader: View {
     let monthSelection: CalendarWidgetMonthSelection
+    let allowsMonthNavigation: Bool
     let theme: CalendarWidgetTheme
     let style: CalendarWidgetMonthGridStyle
 
@@ -297,9 +329,12 @@ private struct CalendarWidgetMonthHeader: View {
                     .font(.system(size: style.monthHeaderFontSize, weight: .medium))
                     .foregroundStyle(theme.primaryText)
                     .lineLimit(1)
+                    .frame(minHeight: style.monthHeaderHeight)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("이번 달로 이동")
+            .accessibilityValue(DayKey.monthTitle(monthSelection.month))
 
             Spacer(minLength: 4)
 
@@ -307,13 +342,13 @@ private struct CalendarWidgetMonthHeader: View {
                 systemName: "chevron.left",
                 label: "이전 달",
                 delta: -1,
-                isEnabled: monthSelection.canMoveBackward
+                isEnabled: allowsMonthNavigation && monthSelection.canMoveBackward
             )
             monthButton(
                 systemName: "chevron.right",
                 label: "다음 달",
                 delta: 1,
-                isEnabled: monthSelection.canMoveForward
+                isEnabled: allowsMonthNavigation && monthSelection.canMoveForward
             )
         }
         .frame(height: style.monthHeaderHeight)
@@ -326,24 +361,20 @@ private struct CalendarWidgetMonthHeader: View {
         delta: Int,
         isEnabled: Bool
     ) -> some View {
-        Button(intent: ChangeCalendarWidgetMonthIntent(monthDelta: delta)) {
-            Image(systemName: systemName)
-                .font(.system(
-                    size: style.monthControlFontSize,
-                    weight: .semibold
-                ))
-                .foregroundStyle(
-                    theme.secondaryText.opacity(isEnabled ? 1 : 0.28)
-                )
-                .frame(
-                    width: style.monthControlWidth,
-                    height: style.monthHeaderHeight
-                )
-                .contentShape(Rectangle())
+        let icon = Image(systemName: systemName)
+            .font(.system(size: style.monthControlFontSize, weight: .semibold))
+            .foregroundStyle(theme.secondaryText.opacity(isEnabled ? 1 : 0.28))
+            .frame(width: style.monthControlWidth, height: style.monthHeaderHeight)
+            .contentShape(Rectangle())
+        if isEnabled {
+            Button(intent: ChangeCalendarWidgetMonthIntent(monthDelta: delta)) {
+                icon
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+        } else {
+            icon.accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel(label)
     }
 }
 
@@ -363,11 +394,12 @@ enum CalendarWidgetMonthGridStyle: Equatable {
     }
 
     var monthHeaderHeight: CGFloat {
-        switch self {
-        case .compact, .plannerCompact: 14
-        case .expanded: 16
-        case .extraLarge, .plannerExpanded: 22
-        }
+#if os(macOS)
+        28
+#else
+        // The iPad Home Screen scales the widget, including its hit regions.
+        52
+#endif
     }
 
     var monthControlFontSize: CGFloat {
@@ -379,11 +411,11 @@ enum CalendarWidgetMonthGridStyle: Equatable {
     }
 
     var monthControlWidth: CGFloat {
-        switch self {
-        case .compact, .plannerCompact: 22
-        case .expanded: 24
-        case .extraLarge, .plannerExpanded: 30
-        }
+#if os(macOS)
+        32
+#else
+        52
+#endif
     }
 
     var dayFontSize: CGFloat {
@@ -587,6 +619,7 @@ struct CalendarWidgetWeekdayHeader: View {
 
 struct CalendarWidgetMonthGrid: View {
     let snapshot: CalendarWidgetSnapshot
+    let availability: PlanBaseWidgetSnapshotAvailability
     let month: Date
     let dates: [Date]
     let theme: CalendarWidgetTheme
@@ -634,6 +667,7 @@ struct CalendarWidgetMonthGrid: View {
                         Link(destination: url) {
                             CalendarWidgetMonthDayCell(
                                 date: date,
+                                hasData: availability == .available && snapshot.covers(dayKey: DayKey.key(for: date)),
                                 visibleMonth: month,
                                 events: snapshot.events(onDayKey: DayKey.key(for: date)),
                                 totalEventCount: snapshot.totalEventCount(
@@ -658,7 +692,6 @@ struct CalendarWidgetMonthGrid: View {
                 if let event = eventsByRenderID[segment.renderID] {
                     CalendarWidgetEventBar(
                         event: event,
-                        isDimmed: segment.isDimmed,
                         theme: theme,
                         style: style
                     )
@@ -687,7 +720,9 @@ struct CalendarWidgetMonthGrid: View {
 }
 
 private struct CalendarWidgetMonthDayCell: View {
+    @Environment(\.redactionReasons) private var redactionReasons
     let date: Date
+    let hasData: Bool
     let visibleMonth: Date
     let events: [CalendarWidgetEventSnapshot]
     let totalEventCount: Int
@@ -714,11 +749,12 @@ private struct CalendarWidgetMonthDayCell: View {
                         weight: DayKey.isToday(date) ? .bold : .medium
                     ))
                     .foregroundStyle(dayForeground)
+                    .fixedSize()
                     .frame(width: style.dayBadgeSize, height: style.dayBadgeSize)
                     .background {
                         if DayKey.isToday(date) {
                             Circle()
-                                .fill(theme.accent)
+                                .fill(theme.accentFill)
                                 .widgetAccentable()
                         }
                     }
@@ -766,7 +802,7 @@ private struct CalendarWidgetMonthDayCell: View {
             return theme.accentForeground
         }
         guard isInVisibleMonth else {
-            return theme.secondaryText.opacity(0.38)
+            return theme.secondaryText
         }
         return weekday == 1 ? theme.sundayText : theme.primaryText
     }
@@ -776,21 +812,26 @@ private struct CalendarWidgetMonthDayCell: View {
     }
 
     private var dayAccessibilityLabel: String {
+        guard hasData else {
+            return "\(DayKey.display(date)), 앱을 열어 일정을 갱신해 주세요"
+        }
         guard totalEventCount > 0 else {
-            return "\(DayKey.display(date)), 이벤트 없음"
+            return "\(DayKey.display(date)), 일정 없음"
         }
-        let titleText = events.prefix(3).map(\.title).joined(separator: ", ")
-        let hiddenText = hiddenEventCount > 0 ? ", 외 \(hiddenEventCount)개" : ""
+        let spokenEvents = redactionReasons.contains(.privacy)
+            ? [] : Array(events.prefix(3))
+        let titleText = spokenEvents.map(\.title).joined(separator: ", ")
         guard !titleText.isEmpty else {
-            return "\(DayKey.display(date)), 이벤트 \(totalEventCount)개\(hiddenText)"
+            return "\(DayKey.display(date)), 일정 \(totalEventCount)개"
         }
-        return "\(DayKey.display(date)), 이벤트 \(totalEventCount)개, \(titleText)\(hiddenText)"
+        let unspokenEventCount = max(0, totalEventCount - spokenEvents.count)
+        let hiddenText = unspokenEventCount > 0 ? ", 외 \(unspokenEventCount)개" : ""
+        return "\(DayKey.display(date)), 일정 \(totalEventCount)개, \(titleText)\(hiddenText)"
     }
 }
 
 private struct CalendarWidgetEventBar: View {
     let event: CalendarWidgetEventSnapshot
-    let isDimmed: Bool
     let theme: CalendarWidgetTheme
     let style: CalendarWidgetMonthGridStyle
 
@@ -815,12 +856,11 @@ private struct CalendarWidgetEventBar: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background {
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(theme.eventColor(event.colorID))
+                            .fill(theme.eventBarBackground(event.colorID))
                             .widgetAccentable()
                     }
                     .privacySensitive()
             }
         }
-        .opacity(isDimmed ? 0.42 : 1)
     }
 }

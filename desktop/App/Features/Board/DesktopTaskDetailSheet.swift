@@ -12,6 +12,8 @@ struct TaskDetailSheet: View {
     var task: Task
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @State private var initialDraft: TaskEditorDraftSnapshot
+    @State private var showsDiscardConfirmation = false
     @State private var title: String
     @State private var note: String
     @State private var status: TaskStatus
@@ -29,6 +31,7 @@ struct TaskDetailSheet: View {
 
     init(task: Task) {
         self.task = task
+        _initialDraft = State(initialValue: TaskEditorDraftSnapshot(task: task))
         _title = State(initialValue: task.title)
         _note = State(initialValue: task.note ?? "")
         _status = State(initialValue: TaskStatus(rawValue: task.status) ?? .todo)
@@ -36,6 +39,27 @@ struct TaskDetailSheet: View {
         _selectedPriority = State(initialValue: task.priority.flatMap(TaskPriority.init(rawValue:)))
         _tagsText = State(initialValue: task.tags.joined(separator: ", "))
         _estimatedMinutesText = State(initialValue: task.estimatedMinutes.map(String.init) ?? "")
+    }
+
+    private var currentDraft: TaskEditorDraftSnapshot {
+        var draft = initialDraft
+        draft.title = title
+        draft.note = note
+        draft.status = status
+        draft.plannedDate = plannedDate
+        draft.priority = selectedPriority
+        draft.estimatedMinutesText = estimatedMinutesText
+        draft.tagsText = tagsText
+        draft.checklist = checklistDrafts
+        draft.pendingChecklistTitle = newChecklistTitle
+        return draft
+    }
+
+    private var hasUnsavedChanges: Bool { currentDraft != initialDraft }
+
+    private func requestDismiss() {
+        if hasUnsavedChanges { showsDiscardConfirmation = true }
+        else { dismiss() }
     }
 
     private var canSave: Bool {
@@ -212,6 +236,11 @@ struct TaskDetailSheet: View {
                     "알림 설정 기록은 계속 유지됩니다."
             )
         }
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            onDiscard: { dismiss() }
+        )
         .persistenceFailureAlert(message: $persistenceFailureMessage)
     }
 
@@ -228,14 +257,14 @@ struct TaskDetailSheet: View {
 
             Spacer()
 
-            Button {
-                dismiss()
-            } label: {
+            Button(action: requestDismiss) {
                 Image(systemName: "xmark")
-                    .frame(width: 28, height: 28)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(AppTheme.secondaryText)
+            .accessibilityLabel("작업 편집 취소")
             .help("편집 취소")
         }
     }
@@ -244,17 +273,16 @@ struct TaskDetailSheet: View {
         HStack {
             Spacer()
 
-            Button("취소") {
-                dismiss()
-            }
-            .buttonStyle(.bordered)
+            Button("취소", action: requestDismiss)
+            .buttonStyle(PlanBaseButtonStyle(.secondary))
+            .keyboardShortcut(.cancelAction)
 
             Button {
                 requestSave()
             } label: {
                 Label("저장", systemImage: "checkmark")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PlanBaseButtonStyle(.primary))
             .disabled(!canSave)
             .keyboardShortcut(.defaultAction)
         }
@@ -305,11 +333,13 @@ struct TaskDetailSheet: View {
                         addChecklistItem()
                     } label: {
                         Image(systemName: "plus")
-                            .frame(width: 24, height: 24)
+                            .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                                   height: PlanBaseControlMetrics.minimumTargetSize)
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(AppTheme.secondaryText)
                     .disabled(newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("체크리스트 항목 추가")
                     .help("체크리스트 항목 추가")
                 }
                 .padding(10)
@@ -480,6 +510,7 @@ struct TaskDetailSheet: View {
             let items = try TaskChecklistService.items(for: task.id, in: modelContext)
             checklistDrafts = TaskChecklistService.drafts(from: items)
             renumberChecklistDrafts()
+            initialDraft.checklist = checklistDrafts
             isChecklistLoaded = true
         } catch {
             checklistDrafts = []
@@ -567,10 +598,13 @@ private struct ChecklistDraftEditorRow: View {
             } label: {
                 Image(systemName: draft.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 24, height: 24)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(draft.isCompleted ? AppTheme.done : AppTheme.secondaryText)
+            .accessibilityLabel("\(draft.title) 체크리스트 항목")
+            .accessibilityValue(draft.isCompleted ? "완료" : "미완료")
             .help(draft.isCompleted ? "완료 해제" : "완료 표시")
 
             TextField("체크리스트 항목", text: $draft.title)
@@ -583,16 +617,19 @@ private struct ChecklistDraftEditorRow: View {
                 onDelete()
             } label: {
                 Image(systemName: "trash")
-                    .frame(width: 24, height: 24)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(AppTheme.secondaryText)
+            .accessibilityLabel("\(draft.title) 체크리스트 항목 삭제")
             .help("체크리스트 항목 삭제")
 
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
-                .frame(width: 24, height: 24)
+                .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                       height: PlanBaseControlMetrics.minimumTargetSize)
                 .contentShape(Rectangle())
                 .draggable(draft.id.uuidString)
                 .help("드래그해서 순서 변경")

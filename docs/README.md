@@ -16,6 +16,9 @@
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [UI 디자인 일관성과 사용 흐름 개선](plans/active/UI_DESIGN_CONSISTENCY.md)
+- [전체 UI 소스·화면 점검 목록](plans/active/UI_DESIGN_SURFACE_INVENTORY.md)
+- [터치·탭 전환 반응성 최적화](plans/active/RESPONSIVENESS_OPTIMIZATION.md)
 - [저장한 작업 빠른 입력어](plans/active/SAVED_TASK_SHORTCUT_PLAN.md)
 - [회고 없이도 보이는 하루 기록](plans/active/ARCHIVE_DAILY_ACTIVITY_PLAN.md)
 - [하루 기록 구현 검증](plans/active/ARCHIVE_DAILY_ACTIVITY_VALIDATION.md)

@@ -14,6 +14,7 @@ struct MobileCarryoverSheet: View {
     var onApplied: (String) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var movedTaskIDs: Set<UUID> = []
     @State private var message: String?
     @State private var isErrorMessage = false
@@ -26,18 +27,30 @@ struct MobileCarryoverSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                if let message {
+                    Section {
+                        MobileNoticeBanner(message: message, tone: isErrorMessage ? .error : .success)
+                            .accessibilityIdentifier("carryover-result-notice")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
                 if remainingTasks.isEmpty {
-                    ContentUnavailableView("이월할 작업 없음", systemImage: "tray")
+                    ContentUnavailableView {
+                        Label {
+                            Text("이월할 작업 없음")
+                                .lineLimit(nil)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: "tray")
+                        }
+                    } description: {
+                        Text("과거 날짜에 남아 있는 미완료 작업이 없습니다.")
+                    }
+                        .listRowBackground(Color.clear)
                 } else {
                     Section {
-                        if let message {
-                            Label(
-                                message,
-                                systemImage: isErrorMessage ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
-                            )
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(isErrorMessage ? Color.red : Color.secondary)
-                        }
                         Button {
                             moveAllToToday()
                         } label: {
@@ -49,6 +62,7 @@ struct MobileCarryoverSheet: View {
                             Label("원래 날짜에 모두 완료", systemImage: "checkmark.circle")
                         }
                     }
+                    .listRowBackground(AppTheme.panel)
                     ForEach(remainingTasks) { task in
                         Button {
                             moveToToday(task)
@@ -56,25 +70,36 @@ struct MobileCarryoverSheet: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(task.title)
-                                        .lineLimit(2)
-                                    Text(task.plannedDayKey)
+                                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                                    Text(DayKey.date(from: task.plannedDayKey).map(DayKey.display) ?? task.plannedDayKey)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 Image(systemName: "arrow.right.circle")
                             }
+                            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
                         }
+                        .accessibilityLabel("\(task.title), 오늘로 이월")
+                        .accessibilityValue("원래 날짜 \(DayKey.date(from: task.plannedDayKey).map(DayKey.display) ?? task.plannedDayKey)")
+                        .accessibilityHint("원래 날짜의 미완료 작업을 오늘 할 일로 옮겨요")
+                        .listRowBackground(AppTheme.panel)
                     }
                 }
             }
             .navigationTitle("이월함")
+            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("닫기") { dismiss() }
                 }
             }
         }
+        .tint(AppTheme.accent)
+        .presentationBackground(AppTheme.background)
         .alert(
             "예정된 알림이 있습니다",
             isPresented: Binding(

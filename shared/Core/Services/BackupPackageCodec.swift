@@ -651,7 +651,11 @@ private extension BackupPackageCodec {
     static func decoded<Value: Decodable>(_ data: Data) throws -> Value {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(Value.self, from: data)
+        do {
+            return try decoder.decode(Value.self, from: data)
+        } catch {
+            throw BackupPackageError.invalidMetadataEncoding
+        }
     }
 
     static func sha256(_ data: Data) -> String {

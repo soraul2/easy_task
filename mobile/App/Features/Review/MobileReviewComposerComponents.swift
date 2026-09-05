@@ -114,6 +114,7 @@ struct ReviewComposerPromptPicker: View {
 }
 
 struct ReviewComposerTaskSummary: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var summary: DailyReviewTaskSummary
     var selectedDate: Date
     @State private var isExpanded = false
@@ -121,7 +122,7 @@ struct ReviewComposerTaskSummary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                     isExpanded.toggle()
                 }
             } label: {
@@ -290,7 +291,7 @@ private struct ReviewSummaryGroup: View {
             VStack(alignment: .leading, spacing: 7) {
                 Label(title, systemImage: systemImage)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(color)
+                    .foregroundStyle(AppTheme.primaryText)
 
                 ForEach(items) { item in
                     ViewThatFits(in: .horizontal) {
@@ -400,6 +401,7 @@ struct ReviewComposerEditor: View {
 }
 
 struct ReviewComposerImages: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var attachmentDrafts: [MobileReviewAttachmentDraft]
     var legacyImageFileNames: [String]
     @Binding var selectedImageIndex: Int
@@ -428,9 +430,9 @@ struct ReviewComposerImages: View {
                             MobileReviewImagePreview(
                                 request: item.thumbnailRequest,
                                 placeholderMessage: item.isLegacy
-                                    ? "이전 이미지를 불러올 수 없음"
-                                    : "이미지를 불러올 수 없음",
-                                accessibilityLabel: "회고 이미지 \(index + 1)",
+                                    ? "이전 사진을 불러올 수 없음"
+                                    : "사진을 불러올 수 없음",
+                                accessibilityLabel: "회고 사진 \(index + 1)",
                                 onAspectRatioChange: { aspectRatio in
                                     let ratio = min(max(aspectRatio, 0.82), 2.0)
                                     if imageAspectRatios[item.id] != ratio {
@@ -444,7 +446,7 @@ struct ReviewComposerImages: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .aspectRatio(selectedAspectRatio, contentMode: .fit)
-                    .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedAspectRatio)
 
                     if items.count > 1 {
                         Text("\(safeIndex + 1)/\(items.count)")
@@ -454,6 +456,8 @@ struct ReviewComposerImages: View {
                             .padding(.vertical, 5)
                             .background(.black.opacity(0.58), in: Capsule())
                             .padding(9)
+                            .accessibilityLabel("사진 위치")
+                            .accessibilityValue("\(items.count)장 중 \(safeIndex + 1)번째")
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -469,7 +473,7 @@ struct ReviewComposerImages: View {
             }
 
             if !allowsCanonicalDeletion, !legacyImageFileNames.isEmpty {
-                Label("이전 이미지를 정리하면 새 이미지 추가와 삭제를 사용할 수 있어요.", systemImage: "lock")
+                Label("이전 사진을 정리하면 새 사진 추가와 삭제를 사용할 수 있어요.", systemImage: "lock")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -549,49 +553,6 @@ struct ReviewComposerImages: View {
     }
 }
 
-struct MobileReviewDismissGuard: UIViewControllerRepresentable {
-    var isBlocked: Bool
-    var onAttempt: () -> Void
-
-    func makeUIViewController(context: Context) -> DismissGuardViewController {
-        let controller = DismissGuardViewController()
-        controller.isBlocked = isBlocked
-        controller.onAttempt = onAttempt
-        return controller
-    }
-
-    func updateUIViewController(_ controller: DismissGuardViewController, context: Context) {
-        controller.isBlocked = isBlocked
-        controller.onAttempt = onAttempt
-        controller.installDelegate()
-    }
-}
-
-final class DismissGuardViewController: UIViewController, UIAdaptivePresentationControllerDelegate {
-    var isBlocked = false
-    var onAttempt: (() -> Void)?
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        installDelegate()
-    }
-
-    func installDelegate() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.parent?.presentationController?.delegate = self
-        }
-    }
-
-    func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool {
-        !isBlocked
-    }
-
-    func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
-        onAttempt?()
-    }
-}
-
 private struct ReviewComposerImageItem: Identifiable {
     var id: String
     var data: Data?
@@ -642,14 +603,16 @@ private struct MobileReviewImagePreview: View {
 
             if let onDelete {
                 Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "xmark")
-                        .font(.headline)
+                    Image(systemName: "trash")
+                        .font(.system(size: 18, weight: .semibold))
                         .frame(width: 44, height: 44)
                         .background(.black.opacity(0.52), in: Circle())
                         .foregroundStyle(.white)
                 }
+                .buttonStyle(.plain)
                 .padding(10)
-                .accessibilityLabel("이미지 삭제")
+                .accessibilityLabel("\(accessibilityLabel) 삭제")
+                .accessibilityHint("저장하면 삭제가 반영됩니다")
             }
         }
     }

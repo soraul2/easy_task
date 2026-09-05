@@ -100,7 +100,8 @@ final class TaskNotificationScheduler {
 
     func cancelNotifications(for taskIDs: [UUID]) {
 #if DEBUG
-        guard !PlanBaseLaunchEnvironment.isUITesting else { return }
+        guard !PlanBaseLaunchEnvironment.isUITesting
+                || PlanBaseLaunchEnvironment.usesNotificationDeliveryFixture else { return }
 #endif
         let identifiers = Set(taskIDs.flatMap(TaskReminderRules.managedIdentifiers))
             .sorted()
@@ -111,7 +112,8 @@ final class TaskNotificationScheduler {
 
     func reconcile(context: ModelContext, now: Date = Date()) async {
 #if DEBUG
-        guard !PlanBaseLaunchEnvironment.isUITesting else { return }
+        guard !PlanBaseLaunchEnvironment.isUITesting
+                || PlanBaseLaunchEnvironment.usesNotificationDeliveryFixture else { return }
 #endif
 
         if isReconciling {
@@ -211,13 +213,29 @@ final class TaskNotificationScheduler {
         )
         components.calendar = calendar
         components.timeZone = calendar.timeZone
-        return UNNotificationRequest(
-            identifier: snapshot.identifier,
-            content: content,
-            trigger: UNCalendarNotificationTrigger(
+        let trigger: UNNotificationTrigger
+#if DEBUG
+        if PlanBaseLaunchEnvironment.usesNotificationDeliveryFixture {
+            trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: 5,
+                repeats: false
+            )
+        } else {
+            trigger = UNCalendarNotificationTrigger(
                 dateMatching: components,
                 repeats: false
             )
+        }
+#else
+        trigger = UNCalendarNotificationTrigger(
+            dateMatching: components,
+            repeats: false
+        )
+#endif
+        return UNNotificationRequest(
+            identifier: snapshot.identifier,
+            content: content,
+            trigger: trigger
         )
     }
 }

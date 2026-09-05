@@ -34,6 +34,32 @@ private struct PendingMobileTaskCompletion {
     var reminderAt: Date
 }
 
+private struct PendingMobileLibrarySave {
+    var taskID: UUID
+    var title: String
+}
+
+private struct MobileLibrarySaveFailureAlertModifier: ViewModifier {
+    @Binding var pendingSave: PendingMobileLibrarySave?
+    let onRetry: (PendingMobileLibrarySave) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            "자주 쓰는 작업으로 저장하지 못했어요",
+            isPresented: Binding(
+                get: { pendingSave != nil },
+                set: { if !$0 { pendingSave = nil } }
+            ),
+            presenting: pendingSave
+        ) { pending in
+            Button("취소", role: .cancel) {}
+            Button("다시 시도") { onRetry(pending) }
+        } message: { pending in
+            Text("‘\(pending.title)’ 작업은 보드에 그대로 남아 있어요. 다시 시도해 주세요.")
+        }
+    }
+}
+
 struct MobileBoardActionRequest: Equatable, Identifiable {
     let id: UUID
     let action: PlanBaseBoardAction
@@ -65,9 +91,15 @@ struct MobileBoardView: View {
     @State private var presentedSheet: MobileBoardSheet?
     @State private var pendingTaskCompletion: PendingMobileTaskCompletion?
     @State private var pendingTaskDeletion: PendingMobileTaskDeletion?
+    @State private var pendingLibrarySave: PendingMobileLibrarySave?
+#if DEBUG
+    @State private var didSimulateLibrarySaveFailure = false
+#endif
     @State private var persistenceFailureMessage: String?
     @State private var statusNotice: String?
+    @State private var statusNoticeTone: MobileNoticeTone = .success
     @State private var statusNoticeToken = UUID()
+    @State private var pendingSheetNotice: String?
     @State private var progressSession: TaskProgressEventQuerySession?
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
@@ -106,14 +138,6 @@ struct MobileBoardView: View {
         )
     }
 
-    private var statusTasks: [TodoTask] {
-        BoardQueryRules.tasks(boardTasks, matching: selectedStatus)
-    }
-
-    private var displayedTaskIDs: Set<UUID> {
-        Set(boardTasks.map(\.id))
-    }
-
     private var dayEvents: [CalendarEvent] {
         CalendarEventRules.events(onDayKey: selectedDayKey, in: overlappingEventRows)
     }
@@ -123,12 +147,14 @@ struct MobileBoardView: View {
     }
 
     var body: some View {
+        let tasks = boardTasks
+        let displayedTaskIDs = Set(tasks.map(\.id))
         NavigationStack {
-            boardLayout
+            boardLayout(tasks: tasks)
             .background(AppTheme.background.ignoresSafeArea())
             .overlay(alignment: .bottom) {
                 if let statusNotice {
-                    MobileStatusNotice(message: statusNotice)
+                    MobileStatusNotice(message: statusNotice, tone: statusNoticeTone)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 12)
                         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
@@ -162,38 +188,40 @@ struct MobileBoardView: View {
                     .accessibilityIdentifier("review-compose-button")
                 }
             }
-            .sheet(item: $presentedSheet) { sheet in
-                switch sheet {
-                case .task(let task):
-                    MobileTaskDetailSheet(task: task, onStartFocus: onStartFocus)
-                case .carryover:
-                    MobileCarryoverSheet(
-                        tasks: carryoverTasks,
-                        onApplied: showBoardNotice
-                    )
-                case .savedTasks:
-                    SavedTaskLibrarySheet(
-                        selectedDate: selectedDate,
-                        onAdded: { message in
-                            selectedStatus = .todo
-                            showBoardNotice(message)
-                        }
-                    )
-                    .environment(\.dynamicTypeSize, dynamicTypeSize)
-                case .templates:
-                    MobileTemplateLibrarySheet(
-                        templates: templates,
-                        items: templateItems,
-                        selectedDate: selectedDate,
-                        existingTasks: selectedDayTaskRows,
-                        onApplied: showBoardNotice
-                    )
-                case .review:
-                    MobileReviewComposerSheet(
-                        selectedDate: selectedDate,
-                        onSaved: showBoardNotice
-                    )
+            .sheet(item: $presentedSheet, onDismiss: showPendingSheetNotice) { sheet in
+                Group {
+                    switch sheet {
+                    case .task(let task):
+                        MobileTaskDetailSheet(task: task, onStartFocus: onStartFocus)
+                    case .carryover:
+                        MobileCarryoverSheet(
+                            tasks: carryoverTasks,
+                            onApplied: { pendingSheetNotice = $0 }
+                        )
+                    case .savedTasks:
+                        SavedTaskLibrarySheet(
+                            selectedDate: selectedDate,
+                            onAdded: { message in
+                                selectedStatus = .todo
+                                pendingSheetNotice = message
+                            }
+                        )
+                    case .templates:
+                        MobileTemplateLibrarySheet(
+                            templates: templates,
+                            items: templateItems,
+                            selectedDate: selectedDate,
+                            existingTasks: selectedDayTaskRows,
+                            onApplied: { pendingSheetNotice = $0 }
+                        )
+                    case .review:
+                        MobileReviewComposerSheet(
+                            selectedDate: selectedDate,
+                            onSaved: { pendingSheetNotice = $0 }
+                        )
+                    }
                 }
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .alert(
                 "예정된 알림이 있습니다",
@@ -235,6 +263,9 @@ struct MobileBoardView: View {
             } message: {
                 Text(persistenceFailureMessage ?? "다시 시도해 주세요.")
             }
+            .modifier(MobileLibrarySaveFailureAlertModifier(pendingSave: $pendingLibrarySave) { pending in
+                saveToLibrary(taskID: pending.taskID, title: pending.title)
+            })
             .task {
                 if progressSession == nil {
                     progressSession = TaskProgressEventQuerySession(context: modelContext)
@@ -264,11 +295,11 @@ struct MobileBoardView: View {
     }
 
     @ViewBuilder
-    private var boardLayout: some View {
+    private func boardLayout(tasks: [TodoTask]) -> some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                boardControls
-                taskList(isEmbeddedInScrollView: true)
+                boardControls(tasks: tasks)
+                taskList(tasks: tasks, isEmbeddedInScrollView: true)
             }
             .frame(maxWidth: 820)
             .frame(maxWidth: .infinity)
@@ -278,7 +309,7 @@ struct MobileBoardView: View {
     }
 
     @ViewBuilder
-    private var boardControls: some View {
+    private func boardControls(tasks: [TodoTask]) -> some View {
         BoardHeader(
             selectedDate: $selectedDate,
             isTodayBoard: isTodayBoard,
@@ -296,13 +327,13 @@ struct MobileBoardView: View {
         )
         BoardStatusPicker(
             selectedStatus: $selectedStatus,
-            taskCount: taskCount
+            taskCount: { status in tasks.filter { $0.status == status.rawValue }.count }
         )
     }
 
-    private func taskList(isEmbeddedInScrollView: Bool) -> some View {
+    private func taskList(tasks: [TodoTask], isEmbeddedInScrollView: Bool) -> some View {
         BoardTaskList(
-            tasks: statusTasks,
+            tasks: BoardQueryRules.tasks(tasks, matching: selectedStatus),
             selectedStatus: selectedStatus,
             isEmbeddedInScrollView: isEmbeddedInScrollView,
             onEdit: { presentedSheet = .task($0) },
@@ -315,10 +346,25 @@ struct MobileBoardView: View {
     }
 
     private func saveToLibrary(_ task: TodoTask) {
+        saveToLibrary(taskID: task.id, title: task.title)
+    }
+
+    private func saveToLibrary(taskID: UUID, title: String) {
         do {
-            _ = try SavedTaskLibraryService.save(taskID: task.id, in: modelContext)
-            showBoardNotice("저장한 작업에 추가했어요")
-        } catch { persistenceFailureMessage = error.localizedDescription }
+#if DEBUG
+            if !didSimulateLibrarySaveFailure,
+               PlanBaseLaunchEnvironment.isUITesting,
+               ProcessInfo.processInfo.arguments.contains("--ui-testing-library-save-failure-once") {
+                didSimulateLibrarySaveFailure = true
+                throw CocoaError(.fileWriteUnknown)
+            }
+#endif
+            _ = try SavedTaskLibraryService.save(taskID: taskID, in: modelContext)
+            pendingLibrarySave = nil
+            showBoardNotice("‘\(title)’ 작업을 자주 쓰는 작업으로 저장했어요")
+        } catch {
+            pendingLibrarySave = PendingMobileLibrarySave(taskID: taskID, title: title)
+        }
     }
 
     private func addQuickTask() {
@@ -412,7 +458,7 @@ struct MobileBoardView: View {
                       task.plannedDayKey == DayKey.today,
                       task.archivedAt == nil,
                       task.status == TaskStatus.doing.rawValue else {
-                    showBoardNotice("작업이 변경되어 완료하지 못했습니다")
+                    showBoardNotice("작업이 변경되어 완료하지 못했습니다", tone: .error)
                     return
                 }
                 requestTaskStatusChange(task: task, status: .done)
@@ -429,7 +475,7 @@ struct MobileBoardView: View {
                 BoundedQueryService.taskCandidatesDescriptor(id: pending.taskID)
             )
             guard let task = BoundedQueryService.representativeTask(from: candidates) else {
-                showBoardNotice("작업이 변경되어 완료하지 못했습니다")
+                showBoardNotice("작업이 변경되어 완료하지 못했습니다", tone: .error)
                 return
             }
             changeTaskStatus(
@@ -492,21 +538,20 @@ struct MobileBoardView: View {
         )
     }
 
-    private func taskCount(for status: TaskStatus) -> Int {
-        boardTasks.reduce(into: 0) { result, task in
-            if task.status == status.rawValue {
-                result += 1
-            }
-        }
+    private func showPendingSheetNotice() {
+        guard let message = pendingSheetNotice else { return }
+        pendingSheetNotice = nil
+        showBoardNotice(message)
     }
 
-    private func showBoardNotice(_ message: String) {
+    private func showBoardNotice(_ message: String, tone: MobileNoticeTone = .success) {
         let token = UUID()
 
         statusNoticeToken = token
+        statusNoticeTone = tone
         statusNotice = message
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             guard statusNoticeToken == token else { return }
             statusNotice = nil
         }

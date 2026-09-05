@@ -4,6 +4,56 @@ import SwiftData
 import Testing
 @testable import EasyTaskCore
 
+@Test @MainActor
+func memoQueryDistinguishesInitialLoadFailureAndRetries() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = try #require(try MemoService.save(memo: nil, content: "재시도 후 돌아온 메모", in: context))
+    var attempts = 0
+    let session = MemoQuerySession(context: context) { context, query, cursor in
+        attempts += 1
+        if attempts == 1 { throw CocoaError(.fileReadUnknown) }
+        return try MemoService.page(in: context, query: query, cursor: cursor)
+    }
+    session.apply(query: "", debounce: false)
+    #expect(session.memos.isEmpty)
+    #expect(session.errorMessage != nil)
+    #expect(!session.isLoading)
+    session.retry()
+    #expect(session.errorMessage == nil)
+    #expect(session.memos.map(\.instanceID) == [memo.instanceID])
+    #expect(attempts == 2)
+}
+
+@Test @MainActor
+func memoQueryKeepsLoadedRowsOnNextPageFailure() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    for index in 0...MemoService.pageSize {
+        context.insert(Memo(content: "메모 \(index)"))
+    }
+    try context.save()
+    var attempts = 0
+    let session = MemoQuerySession(context: context) { context, query, cursor in
+        attempts += 1
+        if attempts == 2 || attempts == 3 { throw CocoaError(.fileReadUnknown) }
+        return try MemoService.page(in: context, query: query, cursor: cursor)
+    }
+    session.apply(query: "", debounce: false)
+    let firstIDs = session.memos.map(\.instanceID)
+    #expect(session.hasMore)
+    session.loadNextPage()
+    #expect(session.errorMessage != nil)
+    #expect(session.memos.map(\.instanceID) == firstIDs)
+    session.retry()
+    #expect(session.errorMessage != nil)
+    #expect(session.memos.map(\.instanceID) == firstIDs)
+    session.retry()
+    #expect(session.errorMessage == nil)
+    #expect(session.memos.count == MemoService.pageSize + 1)
+    #expect(Set(session.memos.map(\.instanceID)).count == session.memos.count)
+}
+
 @Test
 func memoRulesDeriveTitlePreviewAndNormalizedSearch() {
     let memo = Memo(content: "\n  Café 준비  \n원두 주문\n필터 교체")
@@ -14,6 +64,27 @@ func memoRulesDeriveTitlePreviewAndNormalizedSearch() {
     #expect(MemoRules.matches(memo, query: "CAFE"))
     #expect(MemoRules.matches(memo, query: "원두"))
     #expect(!MemoRules.matches(memo, query: "장보기"))
+}
+
+@Test
+func memoTimestampUsesKoreanDateOrder() throws {
+    var components = DateComponents()
+    components.calendar = Calendar(identifier: .gregorian)
+    components.timeZone = TimeZone(secondsFromGMT: 9 * 60 * 60)
+    components.year = 2026
+    components.month = 9
+    components.day = 5
+    components.hour = 16
+    components.minute = 30
+    let date = try #require(components.date)
+
+    let text = MemoRules.updatedAtText(date)
+
+    #expect(text.contains("2026"))
+    #expect(text.contains("9"))
+    #expect(text.contains("5"))
+    #expect(!text.contains("Sep"))
+    #expect(!text.contains("at"))
 }
 
 @Test

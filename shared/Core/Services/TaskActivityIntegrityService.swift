@@ -131,7 +131,7 @@ private extension TaskActivityIntegrityService {
             activityDayKey: activity.activityDayKey
         )
         report.normalizedFields += DataIntegrityService.assign(
-            &activity.id,
+            activity, \.id,
             canonicalID
         )
         return NaturalKey(
@@ -195,7 +195,7 @@ private extension TaskActivityIntegrityService {
             .filter(DataIntegrityService.isFinite)
             .min() {
             report.normalizedFields += DataIntegrityService.assign(
-                &winner.createdAt,
+                winner, \.createdAt,
                 earliestCreatedAt
             )
         }

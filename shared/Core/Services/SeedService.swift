@@ -35,6 +35,12 @@ public enum SeedService {
         let activeTemplates = templates.filter { $0.supersededAt == nil }
         let activeReviews = reviews.filter { $0.supersededAt == nil }
 
+        migrateLegacySampleReviews(activeReviews)
+        migrateLegacyDemoTerminology(
+            tasks: activeTasks,
+            events: activeEvents,
+            reviews: activeReviews
+        )
         ensureRoutineTemplates(context: context, templates: activeTemplates)
         ensureArchiveSearchSamples(context: context, tasks: activeTasks, reviews: activeReviews)
         guard activeTasks.isEmpty, activeEvents.isEmpty else { return }
@@ -96,7 +102,7 @@ public enum SeedService {
             title: "다음 릴리즈 아이디어 정리",
             startAt: tomorrow,
             endAt: afterTomorrow,
-            note: "기간 이벤트가 캘린더에 띠처럼 보이는지 확인",
+            note: "기간 일정이 캘린더에 띠처럼 보이는지 확인",
             color: "green"
         ))
     }
@@ -111,8 +117,6 @@ public enum SeedService {
         let threeDaysAgo = DayKey.addingDays(-3, to: today)
         let twoDaysAgo = DayKey.addingDays(-2, to: today)
         let yesterday = DayKey.addingDays(-1, to: today)
-
-        migrateLegacySampleReviews(reviews)
 
         if !tasks.contains(where: { $0.title.hasPrefix(samplePrefix) }) {
             insertArchivedSampleTask(
@@ -132,8 +136,8 @@ public enum SeedService {
                 context: context
             )
             insertArchivedSampleTask(
-                title: "샘플: 캘린더 띠 이벤트 색상 조정",
-                note: "기간 이벤트가 이어진 막대로 보이는지 확인",
+                title: "샘플: 캘린더 띠 일정 색상 조정",
+                note: "기간 일정이 이어진 막대로 보이는지 확인",
                 day: twoDaysAgo,
                 order: 100,
                 estimatedMinutes: 30,
@@ -165,7 +169,7 @@ public enum SeedService {
             title: "샘플: 캘린더 UI 점검",
             weather: "흐림",
             mood: "집중",
-            content: "캘린더 띠 이벤트 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다.",
+            content: "캘린더 띠 일정 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다.",
             existingReviews: reviews,
             context: context
         )
@@ -207,6 +211,39 @@ public enum SeedService {
 
             review.content = migratedContent
             review.updatedAt = Date()
+        }
+    }
+
+    private static func migrateLegacyDemoTerminology(
+        tasks: [Task],
+        events: [CalendarEvent],
+        reviews: [DailyReview]
+    ) {
+        let now = Date()
+
+        for task in tasks where
+            task.title == "샘플: 캘린더 띠 이벤트 색상 조정" &&
+            task.note == "기간 이벤트가 이어진 막대로 보이는지 확인"
+        {
+            task.title = "샘플: 캘린더 띠 일정 색상 조정"
+            task.note = "기간 일정이 이어진 막대로 보이는지 확인"
+            task.updatedAt = now
+        }
+
+        for event in events where
+            event.title == "다음 릴리즈 아이디어 정리" &&
+            event.note == "기간 이벤트가 캘린더에 띠처럼 보이는지 확인"
+        {
+            event.note = "기간 일정이 캘린더에 띠처럼 보이는지 확인"
+            event.updatedAt = now
+        }
+
+        for review in reviews where
+            review.title == "샘플: 캘린더 UI 점검" &&
+            review.content == "캘린더 띠 이벤트 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다."
+        {
+            review.content = "캘린더 띠 일정 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다."
+            review.updatedAt = now
         }
     }
 
@@ -262,6 +299,7 @@ public enum SeedService {
             "샘플: 고객 미팅 준비 자료 정리": 60,
             "샘플: 결제 오류 재현 로그 확인": 45,
             "샘플: 캘린더 띠 이벤트 색상 조정": 30,
+            "샘플: 캘린더 띠 일정 색상 조정": 30,
             "샘플: 운동 기록 정리": 50
         ]
 

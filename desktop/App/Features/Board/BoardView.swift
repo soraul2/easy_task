@@ -31,6 +31,11 @@ private struct PendingDesktopTaskCompletion {
     var reminderAt: Date
 }
 
+private struct PendingDesktopLibrarySave {
+    var taskID: UUID
+    var title: String
+}
+
 extension View {
     func persistenceFailureAlert(message: Binding<String?>) -> some View {
         alert(
@@ -68,9 +73,11 @@ struct BoardView: View {
     @State private var presentedSheet: BoardSheet?
     @State private var templateName = ""
     @State private var pendingTaskDeletion: PendingDesktopTaskDeletion?
+    @State private var pendingEventDeletion: CalendarEvent?
     @State private var savedTaskNotice: String?
     @State private var persistenceFailureMessage: String?
     @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
+    @State private var pendingLibrarySave: PendingDesktopLibrarySave?
     @State private var progressSession: TaskProgressEventQuerySession?
     @FocusState private var isQuickTitleFocused: Bool
 
@@ -111,22 +118,6 @@ struct BoardView: View {
         TaskRules.carryoverTasks(carryoverTaskRows, before: todayKey)
     }
 
-    private var todoTasks: [Task] {
-        BoardQueryRules.tasks(boardTasks, matching: .todo)
-    }
-
-    private var doingTasks: [Task] {
-        BoardQueryRules.tasks(boardTasks, matching: .doing)
-    }
-
-    private var displayedTaskIDs: Set<UUID> {
-        Set(boardTasks.map(\.id))
-    }
-
-    private var doneTasks: [Task] {
-        BoardQueryRules.tasks(boardTasks, matching: .done)
-    }
-
     private var boardFailureMessage: Binding<String?> {
         Binding(
             get: {
@@ -142,6 +133,8 @@ struct BoardView: View {
     }
 
     var body: some View {
+        let tasks = boardTasks
+        let displayedTaskIDs = Set(tasks.map(\.id))
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 28)
@@ -152,7 +145,7 @@ struct BoardView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     eventStrip
                     quickCreate
-                    kanbanBoard
+                    kanbanBoard(tasks: tasks)
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
@@ -178,23 +171,24 @@ struct BoardView: View {
                     items: templateItems,
                     templateName: $templateName,
                     failureMessage: $persistenceFailureMessage,
-                    currentBoardTasks: boardTasks
+                    currentBoardTasks: tasks
                         .filter { $0.plannedDayKey == selectedDayKey }
                         .sorted { $0.order < $1.order },
                     onApply: { template in
-                        let didApply = performPersistenceCommand(
-                            failureMessage: "템플릿을 적용하지 못했습니다."
-                        ) {
-                            TemplateService.applyTemplate(
-                                template,
-                                items: templateItems,
-                                selectedDate: selectedDate,
-                                existingTasks: selectedDayTaskRows,
-                                in: modelContext
-                            )
+                        do {
+                            return try PersistenceCommandService.perform(in: modelContext) {
+                                TemplateService.applyTemplate(
+                                    template,
+                                    items: templateItems,
+                                    selectedDate: selectedDate,
+                                    existingTasks: selectedDayTaskRows,
+                                    in: modelContext
+                                )
+                            }
+                        } catch {
+                            persistenceFailureMessage = "템플릿을 적용하지 못했습니다."
+                            return nil
                         }
-                        guard didApply else { return }
-                        presentedSheet = nil
                     },
                     onSaveCurrentBoard: { drafts in
                         guard !drafts.isEmpty else { return }
@@ -285,7 +279,34 @@ struct BoardView: View {
         } message: { pending in
             Text("‘\(pending.title)’ 작업을 삭제합니다. 삭제한 작업은 되돌릴 수 없어요.")
         }
+        .alert("일정을 삭제할까요?", isPresented: Binding(
+            get: { pendingEventDeletion != nil },
+            set: { if !$0 { pendingEventDeletion = nil } }
+        ), presenting: pendingEventDeletion) { event in
+            Button("취소", role: .cancel) { pendingEventDeletion = nil }
+            Button("삭제", role: .destructive) {
+                pendingEventDeletion = nil
+                deleteEvent(event)
+            }
+        } message: { event in
+            Text("‘\(event.title)’ 일정을 삭제합니다. 연결된 작업은 유지되며 일정 연결만 해제됩니다. 삭제한 일정은 되돌릴 수 없어요.")
+        }
         .persistenceFailureAlert(message: boardFailureMessage)
+        .alert(
+            "자주 쓰는 작업으로 저장하지 못했어요",
+            isPresented: Binding(
+                get: { pendingLibrarySave != nil },
+                set: { if !$0 { pendingLibrarySave = nil } }
+            ),
+            presenting: pendingLibrarySave
+        ) { pending in
+            Button("취소", role: .cancel) {}
+            Button("다시 시도") {
+                saveToLibrary(taskID: pending.taskID, title: pending.title)
+            }
+        } message: { pending in
+            Text("‘\(pending.title)’ 작업은 보드에 그대로 남아 있어요. 다시 시도해 주세요.")
+        }
         .overlay(alignment: .bottom) {
             if let savedTaskNotice {
                 Text(savedTaskNotice)
@@ -320,9 +341,12 @@ struct BoardView: View {
                 selectedDate = DayKey.addingDays(-1, to: selectedDate)
             } label: {
                 Image(systemName: "chevron.left")
-                    .frame(width: 28, height: 28)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("이전 날짜")
+            .help("이전 날짜")
 
             Text(DayKey.display(selectedDate))
                 .font(.system(size: 26, weight: .bold))
@@ -338,9 +362,12 @@ struct BoardView: View {
                 selectedDate = DayKey.addingDays(1, to: selectedDate)
             } label: {
                 Image(systemName: "chevron.right")
-                    .frame(width: 28, height: 28)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("다음 날짜")
+            .help("다음 날짜")
 
             Spacer()
 
@@ -398,7 +425,7 @@ struct BoardView: View {
     private var eventStrip: some View {
         if !boardEvents.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("오늘의 이벤트")
+                Text("선택한 날짜의 일정")
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
                 ForEach(boardEvents) { event in
@@ -410,7 +437,7 @@ struct BoardView: View {
                             Text(event.title)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(AppTheme.primaryText)
-                            Text("\(event.startDayKey) - \(event.endDayKey)")
+                            Text(CalendarEventTimeline.dateRangeText(for: event))
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText)
                         }
@@ -422,14 +449,16 @@ struct BoardView: View {
                             .padding(.vertical, 4)
                             .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
                         Button(role: .destructive) {
-                            deleteEvent(event)
+                            pendingEventDeletion = event
                         } label: {
                             Image(systemName: "trash")
-                                .frame(width: 26, height: 26)
+                                .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                                       height: PlanBaseControlMetrics.minimumTargetSize)
                         }
                         .buttonStyle(.borderless)
                         .foregroundStyle(AppTheme.secondaryText)
-                        .help("이벤트 삭제")
+                        .accessibilityLabel("\(event.title) 일정 삭제")
+                        .help("일정 삭제")
                     }
                     .padding(12)
                     .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
@@ -492,12 +521,12 @@ struct BoardView: View {
         }
     }
 
-    private var kanbanBoard: some View {
+    private func kanbanBoard(tasks: [Task]) -> some View {
         HStack(alignment: .top, spacing: 14) {
             KanbanColumn(
                 title: TaskStatus.todo.title,
                 status: .todo,
-                tasks: todoTasks,
+                tasks: BoardQueryRules.tasks(tasks, matching: .todo),
                 emptyTitle: "할 일 없음",
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
@@ -513,7 +542,7 @@ struct BoardView: View {
             KanbanColumn(
                 title: TaskStatus.doing.title,
                 status: .doing,
-                tasks: doingTasks,
+                tasks: BoardQueryRules.tasks(tasks, matching: .doing),
                 emptyTitle: "진행 중인 작업 없음",
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
@@ -529,7 +558,7 @@ struct BoardView: View {
             KanbanColumn(
                 title: TaskStatus.done.title,
                 status: .done,
-                tasks: doneTasks,
+                tasks: BoardQueryRules.tasks(tasks, matching: .done),
                 emptyTitle: "완료한 작업 없음",
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
@@ -550,10 +579,17 @@ struct BoardView: View {
     }
 
     private func saveToLibrary(_ task: Task) {
+        saveToLibrary(taskID: task.id, title: task.title)
+    }
+
+    private func saveToLibrary(taskID: UUID, title: String) {
         do {
-            _ = try SavedTaskLibraryService.save(taskID: task.id, in: modelContext)
-            savedTaskNotice = "저장한 작업에 추가했어요"
-        } catch { persistenceFailureMessage = error.localizedDescription }
+            _ = try SavedTaskLibraryService.save(taskID: taskID, in: modelContext)
+            pendingLibrarySave = nil
+            savedTaskNotice = "‘\(title)’ 작업을 자주 쓰는 작업으로 저장했어요"
+        } catch {
+            pendingLibrarySave = PendingDesktopLibrarySave(taskID: taskID, title: title)
+        }
     }
 
     private func addQuickTask() {
@@ -737,7 +773,7 @@ struct BoardView: View {
 
     private func deleteEvent(_ event: CalendarEvent) {
         performPersistenceCommand(
-            failureMessage: "이벤트를 삭제하지 못했습니다."
+            failureMessage: "일정을 삭제하지 못했습니다."
         ) {
             let linkedTasks = try BoundedQueryService.tasksLinked(
                 toEventID: event.id,

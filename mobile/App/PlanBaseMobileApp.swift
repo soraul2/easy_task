@@ -8,7 +8,12 @@ import SwiftUI
 enum PlanBaseLaunchEnvironment {
     static var isUITesting: Bool {
 #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        let processInfo = ProcessInfo.processInfo
+        return processInfo.arguments.contains("--ui-testing")
+            // Xcode can relaunch an already-installed UI test target without
+            // forwarding XCUIApplication launch arguments. The automation
+            // socket remains present and keeps that relaunch off user data.
+            || processInfo.environment["TESTMANAGERD_REMOTE_AUTOMATION_SIM_SOCK"] != nil
 #else
         false
 #endif
@@ -17,6 +22,16 @@ enum PlanBaseLaunchEnvironment {
     static var usesReminderCompletionFixtures: Bool {
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains("--ui-testing-reminder-fixtures")
+#else
+        false
+#endif
+    }
+
+    static var usesNotificationDeliveryFixture: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-notification-delivery"
+        )
 #else
         false
 #endif
@@ -34,6 +49,26 @@ enum PlanBaseLaunchEnvironment {
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains(
             "--ui-testing-event-history-fixtures"
+        )
+#else
+        false
+#endif
+    }
+
+    static var usesTaskRecordEdgeFixtures: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-task-record-edge-fixtures"
+        )
+#else
+        false
+#endif
+    }
+
+    static var usesReviewImageFixtures: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains(
+            "--ui-testing-review-image-fixtures"
         )
 #else
         false
@@ -87,6 +122,9 @@ enum PlanBaseLaunchEnvironment {
 struct PlanBaseMobileApp: App {
     @UIApplicationDelegateAdaptor(PlanBaseAppDelegate.self) private var appDelegate
     @State private var persistenceState: PersistenceState
+#if DEBUG
+    @MainActor private static var didSimulateRecovery = false
+#endif
 
     init() {
         _persistenceState = State(initialValue: Self.makePersistenceState())
@@ -94,26 +132,30 @@ struct PlanBaseMobileApp: App {
 
     var body: some Scene {
         WindowGroup {
-            switch persistenceState {
-            case .ready(let modelContainer):
-                Group {
+            Group {
+                switch persistenceState {
+                case .ready(let modelContainer):
+                    Group {
 #if DEBUG
-                    if Self.isCloudKitProbeRequested {
-                        Color.clear
-                    } else {
-                        MobileAppRootView()
-                    }
+                        if Self.isCloudKitProbeRequested {
+                            Color.clear
+                        } else {
+                            MobileAppRootView()
+                        }
 #else
-                    MobileAppRootView()
+                        MobileAppRootView()
 #endif
-                }
-                .planBaseAccessibilityTextSizeFixture()
-                .modelContainer(modelContainer)
-            case .failed(let details):
-                PersistenceRecoveryView(details: details) {
-                    persistenceState = Self.makePersistenceState()
+                    }
+                    .planBaseAccessibilityTextSizeFixture()
+                    .modelContainer(modelContainer)
+                case .failed(let details):
+                    PersistenceRecoveryView(details: details) {
+                        persistenceState = Self.makePersistenceState()
+                    }
+                    .planBaseAccessibilityTextSizeFixture()
                 }
             }
+            .environment(\.locale, Locale(identifier: "ko_KR"))
         }
     }
 
@@ -121,8 +163,26 @@ struct PlanBaseMobileApp: App {
     private static func makePersistenceState() -> PersistenceState {
 #if DEBUG
         if PlanBaseLaunchEnvironment.isUITesting {
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing-recovery-once"),
+               !didSimulateRecovery {
+                didSimulateRecovery = true
+                return .failed("UI 검증용 저장소 열기 실패입니다. 실제 사용자 저장소에는 접근하지 않았습니다. 다시 시도하면 격리된 메모리 저장소를 엽니다.")
+            }
             do {
-                let modelContainer = try PlanBaseContainerFactory.makeInMemory()
+                let modelContainer: ModelContainer
+                if ProcessInfo.processInfo.arguments.contains("--ui-testing-performance") {
+                    // This dedicated local database is outside the normal app store.
+                    // Reopening it avoids counting fixture generation as app launch work.
+                    let directory = URL.applicationSupportDirectory
+                        .appendingPathComponent("ResponsivenessFixtures", isDirectory: true)
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    modelContainer = try PlanBaseContainerFactory.makePersistent(
+                        storeURL: directory.appendingPathComponent("v1.store"), mode: .local)
+                    try ResponsivenessPreviewFixtures.seed(in: modelContainer.mainContext)
+                } else {
+                    modelContainer = try PlanBaseContainerFactory.makeInMemory()
+                }
+                try seedUITestingDemoDataIfNeeded(in: modelContainer)
                 PlanBaseTaskIntentRuntime.install(modelContainer: modelContainer)
                 return .ready(modelContainer)
             } catch {
@@ -156,6 +216,33 @@ struct PlanBaseMobileApp: App {
             return .failed(error.localizedDescription)
         }
     }
+
+#if DEBUG
+    @MainActor
+    private static func seedUITestingDemoDataIfNeeded(
+        in modelContainer: ModelContainer
+    ) throws {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard PlanBaseLaunchEnvironment.isUITesting,
+              !PlanBaseLaunchEnvironment.usesEmptyBoardFixture,
+              !arguments.contains("--ui-testing-performance"),
+              !arguments.contains("--ui-testing-daily-activity-fixtures") else {
+            return
+        }
+
+        let context = modelContainer.mainContext
+        try PersistenceCommandService.perform(in: context) {
+            SeedService.seedIfNeeded(
+                context: context,
+                tasks: try context.fetch(FetchDescriptor<TodoTask>()),
+                events: try context.fetch(FetchDescriptor<CalendarEvent>()),
+                templates: try context.fetch(FetchDescriptor<TaskTemplate>()),
+                reviews: try context.fetch(FetchDescriptor<DailyReview>()),
+                policy: .demo
+            )
+        }
+    }
+#endif
 
 #if DEBUG
     private static var isCloudKitProbeRequested: Bool {

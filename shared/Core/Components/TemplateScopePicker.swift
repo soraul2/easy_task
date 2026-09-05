@@ -16,7 +16,7 @@ public struct TemplateScopePicker: View {
 #if os(watchOS)
         .pickerStyle(.navigationLink)
 #else
-        .pickerStyle(.segmented)
+        .planBaseAdaptiveSegmentedPicker()
 #endif
         .frame(width: 220)
     }

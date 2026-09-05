@@ -15,7 +15,7 @@ struct MobileArchiveFilterSheet: View {
                             Text(mode.title).tag(mode)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .planBaseAdaptiveSegmentedPicker()
                     .accessibilityIdentifier("archive-content-mode-picker")
                     Text(
                         filter.contentMode == .dailyActivity
@@ -35,7 +35,7 @@ struct MobileArchiveFilterSheet: View {
                                     Text(basis.title).tag(basis)
                                 }
                             }
-                            .pickerStyle(.segmented)
+                            .planBaseAdaptiveSegmentedPicker()
 
                             Picker("날짜 기준", selection: $filter.dateBasis) {
                                 ForEach(TaskHistoryDateBasis.allCases) { basis in
@@ -78,14 +78,14 @@ struct MobileArchiveFilterSheet: View {
                             Text(scope.title).tag(scope)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .planBaseAdaptiveSegmentedPicker()
                 }
                 .listRowBackground(AppTheme.panel)
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .foregroundStyle(AppTheme.primaryText)
-            .tint(AppTheme.event)
+            .tint(AppTheme.accent)
             .navigationTitle("검색 필터")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

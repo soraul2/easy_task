@@ -29,6 +29,7 @@ public struct TaskRecordSheet: View {
                         } actions: {
                             Button("다시 시도") { refreshID += 1 }
                                 .buttonStyle(.bordered)
+                                .accessibilityIdentifier("task-record-retry")
                         }
                     } else if let record {
                         content(record)
@@ -88,8 +89,9 @@ public struct TaskRecordSheet: View {
                 .foregroundStyle(AppTheme.secondaryText)
                 .accessibilityIdentifier("task-record-created")
             if !record.hasCurrentTask {
-                Text("현재 작업 정보가 없어 남아 있는 활동 기록만 표시해요.")
+                Text("원본 작업은 없지만 남아 있는 활동 기록은 계속 볼 수 있어요.")
                     .font(.callout).foregroundStyle(AppTheme.secondaryText)
+                    .accessibilityIdentifier("task-record-missing-task")
             }
         }
 
@@ -165,6 +167,7 @@ public struct TaskRecordSheet: View {
             }
             ForEach(record.timeline.prefix(visibleEventCount)) { event in
                 eventRow(event, currentStatus: record.currentStatus)
+                    .accessibilityIdentifier("task-record-event-\(event.id)")
                 if event.id != record.timeline.prefix(visibleEventCount).last?.id { Divider() }
             }
             if record.timeline.count > visibleEventCount {
@@ -272,6 +275,11 @@ public struct TaskRecordSheet: View {
     private func load() async {
         errorMessage = nil
         do {
+            #if DEBUG
+            if TaskRecordUITestFixture.consumeLoadFailure() {
+                throw CocoaError(.fileReadUnknown)
+            }
+            #endif
             let result = try await TaskRecordQueryService.load(selection: selection, in: modelContext)
             try Swift.Task.checkCancellation()
             record = result
@@ -283,4 +291,21 @@ public struct TaskRecordSheet: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private enum TaskRecordUITestFixture {
+    private static var didFailLoad = false
+
+    static func consumeLoadFailure() -> Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--ui-testing"),
+              arguments.contains("--ui-testing-task-record-load-failure-once"),
+              !didFailLoad
+        else { return false }
+        didFailLoad = true
+        return true
+    }
+}
+#endif
 #endif

@@ -159,7 +159,7 @@ private extension TaskProgressEventIntegrityService {
             .filter(DataIntegrityService.isFinite)
             .min() {
             report.normalizedFields += DataIntegrityService.assign(
-                &winner.createdAt,
+                winner, \.createdAt,
                 earliestCreatedAt
             )
         }

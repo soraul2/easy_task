@@ -25,6 +25,10 @@ public enum MemoSaveState: Equatable, Sendable {
 @MainActor
 @Observable
 public final class MemoEditorSession {
+    public typealias CompositeSaver = @MainActor (
+        Memo?, String, MemoEditorMode, Data, [MemoChecklistDraft], ModelContext
+    ) throws -> Memo?
+
     public private(set) var memo: Memo?
     public private(set) var content: String
     public private(set) var preferredMode: MemoEditorMode
@@ -38,8 +42,22 @@ public final class MemoEditorSession {
     @ObservationIgnored private var lastSavedDrawingData: Data
     @ObservationIgnored private var lastSavedChecklistDrafts: [MemoChecklistDraft]
     @ObservationIgnored private var pendingSave: Swift.Task<Void, Never>?
+    @ObservationIgnored private let saveComposite: CompositeSaver
 
-    public init(memo: Memo?, context: ModelContext) {
+    public init(
+        memo: Memo?,
+        context: ModelContext,
+        saveComposite: @escaping CompositeSaver = { memo, content, mode, drawing, checklist, context in
+            try MemoService.saveComposite(
+                memo: memo,
+                content: content,
+                preferredMode: mode,
+                drawingData: drawing,
+                checklistDrafts: checklist,
+                in: context
+            )
+        }
+    ) {
         let initialContent = memo?.content ?? ""
         let initialMode = memo.map(MemoRules.mode(for:)) ?? .text
         let initialDrawingData: Data
@@ -57,6 +75,7 @@ public final class MemoEditorSession {
 
         self.memo = memo
         self.context = context
+        self.saveComposite = saveComposite
         content = initialContent
         preferredMode = initialMode
         drawingData = initialDrawingData
@@ -182,13 +201,13 @@ public final class MemoEditorSession {
         guard hasChanges else { return }
 
         do {
-            memo = try MemoService.saveComposite(
-                memo: memo,
-                content: content,
-                preferredMode: preferredMode,
-                drawingData: drawingData,
-                checklistDrafts: checklistDrafts,
-                in: context
+            memo = try saveComposite(
+                memo,
+                content,
+                preferredMode,
+                drawingData,
+                checklistDrafts,
+                context
             )
             lastSavedContent = content
             lastSavedMode = preferredMode

@@ -49,10 +49,14 @@ struct TemplatePlacementSheet: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .frame(width: 28, height: 28)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.secondaryText)
+                .accessibilityLabel("템플릿 배치 닫기")
+                .help("닫기")
+                .keyboardShortcut(.cancelAction)
             }
 
             TemplateScopePicker(scope: $selectedScope)
@@ -61,8 +65,11 @@ struct TemplatePlacementSheet: View {
 
             if let message {
                 Label(message, systemImage: "exclamationmark.circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.red)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(message)
             }
 
             if templates.isEmpty {
@@ -122,7 +129,7 @@ struct TemplatePlacementSheet: View {
                 deleteTemplate(template)
             }
         } message: { template in
-            Text("\"\(template.name)\" 템플릿과 하위 작업 \(itemsForTemplate(template).count)개를 삭제합니다.")
+            Text("\"\(template.name)\" 템플릿과 저장된 작업 \(itemsForTemplate(template).count)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.")
         }
     }
 
@@ -173,11 +180,15 @@ struct TemplatePlacementRow: View {
                 onToggleFavorite()
             } label: {
                 Image(systemName: template.isFavorite ? "star.fill" : "star")
-                    .frame(width: 24, height: 24)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(template.isFavorite ? Color.yellow : AppTheme.secondaryText)
+            .foregroundStyle(template.isFavorite ? AppTheme.accent : AppTheme.secondaryText)
             .help(template.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가")
+            .accessibilityLabel("\(template.name) 즐겨찾기")
+            .accessibilityValue(template.isFavorite ? "선택됨" : "선택 안 됨")
+            .accessibilityHint(template.isFavorite ? "즐겨찾기에서 해제" : "즐겨찾기에 추가")
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
@@ -185,7 +196,7 @@ struct TemplatePlacementRow: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(AppTheme.primaryText)
 
-                    Text("\(items.count)")
+                    Text("작업 \(items.count)개")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                         .padding(.horizontal, 7)
@@ -211,17 +222,20 @@ struct TemplatePlacementRow: View {
                 onDelete()
             } label: {
                 Image(systemName: "trash")
-                    .frame(width: 24, height: 24)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(AppTheme.secondaryText)
             .help("템플릿 삭제")
+            .accessibilityLabel("\(template.name) 템플릿 삭제")
 
             Button("선택") {
                 onSelect()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PlanBaseButtonStyle(.primary))
             .disabled(items.isEmpty)
+            .accessibilityLabel("\(template.name) 템플릿 선택")
         }
         .padding(12)
         .background(AppTheme.columnTodo, in: RoundedRectangle(cornerRadius: 8))
@@ -231,4 +245,3 @@ struct TemplatePlacementRow: View {
         }
     }
 }
-

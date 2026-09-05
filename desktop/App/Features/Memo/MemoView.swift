@@ -11,6 +11,8 @@ struct MemoView: View {
     @State private var editorSession: MemoEditorSession?
     @State private var searchText = ""
     @State private var memoPendingDeletion: Memo?
+    @State private var actionFailure: String?
+    @State private var showingClearDrawingConfirmation = false
     @FocusState private var editorFocused: Bool
 
     var body: some View {
@@ -25,6 +27,7 @@ struct MemoView: View {
             editor
         }
         .background(AppTheme.background)
+        .persistenceFailureAlert(message: $actionFailure)
         .task {
             startQueryIfNeeded()
         }
@@ -122,6 +125,18 @@ private extension MemoView {
                 Spacer()
                 ProgressView()
                 Spacer()
+            } else if querySession.memos.isEmpty, let errorMessage = querySession.errorMessage {
+                Spacer()
+                VStack(spacing: 12) {
+                    Label("메모를 불러오지 못했어요", systemImage: "exclamationmark.triangle")
+                        .font(.headline)
+                    Text(errorMessage).font(.callout).foregroundStyle(AppTheme.secondaryText)
+                    Button("다시 시도") { querySession.retry() }
+                        .buttonStyle(PlanBaseButtonStyle(.primary))
+                }
+                .multilineTextAlignment(.center)
+                .padding(16)
+                Spacer()
             } else if querySession.memos.isEmpty {
                 Spacer()
                 VStack(spacing: 10) {
@@ -163,11 +178,11 @@ private extension MemoView {
                 }
             }
 
-            if let errorMessage = querySession.errorMessage {
+            if !querySession.memos.isEmpty, let errorMessage = querySession.errorMessage {
                 HStack {
                     Text(errorMessage)
                         .font(.caption)
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(AppTheme.primaryText)
                     Spacer()
                     Button("다시 시도") {
                         querySession.retry()
@@ -215,7 +230,7 @@ private extension MemoView {
                             .lineLimit(2)
                     }
 
-                    Text(memo.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                    Text(MemoRules.updatedAtText(memo.updatedAt))
                         .font(.caption2)
                         .foregroundStyle(AppTheme.secondaryText)
                 }
@@ -261,10 +276,7 @@ private extension MemoView {
                         Text(editorSession.displayTitle)
                             .font(.title3.bold())
                             .lineLimit(1)
-                        Text(editorSession.memo?.updatedAt.formatted(
-                            date: .abbreviated,
-                            time: .shortened
-                        ) ?? "새 메모")
+                        Text(editorSession.memo.map { MemoRules.updatedAtText($0.updatedAt) } ?? "새 메모")
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText)
                     }
@@ -328,10 +340,12 @@ private extension MemoView {
                     saveStateIcon(editorSession.saveState)
                     Text(editorSession.saveState.title)
                         .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                 }
                 .foregroundStyle(saveStateColor(editorSession.saveState))
-                .frame(height: 34)
+                .frame(minHeight: 34)
+                .padding(.vertical, 6)
                 .padding(.horizontal, 20)
             }
             .background(AppTheme.panel)
@@ -393,9 +407,17 @@ private extension MemoView {
                         .foregroundStyle(AppTheme.secondaryText)
                     Spacer()
                     Button("필기 지우기", role: .destructive) {
-                        session.updateDrawingData(Data())
+                        showingClearDrawingConfirmation = true
                     }
                     .disabled(session.drawingData.isEmpty)
+                    .alert("필기를 모두 지울까요?", isPresented: $showingClearDrawingConfirmation) {
+                        Button("필기 모두 지우기", role: .destructive) {
+                            session.updateDrawingData(Data())
+                        }
+                        Button("취소", role: .cancel) {}
+                    } message: {
+                        Text("이 메모의 필기만 지워집니다. 텍스트와 체크리스트는 유지돼요.")
+                    }
                 }
             }
             .padding(18)
@@ -423,11 +445,12 @@ private extension MemoView {
                                     : "circle")
                                     .font(.title3)
                                     .foregroundStyle(item.isCompleted
-                                        ? AppTheme.event
+                                        ? AppTheme.accent
                                         : AppTheme.secondaryText)
-                                    .frame(width: 30, height: 30)
+                                    .frame(width: 32, height: 32)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) \(item.isCompleted ? "완료 해제" : "완료")")
 
                             TextField("체크 항목", text: Binding(
                                 get: { item.title },
@@ -446,9 +469,10 @@ private extension MemoView {
                                 session.removeChecklistItem(id: item.id)
                             } label: {
                                 Image(systemName: "trash")
-                                    .frame(width: 30, height: 30)
+                                    .frame(width: 32, height: 32)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 삭제")
                         }
                         .padding(.horizontal, 12)
                         .frame(minHeight: 44)
@@ -462,7 +486,7 @@ private extension MemoView {
                             .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(AppTheme.event)
+                    .foregroundStyle(AppTheme.accent)
                 }
                 .padding(18)
             }
@@ -489,13 +513,14 @@ private extension MemoView {
             Image(systemName: "checkmark.circle")
         case .failed:
             Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.red)
         }
     }
 
     func saveStateColor(_ state: MemoSaveState) -> Color {
         switch state {
         case .failed:
-            .red
+            AppTheme.primaryText
         default:
             AppTheme.secondaryText
         }
@@ -527,7 +552,7 @@ private extension MemoView {
         do {
             try MemoService.setPinned(isPinned, for: memo, in: modelContext)
         } catch {
-            // The query session displays the persisted state and will remain unchanged.
+            actionFailure = "메모 고정을 변경하지 못했어요. 다시 시도해 주세요."
         }
     }
 
@@ -541,7 +566,7 @@ private extension MemoView {
                 try MemoService.delete(memo, in: modelContext)
             }
         } catch {
-            // The memo remains visible when the command rolls back.
+            actionFailure = "메모를 삭제하지 못했어요. 내용은 그대로 유지됩니다."
         }
     }
 }

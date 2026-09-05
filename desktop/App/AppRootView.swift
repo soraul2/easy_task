@@ -441,10 +441,11 @@ struct AppRootView: View {
     }
 
     private func persistArchiveIfNeeded() {
+        let performanceInterval = PlanBasePerformanceTrace.begin("TabArchive")
+        defer { PlanBasePerformanceTrace.end("TabArchive", performanceInterval) }
+
         do {
-            try PersistenceCommandService.perform(in: modelContext) {
-                try archiveTasksIfNeeded()
-            }
+            try ArchiveMaintenanceService.archiveCompletedTasks(in: modelContext)
         } catch {
             syncMonitor.recordStartupFailure(error)
         }

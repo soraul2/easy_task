@@ -23,7 +23,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 `v1.0.0-local-mvp`는 데이터 기반 작업 중 문제가 생겼을 때 돌아갈 수 있는
 복구 지점이다.
 
-## 현재 진행 상태 (2026-09-04)
+## 현재 진행 상태 (2026-09-05)
 
 - 현재 소스의 영속 스키마는 `EasyTaskSchemaV11`이고 V1~V10은 동결되어 있다. V10은
   종료된 Focus 구간 기록 모델, V11은 `TaskTemplate.quickEntryAlias`를 포함한다.
@@ -33,7 +33,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
   회고 첨부를 비파괴 병합한다.
 - bounded query/session, 컨테이너 복구 UI, save/rollback, 이미지 다운샘플·제한 캐시,
   iOS/macOS 실행 UI 테스트와 전체 플랫폼 회귀 게이트가 구현됐다.
-- 앱 버전 `1.0`(build 69, V11)의 iOS·iPadOS·watchOS 및 macOS TestFlight archive는 앱·위젯
+- 앱 버전 `1.0`(build 71, V11)의 iOS·iPadOS·watchOS 및 macOS TestFlight archive는 앱·위젯
   서명과 App Group·CloudKit 권한을 확인한 뒤 App Store Connect에 업로드됐다.
 - 남은 기반 인수 항목은 오프라인 동시 편집, 이미지 추가·삭제 후 재설치,
   iCloud 로그아웃·재로그인과 자동 복구 백업 UX의 실제 기기 시나리오다.
@@ -317,7 +317,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ### Phase 8. 릴리스 안정화
 
-상태: 앱 버전 1.0(build 69) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
+상태: 앱 버전 1.0(build 71) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
 
 - Debug/Release 양쪽 플랫폼 빌드와 UI smoke test를 통과한다.
 - iOS와 macOS launch UI smoke test 타겟을 추가해 앱 시작을 검증한다.
@@ -329,7 +329,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 운영 동기화 태그: `v1.2.0`
 
 위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
-`CURRENT_PROJECT_VERSION = 69`이며, 마지막 App Store Connect 업로드도 build 69이다. 태그는
+`CURRENT_PROJECT_VERSION = 71`이며, 마지막 App Store Connect 업로드도 build 71이다. 태그는
 저장소의 실제 릴리스 절차에서 별도로 확정한다.
 
 2026-09-01 검증 결과:
@@ -385,6 +385,27 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 자동 배포 서명의 CloudKit Production 권한 확인
 - iOS 15:49:03 및 macOS 15:49:29 KST 업로드 성공, Apple 패키지 처리 시작 확인
 - 배포 자료·로그·소스 해시 목록: `.local/releases/build-68/`. TestFlight 설치 가능 상태는 별도 확인 대상
+
+같은 날 build 70 업로드 결과:
+
+- 무결성 검사의 동일 값 쓰기 제거, 빈 보관 처리 생략, 입력어 후보 계산과 화면 갱신 범위 개선 포함
+- Xcode 26.6의 전체 플랫폼 Debug/Release 회귀 게이트 통과. 공통 테스트 Debug 396개·Release 395개 성공 (선택 계측 테스트 각각 3개·2개 제외)
+- iOS/Watch 네 번들과 macOS universal 두 번들의 build 70·서명·App Group·CloudKit 권한 검증 통과
+- 최종 컴파일 입력 iOS 186개·macOS 178개의 소스 해시 일치, 일반 Release에서 성능 테스트 fixture 제외 확인
+- 자동 배포 서명의 CloudKit Production 권한 확인. V11 스키마와 백업 V10은 유지
+- iOS 22:16:34 및 macOS 22:18:08 KST 업로드 성공, Apple 패키지 처리 완료 확인
+- 기존 내부 그룹 `지인`(2명) 연결과 양 플랫폼 한국어 테스트 안내 저장 확인
+- 초기 피드백 100ms 판정은 미검증이며 기존 성능 Goal의 완료를 의미하지 않는다.
+- 배포 자료·로그·소스 snapshot: `.local/releases/build-70/`. TestFlight 설치는 별도 확인 대상
+
+2026-09-05 build 71 업로드 결과:
+
+- 버튼·모달·안내 문구와 오류 복구 흐름, 큰 글자·iPad·위젯·집중모드·저장한 작업 화면을 플랫폼 전반에서 정리
+- 최신 전체 회귀 iteration424 통과. 공통 테스트 Debug 407개·Release 405개와 iOS/macOS Debug·Release, 포함 Watch·위젯·privacy manifest 검증 성공
+- iOS 앱·위젯과 Watch 앱·위젯 네 번들, macOS universal 앱·위젯 두 번들의 앱 버전 1.0·build 71·bundle ID·서명·App Group·CloudKit 권한 검증 통과
+- archive가 사용한 컴파일 소스 iOS 190개·macOS 182개가 배포 snapshot과 일치하고 일반 Release에서 검사 fixture가 제외됨을 확인
+- V11 스키마와 백업 V10을 유지해 추가 CloudKit schema 배포 없이 iOS 18:20:29, macOS 18:22:09 KST 업로드 성공 및 Apple 패키지 처리 시작 확인
+- 배포 자료·로그·검증 결과: `.local/releases/build-71/`. TestFlight 설치 가능 상태와 실제 기기 운영 인수는 별도 확인 대상
 
 ## 멀티에이전트 작업 분배
 

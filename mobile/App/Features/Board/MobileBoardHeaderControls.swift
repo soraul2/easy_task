@@ -47,8 +47,8 @@ struct BoardHeader: View {
                 .accessibilityIdentifier("board-date-title")
             Text(isTodayBoard ? "오늘의 계획" : "이 날짜의 계획")
                 .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -66,8 +66,7 @@ struct BoardHeader: View {
         Button("오늘") {
             selectedDate = DayKey.startOfDay(for: Date())
         }
-        .buttonStyle(.bordered)
-        .frame(minHeight: 44)
+        .buttonStyle(PlanBaseButtonStyle(.secondary))
     }
 
     private var nextDayButton: some View {
@@ -175,7 +174,7 @@ struct BoardQuickAdd: View {
             .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 16))
             .overlay {
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(isTitleFocused ? AppTheme.event : AppTheme.border,
+                    .stroke(isTitleFocused ? AppTheme.accent : AppTheme.border,
                             lineWidth: isTitleFocused ? 2 : 1)
             }
             .padding(.horizontal, 16)

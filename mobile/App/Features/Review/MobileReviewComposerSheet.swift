@@ -38,6 +38,11 @@ struct MobileReviewComposerSheet: View {
     @State private var messageIsError = false
     @State private var isImportingImages = false
     @State private var isSaving = false
+    @State private var hasLoaded = false
+    @State private var loadFailure: String?
+#if DEBUG
+    @State private var didSimulateLoadFailure = false
+#endif
     @State private var initialSnapshot: MobileReviewComposerSnapshot?
     @State private var showsDiscardConfirmation = false
     @FocusState private var focusedField: MobileReviewComposerField?
@@ -78,7 +83,7 @@ struct MobileReviewComposerSheet: View {
     }
 
     private var canSave: Bool {
-        guard !isImportingImages, !isSaving else { return false }
+        guard hasLoaded, !isImportingImages, !isSaving else { return false }
         return selectedReview != nil ||
             !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
@@ -126,6 +131,12 @@ struct MobileReviewComposerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if let loadFailure {
+                        MobileNoticeBanner(message: loadFailure, tone: .error)
+                        Button("다시 시도", action: load)
+                            .buttonStyle(PlanBaseButtonStyle())
+                            .accessibilityIdentifier("review-load-retry")
+                    } else {
                     ReviewComposerHeader(
                         title: $title,
                         selectedDate: selectedDate,
@@ -146,6 +157,7 @@ struct MobileReviewComposerSheet: View {
                     mediaSection
                     statusMessage
                     saveGuidance
+                    }
                 }
                 .padding(16)
             }
@@ -180,21 +192,13 @@ struct MobileReviewComposerSheet: View {
                 importImages()
             }
         }
-        .background {
-            MobileReviewDismissGuard(
-                isBlocked: isSaving || hasUnsavedChanges,
-                onAttempt: handleInteractiveDismissAttempt
-            )
-        }
-        .alert(
-            "변경사항을 버릴까요?",
-            isPresented: $showsDiscardConfirmation
-        ) {
-            Button("변경사항 버리기", role: .destructive, action: discardAndDismiss)
-            Button("계속 작성", role: .cancel) {}
-        } message: {
-            Text("저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.")
-        }
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            isSaving: isSaving,
+            message: "저장하지 않은 회고 내용과 사진 변경사항이 사라집니다.",
+            onDiscard: discardAndDismiss
+        )
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -211,6 +215,8 @@ struct MobileReviewComposerSheet: View {
                 Text("\(attachmentCount)/\(DiaryAttachmentService.maximumAttachmentCount)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.secondaryText)
+                    .accessibilityLabel("첨부한 사진")
+                    .accessibilityValue("\(attachmentCount)장, 최대 \(DiaryAttachmentService.maximumAttachmentCount)장")
             }
 
             Text("기억하고 싶은 장면이 있다면 함께 남겨보세요.")
@@ -227,6 +233,14 @@ struct MobileReviewComposerSheet: View {
             )
 
             imagePicker
+
+            if legacyImageFileNames.isEmpty,
+               attachmentDrafts.count >= DiaryAttachmentService.maximumAttachmentCount {
+                Text("사진은 최대 \(DiaryAttachmentService.maximumAttachmentCount)장까지 추가할 수 있어요.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(16)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
@@ -251,11 +265,11 @@ struct MobileReviewComposerSheet: View {
                 } else {
                     Image(systemName: "photo")
                 }
-                Text(importingImages ? "이미지 추가 중" : "이미지 추가")
+                Text(importingImages ? "사진 추가 중" : "사진 추가")
             }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(PlanBaseButtonStyle(.secondary))
         .disabled(remainingAttachmentCount == 0 || isImportingImages || isSaving)
         .accessibilityIdentifier("review-add-image-button")
     }
@@ -263,14 +277,7 @@ struct MobileReviewComposerSheet: View {
     @ViewBuilder
     private var statusMessage: some View {
         if let message {
-            Label(
-                message,
-                systemImage: messageIsError
-                    ? "exclamationmark.triangle.fill"
-                    : "checkmark.circle.fill"
-            )
-            .foregroundStyle(messageIsError ? .red : AppTheme.done)
-            .font(.caption.weight(.bold))
+            MobileNoticeBanner(message: message, tone: messageIsError ? .error : .success)
             .accessibilityIdentifier("review-status-message")
         }
     }
@@ -293,10 +300,19 @@ struct MobileReviewComposerSheet: View {
     }
 
     private func load() {
+        guard !hasLoaded else { return }
         let review = selectedReview
         let orderedAttachments: [DiaryAttachment]
         let diaryBlocks: [DiaryBlock]
         do {
+#if DEBUG
+            if review != nil, !didSimulateLoadFailure,
+               ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+               ProcessInfo.processInfo.arguments.contains("--ui-testing-review-load-failure-once") {
+                didSimulateLoadFailure = true
+                throw CocoaError(.fileReadUnknown)
+            }
+#endif
             if let review {
                 orderedAttachments = try modelContext.fetch(
                     BoundedQueryService.diaryAttachmentsDescriptor(
@@ -311,8 +327,8 @@ struct MobileReviewComposerSheet: View {
                 diaryBlocks = []
             }
         } catch {
-            message = "회고 이미지를 불러오지 못했어요. 잠시 후 다시 열어주세요."
-            messageIsError = true
+            hasLoaded = false
+            loadFailure = "회고를 불러오지 못했어요. 다시 시도해 주세요."
             return
         }
 
@@ -337,6 +353,8 @@ struct MobileReviewComposerSheet: View {
         messageIsError = false
         isImportingImages = false
         isSaving = false
+        hasLoaded = true
+        loadFailure = nil
         initialSnapshot = currentSnapshot
     }
 
@@ -372,11 +390,8 @@ struct MobileReviewComposerSheet: View {
             isSaving = false
             initialSnapshot = currentSnapshot
             focusedField = nil
-            let savedCallback = onSaved
+            onSaved(successMessage)
             dismiss()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                savedCallback(successMessage)
-            }
         } catch {
             isSaving = false
             message = "저장하지 못했어요. 입력한 내용은 그대로예요. 잠시 후 다시 시도해 주세요."
@@ -414,7 +429,7 @@ struct MobileReviewComposerSheet: View {
             for item in items {
                 do {
                     guard let data = try await item.loadTransferable(type: Data.self) else {
-                        failureMessages.append("선택한 이미지 데이터를 읽을 수 없습니다.")
+                        failureMessages.append("선택한 사진 데이터를 읽을 수 없습니다.")
                         continue
                     }
                     let metadata = try await Swift.Task.detached(priority: .userInitiated) {
@@ -450,16 +465,16 @@ struct MobileReviewComposerSheet: View {
             let failedCount = failureMessages.count + max(overflowCount - 1, 0)
             isImportingImages = false
             guard !accepted.isEmpty else {
-                message = failureMessages.first ?? "이미지를 가져오지 못했어요"
+                message = failureMessages.first ?? "사진을 가져오지 못했어요"
                 messageIsError = true
                 return
             }
             if failedCount > 0 {
                 let detail = failureMessages.first.map { " \($0)" } ?? ""
-                message = "이미지 \(accepted.count)개 추가됨, \(failedCount)개 실패.\(detail)"
+                message = "사진 \(accepted.count)장 추가됨, \(failedCount)장 실패.\(detail)"
                 messageIsError = true
             } else {
-                message = accepted.count == 1 ? "이미지 추가됨" : "이미지 \(accepted.count)개 추가됨"
+                message = accepted.count == 1 ? "사진을 추가했어요. 저장하면 반영됩니다." : "사진 \(accepted.count)장을 추가했어요. 저장하면 반영됩니다."
                 messageIsError = false
             }
         }
@@ -470,7 +485,7 @@ struct MobileReviewComposerSheet: View {
         guard attachmentDrafts.indices.contains(index) else { return }
         attachmentDrafts.remove(at: index)
         selectedImageIndex = min(selectedImageIndex, max(attachmentDrafts.count - 1, 0))
-        message = "이미지를 삭제했어요. 저장하면 반영됩니다."
+        message = "사진을 삭제했어요. 저장하면 반영됩니다."
         messageIsError = false
     }
 
@@ -487,8 +502,8 @@ struct MobileReviewComposerSheet: View {
             max(attachmentDrafts.count + legacyImageFileNames.count - 1, 0)
         )
         message = legacyImageFileNames.isEmpty
-            ? "이전 이미지를 모두 정리했어요. 저장하면 백업할 수 있습니다."
-            : "이전 이미지를 삭제했어요. 저장하면 반영됩니다."
+            ? "이전 사진을 모두 정리했어요. 저장하면 백업할 수 있습니다."
+            : "이전 사진을 삭제했어요. 저장하면 반영됩니다."
         messageIsError = false
     }
 
@@ -499,11 +514,6 @@ struct MobileReviewComposerSheet: View {
         } else {
             dismiss()
         }
-    }
-
-    private func handleInteractiveDismissAttempt() {
-        guard !isSaving, hasUnsavedChanges else { return }
-        showsDiscardConfirmation = true
     }
 
     private func discardAndDismiss() {

@@ -57,13 +57,20 @@ private final class PlanBaseTaskIntentCommandExecutor:
             )
             return
         case .stopFocus(let sessionID, let revision):
-            _ = try FocusSessionService.endFocus(
-                outcome: .stopped,
-                expectedSessionID: sessionID,
-                expectedRevision: revision,
-                now: now,
-                in: context
-            )
+            if try FocusSessionService.activeSnapshot()?.phase == .breakTime {
+                try FocusSessionService.endBreak(
+                    expectedSessionID: sessionID,
+                    expectedRevision: revision
+                )
+            } else {
+                _ = try FocusSessionService.endFocus(
+                    outcome: .stopped,
+                    expectedSessionID: sessionID,
+                    expectedRevision: revision,
+                    now: now,
+                    in: context
+                )
+            }
             await TaskLiveActivityCoordinator.shared.reconcile(
                 context: context,
                 now: now

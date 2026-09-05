@@ -37,7 +37,7 @@ struct CarryoverSheet: View {
                         Label("원래 날짜에 모두 완료", systemImage: "checkmark.circle")
                             .font(.system(size: 13, weight: .semibold))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
                     .help("이월함의 모든 작업을 각 작업의 원래 날짜에서 완료 상태로 변경")
                 }
 
@@ -45,10 +45,13 @@ struct CarryoverSheet: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .frame(width: 28, height: 28)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.secondaryText)
+                .accessibilityLabel("이월함 닫기")
+                .keyboardShortcut(.cancelAction)
             }
 
             if tasks.isEmpty {
@@ -123,7 +126,7 @@ struct TemplateLibrarySheet: View {
     @Binding var templateName: String
     @Binding var failureMessage: String?
     var currentBoardTasks: [Task]
-    var onApply: (TaskTemplate) -> Void
+    var onApply: (TaskTemplate) -> Int?
     var onSaveCurrentBoard: ([TemplateTaskDraft]) -> Void
     var onToggleFavorite: (TaskTemplate) -> Void
     var onDelete: (TaskTemplate) -> Void
@@ -135,6 +138,17 @@ struct TemplateLibrarySheet: View {
     @State private var excludedTaskIDs: Set<UUID> = []
     @State private var didLoadCurrentBoardDrafts = false
     @State private var pendingDeleteTemplate: TaskTemplate?
+    @State private var pendingApplyTemplate: TaskTemplate?
+    @State private var initialTemplateName: String?
+    @State private var initialTemplateDrafts: [TemplateTaskDraft] = []
+    @State private var showsDiscardConfirmation = false
+    @State private var notice: String?
+
+    private var hasUnsavedChanges: Bool {
+        guard let initialTemplateName else { return false }
+        return templateName != initialTemplateName || templateDrafts != initialTemplateDrafts ||
+            !excludedTaskIDs.isEmpty
+    }
 
     private var canSaveCurrentBoard: Bool {
         !templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -187,14 +201,22 @@ struct TemplateLibrarySheet: View {
 
                 Spacer()
 
-                Button {
-                    dismiss()
-                } label: {
+                Button(action: requestDismiss) {
                     Image(systemName: "xmark")
-                        .frame(width: 28, height: 28)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.secondaryText)
+                .accessibilityLabel("템플릿 닫기")
+                .keyboardShortcut(.cancelAction)
+            }
+
+            if let notice {
+                Label(notice, systemImage: "checkmark.circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(alignment: .top, spacing: 18) {
@@ -211,10 +233,19 @@ struct TemplateLibrarySheet: View {
                 loadCurrentBoardDrafts()
             }
         }
-        .onChange(of: currentBoardTasks.map(\.id)) { _, ids in
-            let currentIDs = Set(ids)
-            templateDrafts.removeAll { !currentIDs.contains($0.id) }
-            excludedTaskIDs.formIntersection(currentIDs)
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            onDiscard: { dismiss() }
+        )
+        .alert("템플릿을 적용할까요?", isPresented: Binding(
+            get: { pendingApplyTemplate != nil },
+            set: { if !$0 { pendingApplyTemplate = nil } }
+        ), presenting: pendingApplyTemplate) { template in
+            Button("취소", role: .cancel) { pendingApplyTemplate = nil }
+            Button("적용") { apply(template) }
+        } message: { template in
+            Text("\"\(template.name)\" 템플릿의 작업을 현재 선택한 날짜에 추가합니다.")
         }
         .alert("템플릿을 삭제할까요?", isPresented: Binding(
             get: { pendingDeleteTemplate != nil },
@@ -232,7 +263,7 @@ struct TemplateLibrarySheet: View {
                 pendingDeleteTemplate = nil
             }
         } message: { template in
-            Text("\"\(template.name)\" 템플릿과 하위 작업 \(itemsForTemplate(template).count)개를 삭제합니다.")
+            Text("\"\(template.name)\" 템플릿과 저장된 작업 \(itemsForTemplate(template).count)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.")
         }
         .persistenceFailureAlert(message: $failureMessage)
     }
@@ -268,7 +299,7 @@ struct TemplateLibrarySheet: View {
                                 template: template,
                                 items: itemsForTemplate(template),
                                 onApply: {
-                                    onApply(template)
+                                    pendingApplyTemplate = template
                                 },
                                 onToggleFavorite: {
                                     onToggleFavorite(template)
@@ -397,6 +428,25 @@ struct TemplateLibrarySheet: View {
         TemplateListRules.itemsForTemplate(template, in: items)
     }
 
+    private func requestDismiss() {
+        if hasUnsavedChanges { showsDiscardConfirmation = true }
+        else { dismiss() }
+    }
+
+    private func apply(_ template: TaskTemplate) {
+        pendingApplyTemplate = nil
+        guard let count = onApply(template) else { return }
+        guard count > 0 else {
+            notice = "추가할 새 작업이 없어요"
+            return
+        }
+        if hasUnsavedChanges {
+            notice = "\"\(template.name)\" 템플릿으로 \(count)개 작업을 추가했어요. 작성 중인 템플릿은 계속 편집할 수 있어요."
+        } else {
+            dismiss()
+        }
+    }
+
     private func statusForBoardTask(_ id: UUID) -> TaskStatus {
         let rawStatus = currentBoardTasks.first(where: { $0.id == id })?.status
         return rawStatus.flatMap(TaskStatus.init(rawValue:)) ?? .todo
@@ -413,6 +463,8 @@ struct TemplateLibrarySheet: View {
                 checklistItems: checklistItems
             )
             excludedTaskIDs = []
+            initialTemplateName = templateName
+            initialTemplateDrafts = templateDrafts
             didLoadCurrentBoardDrafts = true
         } catch {
             templateDrafts = []
@@ -474,11 +526,13 @@ struct TemplateSourceTaskRow: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .frame(width: 22, height: 22)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.secondaryText)
+                .accessibilityLabel("\(draft.title) 템플릿 저장 대상에서 제외")
                 .help("템플릿 저장 대상에서 제외")
             }
 
@@ -498,10 +552,12 @@ struct TemplateSourceTaskRow: View {
                                 draft.checklistTitles.remove(at: index)
                             } label: {
                                 Image(systemName: "trash")
-                                    .frame(width: 20, height: 20)
+                                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                                           height: PlanBaseControlMetrics.minimumTargetSize)
                             }
                             .buttonStyle(.borderless)
                             .foregroundStyle(AppTheme.secondaryText)
+                            .accessibilityLabel("체크리스트 \(index + 1)번 \(draft.checklistTitles[index]) 삭제")
                             .help("템플릿 체크리스트 항목 삭제")
                         }
                         .padding(.leading, 4)
@@ -510,7 +566,7 @@ struct TemplateSourceTaskRow: View {
                 .padding(.top, 6)
             } label: {
                 Label(
-                    "체크리스트 \(draft.checklistTitles.count)",
+                    "체크리스트 \(draft.checklistTitles.count)개",
                     systemImage: "checklist"
                 )
                 .font(.caption.weight(.semibold))
@@ -540,10 +596,14 @@ struct TemplateRow: View {
                 onToggleFavorite()
             } label: {
                 Image(systemName: template.isFavorite ? "star.fill" : "star")
-                    .frame(width: 24, height: 24)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(template.isFavorite ? Color.yellow : AppTheme.secondaryText)
+            .foregroundStyle(template.isFavorite ? AppTheme.accent : AppTheme.secondaryText)
+            .accessibilityLabel("\(template.name) 즐겨찾기")
+            .accessibilityValue(template.isFavorite ? "선택됨" : "선택 안 됨")
+            .accessibilityHint(template.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가")
             .help(template.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가")
 
             VStack(alignment: .leading, spacing: 7) {
@@ -551,7 +611,7 @@ struct TemplateRow: View {
                     Text(template.name)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                    Text("\(items.count)")
+                    Text("작업 \(items.count)개")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                         .padding(.horizontal, 7)
@@ -576,17 +636,20 @@ struct TemplateRow: View {
             Button("적용") {
                 onApply()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PlanBaseButtonStyle(.primary))
+            .accessibilityLabel("\(template.name) 템플릿 적용")
             .disabled(items.isEmpty)
 
             Button(role: .destructive) {
                 onDelete()
             } label: {
                 Image(systemName: "trash")
-                    .frame(width: 24, height: 24)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(AppTheme.secondaryText)
+            .accessibilityLabel("\(template.name) 템플릿 삭제")
             .help("템플릿 삭제")
         }
         .padding(12)
@@ -649,15 +712,19 @@ struct CarryoverTaskRow: View {
             } label: {
                 Label("오늘로", systemImage: "arrow.down.to.line")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PlanBaseButtonStyle(.primary))
+            .accessibilityLabel("\(task.title) 오늘로 이월")
 
             Button(role: .destructive) {
                 onDelete(task)
             } label: {
                 Image(systemName: "trash")
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(AppTheme.secondaryText)
+            .accessibilityLabel("\(task.title) 작업 삭제")
         }
         .padding(10)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))

@@ -28,7 +28,13 @@ private enum MobileEventDurationPreset: Int, CaseIterable, Identifiable {
     var title: String { "\(rawValue)일" }
 }
 
+private enum MobileEventEditorField: Hashable {
+    case title, note, duration
+}
+
 struct MobileEventEditorSheet: View {
+    private static let saveFailureAnchor = "event-save-failure-anchor"
+
     var initialDate: Date
     var event: CalendarEvent?
     var onComplete: ((String) -> Void)?
@@ -42,11 +48,14 @@ struct MobileEventEditorSheet: View {
     @State private var endDate: Date
     @State private var color: String
     @State private var message: String?
-    @State private var showingAddConfirmation = false
+    @State private var saveFailureMessage: String?
+    @State private var initialDraft: CalendarEventReuseDraft
+    @State private var showsDiscardConfirmation = false
     @State private var showingDeleteConfirmation = false
     @State private var linkedTaskCount = 0
     @State private var recommendationSession: CalendarEventRecommendationSession?
     @State private var recommendationFeedback: String?
+    @FocusState private var focusedField: MobileEventEditorField?
 
     private var isEditing: Bool {
         event != nil
@@ -88,137 +97,187 @@ struct MobileEventEditorSheet: View {
                 ?? event?.color
                 ?? CalendarEventPalette.defaultColor
         )
+        _initialDraft = State(initialValue: CalendarEventReuseDraft(
+            title: duplicateDraft?.title ?? event?.title ?? "",
+            startAt: duplicateDraft?.startAt ?? event?.startAt ?? initialDate,
+            endAt: duplicateDraft?.endAt ?? event?.endAt ?? initialDate,
+            note: duplicateDraft?.note ?? event?.note ?? "",
+            color: duplicateDraft?.color ?? event?.color ?? CalendarEventPalette.defaultColor
+        ))
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let message {
-                    Section {
-                        Label(message, systemImage: "exclamationmark.circle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
+            ScrollViewReader { scrollProxy in
+                Form {
+                    if let message {
+                        Section {
+                            Label(message, systemImage: "exclamationmark.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        .listRowBackground(AppTheme.panel)
+                    }
+                    Section("일정") {
+                        if isDuplicating {
+                            Label("복제한 일정", systemImage: "doc.on.doc")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
+                        }
+                        TextField("큰 일정 또는 작업 맥락", text: $title)
+                            .focused($focusedField, equals: .title)
+                            .accessibilityIdentifier("event-title-field")
+                        if let recommendations = recommendationSession?.recommendations,
+                           !recommendations.isEmpty {
+                            ForEach(recommendations) { recommendation in
+                                Button {
+                                    applyRecommendation(recommendation)
+                                } label: {
+                                    Text(recommendation.summary)
+                                        .font(.subheadline)
+                                        .foregroundStyle(AppTheme.primaryText)
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier(
+                                    "event-recommendation-\(recommendation.instanceID.uuidString)"
+                                )
+                                .accessibilityLabel(
+                                    "최근 일정 적용. \(recommendation.summary)"
+                                )
+                                .accessibilityHint(
+                                    "현재 시작일은 유지하고 기간, 색상, 메모를 적용합니다"
+                                )
+                            }
+                        }
+                        if let recommendationFeedback {
+                            Text(recommendationFeedback)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .accessibilityLabel(recommendationFeedback)
+                        }
                     }
                     .listRowBackground(AppTheme.panel)
-                }
-                Section("일정") {
-                    if isDuplicating {
-                        Label("복제한 일정", systemImage: "doc.on.doc")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
+
+                    if let saveFailureMessage {
+                        Section {
+                            MobileNoticeBanner(
+                                message: saveFailureMessage + ". 입력한 내용은 이 화면에 그대로 남아 있어요.",
+                                tone: .error
+                            )
+                            .accessibilityIdentifier("event-save-failure")
+                            .id(Self.saveFailureAnchor)
+                        }
+                        .listRowBackground(AppTheme.panel)
                     }
-                    TextField("큰 일정 또는 작업 맥락", text: $title)
-                        .accessibilityIdentifier("event-title-field")
-                    if let recommendations = recommendationSession?.recommendations,
-                       !recommendations.isEmpty {
-                        ForEach(recommendations) { recommendation in
-                            Button {
-                                applyRecommendation(recommendation)
+
+                    Section("기간") {
+                        MobileEventDateRangeEditor(startDate: $startDate, endDate: $endDate,
+                                                   focusedField: $focusedField)
+                    }
+                    .listRowBackground(AppTheme.panel)
+                    Section("띠 색상") {
+                        MobileEventColorSelector(selection: $color)
+                    }
+                    .listRowBackground(AppTheme.panel)
+                    Section("메모") {
+                        TextField("메모", text: $note, axis: .vertical)
+                            .focused($focusedField, equals: .note)
+                            .lineLimit(3...6)
+                            .accessibilityIdentifier("event-note-field")
+                    }
+                    .listRowBackground(AppTheme.panel)
+                    if isEditing {
+                        Section {
+                            Button(role: .destructive) {
+                                requestEventDeletion()
                             } label: {
-                                Text(recommendation.summary)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.primaryText)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4)
+                                Label("일정 삭제", systemImage: "trash")
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier(
-                                "event-recommendation-\(recommendation.instanceID.uuidString)"
-                            )
-                            .accessibilityLabel(
-                                "최근 일정 적용. \(recommendation.summary)"
-                            )
-                            .accessibilityHint(
-                                "현재 시작일은 유지하고 기간, 색상, 메모를 적용합니다"
-                            )
                         }
-                    }
-                    if let recommendationFeedback {
-                        Text(recommendationFeedback)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .accessibilityLabel(recommendationFeedback)
+                        .listRowBackground(AppTheme.panel)
                     }
                 }
-                .listRowBackground(AppTheme.panel)
-                Section("기간") {
-                    MobileEventDateRangeEditor(startDate: $startDate, endDate: $endDate)
-                }
-                .listRowBackground(AppTheme.panel)
-                Section("띠 색상") {
-                    MobileEventColorSelector(selection: $color)
-                }
-                .listRowBackground(AppTheme.panel)
-                Section("메모") {
-                    TextField("메모", text: $note, axis: .vertical)
-                        .lineLimit(3...6)
-                }
-                .listRowBackground(AppTheme.panel)
-                if isEditing {
-                    Section {
-                        Button(role: .destructive) {
-                            requestEventDeletion()
-                        } label: {
-                            Label("이벤트 삭제", systemImage: "trash")
-                        }
-                    }
-                    .listRowBackground(AppTheme.panel)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(AppTheme.background)
-            .foregroundStyle(AppTheme.primaryText)
-            .tint(AppTheme.event)
-            .navigationTitle(
-                isEditing ? "이벤트 편집" : (isDuplicating ? "이벤트 복제" : "이벤트 추가")
-            )
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("취소") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isEditing ? "저장" : "추가") {
-                        if isEditing {
-                            if saveEvent() {
-                                dismiss()
-                            }
-                        } else {
-                            showingAddConfirmation = true
-                        }
-                    }
-                    .disabled(trimmedTitle.isEmpty)
-                }
-            }
-            .alert("이벤트를 추가할까요?", isPresented: $showingAddConfirmation) {
-                Button("취소", role: .cancel) {}
-                Button("추가") {
-                    if saveEvent() {
-                        dismiss()
-                    }
-                }
-            } message: {
-                Text(
-                    "\"\(trimmedTitle)\" 이벤트를 \(DayKey.display(normalizedStartDate))부터 " +
-                        "\(DayKey.display(normalizedEndDate))까지 " +
-                        (isDuplicating ? "원본과 독립된 일정으로 추가합니다." : "추가합니다.")
+                .scrollContentBackground(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+                .background(AppTheme.background)
+                .foregroundStyle(AppTheme.primaryText)
+                .tint(AppTheme.accent)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationTitle(
+                    isEditing ? "일정 편집" : (isDuplicating ? "일정 복제" : "일정 추가")
                 )
-            }
-            .alert("이벤트를 삭제할까요?", isPresented: $showingDeleteConfirmation) {
-                Button("취소", role: .cancel) {}
-                Button("삭제", role: .destructive) {
-                    deleteEvent()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("취소", action: requestDismiss)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(isEditing ? "저장" : "추가") {
+                            focusedField = nil
+                            if saveEvent() { dismiss() }
+                        }
+                        .disabled(trimmedTitle.isEmpty)
+                    }
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("키보드 닫기") { focusedField = nil }
+                            .accessibilityIdentifier("event-editor-keyboard-dismiss")
+                    }
                 }
-            } message: {
-                if linkedTaskCount > 0 {
-                    Text("연결된 작업 \(linkedTaskCount)개의 이벤트 연결도 함께 해제됩니다.")
-                } else {
-                    Text("삭제한 이벤트는 되돌릴 수 없습니다.")
+                .alert("일정을 삭제할까요?", isPresented: $showingDeleteConfirmation) {
+                    Button("취소", role: .cancel) {}
+                    Button("삭제", role: .destructive) {
+                        deleteEvent()
+                    }
+                } message: {
+                    if linkedTaskCount > 0 {
+                        Text("연결된 작업 \(linkedTaskCount)개의 일정 연결도 함께 해제됩니다.")
+                    } else {
+                        Text("삭제한 일정은 되돌릴 수 없습니다.")
+                    }
+                }
+                .onChange(of: saveFailureMessage) { _, newValue in
+                    guard newValue != nil else { return }
+                    Swift.Task { @MainActor in
+                        await Swift.Task.yield()
+                        withAnimation {
+                            scrollProxy.scrollTo(Self.saveFailureAnchor, anchor: .center)
+                        }
+                    }
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if saveFailureMessage != nil {
+                        Button {
+                            focusedField = nil
+                            if saveEvent() { dismiss() }
+                        } label: {
+                            Label("다시 시도", systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(PlanBaseButtonStyle(.primary))
+                        .accessibilityIdentifier("event-save-retry")
+                        .accessibilityLabel("일정 저장 다시 시도")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.background)
+                        .overlay(alignment: .top) {
+                            Rectangle()
+                                .fill(AppTheme.border)
+                                .frame(height: 1)
+                        }
+                    }
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: currentDraft != initialDraft,
+            onDiscard: { dismiss() }
+        )
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.background)
         .task {
@@ -239,9 +298,28 @@ struct MobileEventEditorSheet: View {
         }
     }
 
+    private var currentDraft: CalendarEventReuseDraft {
+        CalendarEventReuseDraft(title: title, startAt: startDate, endAt: endDate, note: note, color: color)
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        if currentDraft != initialDraft { showsDiscardConfirmation = true }
+        else { dismiss() }
+    }
+
     @discardableResult
     private func saveEvent() -> Bool {
         message = nil
+        saveFailureMessage = nil
+
+#if DEBUG
+        if MobileEventEditorUITestFixture.consumeSaveFailure() {
+            saveFailureMessage = saveFailureDescription
+            return false
+        }
+#endif
+
         do {
             let didSave = try PersistenceCommandService.perform(in: modelContext) {
                 if let event {
@@ -270,26 +348,30 @@ struct MobileEventEditorSheet: View {
                 return true
             }
             guard didSave else {
-                message = "이벤트 내용을 확인해 주세요"
+                message = "일정 내용을 확인해 주세요"
                 return false
             }
 
             onComplete?(
                 isEditing
-                    ? "이벤트를 저장했어요"
+                    ? "일정을 저장했어요"
                     : (isDuplicating
                         ? "독립된 복제 일정을 추가했어요"
-                        : "이벤트를 추가했어요")
+                        : "일정을 추가했어요")
             )
             return true
         } catch {
-            message = isEditing
-                ? "이벤트를 저장하지 못했어요"
-                : (isDuplicating
-                    ? "복제 일정을 추가하지 못했어요"
-                    : "이벤트를 추가하지 못했어요")
+            saveFailureMessage = saveFailureDescription
             return false
         }
+    }
+
+    private var saveFailureDescription: String {
+        isEditing
+            ? "일정을 저장하지 못했어요"
+            : (isDuplicating
+                ? "복제 일정을 추가하지 못했어요"
+                : "일정을 추가하지 못했어요")
     }
 
     private func deleteEvent() {
@@ -306,13 +388,13 @@ struct MobileEventEditorSheet: View {
                 return detachedCount
             }
             if detachedCount > 0 {
-                onComplete?("이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
+                onComplete?("일정을 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요")
             } else {
-                onComplete?("이벤트를 삭제했어요")
+                onComplete?("일정을 삭제했어요")
             }
             dismiss()
         } catch {
-            message = "이벤트를 삭제하지 못했어요"
+            message = "일정을 삭제하지 못했어요"
         }
     }
 
@@ -325,7 +407,7 @@ struct MobileEventEditorSheet: View {
             ).count
             showingDeleteConfirmation = true
         } catch {
-            message = "이벤트 정보를 불러오지 못했어요"
+            message = "일정 정보를 불러오지 못했어요"
         }
     }
 
@@ -353,9 +435,30 @@ struct MobileEventEditorSheet: View {
     }
 }
 
+#if DEBUG
+@MainActor
+private enum MobileEventEditorUITestFixture {
+    private static var didFailSave = false
+
+    static func consumeSaveFailure() -> Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard !didFailSave,
+              arguments.contains("--ui-testing"),
+              arguments.contains("--ui-testing-event-save-failure-once")
+        else {
+            return false
+        }
+        didFailSave = true
+        return true
+    }
+}
+#endif
+
 private struct MobileEventDateRangeEditor: View {
     @Binding var startDate: Date
     @Binding var endDate: Date
+    var focusedField: FocusState<MobileEventEditorField?>.Binding
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var customDurationText = ""
 
     private var selectedPreset: MobileEventDurationPreset? {
@@ -383,41 +486,44 @@ private struct MobileEventDateRangeEditor: View {
                     startDate = endDate
                 }
             }
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8),
+                                    count: dynamicTypeSize.isAccessibilitySize ? 2 : 4), spacing: 8) {
                 ForEach(MobileEventDurationPreset.allCases) { preset in
                     Button {
                         applyPreset(preset)
                     } label: {
                         Text(preset.title)
-                            .frame(minHeight: 44)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(selectedPreset == preset ? AppTheme.event : AppTheme.secondaryText)
+                    .buttonStyle(PlanBaseButtonStyle(selectedPreset == preset ? .primary : .secondary))
                     .accessibilityValue(selectedPreset == preset ? "선택됨" : "")
+                    .accessibilityAddTraits(selectedPreset == preset ? .isSelected : [])
+                    .accessibilityIdentifier("event-duration-\(preset.rawValue)")
                 }
-                HStack(spacing: 6) {
-                    TextField("직접", text: $customDurationText)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.center)
-                        .frame(width: 48)
-                        .onChange(of: customDurationText) {
-                            customDurationText = sanitizedDurationText(customDurationText)
-                        }
-                    Text("일")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                    Button("적용") {
-                        applyCustomDuration()
-                    }
-                    .font(.caption.weight(.semibold))
-                    .frame(minHeight: 44)
-                    .disabled(customDuration == nil)
-                }
-                .padding(.horizontal, 10)
-                .background(AppTheme.input, in: Capsule())
             }
-            .padding(.vertical, 2)
+            HStack(spacing: 8) {
+                TextField("직접 입력", text: $customDurationText)
+                    .keyboardType(.numberPad)
+                    .focused(focusedField, equals: .duration)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                    .accessibilityLabel("일정 기간, 일 단위")
+                    .accessibilityIdentifier("event-custom-duration")
+                    .onChange(of: customDurationText) {
+                        customDurationText = sanitizedDurationText(customDurationText)
+                    }
+                Text("일")
+                    .foregroundStyle(AppTheme.secondaryText)
+                Button("적용") {
+                    applyCustomDuration()
+                }
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
+                .accessibilityIdentifier("event-apply-duration")
+                .disabled(customDuration == nil)
+            }
+            .padding(8)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -433,6 +539,7 @@ private struct MobileEventDateRangeEditor: View {
         startDate = normalizedStart
         endDate = DayKey.addingDays(customDuration - 1, to: normalizedStart)
         customDurationText = String(customDuration)
+        focusedField.wrappedValue = nil
     }
 
     private func sanitizedDurationText(_ value: String) -> String {

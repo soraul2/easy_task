@@ -143,6 +143,7 @@ public struct BackupPackageMergeReport: Equatable, Sendable {
 }
 
 public enum BackupPackageError: LocalizedError, Equatable {
+    case invalidMetadataEncoding
     case invalidFormatIdentifier(String)
     case unsupportedVersion(Int)
     case notDirectory
@@ -169,6 +170,8 @@ public enum BackupPackageError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
+        case .invalidMetadataEncoding:
+            return "백업 파일 형식이 올바르지 않거나 손상되었습니다. PlanBase에서 다시 내보낸 파일을 선택해 주세요."
         case .invalidFormatIdentifier(let identifier):
             return "PlanBase 백업 식별자가 올바르지 않습니다. identifier=\(identifier)"
         case .unsupportedVersion(let version):

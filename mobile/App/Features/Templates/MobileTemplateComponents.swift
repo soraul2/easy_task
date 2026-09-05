@@ -2,8 +2,14 @@
 import PlanBaseCore
 import SwiftUI
 
+enum MobileTemplateEditorField: Hashable {
+    case name, search
+    case title(UUID), note(UUID), checklist(UUID, Int)
+}
+
 struct MobileTemplateDraftEditRow: View {
     @Binding var draft: TemplateTaskDraft
+    var focusedField: FocusState<MobileTemplateEditorField?>.Binding
     var onRemove: (UUID) -> Void
     @State private var isChecklistExpanded = false
 
@@ -21,6 +27,7 @@ struct MobileTemplateDraftEditRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 TextField("작업 제목", text: $draft.title)
+                    .focused(focusedField, equals: .title(draft.id))
                     .font(.subheadline.weight(.semibold))
 
                 Button(role: .destructive) {
@@ -37,6 +44,7 @@ struct MobileTemplateDraftEditRow: View {
             }
 
             TextField("메모", text: $draft.note, axis: .vertical)
+                .focused(focusedField, equals: .note(draft.id))
                 .font(.caption)
                 .lineLimit(1...3)
 
@@ -78,6 +86,7 @@ struct MobileTemplateDraftEditRow: View {
                                     "체크리스트 항목 \(index + 1)",
                                     text: $draft.checklistTitles[index]
                                 )
+                                .focused(focusedField, equals: .checklist(draft.id, index))
                                 .font(.subheadline)
                                 .frame(minHeight: 44)
                                 .accessibilityLabel("체크리스트 항목 \(index + 1) 제목")

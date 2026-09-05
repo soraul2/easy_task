@@ -32,7 +32,8 @@ struct MobileThemePickerSheet: View {
                         Text(section.title).tag(section)
                     }
                 }
-                .pickerStyle(.segmented)
+                .planBaseAdaptiveSegmentedPicker()
+                .accessibilityIdentifier("theme-section-picker")
                 .labelsHidden()
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -180,7 +181,7 @@ private struct MobileThemePresetCard: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
-                        isSelected ? colors.event.color : colors.border.color,
+                        isSelected ? colors.resolvedAccentForeground.color : colors.border.color,
                         lineWidth: isSelected ? 2 : 1
                     )
             }

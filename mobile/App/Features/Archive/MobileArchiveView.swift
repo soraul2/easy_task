@@ -6,6 +6,7 @@ import SwiftData
 import SwiftUI
 
 struct MobileArchiveView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var state: ArchiveScreenState
     var onOpenBoardDate: (Date) -> Void
     var onShowTheme: () -> Void
@@ -13,6 +14,8 @@ struct MobileArchiveView: View {
     @State private var selectedDay: ArchiveDaySelection?
     @State private var selectedTask: TaskRecordSelection?
     @State private var selectedReviewDay: ArchiveDaySelection?
+    @State private var pendingReviewNotice: String?
+    @State private var reviewNotice: String?
     @State private var isVisible = false
     @AppStorage("planbase.archiveShowsOverview") private var showsOverview = false
     @Environment(\.scenePhase) private var scenePhase
@@ -37,7 +40,7 @@ struct MobileArchiveView: View {
         NavigationStack {
             List {
                 Button {
-                    withAnimation(.snappy) { showsOverview.toggle() }
+                    withAnimation(reduceMotion ? nil : .snappy) { showsOverview.toggle() }
                 } label: {
                     HStack {
                         Label("완료 활동", systemImage: "chart.bar.xaxis")
@@ -218,6 +221,7 @@ struct MobileArchiveView: View {
             }
             .sheet(isPresented: $showingFilter) {
                 MobileArchiveFilterSheet(filter: $state.filter)
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
         }
         .task {
@@ -276,7 +280,8 @@ struct MobileArchiveView: View {
                 for: PersistenceCommandService.dataChangedNotification
             )
         ) { notification in
-            guard let sourceContext = notification.object as? ModelContext,
+            guard isVisible, scenePhase == .active,
+                let sourceContext = notification.object as? ModelContext,
                 sourceContext === modelContext
             else { return }
             state.querySession?.refreshPreservingDepth()
@@ -297,16 +302,29 @@ struct MobileArchiveView: View {
             item: $selectedReviewDay,
             onDismiss: {
                 state.querySession?.refreshPreservingDepth()
+                reviewNotice = pendingReviewNotice
+                pendingReviewNotice = nil
             }
         ) { selection in
-            MobileReviewComposerSheet(selectedDate: selection.date)
+            MobileReviewComposerSheet(selectedDate: selection.date, onSaved: { pendingReviewNotice = $0 })
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
+        .mobileSavedNotice($reviewNotice)
         .onDisappear {
             isVisible = false
             state.activitySession?.cancel()
             state.querySession?.cancel()
         }
-        .sheet(item: $backupCoordinator.pickerRequest) { request in
+        .sheet(item: Binding(
+            get: { backupCoordinator.pickerRequest },
+            set: { request in
+                if request == nil, let pending = backupCoordinator.pickerRequest {
+                    backupCoordinator.handlePickerResult(.cancelled, for: pending, context: modelContext)
+                } else {
+                    backupCoordinator.pickerRequest = request
+                }
+            }
+        )) { request in
             MobileBackupDocumentPicker(request: request) { result in
                 backupCoordinator.handlePickerResult(
                     result,
@@ -684,6 +702,8 @@ private struct MobileArchiveSingleDaySheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedTask: TaskRecordSelection?
     @State private var reviewDay: ArchiveDaySelection?
+    @State private var pendingReviewNotice: String?
+    @State private var reviewNotice: String?
 
     var body: some View {
         NavigationStack {
@@ -709,9 +729,15 @@ private struct MobileArchiveSingleDaySheet: View {
             TaskRecordSheet(selection: selection)
                 .dynamicTypeSize(dynamicTypeSize)
         }
-        .sheet(item: $reviewDay, onDismiss: { session.refreshPreservingDepth() }) { selection in
-            MobileReviewComposerSheet(selectedDate: selection.date)
+        .sheet(item: $reviewDay, onDismiss: {
+            session.refreshPreservingDepth()
+            reviewNotice = pendingReviewNotice
+            pendingReviewNotice = nil
+        }) { selection in
+            MobileReviewComposerSheet(selectedDate: selection.date, onSaved: { pendingReviewNotice = $0 })
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
+        .mobileSavedNotice($reviewNotice)
     }
 }
 #endif

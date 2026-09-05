@@ -258,7 +258,7 @@ public final class DailyActivityQueryService {
                         return ArchiveQueryRules.matchesSearch(
                             task, checklistItems: checklistByTask[id] ?? [], query: query)
                     }
-                    return ArchiveQueryRules.contains("작업 정보를 찾을 수 없음", query: query)
+                    return ArchiveQueryRules.contains("현재 작업 정보 없음", query: query)
                 })
             let reviewMatch =
                 hasSearch && filter.scope.includesReviews
@@ -271,7 +271,7 @@ public final class DailyActivityQueryService {
             guard matches else { continue }
             let entries = dayFacts.map { id, evidence in
                 DailyActivityEntry(
-                    id: id, title: tasks[id]?.title ?? "작업 정보를 찾을 수 없음", note: tasks[id]?.note,
+                    id: id, title: tasks[id]?.title ?? "현재 작업 정보 없음", note: tasks[id]?.note,
                     evidence: evidence, canOpenTask: tasks[id] != nil,
                     matchingChecklistTitles: hasSearch
                         ? (checklistByTask[id] ?? []).filter {

@@ -5,6 +5,7 @@ import SwiftData
 import SwiftUI
 
 struct ArchiveDayGroupView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var group: ArchiveDayRecord
     var dateBasis: TaskHistoryDateBasis
     var attachments: [DiaryAttachment]
@@ -35,7 +36,7 @@ struct ArchiveDayGroupView: View {
                 DisclosureGroup(isExpanded: $reviewExpanded) {
                     reviewContent(review).padding(.top, 8)
                     Button("회고 수정", action: onEditReview)
-                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(PlanBaseButtonStyle(.secondary))
                         .padding(.top, 8)
                 } label: {
                     Label(
@@ -49,12 +50,8 @@ struct ArchiveDayGroupView: View {
             } else {
                 Button(action: onEditReview) {
                     Label("회고 남기기", systemImage: "square.and.pencil")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .frame(minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
                 .accessibilityIdentifier("archive-add-review-\(group.dayKey)")
             }
         }
@@ -145,7 +142,7 @@ struct ArchiveDayGroupView: View {
             }
             if group.tasks.count > 3 {
                 Button {
-                    withAnimation(.snappy(duration: 0.18)) { isTaskListExpanded.toggle() }
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) { isTaskListExpanded.toggle() }
                 } label: {
                     Label(
                         isTaskListExpanded ? "간략히 보기" : "작업 \(group.tasks.count - 3)개 더 보기",
@@ -176,7 +173,7 @@ private struct ArchiveReviewImagePreview: View {
         ZStack(alignment: .bottomTrailing) {
             if items.indices.contains(safeIndex) {
                 let item = items[safeIndex]
-                ArchiveReviewAsyncImage(request: item.request)
+                ArchiveReviewAsyncImage(request: item.request, accessibilityLabel: "회고 사진 \(safeIndex + 1)")
                     .id(item.id)
             } else {
                 ArchiveReviewMissingImage()
@@ -185,13 +182,13 @@ private struct ArchiveReviewImagePreview: View {
             if items.count > 1 {
                 HStack {
                     if safeIndex > 0 {
-                        navigationButton(systemImage: "chevron.left", label: "이전 이미지") {
+                        navigationButton(systemImage: "chevron.left", label: "이전 사진") {
                             selectedIndex = safeIndex - 1
                         }
                     }
                     Spacer()
                     if safeIndex < items.count - 1 {
-                        navigationButton(systemImage: "chevron.right", label: "다음 이미지") {
+                        navigationButton(systemImage: "chevron.right", label: "다음 사진") {
                             selectedIndex = safeIndex + 1
                         }
                     }
@@ -208,6 +205,8 @@ private struct ArchiveReviewImagePreview: View {
                     .padding(.vertical, 6)
                     .background(.black.opacity(0.52), in: Capsule())
                     .padding(10)
+                    .accessibilityLabel("사진 위치")
+                    .accessibilityValue("\(items.count)장 중 \(safeIndex + 1)번째")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -299,6 +298,7 @@ private struct ArchiveReviewImagePreview: View {
                 .background(.black.opacity(0.52), in: Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
         .help(label)
     }
 }
@@ -317,7 +317,9 @@ private struct ArchiveLegacyResolutionID: Equatable {
 
 private struct ArchiveReviewAsyncImage: View {
     var request: DiaryPreviewImageRequest
+    var accessibilityLabel: String
     @State private var image: NSImage?
+    @State private var isLoading = true
 
     var body: some View {
         Group {
@@ -328,15 +330,24 @@ private struct ArchiveReviewAsyncImage: View {
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: 420)
                     .background(AppTheme.input)
+                    .accessibilityLabel(accessibilityLabel)
+            } else if isLoading {
+                ProgressView("사진 불러오는 중")
+                    .tint(AppTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .background(AppTheme.input)
             } else {
                 ArchiveReviewMissingImage()
             }
         }
         .task(id: request.cacheKey) {
             image = nil
+            isLoading = true
             let loadedImage = await DiaryImageStore.previewImage(for: request)
             guard !Swift.Task.isCancelled else { return }
             image = loadedImage
+            isLoading = false
         }
     }
 }
@@ -347,9 +358,14 @@ private struct ArchiveReviewMissingImage: View {
             .fill(AppTheme.input)
             .frame(height: 160)
             .overlay {
-                Image(systemName: "photo")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 24, weight: .semibold))
+                        .accessibilityHidden(true)
+                    Text("사진을 불러올 수 없습니다.")
+                        .font(.callout)
+                }
+                .foregroundStyle(AppTheme.secondaryText)
             }
     }
 }

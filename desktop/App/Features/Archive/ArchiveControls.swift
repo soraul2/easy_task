@@ -187,9 +187,12 @@ private struct ArchiveFilterChip: View {
             .padding(.horizontal, 10)
             .frame(height: 28)
             .background(AppTheme.selectedTab, in: Capsule())
+            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("\(title) 필터 제거")
+        .accessibilityLabel("\(title) 필터 제거")
     }
 }
 
@@ -231,8 +234,11 @@ private struct ArchiveSearchField: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(AppTheme.secondaryText)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize, height: PlanBaseControlMetrics.minimumTargetSize)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("기록 검색어 지우기")
             }
         }
         .padding(.horizontal, 13)

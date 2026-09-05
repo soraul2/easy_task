@@ -21,10 +21,14 @@ public struct TemplateSearchField: View {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
+                        .frame(minWidth: PlanBaseControlMetrics.minimumTargetSize,
+                               minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.secondaryText)
                 .help("검색어 지우기")
+                .accessibilityLabel("템플릿 검색어 지우기")
             }
         }
         .padding(10)

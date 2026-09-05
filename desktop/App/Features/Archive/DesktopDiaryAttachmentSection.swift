@@ -15,7 +15,7 @@ struct DesktopDiaryAttachmentSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Text("이미지")
+                Text("사진")
                     .font(.headline)
                     .foregroundStyle(AppTheme.primaryText)
 
@@ -23,30 +23,43 @@ struct DesktopDiaryAttachmentSection: View {
                     Text("\(selectedImageIndex + 1)/\(images.count)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
+                        .accessibilityLabel("사진 위치")
+                        .accessibilityValue("\(images.count)장 중 \(selectedImageIndex + 1)번째")
                 }
 
                 Spacer()
 
                 Button(action: onAddImages) {
-                    if isImportingImages {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("이미지 추가", systemImage: "photo.badge.plus")
+                    HStack(spacing: 8) {
+                        if isImportingImages {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "photo.badge.plus")
+                        }
+                        Text(isImportingImages ? "사진 추가 중" : "사진 추가")
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
                 .disabled(
                     isImportingImages ||
                         isSaving ||
                         hasLegacyImageReferences ||
                         attachmentDraftCount >= DiaryAttachmentService.maximumAttachmentCount
                 )
-                .help(hasLegacyImageReferences ? "이전 이미지를 정리한 뒤 추가할 수 있습니다" : "이미지 추가")
+                .help(hasLegacyImageReferences ? "이전 사진을 정리한 뒤 추가할 수 있습니다" : "사진 추가")
             }
 
             if !images.isEmpty {
                 imagePreview
+            }
+
+            if !hasLegacyImageReferences,
+               attachmentDraftCount >= DiaryAttachmentService.maximumAttachmentCount {
+                Text("사진은 최대 \(DiaryAttachmentService.maximumAttachmentCount)장까지 추가할 수 있어요.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -54,7 +67,7 @@ struct DesktopDiaryAttachmentSection: View {
     private var imagePreview: some View {
         ZStack {
             if let image = images[safe: selectedImageIndex] {
-                DiaryImageView(request: image.request)
+                DiaryImageView(request: image.request, accessibilityLabel: "회고 사진 \(selectedImageIndex + 1)")
                     .id(image.id)
             }
 
@@ -64,14 +77,16 @@ struct DesktopDiaryAttachmentSection: View {
 
                     if canRemoveSelectedImage {
                         Button(role: .destructive, action: onRemoveSelectedImage) {
-                            Image(systemName: "xmark")
+                            Image(systemName: "trash")
                                 .font(.system(size: 14, weight: .bold))
-                                .frame(width: 30, height: 30)
+                                .frame(width: 34, height: 34)
                                 .background(.black.opacity(0.52), in: Circle())
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.white)
-                        .help("현재 이미지 삭제")
+                        .accessibilityLabel("회고 사진 \(selectedImageIndex + 1) 삭제")
+                        .accessibilityHint("저장하면 삭제가 반영됩니다")
+                        .help("현재 사진 삭제")
                     }
                 }
 
@@ -81,7 +96,7 @@ struct DesktopDiaryAttachmentSection: View {
 
             HStack {
                 if selectedImageIndex > 0 {
-                    carouselButton(systemName: "chevron.left") {
+                    carouselButton(systemName: "chevron.left", label: "이전 사진") {
                         moveImageSelection(-1)
                     }
                 }
@@ -89,7 +104,7 @@ struct DesktopDiaryAttachmentSection: View {
                 Spacer()
 
                 if selectedImageIndex < images.count - 1 {
-                    carouselButton(systemName: "chevron.right") {
+                    carouselButton(systemName: "chevron.right", label: "다음 사진") {
                         moveImageSelection(1)
                     }
                 }
@@ -129,9 +144,10 @@ struct DesktopDiaryAttachmentSection: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(AppTheme.floatingBar.opacity(0.86), in: Capsule())
+        .accessibilityHidden(true)
     }
 
-    private func carouselButton(systemName: String, action: @escaping () -> Void) -> some View {
+    private func carouselButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .bold))
@@ -140,6 +156,8 @@ struct DesktopDiaryAttachmentSection: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
+        .accessibilityLabel(label)
+        .help(label)
     }
 
     private func moveImageSelection(_ offset: Int) {

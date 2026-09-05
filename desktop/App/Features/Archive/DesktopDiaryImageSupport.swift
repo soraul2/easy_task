@@ -17,6 +17,7 @@ enum DiaryImageSource {
 
 struct DiaryImageView: View {
     var request: DiaryPreviewImageRequest
+    var accessibilityLabel: String = "회고 사진"
     @State private var image: NSImage?
     @State private var isLoading = true
 
@@ -27,17 +28,18 @@ struct DiaryImageView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel(accessibilityLabel)
             } else if isLoading {
                 ProgressView()
                     .controlSize(.regular)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(AppTheme.input)
-                    .accessibilityLabel("이미지 불러오는 중")
+                    .accessibilityLabel("사진 불러오는 중")
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 28, weight: .semibold))
-                    Text("이미지를 불러올 수 없습니다.")
+                    Text("사진을 불러올 수 없습니다.")
                         .font(.callout)
                 }
                 .foregroundStyle(AppTheme.secondaryText)

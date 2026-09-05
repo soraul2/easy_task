@@ -55,6 +55,7 @@ private struct MobileCalendarMonthQueryHost<Content: View>: View {
 }
 
 struct MobileCalendarView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var navigationDate: Date?
     var onOpenBoardDate: (Date) -> Void
     var onShowTheme: () -> Void
@@ -68,10 +69,13 @@ struct MobileCalendarView: View {
     @State private var sheet: CalendarSheet?
     @State private var placementTemplate: TaskTemplate?
     @State private var placementDrafts: [TemplateTaskDraft] = []
+    @State private var placementHasEditedDrafts = false
+    @State private var showsPlacementDiscardConfirmation = false
     @State private var placementDayKeys: Set<String> = []
     @State private var placementMessage: String?
     @State private var calendarNotice: String?
     @State private var calendarNoticeToken = UUID()
+    @State private var pendingEditorNotice: String?
     @State private var showingTemplateApplyConfirmation = false
     @State private var showingPlacementTemplateDeleteConfirmation = false
     @State private var pendingPlacementTemplateDeletion: TaskTemplate?
@@ -131,14 +135,18 @@ struct MobileCalendarView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.snappy(duration: 0.18), value: calendarNotice)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: calendarNotice)
             .navigationTitle(placementTemplate == nil ? "" : "날짜 선택")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if placementTemplate != nil {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("취소") {
-                            cancelTemplatePlacement()
+                            if placementHasEditedDrafts || !placementDayKeys.isEmpty {
+                                showsPlacementDiscardConfirmation = true
+                            } else {
+                                cancelTemplatePlacement()
+                            }
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
@@ -150,32 +158,41 @@ struct MobileCalendarView: View {
                 }
             }
             .toolbar(placementTemplate == nil ? .hidden : .visible, for: .navigationBar)
-            .sheet(item: $sheet) { sheet in
-                switch sheet {
-                case .addEvent(let date):
-                    MobileEventEditorSheet(
-                        initialDate: date,
-                        onComplete: showCalendarNotice
-                    )
-                case .day(let date):
-                    let dayKey = DayKey.key(for: date)
-                    MobileCalendarDayQueryHost(
-                        dayKey: dayKey,
-                        date: date,
-                        events: eventsForDate(date, in: events),
-                        templatePlacements: placementsForDate(date, in: templatePlacements),
-                        onOpenBoard: {
-                            onOpenBoardDate(date)
-                        }
-                    )
-                    .id(dayKey)
-                case .templates:
-                    MobileTemplatePlacementSheet(
-                        templates: templates,
-                        items: templateItems,
-                        onStartPlacement: startTemplatePlacement
-                    )
+            .planBaseDiscardConfirmation(
+                isPresented: $showsPlacementDiscardConfirmation,
+                hasUnsavedChanges: placementTemplate != nil && (placementHasEditedDrafts || !placementDayKeys.isEmpty),
+                message: "선택한 날짜와 이번 배치를 위해 수정한 작업 내용이 사라집니다.",
+                onDiscard: cancelTemplatePlacement
+            )
+            .sheet(item: $sheet, onDismiss: showPendingEditorNotice) { sheet in
+                Group {
+                    switch sheet {
+                    case .addEvent(let date):
+                        MobileEventEditorSheet(
+                            initialDate: date,
+                            onComplete: { pendingEditorNotice = $0 }
+                        )
+                    case .day(let date):
+                        let dayKey = DayKey.key(for: date)
+                        MobileCalendarDayQueryHost(
+                            dayKey: dayKey,
+                            date: date,
+                            events: eventsForDate(date, in: events),
+                            templatePlacements: placementsForDate(date, in: templatePlacements),
+                            onOpenBoard: {
+                                onOpenBoardDate(date)
+                            }
+                        )
+                        .id(dayKey)
+                    case .templates:
+                        MobileTemplatePlacementSheet(
+                            templates: templates,
+                            items: templateItems,
+                            onStartPlacement: startTemplatePlacement
+                        )
+                    }
                 }
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .alert("템플릿을 적용할까요?", isPresented: $showingTemplateApplyConfirmation, presenting: placementTemplate) { _ in
                 Button("취소", role: .cancel) {}
@@ -193,7 +210,7 @@ struct MobileCalendarView: View {
                     deletePlacementTemplate(template)
                 }
             } message: { template in
-                Text("\"\(template.name)\" 템플릿과 하위 작업 \(TemplateListRules.itemsForTemplate(template, in: templateItems).count)개를 삭제합니다. 이미 생성된 작업은 삭제되지 않습니다.")
+                Text("\"\(template.name)\" 템플릿과 저장된 작업 \(TemplateListRules.itemsForTemplate(template, in: templateItems).count)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.")
             }
         }
     }
@@ -330,6 +347,7 @@ struct MobileCalendarView: View {
     private func startTemplatePlacement(_ template: TaskTemplate, drafts: [TemplateTaskDraft]) {
         placementTemplate = template
         placementDrafts = drafts
+        placementHasEditedDrafts = drafts != TemplateService.drafts(from: template, items: templateItems)
         placementDayKeys = []
         placementMessage = nil
     }
@@ -337,6 +355,7 @@ struct MobileCalendarView: View {
     private func cancelTemplatePlacement() {
         placementTemplate = nil
         placementDrafts = []
+        placementHasEditedDrafts = false
         placementDayKeys = []
         placementMessage = nil
         showingTemplateApplyConfirmation = false
@@ -421,12 +440,18 @@ struct MobileCalendarView: View {
         }
     }
 
+    private func showPendingEditorNotice() {
+        guard let message = pendingEditorNotice else { return }
+        pendingEditorNotice = nil
+        showCalendarNotice(message)
+    }
+
     private func showCalendarNotice(_ message: String) {
         let token = UUID()
         calendarNoticeToken = token
         calendarNotice = message
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             guard calendarNoticeToken == token else { return }
             calendarNotice = nil
         }

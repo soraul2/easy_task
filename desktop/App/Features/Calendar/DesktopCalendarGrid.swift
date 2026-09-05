@@ -39,6 +39,7 @@ struct CalendarEventSegmentButton: View {
 }
 
 struct MonthDayCell: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var date: Date
     var visibleMonth: Date
     var selectedDate: Date
@@ -127,7 +128,8 @@ struct MonthDayCell: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
-                        .frame(width: 26, height: 26)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                         .foregroundStyle(AppTheme.primaryText)
                         .background(AppTheme.selectedTab, in: RoundedRectangle(cornerRadius: 7))
                         .overlay {
@@ -137,8 +139,8 @@ struct MonthDayCell: View {
                 }
                 .buttonStyle(.plain)
                 .padding(7)
-                .accessibilityLabel("\(DayKey.display(date)) 이벤트 추가")
-                .help("\(DayKey.display(date))에 이벤트 추가")
+                .accessibilityLabel("\(DayKey.display(date)) 일정 추가")
+                .help("\(DayKey.display(date))에 일정 추가")
                 .transition(.opacity)
             }
 
@@ -156,7 +158,7 @@ struct MonthDayCell: View {
                     .padding(7)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .allowsHitTesting(false)
-                    .accessibilityLabel("숨겨진 이벤트 \(hiddenEventCount)개")
+                    .accessibilityLabel("숨겨진 일정 \(hiddenEventCount)개")
             }
         }
         .contentShape(Rectangle())
@@ -179,7 +181,7 @@ struct MonthDayCell: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.12), value: isHovered)
     }
 
     private var cellBackground: Color {
@@ -204,18 +206,18 @@ struct MonthDayCell: View {
             return AppTheme.eventText
         }
         if hasPublicHoliday, isCurrentMonth {
-            return Color(red: 0.98, green: 0.40, blue: 0.42)
+            return AppTheme.calendarHolidayText
         }
-        return isCurrentMonth ? AppTheme.primaryText : AppTheme.secondaryText.opacity(0.45)
+        return isCurrentMonth ? AppTheme.primaryText : AppTheme.secondaryText
     }
 
     private func specialDayForeground(_ specialDay: SpecialDay) -> Color {
         if !isCurrentMonth {
-            return AppTheme.secondaryText.opacity(0.40)
+            return AppTheme.secondaryText
         }
 
         if specialDay.isPublicHoliday {
-            return Color(red: 0.98, green: 0.40, blue: 0.42)
+            return AppTheme.calendarHolidayText
         }
 
         return AppTheme.secondaryText

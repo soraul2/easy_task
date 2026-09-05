@@ -346,7 +346,10 @@ struct WatchFocusView: View {
     private func stop(_ active: FocusActiveSessionSnapshot) {
         performMutation {
             if active.phase == .breakTime {
-                try FocusActiveSessionStore.clear()
+                try FocusSessionService.endBreak(
+                    expectedSessionID: active.sessionID,
+                    expectedRevision: active.revision
+                )
                 snapshot = nil
                 completion = nil
                 WKInterfaceDevice.current().play(.stop)

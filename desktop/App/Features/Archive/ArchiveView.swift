@@ -5,6 +5,7 @@ import SwiftData
 import SwiftUI
 
 struct ArchiveView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var state: ArchiveScreenState
     var onOpenBoardDate: (Date) -> Void
 
@@ -184,7 +185,8 @@ struct ArchiveView: View {
                 for: PersistenceCommandService.dataChangedNotification
             )
         ) { notification in
-            guard let sourceContext = notification.object as? ModelContext,
+            guard isVisible, scenePhase == .active,
+                let sourceContext = notification.object as? ModelContext,
                 sourceContext === modelContext
             else { return }
             state.querySession?.refreshPreservingDepth()
@@ -244,7 +246,7 @@ struct ArchiveView: View {
             .accessibilityLabel("날짜로 기록 찾기")
 
             Button {
-                withAnimation(.snappy) { showsOverview.toggle() }
+                withAnimation(reduceMotion ? nil : .snappy) { showsOverview.toggle() }
             } label: {
                 Label("완료 활동", systemImage: "chart.bar.xaxis")
             }
@@ -272,6 +274,7 @@ struct ArchiveView: View {
             .buttonStyle(.plain)
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
+            .accessibilityLabel("기록 및 백업 메뉴")
             .help("기록 및 백업 메뉴")
         }
     }

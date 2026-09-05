@@ -297,6 +297,8 @@ struct TaskCard: View {
                         onStartFocus(task)
                     } label: {
                         Image(systemName: "timer")
+                            .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                                   height: PlanBaseControlMetrics.minimumTargetSize)
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(AppTheme.cardMutedText)
@@ -308,16 +310,21 @@ struct TaskCard: View {
                     onEdit(task)
                 } label: {
                     Image(systemName: "square.and.pencil")
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.cardMutedText)
                 .help("작업 상세 편집")
+                .accessibilityLabel("\(task.title) 작업 편집")
 
                 Menu {
                     Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task) }
                     Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task) }
                 } label: {
                     Image(systemName: "ellipsis")
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(AppTheme.cardMutedText)
@@ -349,6 +356,7 @@ struct TaskCard: View {
                     .foregroundStyle(AppTheme.cardText)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
+                    .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
                     .background(AppTheme.input.opacity(0.34), in: Capsule())
                     .overlay {
                         Capsule()
@@ -519,6 +527,7 @@ private struct TaskCardChecklistSection: View {
                                 .font(.system(size: 9, weight: .bold))
                                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                         }
+                        .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -554,7 +563,9 @@ private struct TaskCardChecklistSection: View {
                                     Spacer(minLength: 0)
                                 }
                                 .font(.caption)
-                                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                                .frame(maxWidth: .infinity,
+                                       minHeight: PlanBaseControlMetrics.minimumTargetSize,
+                                       alignment: .leading)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -569,8 +580,11 @@ private struct TaskCardChecklistSection: View {
 
                 if let saveErrorMessage {
                     Label(saveErrorMessage, systemImage: "exclamationmark.circle")
-                        .font(.caption2)
-                        .foregroundStyle(.red)
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.cardText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(saveErrorMessage)
                 }
             }
             .onChange(of: isExpandable) { _, canExpand in

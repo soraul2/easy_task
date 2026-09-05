@@ -4,6 +4,7 @@ import Foundation
 import PlanBaseCore
 import SwiftData
 import SwiftUI
+import UIKit
 
 private enum MobileTab: String, CaseIterable, Identifiable {
     case board
@@ -277,9 +278,11 @@ struct MobileAppRootView: View {
         }
         .sheet(isPresented: $showingSyncStatus) {
             MobileCloudKitSyncStatusSheet(monitor: syncMonitor)
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .sheet(isPresented: $showingThemePicker) {
             MobileThemePickerSheet(selectedThemeID: $selectedThemeID)
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .fullScreenCover(
             isPresented: $showingFocusMode,
@@ -347,6 +350,7 @@ struct MobileAppRootView: View {
                 try seedDemoDataIfNeeded()
                 try seedReminderCompletionFixturesIfNeeded()
                 try seedEventHistoryFixturesIfNeeded()
+                try seedReviewImageFixturesIfNeeded()
                 try archiveTasksIfNeeded()
             }
         } catch {
@@ -396,8 +400,15 @@ struct MobileAppRootView: View {
     private func seedDemoDataIfNeeded() throws {
 #if DEBUG
         if PlanBaseLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-performance") { return }
+        if PlanBaseLaunchEnvironment.isUITesting,
            ProcessInfo.processInfo.arguments.contains("--ui-testing-daily-activity-fixtures") {
             try DailyActivityPreviewFixtures.seed(in: modelContext)
+            if PlanBaseLaunchEnvironment.usesTaskRecordEdgeFixtures {
+                try DailyActivityPreviewFixtures.seedTaskRecordEdgeCases(
+                    in: modelContext
+                )
+            }
             return
         }
 #endif
@@ -599,6 +610,86 @@ struct MobileAppRootView: View {
 #endif
     }
 
+    private func seedReviewImageFixturesIfNeeded() throws {
+#if DEBUG
+        guard PlanBaseLaunchEnvironment.usesReviewImageFixtures else { return }
+        let fixtureTitle = "UI 검증: 여러 회고 사진"
+        var descriptor = FetchDescriptor<DailyReview>(
+            predicate: #Predicate { $0.title == fixtureTitle }
+        )
+        descriptor.fetchLimit = 1
+        guard try modelContext.fetch(descriptor).isEmpty else { return }
+
+        let now = Date()
+        let firstData = reviewFixtureImageData(
+            size: CGSize(width: 480, height: 300),
+            color: UIColor(red: 0.85, green: 0.34, blue: 0.29, alpha: 1)
+        )
+        let secondData = reviewFixtureImageData(
+            size: CGSize(width: 300, height: 480),
+            color: UIColor(red: 0.22, green: 0.49, blue: 0.72, alpha: 1)
+        )
+        let legacyData = reviewFixtureImageData(
+            size: CGSize(width: 420, height: 320),
+            color: UIColor(red: 0.30, green: 0.64, blue: 0.43, alpha: 1)
+        )
+        let legacyFileName = try DiaryImageFileStore.writeImageData(
+            legacyData,
+            preferredExtension: "png",
+            appSupportFolder: MobileImageStorage.appSupportFolder
+        )
+        let review = DailyReview(
+            dayKey: DayKey.today,
+            title: fixtureTitle,
+            content: "새 첨부와 이전 방식의 사진을 같은 기록에서 확인합니다.",
+            imageFileNames: [
+                legacyFileName,
+                "ui-testing-missing-review-image.png"
+            ],
+            createdAt: now,
+            updatedAt: now
+        )
+        modelContext.insert(review)
+
+        for (index, data) in [firstData, secondData].enumerated() {
+            let metadata = try DiaryAttachmentService.inspect(data)
+            modelContext.insert(DiaryAttachment(
+                reviewId: review.id,
+                order: Double(index) * 100,
+                originalFileName: "ui-testing-review-\(index + 1).png",
+                mimeType: metadata.mediaType.rawValue,
+                byteCount: metadata.byteCount,
+                sha256: metadata.sha256,
+                data: data,
+                createdAt: now,
+                updatedAt: now
+            ))
+        }
+#endif
+    }
+
+#if DEBUG
+    private func reviewFixtureImageData(size: CGSize, color: UIColor) -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).pngData { context in
+            let bounds = CGRect(origin: .zero, size: size)
+            context.cgContext.setFillColor(color.cgColor)
+            context.cgContext.fill(bounds)
+            context.cgContext.setStrokeColor(UIColor.white.cgColor)
+            context.cgContext.setLineWidth(12)
+            context.cgContext.stroke(bounds.insetBy(dx: 24, dy: 24))
+            context.cgContext.setFillColor(UIColor.white.cgColor)
+            context.cgContext.fillEllipse(in: CGRect(
+                x: size.width / 2 - 45,
+                y: size.height / 2 - 45,
+                width: 90,
+                height: 90
+            ))
+        }
+    }
+#endif
+
     private func archiveTasksIfNeeded(todayKey: String = DayKey.today) throws {
         let candidates = try modelContext.fetch(
             BoundedQueryService.tasksNeedingArchiveDescriptor(before: todayKey)
@@ -638,10 +729,11 @@ struct MobileAppRootView: View {
     }
 
     private func persistArchiveIfNeeded() {
+        let performanceInterval = PlanBasePerformanceTrace.begin("TabArchive")
+        defer { PlanBasePerformanceTrace.end("TabArchive", performanceInterval) }
+
         do {
-            try PersistenceCommandService.perform(in: modelContext) {
-                try archiveTasksIfNeeded()
-            }
+            try ArchiveMaintenanceService.archiveCompletedTasks(in: modelContext)
         } catch {
             syncMonitor.recordStartupFailure(error)
         }

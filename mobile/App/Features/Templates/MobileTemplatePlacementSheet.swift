@@ -9,17 +9,24 @@ struct MobileTemplatePlacementSheet: View {
     var onStartPlacement: (TaskTemplate, [TemplateTaskDraft]) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedTemplate: TaskTemplate?
     @State private var detailTemplate: TaskTemplate?
     @State private var searchText = ""
     @State private var scope: TemplateListScope = .favorites
     @State private var message: String?
     @State private var drafts: [TemplateTaskDraft] = []
+    @State private var initialDrafts: [TemplateTaskDraft] = []
+    @State private var pendingSelection: TaskTemplate?
+    @State private var showsDiscardConfirmation = false
     @State private var pendingDeleteTemplate: TaskTemplate?
+    @FocusState private var focusedField: MobileTemplateEditorField?
 
     private var applicableDrafts: [TemplateTaskDraft] {
         drafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
+
+    private var hasUnsavedChanges: Bool { drafts != initialDrafts }
 
     private var filteredTemplates: [TaskTemplate] {
         TemplateListRules.filterAndSort(templates, items: items, query: searchText, scope: scope)
@@ -42,12 +49,13 @@ struct MobileTemplatePlacementSheet: View {
             List {
                 Section("템플릿") {
                     TextField("템플릿 검색", text: $searchText)
+                        .focused($focusedField, equals: .search)
                     Picker("보기", selection: $scope) {
                         ForEach(TemplateListScope.allCases) { scope in
                             Text(scope.title).tag(scope)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .planBaseAdaptiveSegmentedPicker()
                     if let message {
                         Label(message, systemImage: "info.circle")
                             .font(.caption.weight(.semibold))
@@ -55,61 +63,75 @@ struct MobileTemplatePlacementSheet: View {
                     }
                     ForEach(filteredTemplates) { template in
                         let templateItems = TemplateListRules.itemsForTemplate(template, in: items)
-                        HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Button {
-                                selectTemplate(template, items: templateItems)
+                                requestSelection(template)
                             } label: {
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack(spacing: 6) {
                                         Text(template.name)
                                             .font(.headline)
-                                            .lineLimit(1)
+                                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                                         if selectedTemplate?.id == template.id {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(AppTheme.event)
+                                                .foregroundStyle(AppTheme.accent)
+                                                .accessibilityHidden(true)
                                         }
                                     }
                                     Text(templateItems.map(\.title).prefix(3).joined(separator: " · "))
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                        .foregroundStyle(AppTheme.secondaryText)
+                                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                                 }
+                                .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel(template.name)
+                            .accessibilityValue(selectedTemplate?.id == template.id ? "선택됨" : "")
+                            .accessibilityAddTraits(selectedTemplate?.id == template.id ? .isSelected : [])
+                            .accessibilityIdentifier("template-placement-select-\(template.name)")
 
-                            Button {
-                                detailTemplate = template
-                            } label: {
-                                Label("상세", systemImage: "list.bullet.rectangle")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .frame(height: 36)
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("템플릿 상세 보기")
+                            HStack(spacing: 8) {
+                                Button {
+                                    focusedField = nil
+                                    detailTemplate = template
+                                } label: {
+                                    Label("상세", systemImage: "list.bullet.rectangle")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("\(template.name) 상세 보기")
 
-                            Button {
-                                toggleFavorite(template)
-                            } label: {
-                                Image(systemName: template.isFavorite ? "star.fill" : "star")
-                                    .font(.headline)
-                                    .foregroundStyle(template.isFavorite ? .yellow : .secondary)
-                                    .frame(width: 36, height: 36)
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel(template.isFavorite ? "즐겨찾기 제거" : "즐겨찾기 추가")
+                                Spacer(minLength: 8)
 
-                            Button(role: .destructive) {
-                                pendingDeleteTemplate = template
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.headline)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 36, height: 36)
+                                Button {
+                                    toggleFavorite(template)
+                                } label: {
+                                    Image(systemName: template.isFavorite ? "star.fill" : "star")
+                                        .font(.headline)
+                                        .foregroundStyle(template.isFavorite ? .yellow : .secondary)
+                                        .frame(width: PlanBaseControlMetrics.minimumTargetSize, height: PlanBaseControlMetrics.minimumTargetSize)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("\(template.name) \(template.isFavorite ? "즐겨찾기 제거" : "즐겨찾기 추가")")
+
+                                Button(role: .destructive) {
+                                    focusedField = nil
+                                    pendingDeleteTemplate = template
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: PlanBaseControlMetrics.minimumTargetSize, height: PlanBaseControlMetrics.minimumTargetSize)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("\(template.name) 템플릿 삭제")
                             }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("템플릿 삭제")
                         }
                     }
                     if filteredTemplates.isEmpty {
@@ -123,7 +145,7 @@ struct MobileTemplatePlacementSheet: View {
                 }
 
                 if let selectedTemplate {
-                    Section("배치 준비") {
+                    Section {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(selectedTemplate.name)
                                 .font(.headline)
@@ -139,6 +161,7 @@ struct MobileTemplatePlacementSheet: View {
                             ForEach($drafts) { $draft in
                                 MobileTemplateDraftEditRow(
                                     draft: $draft,
+                                    focusedField: $focusedField,
                                     onRemove: removeDraft
                                 )
                             }
@@ -148,19 +171,34 @@ struct MobileTemplatePlacementSheet: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
+                    } header: {
+                        Text("배치 준비")
+                    } footer: {
+                        Text("여기서 수정한 내용은 이번 배치에만 적용되며 저장된 템플릿은 바뀌지 않아요.")
                     }
                 }
             }
+            .listRowBackground(AppTheme.panel)
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("템플릿 배치")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("취소") { dismiss() }
+                    Button("취소", action: requestDismiss)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("배치") {
                         startPlacement()
                     }
                     .disabled(selectedTemplate == nil || applicableDrafts.isEmpty)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("키보드 닫기") { focusedField = nil }
+                        .accessibilityIdentifier("template-editor-keyboard-dismiss")
                 }
             }
             .onAppear {
@@ -171,10 +209,6 @@ struct MobileTemplatePlacementSheet: View {
             }
             .onChange(of: scope) {
                 message = nil
-                if selectedTemplate?.isFavorite == false && scope == .favorites {
-                    selectedTemplate = nil
-                    drafts = []
-                }
             }
             .alert("템플릿을 삭제할까요?", isPresented: Binding(
                 get: { pendingDeleteTemplate != nil },
@@ -191,21 +225,61 @@ struct MobileTemplatePlacementSheet: View {
                     deleteTemplate(template)
                 }
             } message: { template in
-                Text("\"\(template.name)\" 템플릿과 하위 작업 \(TemplateListRules.itemsForTemplate(template, in: items).count)개를 삭제합니다. 이미 생성된 작업은 삭제되지 않습니다.")
+                Text("\"\(template.name)\" 템플릿과 저장된 작업 \(TemplateListRules.itemsForTemplate(template, in: items).count)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.\(selectedTemplate?.id == template.id && hasUnsavedChanges ? " 작성 중인 배치 내용도 사라집니다." : "")")
             }
         }
-        .presentationDetents([.medium, .large])
+        .tint(AppTheme.accent)
+        .presentationDetents([.large])
+        .presentationBackground(AppTheme.background)
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            message: pendingSelection == nil
+                ? "이번 배치를 위해 수정한 내용이 사라집니다. 저장된 템플릿은 바뀌지 않습니다."
+                : "다른 템플릿을 선택하면 이번 배치를 위해 수정한 내용이 사라집니다.",
+            onDiscard: {
+                if let pendingSelection {
+                    selectTemplate(pendingSelection)
+                } else {
+                    dismiss()
+                }
+            }
+        )
+        .onChange(of: showsDiscardConfirmation) { _, isPresented in
+            if !isPresented { pendingSelection = nil }
+        }
         .sheet(item: $detailTemplate) { template in
             MobileTemplateDetailSheet(
                 template: template,
                 items: TemplateListRules.itemsForTemplate(template, in: items)
             )
+            .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
 
-    private func selectTemplate(_ template: TaskTemplate, items templateItems: [TaskTemplateItem]) {
+    private func requestDismiss() {
+        focusedField = nil
+        pendingSelection = nil
+        if hasUnsavedChanges { showsDiscardConfirmation = true }
+        else { dismiss() }
+    }
+
+    private func requestSelection(_ template: TaskTemplate) {
+        focusedField = nil
+        guard selectedTemplate?.id != template.id else { return }
+        if hasUnsavedChanges {
+            pendingSelection = template
+            showsDiscardConfirmation = true
+        } else {
+            selectTemplate(template)
+        }
+    }
+
+    private func selectTemplate(_ template: TaskTemplate) {
         selectedTemplate = template
-        drafts = TemplateService.drafts(from: template, items: templateItems)
+        drafts = TemplateService.drafts(from: template, items: TemplateListRules.itemsForTemplate(template, in: items))
+        initialDrafts = drafts
+        pendingSelection = nil
         message = nil
     }
 
@@ -215,10 +289,6 @@ struct MobileTemplatePlacementSheet: View {
                 template.isFavorite.toggle()
                 template.updatedAt = Date()
                 return template.isFavorite
-            }
-            if selectedTemplate?.id == template.id && !isFavorite && scope == .favorites {
-                selectedTemplate = nil
-                drafts = []
             }
             message = isFavorite ? "즐겨찾기에 추가했어요" : "즐겨찾기에서 제거했어요"
         } catch {
@@ -232,6 +302,7 @@ struct MobileTemplatePlacementSheet: View {
     }
 
     private func startPlacement() {
+        focusedField = nil
         guard let selectedTemplate else { return }
         guard !applicableDrafts.isEmpty else {
             message = "템플릿에 적용할 작업이 없어요"
@@ -257,6 +328,7 @@ struct MobileTemplatePlacementSheet: View {
             if selectedTemplate?.id == templateID {
                 selectedTemplate = nil
                 drafts = []
+                initialDrafts = []
             }
             if detailTemplate?.id == templateID {
                 detailTemplate = nil
@@ -311,13 +383,19 @@ private struct MobileTemplateDetailSheet: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
+            .foregroundStyle(AppTheme.primaryText)
             .navigationTitle("상세 보기")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("닫기") { dismiss() }
                 }
             }
         }
+        .tint(AppTheme.accent)
+        .presentationBackground(AppTheme.background)
         .presentationDetents([.medium, .large])
     }
 }

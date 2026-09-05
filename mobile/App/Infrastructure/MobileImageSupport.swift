@@ -151,12 +151,14 @@ struct MobileAsyncThumbnailImage: View {
     var minHeight: CGFloat = 140
     var accessibilityLabel: String
     var onAspectRatioChange: ((CGFloat) -> Void)?
+    var backgroundColor: Color = AppTheme.input
+    var placeholderForegroundColor: Color = AppTheme.secondaryText
 
     @State private var loadState: MobileImageThumbnailLoadState?
 
     var body: some View {
         ZStack {
-            AppTheme.input
+            backgroundColor
 
             if let request {
                 if let loadState, loadState.requestID == request.loadID {
@@ -173,16 +175,20 @@ struct MobileAsyncThumbnailImage: View {
                     } else {
                         MobileMissingImagePlaceholder(
                             message: placeholderMessage,
-                            minHeight: minHeight
+                            minHeight: minHeight,
+                            backgroundColor: backgroundColor,
+                            foregroundColor: placeholderForegroundColor
                         )
                     }
                 } else {
-                    MobileImageLoadingPlaceholder(minHeight: minHeight)
+                    MobileImageLoadingPlaceholder(minHeight: minHeight, backgroundColor: backgroundColor)
                 }
             } else {
                 MobileMissingImagePlaceholder(
                     message: placeholderMessage,
-                    minHeight: minHeight
+                    minHeight: minHeight,
+                    backgroundColor: backgroundColor,
+                    foregroundColor: placeholderForegroundColor
                 )
             }
         }
@@ -207,12 +213,13 @@ struct MobileAsyncThumbnailImage: View {
 
 struct MobileImageLoadingPlaceholder: View {
     var minHeight: CGFloat = 140
+    var backgroundColor: Color = AppTheme.input
 
     var body: some View {
         ProgressView()
-            .tint(AppTheme.event)
+            .tint(AppTheme.accent)
             .frame(maxWidth: .infinity, minHeight: minHeight)
-            .background(AppTheme.input)
+            .background(backgroundColor)
             .accessibilityLabel("이미지 불러오는 중")
     }
 }
@@ -225,6 +232,8 @@ private struct MobileImageThumbnailLoadState {
 struct MobileMissingImagePlaceholder: View {
     var message: String
     var minHeight: CGFloat = 140
+    var backgroundColor: Color = AppTheme.input
+    var foregroundColor: Color = AppTheme.secondaryText
 
     var body: some View {
         VStack(spacing: 8) {
@@ -234,10 +243,10 @@ struct MobileMissingImagePlaceholder: View {
                 .font(.caption.weight(.semibold))
                 .multilineTextAlignment(.center)
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(foregroundColor)
         .frame(maxWidth: .infinity, minHeight: minHeight)
         .padding()
-        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
+        .background(backgroundColor, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }
 }

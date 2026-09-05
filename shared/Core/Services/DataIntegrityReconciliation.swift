@@ -34,7 +34,7 @@ extension DataIntegrityService {
             }
 
             if let earliestCreatedAt = earliestValidTimestamp(in: ordered) {
-                _ = assign(&winner.createdAt, earliestCreatedAt)
+                _ = assign(winner, \.createdAt, earliestCreatedAt)
             }
 
             for loser in ordered where loser !== winner {

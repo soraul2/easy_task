@@ -109,7 +109,7 @@ private extension FocusSessionIntegrityService {
             max(0, session.focusedDurationSeconds)
         )
         report.normalizedFields += DataIntegrityService.assign(
-            &session.focusedDurationSeconds,
+            session, \.focusedDurationSeconds,
             normalizedFocusedDuration
         )
         return true
@@ -158,7 +158,7 @@ private extension FocusSessionIntegrityService {
             .filter(DataIntegrityService.isFinite)
             .min() {
             report.normalizedFields += DataIntegrityService.assign(
-                &winner.createdAt,
+                winner, \.createdAt,
                 earliestCreatedAt
             )
         }

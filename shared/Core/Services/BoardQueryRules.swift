@@ -7,6 +7,8 @@ public enum BoardQueryRules {
         todayKey: String = DayKey.today,
         includeCarryoverOnToday: Bool = false
     ) -> [Task] {
+        let performanceInterval = PlanBasePerformanceTrace.begin("BoardProjection")
+        defer { PlanBasePerformanceTrace.end("BoardProjection", performanceInterval) }
         let visibleTasks: [Task]
         if selectedDayKey == todayKey {
             visibleTasks = tasks.filter { task in

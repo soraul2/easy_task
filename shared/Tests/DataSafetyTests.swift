@@ -94,6 +94,55 @@ func explicitDemoSeedPolicyRemainsAvailable() throws {
 }
 
 @Test
+@MainActor
+func demoSeedUsesCalendarScheduleTerminologyAndMigratesUntouchedSamples() throws {
+    let container = try makeSafetyTestContainer()
+    let context = container.mainContext
+
+    SeedService.seedIfNeeded(
+        context: context,
+        tasks: [],
+        events: [],
+        templates: [],
+        reviews: [],
+        policy: .demo
+    )
+
+    var tasks = try context.fetch(FetchDescriptor<Task>())
+    var events = try context.fetch(FetchDescriptor<CalendarEvent>())
+    var reviews = try context.fetch(FetchDescriptor<DailyReview>())
+
+    let seededTask = try #require(tasks.first { $0.title == "샘플: 캘린더 띠 일정 색상 조정" })
+    let seededEvent = try #require(events.first { $0.title == "다음 릴리즈 아이디어 정리" })
+    let seededReview = try #require(reviews.first { $0.title == "샘플: 캘린더 UI 점검" })
+    #expect(!(seededTask.note ?? "").contains("이벤트"))
+    #expect(!(seededEvent.note ?? "").contains("이벤트"))
+    #expect(!seededReview.content.contains("이벤트"))
+
+    seededTask.title = "샘플: 캘린더 띠 이벤트 색상 조정"
+    seededTask.note = "기간 이벤트가 이어진 막대로 보이는지 확인"
+    seededEvent.note = "기간 이벤트가 캘린더에 띠처럼 보이는지 확인"
+    seededReview.content = "캘린더 띠 이벤트 색상과 기간 표시를 확인했다. UI 조화와 가독성을 추가로 점검했다."
+
+    tasks = try context.fetch(FetchDescriptor<Task>())
+    events = try context.fetch(FetchDescriptor<CalendarEvent>())
+    reviews = try context.fetch(FetchDescriptor<DailyReview>())
+    SeedService.seedIfNeeded(
+        context: context,
+        tasks: tasks,
+        events: events,
+        templates: try context.fetch(FetchDescriptor<TaskTemplate>()),
+        reviews: reviews,
+        policy: .demo
+    )
+
+    #expect(seededTask.title == "샘플: 캘린더 띠 일정 색상 조정")
+    #expect(seededTask.note == "기간 일정이 이어진 막대로 보이는지 확인")
+    #expect(seededEvent.note == "기간 일정이 캘린더에 띠처럼 보이는지 확인")
+    #expect(seededReview.content.hasPrefix("캘린더 띠 일정"))
+}
+
+@Test
 func attachmentFileNamesRejectUnsafePathsAndExtensions() throws {
     let unsafeFileNames = [
         "../photo.jpg",

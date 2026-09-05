@@ -5,6 +5,7 @@ import SwiftData
 import SwiftUI
 
 struct MobileArchiveRecordCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var record: ArchiveDayRecord
     var dateBasis: TaskHistoryDateBasis
     var attachments: [DiaryAttachment]
@@ -37,7 +38,7 @@ struct MobileArchiveRecordCard: View {
                 DisclosureGroup(isExpanded: $reviewExpanded) {
                     reviewContent(review).padding(.top, 8)
                     Button("회고 수정", action: onEditReview)
-                        .font(.subheadline.weight(.semibold))
+                        .buttonStyle(PlanBaseButtonStyle(.secondary))
                         .padding(.top, 8)
                 } label: {
                     Label(
@@ -51,12 +52,8 @@ struct MobileArchiveRecordCard: View {
             } else {
                 Button(action: onEditReview) {
                     Label("회고 남기기", systemImage: "square.and.pencil")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .frame(minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
                 .accessibilityIdentifier("archive-add-review-\(record.dayKey)")
             }
         }
@@ -156,7 +153,7 @@ struct MobileArchiveRecordCard: View {
             }
             if record.tasks.count > 3 {
                 Button {
-                    withAnimation(.snappy(duration: 0.18)) { tasksExpanded.toggle() }
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) { tasksExpanded.toggle() }
                 } label: {
                     Label(
                         tasksExpanded ? "간략히 보기" : "작업 \(record.tasks.count - 3)개 더 보기",
@@ -175,6 +172,7 @@ struct MobileArchiveRecordCard: View {
 }
 
 private struct MobileExpandableReviewText: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var text: String
     @State private var expanded = false
 
@@ -193,11 +191,13 @@ private struct MobileExpandableReviewText: View {
 
             if canExpand {
                 Button(expanded ? "접기" : "더 보기") {
-                    withAnimation(.easeInOut(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                         expanded.toggle()
                     }
                 }
                 .font(.caption.weight(.semibold))
+                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                .contentShape(Rectangle())
                 .buttonStyle(.plain)
                 .foregroundStyle(AppTheme.primaryText)
             }
@@ -206,11 +206,11 @@ private struct MobileExpandableReviewText: View {
 }
 
 private struct MobileArchiveImageCarousel: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     @State private var selectedIndex = 0
-    @State private var viewerStartIndex = 0
-    @State private var showingViewer = false
+    @State private var viewerSelection: MobileArchiveImageViewerSelection?
     @State private var imageAspectRatios: [String: CGFloat] = [:]
     @State private var legacyResolution = MobileLegacyImageResolution()
 
@@ -231,9 +231,9 @@ private struct MobileArchiveImageCarousel: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         MobileAsyncThumbnailImage(
                             request: item.thumbnailRequest,
-                            placeholderMessage: "이미지를 불러올 수 없음",
+                            placeholderMessage: "사진을 불러올 수 없습니다.",
                             minHeight: 160,
-                            accessibilityLabel: "회고 이미지 \(index + 1)",
+                            accessibilityLabel: "회고 사진 \(index + 1)",
                             onAspectRatioChange: { aspectRatio in
                                 let ratio = constrainedAspectRatio(aspectRatio)
                                 if imageAspectRatios[item.id] != ratio {
@@ -246,11 +246,10 @@ private struct MobileArchiveImageCarousel: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .aspectRatio(selectedAspectRatio, contentMode: .fit)
-                .animation(.easeInOut(duration: 0.2), value: selectedAspectRatio)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: selectedAspectRatio)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    viewerStartIndex = safeIndex
-                    showingViewer = true
+                    viewerSelection = MobileArchiveImageViewerSelection(index: safeIndex)
                 }
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint("두 번 탭하여 전체 화면으로 보기")
@@ -263,7 +262,8 @@ private struct MobileArchiveImageCarousel: View {
                         .padding(.vertical, 5)
                         .background(.black.opacity(0.58), in: Capsule())
                         .padding(9)
-                        .accessibilityLabel("이미지 \(safeIndex + 1) / \(items.count)")
+                        .accessibilityLabel("사진 위치")
+                        .accessibilityValue("\(items.count)장 중 \(safeIndex + 1)번째")
                 }
             }
         }
@@ -284,10 +284,10 @@ private struct MobileArchiveImageCarousel: View {
             guard !Swift.Task<Never, Never>.isCancelled else { return }
             legacyResolution = resolution
         }
-        .fullScreenCover(isPresented: $showingViewer) {
+        .fullScreenCover(item: $viewerSelection) { selection in
             MobileArchiveImageViewer(
                 items: items,
-                initialIndex: viewerStartIndex
+                initialIndex: selection.index
             )
         }
     }
@@ -351,6 +351,11 @@ private struct MobileArchiveImageCarousel: View {
     }
 }
 
+private struct MobileArchiveImageViewerSelection: Identifiable {
+    let id = UUID()
+    var index: Int
+}
+
 private struct MobileArchiveImageViewer: View {
     var items: [MobileArchiveImageItem]
     @State private var selectedIndex: Int
@@ -370,9 +375,11 @@ private struct MobileArchiveImageViewer: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         MobileAsyncThumbnailImage(
                             request: item.thumbnailRequest,
-                            placeholderMessage: "이미지를 불러올 수 없음",
+                            placeholderMessage: "사진을 불러올 수 없습니다.",
                             minHeight: 240,
-                            accessibilityLabel: "회고 이미지 \(index + 1)"
+                            accessibilityLabel: "회고 사진 \(index + 1)",
+                            backgroundColor: .black,
+                            placeholderForegroundColor: .white.opacity(0.78)
                         )
                         .background(Color.black)
                         .tag(index)
@@ -388,6 +395,8 @@ private struct MobileArchiveImageViewer: View {
                         .padding(.vertical, 6)
                         .background(.black.opacity(0.64), in: Capsule())
                         .padding(.bottom, 20)
+                        .accessibilityLabel("사진 위치")
+                        .accessibilityValue("\(items.count)장 중 \(selectedIndex + 1)번째")
                 }
             }
             .toolbar {
@@ -401,7 +410,8 @@ private struct MobileArchiveImageViewer: View {
                             .frame(width: 44, height: 44)
                             .background(.black.opacity(0.58), in: Circle())
                     }
-                    .accessibilityLabel("전체 화면 이미지 닫기")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("전체 화면 사진 닫기")
                 }
             }
             .toolbarBackground(.hidden, for: .navigationBar)

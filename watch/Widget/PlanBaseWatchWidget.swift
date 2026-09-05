@@ -29,7 +29,7 @@ private struct PlanBaseWatchProvider: TimelineProvider {
         in context: Context,
         completion: @escaping (PlanBaseWatchEntry) -> Void
     ) {
-        completion(entry(at: Date()))
+        completion(context.isPreview ? placeholder(in: context) : entry(at: Date()))
     }
 
     func getTimeline(
@@ -129,11 +129,13 @@ private struct PlanBaseWatchWidgetView: View {
                     .font(.caption2.monospacedDigit().weight(.bold))
                     .minimumScaleFactor(0.65)
             } else {
-                Text(snapshot?.doneCount ?? 0, format: .number)
+                Text(snapshot.map { String($0.doneCount) } ?? "—")
                     .font(.headline.monospacedDigit())
             }
         }
         .gaugeStyle(.accessoryCircular)
+        .accessibilityLabel(snapshot?.hasActiveFocusTimer == true ? "\(focusPhaseTitle) 남은 시간" : "완료한 작업")
+        .accessibilityValue(snapshot == nil ? "Watch 앱에서 데이터를 업데이트해 주세요" : snapshot?.hasActiveFocusTimer == true ? focusAccessibilityValue : "\(snapshot?.doneCount ?? 0)개")
     }
 
     private var rectangularView: some View {
@@ -177,11 +179,13 @@ private struct PlanBaseWatchWidgetView: View {
             if snapshot?.hasActiveFocusTimer == true {
                 Image(systemName: focusSystemImage)
             } else {
-                Text(snapshot?.remainingTaskCount ?? 0, format: .number)
+                Text(snapshot.map { String($0.remainingTaskCount) } ?? "—")
                     .monospacedDigit()
             }
         }
             .font(.headline)
+            .accessibilityLabel(snapshot?.hasActiveFocusTimer == true ? "\(focusPhaseTitle) 남은 시간" : "남은 작업")
+            .accessibilityValue(snapshot == nil ? "Watch 앱에서 데이터를 업데이트해 주세요" : snapshot?.hasActiveFocusTimer == true ? focusAccessibilityValue : "\(snapshot?.remainingTaskCount ?? 0)개")
             .widgetLabel {
                 Gauge(value: progress) {
                     Text(snapshot?.hasActiveFocusTimer == true ? focusPhaseTitle : "오늘")
@@ -239,6 +243,12 @@ private struct PlanBaseWatchWidgetView: View {
         return "\(minutes)m"
     }
 
+    private var focusAccessibilityValue: String {
+        if focusRemaining <= 0 { return "완료, Watch 앱에서 확인해 주세요" }
+        if snapshot?.focusRunState == .paused { return "일시정지, \(focusClock)" }
+        return focusClock
+    }
+
     private var focusPhaseTitle: String {
         snapshot?.focusPhase == .breakTime ? "휴식" : "집중"
     }
@@ -257,7 +267,10 @@ private struct PlanBaseWatchWidgetView: View {
     }
 
     private var emptyTitle: String {
-        snapshot == nil ? "데이터 준비 중" : "오늘 계획 완료"
+        guard let snapshot else { return "데이터 준비 중" }
+        if snapshot.remainingTaskCount > 0 { return "남은 작업 \(snapshot.remainingTaskCount)개" }
+        if snapshot.eventCount > 0 { return "오늘 일정 \(snapshot.eventCount)개" }
+        return snapshot.doneCount > 0 ? "오늘 작업 완료" : "오늘 계획이 없어요"
     }
 }
 

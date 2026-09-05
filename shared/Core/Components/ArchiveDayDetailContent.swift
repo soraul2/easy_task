@@ -161,11 +161,10 @@ public struct ArchiveDayDetailContent: View {
         Button {
             onEditReview(date)
         } label: {
-            Label(hasReview ? "회고와 사진 보기" : "회고 남기기", systemImage: "square.and.pencil")
-                .frame(minHeight: 44)
+            Label(hasReview ? "회고 수정" : "회고 남기기", systemImage: "square.and.pencil")
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(AppTheme.secondaryText)
+        .buttonStyle(PlanBaseButtonStyle(.secondary))
+        .accessibilityHint(hasReview ? "회고 내용과 사진을 확인하고 수정합니다" : "이 날짜의 회고를 작성합니다")
     }
 }
 

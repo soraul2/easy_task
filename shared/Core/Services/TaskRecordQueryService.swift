@@ -118,7 +118,8 @@ enum TaskRecordQueryService {
             in: try TaskChecklistService.items(for: taskID, in: context))
         try Swift.Task.checkCancellation()
         return TaskRecord(
-            title: task?.title ?? "작업 정보 없음", hasCurrentTask: task != nil, currentStatus: task?.status,
+            title: task?.title ?? "현재 작업 정보 없음", hasCurrentTask: task != nil,
+            currentStatus: task?.status,
             createdAt: createdAt, plannedDayKey: task?.plannedDayKey,
             recordedCompletionDayKey: task.flatMap {
                 $0.status == TaskStatus.done.rawValue

@@ -6,22 +6,11 @@ import SwiftUI
 
 struct MobileStatusNotice: View {
     var message: String
+    var tone: MobileNoticeTone = .success
 
     var body: some View {
-        Label(message, systemImage: "arrow.right.circle.fill")
-            .font(.caption.weight(.bold))
-            .fixedSize(horizontal: false, vertical: true)
-            .multilineTextAlignment(.leading)
-            .foregroundStyle(AppTheme.eventText)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.event.opacity(0.95), in: RoundedRectangle(cornerRadius: 12))
-            .shadow(color: .black.opacity(0.16), radius: 12, y: 6)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(message)
+        MobileNoticeBanner(message: message, tone: tone)
             .accessibilityIdentifier("board-status-notice")
-            .accessibilityAddTraits(.isStaticText)
     }
 }
 

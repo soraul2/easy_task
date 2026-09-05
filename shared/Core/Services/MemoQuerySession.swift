@@ -5,18 +5,23 @@ import SwiftData
 @MainActor
 @Observable
 public final class MemoQuerySession {
+    public typealias PageLoader = @MainActor (ModelContext, String, MemoQueryCursor?) throws -> MemoQueryPage
     public private(set) var memos: [Memo] = []
     public private(set) var isLoading = false
     public private(set) var hasMore = false
     public private(set) var errorMessage: String?
 
     @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored private let loadPage: PageLoader
     @ObservationIgnored private var query = ""
     @ObservationIgnored private var nextCursor: MemoQueryCursor?
     @ObservationIgnored private var pendingSearch: Swift.Task<Void, Never>?
 
-    public init(context: ModelContext) {
+    public init(context: ModelContext, loadPage: PageLoader? = nil) {
         self.context = context
+        self.loadPage = loadPage ?? { context, query, cursor in
+            try MemoService.page(in: context, query: query, cursor: cursor)
+        }
     }
 
     deinit {
@@ -48,11 +53,7 @@ public final class MemoQuerySession {
         defer { isLoading = false }
 
         do {
-            let page = try MemoService.page(
-                in: context,
-                query: query,
-                cursor: nextCursor
-            )
+            let page = try loadPage(context, query, nextCursor)
             let existingIDs = Set(memos.map(\.instanceID))
             memos.append(contentsOf: page.memos.filter { !existingIDs.contains($0.instanceID) })
             nextCursor = page.nextCursor
@@ -68,7 +69,8 @@ public final class MemoQuerySession {
     }
 
     public func retry() {
-        refresh()
+        hasMore = true
+        loadNextPage()
     }
 }
 

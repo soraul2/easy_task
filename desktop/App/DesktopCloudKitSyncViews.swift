@@ -43,42 +43,50 @@ private struct CloudKitSyncStatusSheet: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .frame(width: 28, height: 28)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("닫기")
+                .keyboardShortcut(.cancelAction)
             }
 
-            Label(monitor.title, systemImage: monitor.systemImage)
-                .font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Label(monitor.title, systemImage: monitor.systemImage)
+                        .font(.headline)
 
-            LabeledContent("계정", value: monitor.accountAvailability.title)
-            if let lastSuccessfulSyncAt = monitor.lastSuccessfulSyncAt {
-                LabeledContent(
-                    "마지막 성공",
-                    value: lastSuccessfulSyncAt.formatted(date: .abbreviated, time: .shortened)
-                )
-            } else {
-                LabeledContent("마지막 성공", value: "확인 전")
-            }
+                    LabeledContent("계정", value: monitor.accountAvailability.title)
+                    if let lastSuccessfulSyncAt = monitor.lastSuccessfulSyncAt {
+                        LabeledContent(
+                            "마지막 성공",
+                            value: lastSuccessfulSyncAt.formatted(date: .abbreviated, time: .shortened)
+                        )
+                    } else {
+                        LabeledContent("마지막 성공", value: "확인 전")
+                    }
 
-            if let advisoryDescription = monitor.syncAdvisoryDescription {
-                Text(advisoryDescription)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-            }
+                    if let advisoryDescription = monitor.syncAdvisoryDescription {
+                        Text(advisoryDescription)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                    }
 
-            if let errorDescription = monitor.lastErrorDescription {
-                Text(errorDescription)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                    if let errorDescription = monitor.lastErrorDescription {
+                        Label(errorDescription, systemImage: "exclamationmark.triangle")
+                            .font(.callout)
+                            .foregroundStyle(AppTheme.primaryText)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxHeight: 400)
 
             HStack {
                 Spacer()
@@ -87,12 +95,13 @@ private struct CloudKitSyncStatusSheet: View {
                 } label: {
                     Label("계정 상태 다시 확인", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PlanBaseButtonStyle(.primary))
             }
         }
         .padding(22)
         .frame(width: 420)
         .background(AppTheme.panel)
         .foregroundStyle(AppTheme.primaryText)
+        .tint(AppTheme.accent)
     }
 }

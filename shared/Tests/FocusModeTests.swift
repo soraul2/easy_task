@@ -110,6 +110,58 @@ func focusServiceStartsTaskAndPersistsOneTerminalRecord() throws {
     #expect(try FocusActiveSessionStore.read(directoryURL: directory) == nil)
 }
 
+@Test(arguments: [false, true])
+func endingBreakRejectsStaleCommandsAndClearsOnlyCurrentSession(paused: Bool) throws {
+    let directory = focusTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    var active = try FocusSessionService.beginBreak(
+        taskID: UUID(), taskTitle: "휴식 종료", now: now, directoryURL: directory
+    )
+    if paused {
+        active = try FocusSessionService.pause(
+            expectedSessionID: active.sessionID, expectedRevision: active.revision,
+            now: now.addingTimeInterval(20), directoryURL: directory
+        )
+    }
+    #expect(throws: FocusSessionServiceError.staleCommand) {
+        try FocusSessionService.endBreak(
+            expectedSessionID: active.sessionID, expectedRevision: active.revision + 1,
+            directoryURL: directory
+        )
+    }
+    #expect(throws: FocusSessionServiceError.staleCommand) {
+        try FocusSessionService.endBreak(
+            expectedSessionID: UUID(), expectedRevision: active.revision,
+            directoryURL: directory
+        )
+    }
+    #expect(try FocusActiveSessionStore.read(directoryURL: directory) == active)
+    try FocusSessionService.endBreak(
+        expectedSessionID: active.sessionID, expectedRevision: active.revision,
+        directoryURL: directory
+    )
+    #expect(try FocusActiveSessionStore.read(directoryURL: directory) == nil)
+}
+
+@Test
+func endingBreakCannotDiscardAnActiveFocus() throws {
+    let directory = focusTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let active = FocusTimerRules.startFocus(
+        taskID: UUID(), taskTitle: "보존할 집중",
+        now: Date(timeIntervalSince1970: 1_800_000_000)
+    )
+    try FocusActiveSessionStore.write(active, directoryURL: directory)
+    #expect(throws: FocusTimerRulesError.invalidTransition) {
+        try FocusSessionService.endBreak(
+            expectedSessionID: active.sessionID, expectedRevision: active.revision,
+            directoryURL: directory
+        )
+    }
+    #expect(try FocusActiveSessionStore.read(directoryURL: directory) == active)
+}
+
 @Test
 @MainActor
 func focusReconciliationEndsForTaskCompletionAndDeadline() throws {

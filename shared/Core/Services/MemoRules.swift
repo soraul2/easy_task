@@ -42,6 +42,18 @@ public enum MemoRules {
         return source.joined(separator: " ")
     }
 
+    public static func updatedAtText(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .year()
+                .month()
+                .day()
+                .hour()
+                .minute()
+                .locale(Locale(identifier: "ko_KR"))
+        )
+    }
+
     public static func isBlank(_ content: String) -> Bool {
         content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }

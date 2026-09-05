@@ -86,7 +86,7 @@ public struct AppThemeColorSet: Hashable, Sendable {
 
     /// Unfilled controls need a different accent from filled buttons, especially on dark surfaces.
     public var resolvedAccentForeground: ThemeColorToken {
-        let surfaces = [backgroundTop, backgroundBottom, panel, input, floatingBar, todo, doing, done]
+        let surfaces = [backgroundTop, backgroundBottom, panel, input, floatingBar, selectedTab, todo, doing, done]
         func isReadable(_ color: ThemeColorToken) -> Bool {
             surfaces.allSatisfy { color.contrastRatio(to: $0) >= 4.5 }
         }
@@ -205,6 +205,12 @@ public enum AppTheme {
 
     public static var primaryText: Color { colors.primaryText.color }
     public static var secondaryText: Color { colors.secondaryText.color }
+    public static var calendarHolidayText: Color {
+        colors.resolvedSemanticForeground(
+            colors.eventPalette[CalendarEventColor.red.paletteIndex],
+            on: colors.panel
+        ).color
+    }
     public static var border: Color { colors.border.color }
 
     public static var selectedTab: Color { colors.selectedTab.color }

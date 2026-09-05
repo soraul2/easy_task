@@ -63,9 +63,12 @@ struct DesktopCalendarHeader: View {
                 onMoveMonth(-1)
             } label: {
                 Image(systemName: "chevron.left")
-                    .frame(width: 28, height: 28)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("이전 달")
+            .help("이전 달로 이동")
 
             Button {
                 visibleMonth = DayKey.startOfMonth(for: Date())
@@ -80,9 +83,12 @@ struct DesktopCalendarHeader: View {
                 onMoveMonth(1)
             } label: {
                 Image(systemName: "chevron.right")
-                    .frame(width: 28, height: 28)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("다음 달")
+            .help("다음 달로 이동")
         }
     }
 
@@ -105,6 +111,7 @@ struct DesktopCalendarHeader: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isPlacementMode ? "템플릿 배치 종료" : "템플릿 배치")
         .help(isPlacementMode ? "템플릿 배치 종료" : "템플릿을 날짜에 배치")
     }
 
@@ -125,6 +132,8 @@ struct DesktopCalendarHeader: View {
         }
         .buttonStyle(.plain)
         .disabled(isPlacementMode)
+        .accessibilityLabel("선택한 날짜 상세")
+        .accessibilityValue(DayKey.display(selectedDate))
         .help("선택한 날짜 상세 열기 (⌘↩)")
         .keyboardShortcut(.return, modifiers: .command)
     }
@@ -137,7 +146,7 @@ struct DesktopCalendarHeader: View {
                     .frame(width: 42, height: 34)
                     .calendarToolbarButtonBackground(isPrimary: true)
             } else {
-                Label("이벤트 추가", systemImage: "plus")
+                Label("일정 추가", systemImage: "plus")
                     .font(.system(size: 13, weight: .semibold))
                     .padding(.horizontal, 12)
                     .frame(height: 34)
@@ -145,7 +154,7 @@ struct DesktopCalendarHeader: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(DayKey.display(selectedDate)) 이벤트 추가")
-        .help("\(DayKey.display(selectedDate))에 이벤트 추가")
+        .accessibilityLabel("\(DayKey.display(selectedDate)) 일정 추가")
+        .help("\(DayKey.display(selectedDate))에 일정 추가")
     }
 }

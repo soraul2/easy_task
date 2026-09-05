@@ -63,10 +63,12 @@ struct ThemePickerSheet: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .frame(width: 28, height: 28)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize, height: PlanBaseControlMetrics.minimumTargetSize)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("테마 닫기")
+                .keyboardShortcut(.cancelAction)
                 .foregroundStyle(AppTheme.secondaryText)
             }
 
@@ -154,7 +156,7 @@ struct ThemePresetCard: View {
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(colors.event.color)
+                            .foregroundStyle(colors.resolvedAccentForeground.color)
                     }
                 }
 
@@ -174,7 +176,7 @@ struct ThemePresetCard: View {
                     RoundedRectangle(cornerRadius: 6).fill(colors.todo.color)
                     RoundedRectangle(cornerRadius: 6).fill(colors.doing.color)
                     RoundedRectangle(cornerRadius: 6).fill(colors.done.color)
-                    RoundedRectangle(cornerRadius: 6).fill(colors.event.color)
+                    RoundedRectangle(cornerRadius: 6).fill(colors.resolvedAccentForeground.color)
                 }
                 .frame(height: 34)
 
@@ -196,7 +198,7 @@ struct ThemePresetCard: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
-                        isSelected ? colors.event.color : colors.border.color,
+                        isSelected ? colors.resolvedAccentForeground.color : colors.border.color,
                         lineWidth: isSelected ? 2 : 1
                     )
             }

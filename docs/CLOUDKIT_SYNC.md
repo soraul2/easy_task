@@ -402,6 +402,24 @@ Production 권한을 확인했고, iOS 18:13:30, macOS 18:13:20 KST 업로드 �
 시작을 확인했다. 설치 가능 상태와 실기기 쌍 인수는 남아 있으며 자료는
 `.local/releases/build-69/`에 보관한다.
 
+같은 날 앱 재실행·입력어 후보·탭 이동의 불필요한 쓰기와 갱신을 줄인 build 70을 업로드했다.
+V11 스키마와 백업 V10은 유지하므로 추가 CloudKit schema 배포는 하지 않았다. Xcode 26.6의
+전체 플랫폼 Debug/Release 회귀 게이트와 여섯 앱·위젯의 서명·build 70·공유 권한 검증을
+통과했다. 최종 컴파일 소스 해시와 배포용 Release의 테스트 fixture 제외도 확인했다.
+자동 배포 서명의 CloudKit Production 권한, iOS 22:16:34 및 macOS 22:18:08 KST 업로드 성공과
+패키지 처리 완료를 확인했다. 두 플랫폼의 기존 내부 그룹 `지인`(2명) 연결과 한국어 테스트
+안내 저장도 확인했다. 실제 TestFlight 설치·실기기 쌍 수렴은 별도 인수 대상이다.
+배포 자료와 로그는 `.local/releases/build-70/`에 보관한다.
+
+2026-09-05에는 버튼·모달·안내·접근성 표현과 플랫폼별 화면 흐름을 정리한 build 71을
+iOS·iPadOS·watchOS와 macOS에 업로드했다. V11 스키마와 백업 V10을 유지해 추가 CloudKit
+schema 배포는 하지 않았다. iteration424 전체 플랫폼 회귀와 iOS/Watch 네 번들·macOS 두
+번들의 앱 버전 1.0, build 71, bundle ID, 코드 서명, App Group·CloudKit 권한을 확인했다.
+archive가 사용한 컴파일 소스 iOS 190개·macOS 182개의 배포 snapshot 일치와 일반 Release의
+검사 fixture 제외도 확인했다. iOS 18:20:29, macOS 18:22:09 KST에 App Store Connect 업로드가
+성공했고 Apple 패키지 처리가 시작됐다. 설치 가능 상태와 실제 기기 운영 인수는 별도 확인하며,
+배포 자료와 로그는 `.local/releases/build-71/`에 보관한다.
+
 ## 운영 회귀 조건
 
 - 두 기기 오프라인 충돌 시나리오 통과

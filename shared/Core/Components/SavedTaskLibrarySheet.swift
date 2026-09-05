@@ -23,6 +23,10 @@ public struct SavedTaskLibrarySheet: View {
     @State private var addedIDs: Set<UUID> = []
     @State private var notice: String?
     @State private var failure: String?
+    @State private var loadFailure: String?
+    #if DEBUG
+    @State private var didSimulateLoadFailure = false
+    #endif
 
     public init(selectedDate: Date, onAdded: @escaping (String) -> Void) {
         self.selectedDate = selectedDate
@@ -36,57 +40,91 @@ public struct SavedTaskLibrarySheet: View {
     public var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("\(DayKey.display(selectedDate))에 추가", systemImage: "calendar")
-                            .font(.headline)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityElement(children: .combine)
-                            .accessibilityIdentifier("saved-task-target-date")
-                        Text("자주 하는 일을 꺼내 새 할 일로 추가하세요.")
-                            .font(.subheadline)
-                            .fixedSize(horizontal: false, vertical: true)
+                if let loadFailure {
+                    VStack(spacing: 16) {
+                        Label {
+                            Text("저장한 작업을 불러오지 못했어요")
+                                .foregroundStyle(AppTheme.primaryText)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.red)
+                                .accessibilityHidden(true)
+                        }
+                        .font(.title3.bold())
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.center)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue("오류")
+                        .accessibilityIdentifier("saved-task-load-error")
+
+                        Text(loadFailure)
+                            .font(.body)
                             .foregroundStyle(AppTheme.secondaryText)
-                        TextField("제목·입력어·메모 검색", text: $query,
-                                  prompt: Text("제목·입력어·메모 검색").foregroundStyle(AppTheme.secondaryText))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.center)
+
+                        Button("다시 시도") { reload() }
+                            .buttonStyle(PlanBaseButtonStyle(.primary))
+                            .accessibilityIdentifier("saved-task-load-retry")
+                    }
+                    .frame(maxWidth: 520)
+                    .frame(maxWidth: .infinity)
+                    .padding(24)
+                } else {
+                    VStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("\(DayKey.display(selectedDate))에 추가", systemImage: "calendar")
+                                .font(.headline)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityElement(children: .combine)
+                                .accessibilityIdentifier("saved-task-target-date")
+                            Text("자주 하는 일을 꺼내 새 할 일로 추가하세요.")
+                                .font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .foregroundStyle(AppTheme.secondaryText)
+                            TextField(
+                                "제목·입력어·메모 검색", text: $query,
+                                prompt: Text("제목·입력어·메모 검색").foregroundStyle(AppTheme.secondaryText)
+                            )
                             .textFieldStyle(.roundedBorder)
                             .focused($isSearchFocused)
                             .accessibilityIdentifier("saved-task-search")
-                        Picker("저장한 작업 보기", selection: $favoritesOnly) {
-                            Text("전체").tag(false)
-                            Text("즐겨찾기").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        if let notice {
-                            Label(notice, systemImage: "checkmark.circle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.accent)
-                                .accessibilityIdentifier("saved-task-notice")
-                        }
-                    }
-                    .padding(16)
-                    Divider()
-                    VStack(spacing: 0) {
-                        LazyVStack(spacing: 12) {
-                            if entries.isEmpty {
-                                ContentUnavailableView(
-                                    allEntries.isEmpty ? "자주 쓰는 일을 저장해 보세요" : "해당하는 작업이 없어요",
-                                    systemImage: "bookmark",
-                                    description: Text(
-                                        allEntries.isEmpty
-                                            ? "작업 카드 메뉴에서 저장하거나, ‘새로 저장’으로 직접 만들 수 있어요."
-                                            : "검색어를 바꾸거나 전체 목록을 확인해 주세요."))
+                            Picker("저장한 작업 보기", selection: $favoritesOnly) {
+                                Text("전체").tag(false)
+                                Text("즐겨찾기").tag(true)
                             }
-                            ForEach(entries) { entry in
-                                row(entry)
+                            .planBaseAdaptiveSegmentedPicker()
+                            if let notice {
+                                Label(notice, systemImage: "checkmark.circle.fill")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.accent)
+                                    .accessibilityIdentifier("saved-task-notice")
                             }
-                            Text("작업 한 개로 만든 템플릿도 여기에서 꺼내 쓸 수 있어요.")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, 4)
                         }
                         .padding(16)
+                        Divider()
+                        VStack(spacing: 0) {
+                            LazyVStack(spacing: 12) {
+                                if entries.isEmpty {
+                                    ContentUnavailableView(
+                                        allEntries.isEmpty ? "자주 쓰는 일을 저장해 보세요" : "해당하는 작업이 없어요",
+                                        systemImage: "bookmark",
+                                        description: Text(
+                                            allEntries.isEmpty
+                                                ? "작업 카드 메뉴에서 저장하거나, ‘새로 저장’으로 직접 만들 수 있어요."
+                                                : "검색어를 바꾸거나 전체 목록을 확인해 주세요."))
+                                }
+                                ForEach(entries) { entry in
+                                    row(entry)
+                                }
+                                Text("작업 한 개로 만든 템플릿도 여기에서 꺼내 쓸 수 있어요.")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.top, 4)
+                            }
+                            .padding(16)
+                        }
                     }
                 }
             }
@@ -216,7 +254,21 @@ public struct SavedTaskLibrarySheet: View {
     }
 
     private func reload() {
-        perform { allEntries = try SavedTaskLibraryService.load(in: context) }
+        do {
+            #if DEBUG
+            if !didSimulateLoadFailure,
+                ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+                ProcessInfo.processInfo.arguments.contains("--ui-testing-saved-task-load-failure-once")
+            {
+                didSimulateLoadFailure = true
+                throw CocoaError(.fileReadUnknown)
+            }
+            #endif
+            allEntries = try SavedTaskLibraryService.load(in: context)
+            loadFailure = nil
+        } catch {
+            loadFailure = "잠시 후 다시 시도해 주세요."
+        }
     }
 
     private func add(_ entry: SavedTaskEntry) {

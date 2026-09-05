@@ -16,6 +16,7 @@ struct SavedTaskEditorSheet: View {
     @State private var favorite: Bool
     @State private var quickEntryAlias: String
     @State private var failure: String?
+    @State private var showsDiscardConfirmation = false
 
     init(entry: SavedTaskEntry?) {
         self.entry = entry
@@ -37,9 +38,22 @@ struct SavedTaskEditorSheet: View {
                     TextField("메모", text: $draft.note, axis: .vertical)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...6 : 3...6)
                         .focused($focusedField, equals: .note)
-                    TextField("예상 시간(분)", text: $estimatedText)
-                        .focused($focusedField, equals: .estimate)
-                        .accessibilityIdentifier("saved-task-estimate")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("예상 시간")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.primaryText)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            TextField("선택 입력", text: $estimatedText)
+                                .focused($focusedField, equals: .estimate)
+                                .accessibilityLabel("예상 시간, 분")
+                                .accessibilityIdentifier("saved-task-estimate")
+                                #if os(iOS)
+                                .keyboardType(.numberPad)
+                                #endif
+                            Text("분")
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
                     Toggle("즐겨찾기", isOn: $favorite)
                 }
                 Section {
@@ -84,11 +98,19 @@ struct SavedTaskEditorSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top) {
                 if let failure {
-                    Text(failure)
-                        .font(.subheadline).foregroundStyle(.red)
+                    Label {
+                        Text(failure)
+                            .font(.subheadline)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                        .foregroundStyle(AppTheme.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12).background(AppTheme.panel)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(failure)
                         .accessibilityIdentifier("saved-task-editor-error")
                 }
             }
@@ -104,8 +126,8 @@ struct SavedTaskEditorSheet: View {
                         .accessibilityIdentifier("saved-task-keyboard-dismiss")
                 }
                 #endif
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .cancellationAction) { Button("취소", action: requestDismiss) }
+                ToolbarItem(placement: .confirmationAction) {
                     Button("저장", action: save)
                         .fontWeight(.semibold)
                         .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -113,10 +135,32 @@ struct SavedTaskEditorSheet: View {
                 }
             }
         }
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            onDiscard: { dismiss() }
+        )
         .tint(AppTheme.accent)
         #if os(macOS)
         .frame(minWidth: 440, idealWidth: 500, minHeight: 540, idealHeight: 620)
         #endif
+    }
+
+    private var hasUnsavedChanges: Bool {
+        draft.title != (entry?.draft.title ?? "") ||
+            draft.note != (entry?.draft.note ?? "") ||
+            draft.priority != entry?.draft.priority ||
+            estimatedText != (entry?.draft.estimatedMinutes.map(String.init) ?? "") ||
+            checklistText != (entry?.draft.checklistTitles.joined(separator: "\n") ?? "") ||
+            tagsText != (entry?.draft.tags.joined(separator: ", ") ?? "") ||
+            favorite != (entry?.isFavorite ?? false) ||
+            quickEntryAlias != (entry?.quickEntryAlias ?? "")
+    }
+
+    private func requestDismiss() {
+        focusedField = nil
+        if hasUnsavedChanges { showsDiscardConfirmation = true }
+        else { dismiss() }
     }
 
     private func save() {

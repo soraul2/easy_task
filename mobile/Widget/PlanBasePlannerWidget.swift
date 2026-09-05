@@ -165,6 +165,7 @@ struct PlanBasePlannerWidgetView: View {
 }
 
 private struct PlannerWidgetAdaptiveContent: View {
+    @Environment(\.redactionReasons) private var redactionReasons
     let entry: PlanBasePlannerEntry
     let theme: CalendarWidgetTheme
     let family: WidgetFamily
@@ -241,11 +242,12 @@ private struct PlannerWidgetAdaptiveContent: View {
     }
 
     private var taskAccessibilityLabel: String {
-        plannerTaskAccessibilityLabel(for: entry)
+        plannerTaskAccessibilityLabel(for: entry, hidesTitles: redactionReasons.contains(.privacy))
     }
 }
 
 private struct PlannerMediumContent: View {
+    @Environment(\.redactionReasons) private var redactionReasons
     let entry: PlanBasePlannerEntry
     let theme: CalendarWidgetTheme
 
@@ -275,7 +277,7 @@ private struct PlannerMediumContent: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(plannerTaskAccessibilityLabel(for: entry))
+            .accessibilityLabel(plannerTaskAccessibilityLabel(for: entry, hidesTitles: redactionReasons.contains(.privacy)))
             .privacySensitive()
         } else {
             PlannerMediumTodayPane(entry: entry, theme: theme)
@@ -333,7 +335,7 @@ private struct PlannerMediumTodayPane: View {
                     .foregroundStyle(theme.secondaryText)
                     .lineLimit(3)
             } else if summary?.remainingTaskCount == 0 {
-                Text("오늘 할 일이 없어요")
+                Text(PlannerEmptyDayPresentation(completedCount: summary?.doneCount ?? 0).message)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(theme.secondaryText)
                     .lineLimit(2)
@@ -427,7 +429,7 @@ private struct PlannerMediumMonthPane: View {
                         .background {
                             if DayKey.isToday(date) {
                                 Circle()
-                                    .fill(theme.accent)
+                                    .fill(theme.accentFill)
                                     .widgetAccentable()
                             }
                         }
@@ -439,9 +441,10 @@ private struct PlannerMediumMonthPane: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .contentShape(Rectangle())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(dayAccessibilityLabel(for: date, eventCount: eventCount))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(dayAccessibilityLabel(for: date, eventCount: eventCount))
         } else {
             Color.clear
         }
@@ -454,21 +457,44 @@ private struct PlannerMediumMonthPane: View {
     }
 
     private func dayAccessibilityLabel(for date: Date, eventCount: Int) -> String {
-        eventCount > 0
-            ? "\(DayKey.display(date)), 이벤트 \(eventCount)개"
-            : "\(DayKey.display(date)), 이벤트 없음"
+        guard entry.availability == .available && entry.snapshot.covers(dayKey: DayKey.key(for: date)) else {
+            return "\(DayKey.display(date)), 앱을 열어 일정을 갱신해 주세요"
+        }
+        return eventCount > 0
+            ? "\(DayKey.display(date)), 일정 \(eventCount)개"
+            : "\(DayKey.display(date)), 일정 없음"
     }
 }
 
-private func plannerTaskAccessibilityLabel(for entry: PlanBasePlannerEntry) -> String {
+private struct PlannerEmptyDayPresentation {
+    let completedCount: Int
+
+    var message: String {
+        completedCount > 0 ? "오늘 작업을 모두 마쳤어요" : "오늘 할 일이 없어요"
+    }
+
+    var symbolName: String {
+        completedCount > 0 ? "checkmark.circle" : "tray"
+    }
+
+    var accessibilityLabel: String {
+        let completion = completedCount > 0 ? " 완료 \(completedCount)개." : ""
+        return "\(message).\(completion) 오늘 보드 열기"
+    }
+}
+
+private func plannerTaskAccessibilityLabel(for entry: PlanBasePlannerEntry, hidesTitles: Bool) -> String {
     let dayKey = DayKey.key(for: entry.date)
     guard entry.availability == .available,
           let summary = entry.snapshot.lockScreenSummary(onDayKey: dayKey),
           let previews = entry.snapshot.plannerTaskPreviews(onDayKey: dayKey) else {
-        return entry.availability.taskMessage
+        return "\(entry.availability.taskMessage). 오늘 보드 열기"
     }
     guard summary.remainingTaskCount > 0 else {
-        return "오늘 할 일이 없어요. 오늘 보드 열기"
+        return PlannerEmptyDayPresentation(completedCount: summary.doneCount).accessibilityLabel
+    }
+    if hidesTitles {
+        return "오늘 남은 작업 \(summary.remainingTaskCount)개, 완료 \(summary.doneCount)개. 오늘 보드 열기"
     }
     let titles = previews.map(\.title).joined(separator: ", ")
     let overflowCount = max(0, summary.remainingTaskCount - previews.count)
@@ -497,6 +523,7 @@ private struct PlannerMonthCalendarPane: View {
         VStack(alignment: .leading, spacing: usesExpandedDensity ? 3 : 2) {
             PlannerWidgetMonthHeader(
                 monthSelection: entry.monthSelection,
+                allowsMonthNavigation: entry.availability == .available,
                 theme: theme,
                 style: style
             )
@@ -507,6 +534,7 @@ private struct PlannerMonthCalendarPane: View {
             GeometryReader { proxy in
                 CalendarWidgetMonthGrid(
                     snapshot: entry.snapshot,
+                    availability: entry.availability,
                     month: month,
                     dates: dates,
                     theme: theme,
@@ -514,13 +542,12 @@ private struct PlannerMonthCalendarPane: View {
                     size: proxy.size
                 )
             }
-        }
-        .overlay(alignment: .bottomLeading) {
             if entry.availability != .available {
                 PlannerWidgetRefreshBadge(
                     message: entry.availability.calendarMessage,
                     theme: theme
                 )
+                .padding(.top, 2)
             }
         }
     }
@@ -528,6 +555,7 @@ private struct PlannerMonthCalendarPane: View {
 
 private struct PlannerWidgetMonthHeader: View {
     let monthSelection: CalendarWidgetMonthSelection
+    let allowsMonthNavigation: Bool
     let theme: CalendarWidgetTheme
     let style: CalendarWidgetMonthGridStyle
 
@@ -538,9 +566,12 @@ private struct PlannerWidgetMonthHeader: View {
                     .font(.system(size: style.monthHeaderFontSize, weight: .medium))
                     .foregroundStyle(theme.primaryText)
                     .lineLimit(1)
+                    .frame(minHeight: style.monthHeaderHeight)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("플래너를 이번 달로 이동")
+            .accessibilityValue(DayKey.monthTitle(monthSelection.month))
 
             Spacer(minLength: 4)
 
@@ -548,13 +579,13 @@ private struct PlannerWidgetMonthHeader: View {
                 systemName: "chevron.left",
                 label: "플래너 이전 달",
                 delta: -1,
-                isEnabled: monthSelection.canMoveBackward
+                isEnabled: allowsMonthNavigation && monthSelection.canMoveBackward
             )
             monthButton(
                 systemName: "chevron.right",
                 label: "플래너 다음 달",
                 delta: 1,
-                isEnabled: monthSelection.canMoveForward
+                isEnabled: allowsMonthNavigation && monthSelection.canMoveForward
             )
         }
         .frame(height: style.monthHeaderHeight)
@@ -567,16 +598,20 @@ private struct PlannerWidgetMonthHeader: View {
         delta: Int,
         isEnabled: Bool
     ) -> some View {
-        Button(intent: ChangePlannerWidgetMonthIntent(monthDelta: delta)) {
-            Image(systemName: systemName)
-                .font(.system(size: style.monthControlFontSize, weight: .semibold))
-                .foregroundStyle(theme.secondaryText.opacity(isEnabled ? 1 : 0.28))
-                .frame(width: style.monthControlWidth, height: style.monthHeaderHeight)
-                .contentShape(Rectangle())
+        let icon = Image(systemName: systemName)
+            .font(.system(size: style.monthControlFontSize, weight: .semibold))
+            .foregroundStyle(theme.secondaryText.opacity(isEnabled ? 1 : 0.28))
+            .frame(width: style.monthControlWidth, height: style.monthHeaderHeight)
+            .contentShape(Rectangle())
+        if isEnabled {
+            Button(intent: ChangePlannerWidgetMonthIntent(monthDelta: delta)) {
+                icon
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+        } else {
+            icon.accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel(label)
     }
 }
 
@@ -683,13 +718,14 @@ private struct PlannerTodayTaskPane: View {
     }
 
     private var emptyContent: some View {
-        VStack(spacing: 7) {
-            Image(systemName: "checkmark.circle")
+        let presentation = PlannerEmptyDayPresentation(completedCount: summary?.doneCount ?? 0)
+        return VStack(spacing: 7) {
+            Image(systemName: presentation.symbolName)
                 .font(.system(size: usesExpandedDensity ? 22 : 18, weight: .medium))
                 .foregroundStyle(theme.accent)
                 .widgetAccentable()
 
-            Text("오늘 할 일이 없어요")
+            Text(presentation.message)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(theme.secondaryText)
                 .multilineTextAlignment(.center)

@@ -50,6 +50,10 @@ struct CalendarWidgetTheme {
         usesFullColorPalette ? colors.event.color : .accentColor
     }
 
+    var accentFill: Color {
+        usesFullColorPalette ? colors.event.color : Color.primary.opacity(0.16)
+    }
+
     var accentForeground: Color {
         guard usesFullColorPalette else { return .primary }
         return colors.resolvedEventForeground(on: colors.event).color
@@ -71,6 +75,10 @@ struct CalendarWidgetTheme {
         guard usesFullColorPalette else { return .primary }
         let background = eventToken(colorID)
         return colors.resolvedEventForeground(on: background).color
+    }
+
+    func eventBarBackground(_ colorID: String) -> Color {
+        usesFullColorPalette ? eventToken(colorID).color : accentFill
     }
 
     private var usesFullColorPalette: Bool {

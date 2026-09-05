@@ -127,7 +127,7 @@ private struct DesktopCalendarDayInspector: View {
         .background(AppTheme.background)
         .foregroundStyle(AppTheme.primaryText)
         .alert(
-            "이벤트를 삭제할까요?",
+            "일정을 삭제할까요?",
             isPresented: $showingEventDeleteConfirmation,
             presenting: pendingDeleteEvent
         ) { event in
@@ -140,9 +140,9 @@ private struct DesktopCalendarDayInspector: View {
             }
         } message: { _ in
             if pendingDeleteEventLinkedTaskCount > 0 {
-                Text("연결된 작업 \(pendingDeleteEventLinkedTaskCount)개의 이벤트 연결도 함께 해제됩니다.")
+                Text("연결된 작업 \(pendingDeleteEventLinkedTaskCount)개의 일정 연결도 함께 해제됩니다.")
             } else {
-                Text("삭제한 이벤트는 되돌릴 수 없습니다.")
+                Text("삭제한 일정은 되돌릴 수 없습니다.")
             }
         }
         .alert(
@@ -191,8 +191,8 @@ private struct DesktopCalendarDayInspector: View {
                 } else {
                     EmptySheetState(
                         symbol: "calendar.badge.exclamationmark",
-                        title: "이벤트를 찾을 수 없음",
-                        message: "이미 삭제되었거나 다른 기기에서 갱신된 이벤트입니다."
+                        title: "일정을 찾을 수 없음",
+                        message: "이미 삭제되었거나 다른 기기에서 갱신된 일정입니다."
                     )
                     .padding(22)
                     .frame(width: 380)
@@ -207,7 +207,7 @@ private struct DesktopCalendarDayInspector: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(DayKey.display(date))
                     .font(.title2.weight(.bold))
-                Text("이벤트, 템플릿 배치, 작업을 한곳에서 확인합니다.")
+                Text("일정, 템플릿 배치, 작업을 한곳에서 확인합니다.")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -217,7 +217,7 @@ private struct DesktopCalendarDayInspector: View {
             Button {
                 onAddEvent()
             } label: {
-                Label("이벤트 추가", systemImage: "plus")
+                Label("일정 추가", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
 
@@ -233,10 +233,10 @@ private struct DesktopCalendarDayInspector: View {
 
     private var eventSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("이벤트", systemImage: "calendar")
+            sectionHeader("일정", systemImage: "calendar")
 
             if events.isEmpty {
-                emptyRow("이벤트 없음")
+                emptyRow("일정 없음")
             } else {
                 ForEach(events) { event in
                     HStack(alignment: .top, spacing: 12) {
@@ -248,7 +248,7 @@ private struct DesktopCalendarDayInspector: View {
                             Text(event.title)
                                 .font(.system(size: 14, weight: .semibold))
                                 .lineLimit(2)
-                            Text("\(event.startDayKey) - \(event.endDayKey)")
+                            Text(CalendarEventTimeline.dateRangeText(for: event))
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText)
                             if let note = event.note,
@@ -266,21 +266,23 @@ private struct DesktopCalendarDayInspector: View {
                             eventSheet = .edit(event.instanceID)
                         } label: {
                             Image(systemName: "pencil")
-                                .frame(width: 28, height: 28)
+                                .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                                       height: PlanBaseControlMetrics.minimumTargetSize)
                         }
                         .buttonStyle(.borderless)
-                        .help("이벤트 편집")
-                        .accessibilityLabel("이벤트 편집")
+                        .help("일정 편집")
+                        .accessibilityLabel("\(event.title) 일정 편집")
 
                         Button(role: .destructive) {
                             requestEventDeletion(event)
                         } label: {
                             Image(systemName: "trash")
-                                .frame(width: 28, height: 28)
+                                .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                                       height: PlanBaseControlMetrics.minimumTargetSize)
                         }
                         .buttonStyle(.borderless)
-                        .help("이벤트 삭제")
-                        .accessibilityLabel("이벤트 삭제")
+                        .help("일정 삭제")
+                        .accessibilityLabel("\(event.title) 일정 삭제")
                     }
                     .padding(12)
                     .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 9))
@@ -428,7 +430,7 @@ private struct DesktopCalendarDayInspector: View {
         guard let event = CalendarEventReuseRules.makeIndependentEvent(
             from: draft
         ) else {
-            return "이벤트 정보를 확인해 주세요."
+            return "일정 정보를 확인해 주세요."
         }
 
         do {
@@ -438,7 +440,7 @@ private struct DesktopCalendarDayInspector: View {
             notice = "독립된 복제 일정을 추가했어요."
             return nil
         } catch {
-            return "이벤트를 추가하지 못했어요."
+            return "일정을 추가하지 못했어요."
         }
     }
 
@@ -451,7 +453,7 @@ private struct DesktopCalendarDayInspector: View {
             pendingDeleteEvent = event
             showingEventDeleteConfirmation = true
         } catch {
-            notice = "이벤트 정보를 불러오지 못했어요."
+            notice = "일정 정보를 불러오지 못했어요."
         }
     }
 
@@ -459,11 +461,11 @@ private struct DesktopCalendarDayInspector: View {
         do {
             let detachedCount = try performEventDeletion(event)
             notice = detachedCount > 0
-                ? "이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요."
-                : "이벤트를 삭제했어요."
+                ? "일정을 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요."
+                : "일정을 삭제했어요."
             return nil
         } catch {
-            return "이벤트를 삭제하지 못했어요."
+            return "일정을 삭제하지 못했어요."
         }
     }
 
@@ -473,10 +475,10 @@ private struct DesktopCalendarDayInspector: View {
             pendingDeleteEvent = nil
             pendingDeleteEventLinkedTaskCount = 0
             notice = detachedCount > 0
-                ? "이벤트를 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요."
-                : "이벤트를 삭제했어요."
+                ? "일정을 삭제하고 작업 \(detachedCount)개의 연결을 해제했어요."
+                : "일정을 삭제했어요."
         } catch {
-            notice = "이벤트를 삭제하지 못했어요."
+            notice = "일정을 삭제하지 못했어요."
         }
     }
 
@@ -603,11 +605,12 @@ private struct DesktopTemplatePlacementSummaryQueryHost: View {
                 onDelete()
             } label: {
                 Image(systemName: "trash")
-                    .frame(width: 28, height: 28)
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
             }
             .buttonStyle(.borderless)
             .help("템플릿 배치 삭제")
-            .accessibilityLabel("템플릿 배치 삭제")
+            .accessibilityLabel("\(placement.templateName) 템플릿 배치 삭제")
         }
         .padding(12)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 9))

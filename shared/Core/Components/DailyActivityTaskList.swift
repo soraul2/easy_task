@@ -2,6 +2,7 @@
 import SwiftUI
 
 public struct DailyActivityTaskList: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let entries: [DailyActivityEntry]
     private let dayKey: String
     private let matchedTaskIDs: Set<UUID>
@@ -39,15 +40,18 @@ public struct DailyActivityTaskList: View {
                     row(entry)
                 }
                 .buttonStyle(.plain)
-                .disabled(!entry.canOpenTask)
                 .accessibilityIdentifier("archive-task-\(entry.id.uuidString)")
                 .accessibilityLabel("\(entry.title), \(entry.evidence.summary)")
-                .accessibilityHint(entry.canOpenTask ? "작업의 생성 시각과 활동 기록을 엽니다" : "작업 정보가 동기화되면 상세를 열 수 있어요")
+                .accessibilityHint(
+                    entry.canOpenTask
+                        ? "작업의 생성 시각과 활동 기록을 엽니다"
+                        : "현재 작업 정보 없이 남아 있는 활동 기록을 엽니다"
+                )
                 if index < visibleEntries.count - 1 { Divider().overlay(AppTheme.border) }
             }
             if entries.count > 3 && showsExpansionControl {
                 Button {
-                    withAnimation(.snappy(duration: 0.18)) { expanded.toggle() }
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) { expanded.toggle() }
                 } label: {
                     Label(
                         expanded ? "간략히 보기" : "작업 \(entries.count - 3)개 더 보기",
@@ -124,13 +128,11 @@ public struct DailyActivityTaskList: View {
                 }
             }
             Spacer(minLength: 0)
-            if entry.canOpenTask {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.top, 6)
-                    .accessibilityHidden(true)
-            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppTheme.secondaryText)
+                .padding(.top, 6)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, 13)
         .padding(.horizontal, 2)

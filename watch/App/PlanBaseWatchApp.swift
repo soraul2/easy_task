@@ -17,21 +17,34 @@ struct PlanBaseWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            switch persistenceState {
-            case .ready(let modelContainer):
-                WatchRootView()
-                    .modelContainer(modelContainer)
-            case .failed(let details):
-                WatchPersistenceRecoveryView(details: details) {
-                    persistenceState = Self.makePersistenceState()
+            Group {
+                switch persistenceState {
+                case .ready(let modelContainer):
+                    WatchRootView()
+                        .modelContainer(modelContainer)
+                case .failed(let details):
+                    WatchPersistenceRecoveryView(details: details) {
+                        persistenceState = Self.makePersistenceState()
+                    }
                 }
             }
+            .environment(\.locale, Locale(identifier: "ko_KR"))
         }
     }
 
     @MainActor
     private static func makePersistenceState() -> WatchPersistenceState {
         do {
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+                let container = try PlanBaseContainerFactory.makeInMemory()
+                if !ProcessInfo.processInfo.arguments.contains("--ui-testing-empty-board") {
+                    SeedService.seedIfNeeded(context: container.mainContext,
+                        tasks: [], events: [], templates: [], reviews: [], policy: .demo)
+                }
+                return .ready(container)
+            }
+#endif
             return .ready(try PlanBaseContainerFactory.makeAppPersistent())
         } catch {
             print("PlanBase Watch 저장소를 열 수 없습니다: \(error.localizedDescription)")
@@ -148,26 +161,7 @@ private struct WatchPersistenceRecoveryView: View {
     let retry: () -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: "externaldrive.badge.exclamationmark")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
-
-                Text("데이터를 열지 못했어요")
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-
-                Text(details)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
-                Button("다시 시도", action: retry)
-                    .buttonStyle(.borderedProminent)
-            }
-            .padding(.horizontal, 8)
-        }
+        PlanBaseRecoveryView(details: details, retry: retry)
     }
 }
 #endif

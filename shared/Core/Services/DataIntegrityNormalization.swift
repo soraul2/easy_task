@@ -27,40 +27,40 @@ extension DataIntegrityService {
         }
         let normalizedStartAt = DayKey.date(from: startDayKey) ?? dateDerivedStartAt
         let normalizedEndAt = DayKey.date(from: endDayKey) ?? dateDerivedEndAt
-        changes += assign(&event.startAt, normalizedStartAt)
-        changes += assign(&event.endAt, normalizedEndAt)
-        changes += assign(&event.startDayKey, startDayKey)
-        changes += assign(&event.endDayKey, endDayKey)
+        changes += assign(event, \.startAt, normalizedStartAt)
+        changes += assign(event, \.endAt, normalizedEndAt)
+        changes += assign(event, \.startDayKey, startDayKey)
+        changes += assign(event, \.endDayKey, endDayKey)
 
         let color = normalizedOptionalText(event.color).flatMap {
             CalendarEventColor(rawValue: $0)?.rawValue
         }
-        changes += assign(&event.color, color)
+        changes += assign(event, \.color, color)
         return changes
     }
 
     @MainActor
     static func normalizeTemplate(_ template: TaskTemplate) -> Int {
         var changes = normalizeTimestamps(template)
-        changes += assign(&template.seedKey, normalizedNaturalKey(template.seedKey))
+        changes += assign(template, \.seedKey, normalizedNaturalKey(template.seedKey))
         return changes
     }
 
     @MainActor
     static func normalizeTemplateItem(_ item: TaskTemplateItem) -> Int {
         var changes = normalizeTimestamps(item)
-        changes += assign(&item.seedKey, normalizedNaturalKey(item.seedKey))
-        changes += assign(&item.priority, normalizedPriority(item.priority))
-        changes += assign(&item.tags, normalizedTags(item.tags))
+        changes += assign(item, \.seedKey, normalizedNaturalKey(item.seedKey))
+        changes += assign(item, \.priority, normalizedPriority(item.priority))
+        changes += assign(item, \.tags, normalizedTags(item.tags))
         changes += assign(
-            &item.checklistTitles,
+            item, \.checklistTitles,
             normalizedChecklistTitles(item.checklistTitles)
         )
         if let estimate = item.estimatedMinutes, estimate < 0 {
-            changes += assign(&item.estimatedMinutes, nil)
+            changes += assign(item, \.estimatedMinutes, nil)
         }
         if !item.order.isFinite {
-            changes += assign(&item.order, 0)
+            changes += assign(item, \.order, 0)
         }
         return changes
     }
@@ -69,7 +69,7 @@ extension DataIntegrityService {
     static func normalizePlacement(_ placement: TemplatePlacement) -> Int {
         var changes = normalizeTimestamps(placement)
         if validDayKey(placement.dayKey) == nil {
-            changes += assign(&placement.dayKey, DayKey.key(for: placement.createdAt))
+            changes += assign(placement, \.dayKey, DayKey.key(for: placement.createdAt))
         }
         return changes
     }
@@ -82,41 +82,41 @@ extension DataIntegrityService {
             task.archivedAt != nil ||
             task.archivedDayKey != nil
         let status = TaskStatus(rawValue: task.status) ?? (hasCompletionEvidence ? .done : .todo)
-        changes += assign(&task.status, status.rawValue)
-        changes += assign(&task.priority, normalizedPriority(task.priority))
-        changes += assign(&task.tags, normalizedTags(task.tags))
+        changes += assign(task, \.status, status.rawValue)
+        changes += assign(task, \.priority, normalizedPriority(task.priority))
+        changes += assign(task, \.tags, normalizedTags(task.tags))
 
         if let estimate = task.estimatedMinutes, estimate < 0 {
-            changes += assign(&task.estimatedMinutes, nil)
+            changes += assign(task, \.estimatedMinutes, nil)
         }
         if !task.order.isFinite {
-            changes += assign(&task.order, 0)
+            changes += assign(task, \.order, 0)
         }
         let reminderAt = TaskReminderRules.normalizedDate(task.reminderAt)
-        changes += assign(&task.reminderAt, reminderAt)
+        changes += assign(task, \.reminderAt, reminderAt)
 
         let dateDerivedPlannedAt = isFinite(task.plannedAt) ? task.plannedAt : task.createdAt
         let plannedDayKey = validDayKey(task.plannedDayKey)
             ?? DayKey.key(for: dateDerivedPlannedAt)
         let plannedAt = DayKey.date(from: plannedDayKey)
             ?? DayKey.startOfDay(for: dateDerivedPlannedAt)
-        changes += assign(&task.plannedAt, plannedAt)
-        changes += assign(&task.plannedDayKey, plannedDayKey)
+        changes += assign(task, \.plannedAt, plannedAt)
+        changes += assign(task, \.plannedDayKey, plannedDayKey)
 
         if status != .done {
-            changes += assign(&task.completedAt, nil)
-            changes += assign(&task.completedDayKey, nil)
-            changes += assign(&task.archivedAt, nil)
-            changes += assign(&task.archivedDayKey, nil)
+            changes += assign(task, \.completedAt, nil)
+            changes += assign(task, \.completedDayKey, nil)
+            changes += assign(task, \.archivedAt, nil)
+            changes += assign(task, \.archivedDayKey, nil)
             return changes
         }
 
         let completedAt = finiteDate(task.completedAt)
             ?? validDayKey(task.completedDayKey ?? "").flatMap(DayKey.date(from:))
             ?? task.updatedAt
-        changes += assign(&task.completedAt, completedAt)
+        changes += assign(task, \.completedAt, completedAt)
         if validDayKey(task.completedDayKey ?? "") == nil {
-            changes += assign(&task.completedDayKey, DayKey.key(for: completedAt))
+            changes += assign(task, \.completedDayKey, DayKey.key(for: completedAt))
         }
 
         if task.archivedAt != nil || task.archivedDayKey != nil {
@@ -126,9 +126,9 @@ extension DataIntegrityService {
             if archivedAt < completedAt {
                 archivedAt = completedAt
             }
-            changes += assign(&task.archivedAt, archivedAt)
+            changes += assign(task, \.archivedAt, archivedAt)
             if validDayKey(task.archivedDayKey ?? "") == nil {
-                changes += assign(&task.archivedDayKey, DayKey.key(for: archivedAt))
+                changes += assign(task, \.archivedDayKey, DayKey.key(for: archivedAt))
             }
         }
         return changes
@@ -138,16 +138,16 @@ extension DataIntegrityService {
     static func normalizeChecklistItem(_ item: TaskChecklistItem) -> Int {
         var changes = normalizeTimestamps(item)
         changes += assign(
-            &item.title,
+            item, \.title,
             item.title.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         if !item.order.isFinite {
-            changes += assign(&item.order, 0)
+            changes += assign(item, \.order, 0)
         }
         let completedAt = item.isCompleted
             ? finiteDate(item.completedAt) ?? item.updatedAt
             : nil
-        changes += assign(&item.completedAt, completedAt)
+        changes += assign(item, \.completedAt, completedAt)
         return changes
     }
 
@@ -155,7 +155,7 @@ extension DataIntegrityService {
     static func normalizeReview(_ review: DailyReview) -> Int {
         var changes = normalizeTimestamps(review)
         if validDayKey(review.dayKey) == nil {
-            changes += assign(&review.dayKey, DayKey.key(for: review.createdAt))
+            changes += assign(review, \.dayKey, DayKey.key(for: review.createdAt))
         }
         return changes
     }
@@ -164,20 +164,20 @@ extension DataIntegrityService {
     static func normalizeDiaryBlock(_ block: DiaryBlock) -> Int {
         var changes = normalizeTimestamps(block)
         if validDayKey(block.dayKey) == nil {
-            changes += assign(&block.dayKey, DayKey.key(for: block.createdAt))
+            changes += assign(block, \.dayKey, DayKey.key(for: block.createdAt))
         }
         if !block.order.isFinite {
-            changes += assign(&block.order, 0)
+            changes += assign(block, \.order, 0)
         }
 
         let imageFileName = normalizedOptionalText(block.imageFileName)
         let type = DiaryBlockType(rawValue: block.type)
             ?? (imageFileName == nil ? .text : .image)
-        changes += assign(&block.type, type.rawValue)
+        changes += assign(block, \.type, type.rawValue)
         if type == .text {
-            changes += assign(&block.imageFileName, nil)
+            changes += assign(block, \.imageFileName, nil)
         } else {
-            changes += assign(&block.imageFileName, imageFileName)
+            changes += assign(block, \.imageFileName, imageFileName)
         }
         return changes
     }
@@ -186,16 +186,16 @@ extension DataIntegrityService {
     static func normalizeDiaryAttachment(_ attachment: DiaryAttachment) -> Int {
         var changes = normalizeTimestamps(attachment)
         if !attachment.order.isFinite {
-            changes += assign(&attachment.order, 0)
+            changes += assign(attachment, \.order, 0)
         }
         changes += assign(
-            &attachment.originalFileName,
+            attachment, \.originalFileName,
             normalizedOptionalText(attachment.originalFileName).map { String($0.prefix(255)) }
         )
         if let metadata = try? DiaryAttachmentService.inspect(attachment.data) {
-            changes += assign(&attachment.mimeType, metadata.mediaType.rawValue)
-            changes += assign(&attachment.byteCount, metadata.byteCount)
-            changes += assign(&attachment.sha256, metadata.sha256)
+            changes += assign(attachment, \.mimeType, metadata.mediaType.rawValue)
+            changes += assign(attachment, \.byteCount, metadata.byteCount)
+            changes += assign(attachment, \.sha256, metadata.sha256)
         }
         return changes
     }
@@ -204,7 +204,7 @@ extension DataIntegrityService {
     static func normalizeMemo(_ memo: Memo) -> Int {
         var changes = normalizeTimestamps(memo)
         let mode = MemoEditorMode(rawValue: memo.preferredModeRawValue) ?? .text
-        changes += assign(&memo.preferredModeRawValue, mode.rawValue)
+        changes += assign(memo, \.preferredModeRawValue, mode.rawValue)
         return changes
     }
 
@@ -217,16 +217,16 @@ extension DataIntegrityService {
     static func normalizeMemoChecklistItem(_ item: MemoChecklistItem) -> Int {
         var changes = normalizeTimestamps(item)
         changes += assign(
-            &item.title,
+            item, \.title,
             item.title.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         if !item.order.isFinite {
-            changes += assign(&item.order, 0)
+            changes += assign(item, \.order, 0)
         }
         let completedAt = item.isCompleted
             ? finiteDate(item.completedAt) ?? item.updatedAt
             : nil
-        changes += assign(&item.completedAt, completedAt)
+        changes += assign(item, \.completedAt, completedAt)
         return changes
     }
 
@@ -250,8 +250,8 @@ extension DataIntegrityService {
             break
         }
 
-        var changes = assign(&record.createdAt, createdAt ?? fallbackTimestamp)
-        changes += assign(&record.updatedAt, updatedAt ?? fallbackTimestamp)
+        var changes = assign(record, \.createdAt, createdAt ?? fallbackTimestamp)
+        changes += assign(record, \.updatedAt, updatedAt ?? fallbackTimestamp)
         return changes
     }
 }
@@ -260,7 +260,7 @@ extension DataIntegrityService {
     @MainActor
     static func mergeReviewLegacyFileNames(from source: DailyReview, to target: DailyReview) {
         _ = assign(
-            &target.imageFileNames,
+            target, \.imageFileNames,
             mergedLegacyFileNames(target.imageFileNames, source.imageFileNames)
         )
     }
@@ -339,9 +339,15 @@ extension DataIntegrityService {
 
     @MainActor
     @discardableResult
-    static func assign<Value: Equatable>(_ target: inout Value, _ value: Value) -> Int {
-        guard target != value else { return 0 }
-        target = value
+    static func assign<Record: AnyObject, Value: Equatable>(
+        _ record: Record,
+        _ keyPath: ReferenceWritableKeyPath<Record, Value>,
+        _ value: Value
+    ) -> Int {
+        // Passing a SwiftData property as inout invokes its writeback even if
+        // the helper leaves the value unchanged. Compare before opening a write.
+        guard record[keyPath: keyPath] != value else { return 0 }
+        record[keyPath: keyPath] = value
         return 1
     }
 }

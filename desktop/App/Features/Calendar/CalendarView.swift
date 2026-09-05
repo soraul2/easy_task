@@ -41,6 +41,7 @@ struct CalendarView: View {
     @State private var placementTemplate: TaskTemplate?
     @State private var placementDayKeys: Set<String> = []
     @State private var calendarMessage: String?
+    @State private var pendingEventDeletion: CalendarEvent?
 
     private let onOpenBoardDate: (Date) -> Void
 
@@ -147,8 +148,8 @@ struct CalendarView: View {
                 } else {
                     EmptySheetState(
                         symbol: "calendar.badge.exclamationmark",
-                        title: "이벤트를 찾을 수 없음",
-                        message: "이미 삭제되었거나 더 이상 사용할 수 없는 이벤트입니다."
+                        title: "일정을 찾을 수 없음",
+                        message: "이미 삭제되었거나 더 이상 사용할 수 없는 일정입니다."
                     )
                     .padding(22)
                     .frame(width: 380)
@@ -172,6 +173,20 @@ struct CalendarView: View {
                     }
                 )
             }
+        }
+        .alert("일정을 삭제할까요?", isPresented: Binding(
+            get: { pendingEventDeletion != nil },
+            set: { if !$0 { pendingEventDeletion = nil } }
+        ), presenting: pendingEventDeletion) { event in
+            Button("취소", role: .cancel) { pendingEventDeletion = nil }
+            Button("삭제", role: .destructive) {
+                pendingEventDeletion = nil
+                if let failureMessage = removeEvent(event) {
+                    calendarMessage = failureMessage
+                }
+            }
+        } message: { event in
+            Text("‘\(event.title)’ 일정을 삭제합니다. 연결된 작업은 유지되며 일정 연결만 해제됩니다. 삭제한 일정은 되돌릴 수 없어요.")
         }
         .alert("저장 실패", isPresented: Binding(
             get: { calendarMessage != nil },
@@ -230,14 +245,14 @@ struct CalendarView: View {
             Button("취소") {
                 cancelPlacement()
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(PlanBaseButtonStyle(.secondary))
 
             Button {
                 applyTemplatePlacement()
             } label: {
                 Label("배치", systemImage: "plus.circle")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PlanBaseButtonStyle(.primary))
             .disabled(placementDayKeys.isEmpty)
         }
         .padding(12)
@@ -349,9 +364,7 @@ struct CalendarView: View {
                                 prepareDuplicateEvent(event)
                             },
                             onDelete: { event in
-                                if let failureMessage = removeEvent(event) {
-                                    calendarMessage = failureMessage
-                                }
+                                pendingEventDeletion = event
                             }
                         )
                     }
@@ -377,7 +390,7 @@ struct CalendarView: View {
         guard let event = CalendarEventReuseRules.makeIndependentEvent(
             from: draft
         ) else {
-            return "이벤트 정보를 확인해 주세요."
+            return "일정 정보를 확인해 주세요."
         }
 
         do {
@@ -385,7 +398,7 @@ struct CalendarView: View {
                 modelContext.insert(event)
             }
         } catch {
-            return "이벤트를 추가하지 못했어요."
+            return "일정을 추가하지 못했어요."
         }
 
         title = ""
@@ -472,7 +485,7 @@ struct CalendarView: View {
             }
             return nil
         } catch {
-            return "이벤트를 삭제하지 못했어요."
+            return "일정을 삭제하지 못했어요."
         }
     }
 

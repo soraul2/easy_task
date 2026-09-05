@@ -51,19 +51,16 @@ struct DailyReviewSheet: View {
         }
         .frame(width: 600, height: preferredHeight)
         .background(AppTheme.panel)
-        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
-        .alert(
-            "변경사항을 버릴까요?",
-            isPresented: $showsDiscardConfirmation
-        ) {
-            Button("변경사항 버리기", role: .destructive) {
+        .planBaseDiscardConfirmation(
+            isPresented: $showsDiscardConfirmation,
+            hasUnsavedChanges: hasUnsavedChanges,
+            isSaving: isSaving,
+            message: "저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.",
+            onDiscard: {
                 hasUnsavedChanges = false
                 dismiss()
             }
-            Button("계속 작성", role: .cancel) {}
-        } message: {
-            Text("저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.")
-        }
+        )
     }
 
     private func requestDismiss() {

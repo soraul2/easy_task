@@ -21,6 +21,23 @@ func calendarEventTimelineBadgeText() throws {
 }
 
 @Test
+func calendarEventTimelineUsesCompactKoreanDateRanges() throws {
+    let sameDay = try #require(DayKey.date(from: "2026-09-05"))
+    let sameMonth = try #require(DayKey.date(from: "2026-09-09"))
+    let nextMonth = try #require(DayKey.date(from: "2026-10-02"))
+    let nextYear = try #require(DayKey.date(from: "2027-01-03"))
+
+    #expect(CalendarEventTimeline.dateRangeText(startAt: sameDay, endAt: sameDay) == "9월 5일")
+    #expect(CalendarEventTimeline.dateRangeText(startAt: sameDay, endAt: sameMonth) == "9월 5일–9일")
+    #expect(CalendarEventTimeline.dateRangeText(startAt: sameDay, endAt: nextMonth) == "9월 5일–10월 2일")
+    #expect(
+        CalendarEventTimeline.dateRangeText(startAt: sameDay, endAt: nextYear)
+            == "2026년 9월 5일–2027년 1월 3일"
+    )
+    #expect(CalendarEventTimeline.dateRangeText(startAt: sameMonth, endAt: sameDay) == "9월 5일–9일")
+}
+
+@Test
 func calendarEventRulesNormalizeDraftAndUpdateEvent() throws {
     let lateStart = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 9, hour: 18)))
     let earlyEnd = try #require(DayKey.calendar.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 9)))

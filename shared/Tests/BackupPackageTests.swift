@@ -604,6 +604,29 @@ func packageReadRejectsTamperedRecordsAndUndeclaredFiles() throws {
 
 @Test
 @MainActor
+func packageReadRejectsMalformedMetadataWithLocalizedRecoveryGuidance() throws {
+    let source = try packageSourceContainer(image: testPNG(0x18))
+    let contents = try BackupPackageCodec.makeContents(context: source.mainContext)
+    let packageURL = temporaryPackageURL()
+    defer { try? FileManager.default.removeItem(at: packageURL) }
+    try BackupPackageCodec.write(contents, to: packageURL)
+
+    try Data("{".utf8).write(
+        to: packageURL.appendingPathComponent(BackupPackageCodec.manifestFileName),
+        options: .atomic
+    )
+
+    #expect(throws: BackupPackageError.invalidMetadataEncoding) {
+        try BackupPackageCodec.read(from: packageURL)
+    }
+    #expect(
+        BackupPackageError.invalidMetadataEncoding.localizedDescription
+            == "백업 파일 형식이 올바르지 않거나 손상되었습니다. PlanBase에서 다시 내보낸 파일을 선택해 주세요."
+    )
+}
+
+@Test
+@MainActor
 func packageReadRejectsAttachmentTraversalBeforeFileAccess() throws {
     let source = try packageSourceContainer(image: testPNG(0x19))
     let contents = try BackupPackageCodec.makeContents(context: source.mainContext)

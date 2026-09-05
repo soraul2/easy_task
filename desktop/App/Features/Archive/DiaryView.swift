@@ -40,6 +40,8 @@ struct DiaryView: View {
     @State private var messageIsError = false
     @State private var isImportingImages = false
     @State private var isSaving = false
+    @State private var loadedDayKey: String?
+    @State private var loadFailure: String?
     @State private var initialSnapshot: DiaryComposerSnapshot?
     @State private var isTaskSummaryExpanded = true
     @State private var pendingDate: Date?
@@ -144,7 +146,7 @@ struct DiaryView: View {
     }
 
     private var canSave: Bool {
-        guard !isImportingImages, !isSaving else { return false }
+        guard loadedDayKey == selectedDayKey, !isImportingImages, !isSaving else { return false }
         return selectedReview != nil || DailyReviewRules.hasContent(
             title: reviewTitle,
             content: content,
@@ -162,7 +164,7 @@ struct DiaryView: View {
     }
 
     private var hasUnsavedChanges: Bool {
-        guard let initialSnapshot else { return false }
+        guard loadedDayKey == selectedDayKey, let initialSnapshot else { return false }
         return currentSnapshot != initialSnapshot
     }
 
@@ -176,10 +178,18 @@ struct DiaryView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    if let loadFailure {
+                        Label(loadFailure, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(AppTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("다시 시도", action: loadSelectedReview)
+                            .buttonStyle(PlanBaseButtonStyle())
+                    } else {
                     taskSummarySection
                     titleSection
                     contentSection
                     imageSection
+                    }
                 }
                 .frame(maxWidth: composerMaxWidth)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -214,7 +224,7 @@ struct DiaryView: View {
                 pendingDate = nil
             }
         } message: {
-            Text("저장하지 않은 회고 내용과 이미지 변경사항이 사라집니다.")
+            Text("저장하지 않은 회고 내용과 사진 변경사항이 사라집니다.")
         }
     }
 
@@ -224,7 +234,7 @@ struct DiaryView: View {
                 requestDateChange(DayKey.addingDays(-1, to: selectedDate))
             } label: {
                 Image(systemName: "chevron.left")
-                    .frame(width: 30, height: 30)
+                    .frame(width: 32, height: 32)
             }
             .buttonStyle(.borderless)
             .help("이전 날짜")
@@ -243,7 +253,7 @@ struct DiaryView: View {
                 requestDateChange(DayKey.addingDays(1, to: selectedDate))
             } label: {
                 Image(systemName: "chevron.right")
-                    .frame(width: 30, height: 30)
+                    .frame(width: 32, height: 32)
             }
             .buttonStyle(.borderless)
             .help("다음 날짜")
@@ -348,8 +358,8 @@ struct DiaryView: View {
                             : "checkmark.circle.fill"
                     )
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(messageIsError ? .red : AppTheme.done)
-                    .lineLimit(2)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("desktop-review-status-message")
                 }
 
@@ -367,8 +377,7 @@ struct DiaryView: View {
                     .padding(.horizontal, 18)
                     .frame(height: 36)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.selectedTab)
+                .buttonStyle(PlanBaseButtonStyle())
                 .disabled(!canSave)
                 .keyboardShortcut("s", modifiers: .command)
                 .help("회고 저장 (Command-S)")
@@ -378,6 +387,8 @@ struct DiaryView: View {
     }
 
     private func loadSelectedReview() {
+        guard loadedDayKey != selectedDayKey else { return }
+        loadedDayKey = nil
         do {
             reviews = try modelContext.fetch(
                 BoundedQueryService.dailyReviewsDescriptor(dayKey: selectedDayKey)
@@ -409,8 +420,7 @@ struct DiaryView: View {
             attachments = []
             selectedDayTasks = []
             carryoverTasks = []
-            message = "회고를 불러오지 못했어요. 잠시 후 다시 열어 주세요."
-            messageIsError = true
+            loadFailure = "회고를 불러오지 못했어요. 다시 시도해 주세요."
             return
         }
 
@@ -444,6 +454,8 @@ struct DiaryView: View {
         message = nil
         messageIsError = false
         isSaving = false
+        loadedDayKey = selectedDayKey
+        loadFailure = nil
         initialSnapshot = currentSnapshot
         onSavingChange(false)
         onDirtyChange(false)
@@ -544,7 +556,7 @@ struct DiaryView: View {
     private func chooseAndAddImages() async {
         guard !isImportingImages else { return }
         guard !hasLegacyImageReferences else {
-            message = "기존 이미지를 정리한 뒤 새 이미지를 추가할 수 있습니다."
+            message = "기존 사진을 정리한 뒤 새 사진을 추가할 수 있습니다."
             messageIsError = true
             return
         }
@@ -561,7 +573,7 @@ struct DiaryView: View {
                 0
             )
             guard availableCount > 0 else {
-                message = "이미지는 최대 \(DiaryAttachmentService.maximumAttachmentCount)개까지 추가할 수 있습니다."
+                message = "사진은 최대 \(DiaryAttachmentService.maximumAttachmentCount)장까지 추가할 수 있어요."
                 messageIsError = true
                 return
             }
@@ -573,16 +585,16 @@ struct DiaryView: View {
             })
             selectedImageIndex = firstNewIndex
             if accepted.count < newDrafts.count {
-                message = "이미지 \(accepted.count)개 추가됨, 최대 개수를 초과한 이미지는 제외했습니다."
+                message = "사진 \(accepted.count)장 추가됨, 최대 개수를 초과한 사진은 제외했어요."
                 messageIsError = true
             } else {
                 message = accepted.count == 1
-                    ? "이미지를 추가했습니다. 저장하면 반영됩니다."
-                    : "이미지 \(accepted.count)개를 추가했습니다. 저장하면 반영됩니다."
+                    ? "사진을 추가했어요. 저장하면 반영됩니다."
+                    : "사진 \(accepted.count)장을 추가했어요. 저장하면 반영됩니다."
                 messageIsError = false
             }
         } catch {
-            message = "이미지 추가 실패: \(error.localizedDescription)"
+            message = "사진 추가 실패: \(error.localizedDescription)"
             messageIsError = true
         }
     }
@@ -597,8 +609,8 @@ struct DiaryView: View {
             }
             selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
             message = legacyImageFileNames.isEmpty
-                ? "이전 이미지를 모두 정리했습니다. 저장하면 새 이미지를 추가할 수 있습니다."
-                : "이전 이미지를 삭제했습니다. 저장하면 반영됩니다."
+                ? "이전 사진을 모두 정리했습니다. 저장하면 새 사진을 추가할 수 있습니다."
+                : "이전 사진을 삭제했습니다. 저장하면 반영됩니다."
             messageIsError = false
             return
         }
@@ -611,7 +623,7 @@ struct DiaryView: View {
             attachmentPreviewCacheKeys.remove(at: draftIndex)
         }
         selectedImageIndex = min(selectedImageIndex, max(displayedImages.count - 1, 0))
-        message = "이미지를 삭제했습니다. 저장하면 반영됩니다."
+        message = "사진을 삭제했어요. 저장하면 반영됩니다."
         messageIsError = false
     }
 

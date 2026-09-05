@@ -3,6 +3,48 @@ import SwiftData
 import Testing
 @testable import EasyTaskCore
 
+@Test @MainActor
+func unchangedIntegrityPassDoesNotDirtyPersistentModels() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let day = DayKey.date(from: "2026-09-04")!
+    let task = Task(title: "정상 작업", plannedAt: day, order: 100)
+    let template = TaskTemplate(name: "정상 템플릿", quickEntryAlias: "routine")
+    context.insert(task)
+    context.insert(template)
+    context.insert(TaskTemplateItem(templateId: template.id, title: task.title, order: 100))
+    context.insert(CalendarEvent(title: "정상 일정", startAt: day, endAt: day))
+    context.insert(Memo(content: "정상 메모"))
+    context.insert(TaskProgressEvent(taskId: task.id, kind: .started, occurredAt: day))
+    context.insert(TaskProgressEvent(taskId: task.id, kind: .stopped,
+                                     occurredAt: day.addingTimeInterval(600)))
+    try TaskActivityService.recordCapturedCompletion(taskID: task.id, occurredAt: day, in: context)
+    _ = try DataIntegrityService.reconcile(context: context, saveChanges: false)
+    try context.save()
+
+    let before = task.updatedAt
+    let report = try DataIntegrityService.reconcile(context: context, saveChanges: false)
+    #expect(!report.hasChanges)
+    #expect(!context.hasChanges)
+    #expect(task.updatedAt == before)
+}
+
+@Test @MainActor
+func integrityAssignmentWritesOnlyAChangedPersistentProperty() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let task = Task(title: "원래 제목", plannedAt: Date(), order: 100)
+    context.insert(task)
+    try context.save()
+    #expect(DataIntegrityService.assign(task, \.title, "원래 제목") == 0)
+    #expect(!context.hasChanges)
+    #expect(DataIntegrityService.assign(task, \.title, "수정한 제목") == 1)
+    #expect(context.hasChanges)
+    try context.save()
+    let persisted = try ModelContext(container).fetch(FetchDescriptor<Task>())
+    #expect(persisted.first?.title == "수정한 제목")
+}
+
 @Test
 @MainActor
 func duplicateReviewUsesInstanceIDToBreakEqualTimestampTie() throws {

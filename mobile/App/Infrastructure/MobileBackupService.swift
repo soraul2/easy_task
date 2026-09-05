@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 enum MobileBackupServiceError: LocalizedError, Equatable {
     case securityScopedAccessDenied
     case unsupportedSelection(String)
+    case invalidBackupFormat
     case fileOperation(String)
 
     var errorDescription: String? {
@@ -18,6 +19,8 @@ enum MobileBackupServiceError: LocalizedError, Equatable {
             "선택한 파일에 안전하게 접근할 수 없습니다."
         case .unsupportedSelection(let fileName):
             "지원하지 않는 백업 파일입니다. file=\(fileName)"
+        case .invalidBackupFormat:
+            "백업 파일 형식이 올바르지 않거나 손상되었습니다. PlanBase에서 다시 내보낸 파일을 선택해 주세요."
         case .fileOperation(let description):
             "백업 파일 처리에 실패했습니다. \(description)"
         }
@@ -111,6 +114,9 @@ final class SystemMobileBackupFileAdapter: MobileBackupFileAdapter {
                 try? fileManager.removeItem(at: cleanupDirectoryURL)
                 if error is BackupPackageError || error is BackupServiceError {
                     throw error
+                }
+                if error is DecodingError {
+                    throw MobileBackupServiceError.invalidBackupFormat
                 }
                 throw MobileBackupServiceError.fileOperation(
                     error.localizedDescription

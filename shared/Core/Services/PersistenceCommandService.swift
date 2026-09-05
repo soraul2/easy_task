@@ -12,6 +12,8 @@ public enum PersistenceCommandService {
         in context: ModelContext,
         _ mutation: () throws -> Result
     ) throws -> Result {
+        let performanceInterval = PlanBasePerformanceTrace.begin("PersistenceCommand")
+        defer { PlanBasePerformanceTrace.end("PersistenceCommand", performanceInterval) }
         // Preserve unrelated pending edits before establishing this command's rollback point.
         try context.save()
 

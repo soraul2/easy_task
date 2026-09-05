@@ -2,6 +2,8 @@ import SwiftUI
 
 public struct ActivityHeatmapThemeEditor: View {
     public var themeID: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var emojiFocused: Bool
 
     @State private var preferenceStore = ThemePreferenceStore.shared
     @State private var emojiDraft = ""
@@ -37,7 +39,7 @@ public struct ActivityHeatmapThemeEditor: View {
 #if os(watchOS)
                     .pickerStyle(.navigationLink)
 #else
-                    .pickerStyle(.segmented)
+                    .planBaseAdaptiveSegmentedPicker()
 #endif
                     .labelsHidden()
                     .accessibilityIdentifier("activity-heatmap-style-picker")
@@ -64,11 +66,21 @@ public struct ActivityHeatmapThemeEditor: View {
             reloadDraft()
         }
         .onChange(of: preferenceStore.revision) {
+            guard !emojiFocused else { return }
             let storedEmoji = preferenceStore.activityEmoji(for: themeID)
             if emojiDraft != storedEmoji {
                 emojiDraft = storedEmoji
             }
         }
+        #if os(iOS)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("완료") { emojiFocused = false }
+                    .accessibilityIdentifier("activity-emoji-keyboard-dismiss")
+            }
+        }
+        #endif
     }
 }
 
@@ -90,7 +102,10 @@ private extension ActivityHeatmapThemeEditor {
 
     var emojiEditor: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+            layout {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("나의 이모지")
                         .font(.subheadline.weight(.semibold))
@@ -100,18 +115,20 @@ private extension ActivityHeatmapThemeEditor {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
                 TextField("이모지", text: $emojiDraft)
+                    .focused($emojiFocused)
                     .font(.system(size: 28))
                     .multilineTextAlignment(.center)
                     .frame(width: 64)
+                    .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
                     .padding(.vertical, 6)
                     .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(
-                                isDraftValid ? AppTheme.border : Color.red.opacity(0.72),
+                                emojiDraft.isEmpty || isDraftValid ? AppTheme.border : Color.red.opacity(0.72),
                                 lineWidth: 1
                             )
                     }
@@ -125,6 +142,15 @@ private extension ActivityHeatmapThemeEditor {
                     reloadDraft()
                 }
                 .buttonStyle(.bordered)
+                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            }
+
+            if !emojiDraft.isEmpty && !isDraftValid {
+                Label("이모지 하나를 입력해 주세요.", systemImage: "exclamationmark.circle")
+                    .font(.callout)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("activity-emoji-validation")
             }
 
             ScrollView(.horizontal) {
@@ -136,7 +162,8 @@ private extension ActivityHeatmapThemeEditor {
                         } label: {
                             Text(emoji)
                                 .font(.system(size: 22))
-                                .frame(width: 38, height: 36)
+                                .frame(width: max(38, PlanBaseControlMetrics.minimumTargetSize),
+                                       height: max(36, PlanBaseControlMetrics.minimumTargetSize))
                                 .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
                                 .overlay {
                                     RoundedRectangle(cornerRadius: 8)
@@ -205,6 +232,9 @@ private extension ActivityHeatmapThemeEditor {
         let candidates = value.compactMap { character in
             ThemePreferenceRules.normalizedEmoji(String(character))
         }
+        // Keep invalid input visible so the user can correct it instead of
+        // silently restoring an emoji that was already in the field.
+        guard candidates.count == value.count else { return }
         guard let emoji = candidates.last(where: { $0 != previousEmoji })
             ?? candidates.last else {
             return

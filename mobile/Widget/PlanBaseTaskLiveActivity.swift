@@ -5,6 +5,16 @@ import PlanBaseCore
 import SwiftUI
 import WidgetKit
 
+private extension PlanBaseTaskActivityAttributes.ContentState {
+    var isBreakTime: Bool {
+        focusPhaseRawValue == FocusTimerPhase.breakTime.rawValue
+    }
+
+    var focusPhaseTitle: String {
+        isBreakTime ? "휴식" : "집중"
+    }
+}
+
 struct PlanBaseTaskLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PlanBaseTaskActivityAttributes.self) { context in
@@ -25,6 +35,9 @@ struct PlanBaseTaskLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     TaskLiveActivityActions(context: context)
                 }
+                DynamicIslandExpandedRegion(.bottom) {
+                    TaskLiveActivityExpandedTitle(title: context.state.title)
+                }
             } compactLeading: {
                 TaskLiveActivityCompactTitle(
                     title: context.state.title,
@@ -42,6 +55,34 @@ struct PlanBaseTaskLiveActivity: Widget {
                 )
             }
         }
+    }
+}
+
+private struct TaskLiveActivityExpandedTitle: View {
+    @Environment(\.redactionReasons) private var redactionReasons
+
+    let title: String
+
+    var body: some View {
+        Text(redactedTitle)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .privacySensitive()
+            .accessibilityLabel(accessibilityTitle)
+    }
+
+    private var redactedTitle: String {
+        redactionReasons.contains(.privacy) ? "진행 중인 작업" : title
+    }
+
+    private var accessibilityTitle: String {
+        redactionReasons.contains(.privacy)
+            ? "진행 중인 작업"
+            : "진행 중인 작업 \(title)"
     }
 }
 
@@ -65,7 +106,7 @@ private struct TaskLiveActivityCompactTitle: View {
             .foregroundStyle(theme.accent)
             .frame(maxWidth: 46, alignment: .leading)
             .privacySensitive()
-            .accessibilityLabel("진행 중인 작업 \(title)")
+            .accessibilityLabel(redactionReasons.contains(.privacy) ? "진행 중인 작업" : "진행 중인 작업 \(title)")
     }
 }
 
@@ -124,14 +165,16 @@ private struct TaskLiveActivityTimeText: View {
                 .lineLimit(1)
                 .minimumScaleFactor(style.minimumScaleFactor)
                 .frame(width: style.timeWidth, alignment: .trailing)
-                .accessibilityLabel("집중 남은 시간")
+                .accessibilityLabel("\(state.focusPhaseTitle) 남은 시간")
+                .accessibilityValue(Text(timerInterval: Date.now...max(Date.now, deadline), countsDown: true, showsHours: false))
             } else {
                 Text(Self.durationText(state.focusRemainingSecondsAtPause ?? 0))
                     .font(style.font.monospacedDigit())
                     .lineLimit(1)
                     .minimumScaleFactor(style.minimumScaleFactor)
                     .frame(width: style.timeWidth, alignment: .trailing)
-                    .accessibilityLabel("일시정지된 집중 남은 시간")
+                    .accessibilityLabel("일시정지된 \(state.focusPhaseTitle) 남은 시간")
+                    .accessibilityValue(Self.durationText(state.focusRemainingSecondsAtPause ?? 0))
             }
         } else {
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
@@ -141,6 +184,7 @@ private struct TaskLiveActivityTimeText: View {
                     .minimumScaleFactor(style.minimumScaleFactor)
                     .frame(width: style.timeWidth, alignment: .trailing)
                     .accessibilityLabel("진행 시간")
+                    .accessibilityValue(Self.elapsedText(startedAt: state.elapsedTimerStartedAt, now: timeline.date))
             }
         }
     }
@@ -175,7 +219,7 @@ private struct TaskLiveActivityActiveDot: View {
         Circle()
             .fill(theme.accent)
             .frame(width: 6, height: 6)
-            .accessibilityLabel("작업 진행 중")
+            .accessibilityHidden(true)
     }
 }
 
@@ -202,7 +246,7 @@ private struct TaskLiveActivityLockScreen: View {
                     }
 
                     if context.state.isFocusSession {
-                        Text(context.state.isFocusPaused ? "일시정지" : "집중 중")
+                        Text("\(context.state.focusPhaseTitle) \(context.state.isFocusPaused ? "일시정지" : "중")")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.secondary)
                     } else {
@@ -249,7 +293,7 @@ private struct TaskLiveActivityActions: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("집중 계속")
+                    .accessibilityLabel(context.state.isBreakTime ? "휴식 계속" : "다시 집중")
                 } else {
                     Button(intent: PausePlanBaseFocusIntent(
                         sessionID: focusSessionID,
@@ -261,7 +305,7 @@ private struct TaskLiveActivityActions: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("집중 일시정지")
+                    .accessibilityLabel("\(context.state.focusPhaseTitle) 일시정지")
                 }
 
                 Button(intent: StopPlanBaseFocusIntent(
@@ -274,7 +318,7 @@ private struct TaskLiveActivityActions: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("집중 종료")
+                .accessibilityLabel(context.state.isBreakTime ? "휴식 건너뛰기" : "집중 마치기")
             } else if context.state.hasNextTask {
                 Button(intent: AdvancePlanBaseTaskIntent(
                     taskID: context.state.taskID,

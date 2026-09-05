@@ -205,6 +205,22 @@ public enum FocusSessionService {
         return snapshot
     }
 
+    public static func endBreak(
+        expectedSessionID: UUID,
+        expectedRevision: Int,
+        directoryURL: URL? = nil
+    ) throws {
+        let snapshot = try requiredSnapshot(
+            expectedSessionID: expectedSessionID,
+            expectedRevision: expectedRevision,
+            directoryURL: directoryURL
+        )
+        guard snapshot.phase == .breakTime else {
+            throw FocusTimerRulesError.invalidTransition
+        }
+        try FocusActiveSessionStore.clear(directoryURL: directoryURL)
+    }
+
     @MainActor
     public static func reconcile(
         now: Date = Date(),

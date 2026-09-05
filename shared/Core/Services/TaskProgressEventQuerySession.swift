@@ -37,8 +37,11 @@ public final class TaskProgressEventQuerySession {
     }
 
     public func apply(taskIDs: Set<UUID>) {
+        let wasActive = isActive
         isActive = true
-        guard requestedTaskIDs != taskIDs || eventsByTaskID.isEmpty else { return }
+        // Events can be imported or edited while the board is hidden, without
+        // changing task IDs. A tab's no-op archive notification is not a refresh contract.
+        guard !wasActive || requestedTaskIDs != taskIDs || eventsByTaskID.isEmpty else { return }
         requestedTaskIDs = taskIDs
         refresh(debounce: false)
     }

@@ -8,7 +8,7 @@ func unfilledControlsAndPrimaryButtonsRemainReadableInEveryPalette() {
     for preset in AppThemePreset.all {
         let colors = preset.colorSet(for: .light)
         for surface in [colors.backgroundTop, colors.backgroundBottom, colors.panel, colors.input,
-                        colors.floatingBar, colors.todo, colors.doing, colors.done] {
+                        colors.floatingBar, colors.selectedTab, colors.todo, colors.doing, colors.done] {
             #expect(colors.resolvedAccentForeground.contrastRatio(to: surface) >= 4.5)
         }
         #expect(colors.resolvedEventForeground.contrastRatio(to: colors.event) >= 4.5)

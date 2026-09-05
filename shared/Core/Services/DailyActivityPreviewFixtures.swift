@@ -60,5 +60,44 @@ public enum DailyActivityPreviewFixtures {
         context.insert(review)
         focus(UUID(), start: time(-4, 9), minutes: 15)
     }
+
+    @MainActor
+    public static func seedTaskRecordEdgeCases(
+        in context: ModelContext,
+        referenceDate: Date = Date()
+    ) throws {
+        let marker = "긴 활동 이력 확인"
+        var descriptor = FetchDescriptor<Task>(
+            predicate: #Predicate { $0.title == marker }
+        )
+        descriptor.fetchLimit = 1
+        guard try context.fetch(descriptor).isEmpty else { return }
+
+        let today = DayKey.startOfDay(for: referenceDate)
+        let task = Task(
+            title: marker,
+            plannedAt: today,
+            order: 900,
+            createdAt: today.addingTimeInterval(60)
+        )
+        context.insert(task)
+        for index in 0..<25 {
+            let startedAt = today.addingTimeInterval(Double(index * 600 + 120))
+            context.insert(
+                TaskProgressEvent(
+                    taskId: task.id,
+                    kind: .started,
+                    occurredAt: startedAt
+                )
+            )
+            context.insert(
+                TaskProgressEvent(
+                    taskId: task.id,
+                    kind: .stopped,
+                    occurredAt: startedAt.addingTimeInterval(300)
+                )
+            )
+        }
+    }
 }
 #endif

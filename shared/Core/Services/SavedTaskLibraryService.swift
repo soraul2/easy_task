@@ -59,6 +59,8 @@ public enum SavedTaskLibraryService {
 
     /// Read value snapshots while records are attached. Views never retain deleted model rows.
     public static func load(in context: ModelContext) throws -> [SavedTaskEntry] {
+        let performanceInterval = PlanBasePerformanceTrace.begin("SavedTaskLibraryLoad")
+        defer { PlanBasePerformanceTrace.end("SavedTaskLibraryLoad", performanceInterval) }
         let templates = try fetchPages(
             FetchDescriptor<TaskTemplate>(
                 predicate: #Predicate { $0.supersededAt == nil },

@@ -342,8 +342,9 @@ private struct PlanBaseLockScreenWidgetView: View {
     private func taskAccessibilityLabel(
         for presentation: LockScreenWidgetTaskPresentation
     ) -> String {
-        guard presentation.totalCount > 0 else { return presentation.title }
-        return "\(presentation.title), 오늘 완료 \(presentation.completedCount)개 중 전체 \(presentation.totalCount)개"
+        let title = privateTaskTitle(for: presentation)
+        guard presentation.totalCount > 0 else { return title }
+        return "\(title), 오늘 전체 \(presentation.totalCount)개 중 \(presentation.completedCount)개 완료"
     }
 }
 
