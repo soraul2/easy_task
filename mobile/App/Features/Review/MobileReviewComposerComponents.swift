@@ -77,13 +77,13 @@ struct ReviewComposerPromptPicker: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(
                                     isAdded
-                                        ? AppTheme.eventForeground
+                                        ? AppTheme.onAccent
                                         : AppTheme.primaryText
                                 )
                                 .padding(.horizontal, 12)
                                 .frame(minHeight: 44)
                                 .background(
-                                    isAdded ? AppTheme.event : AppTheme.input,
+                                    isAdded ? AppTheme.accentFill : AppTheme.input,
                                     in: Capsule()
                                 )
                         }

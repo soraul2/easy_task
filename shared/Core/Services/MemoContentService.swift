@@ -1,6 +1,15 @@
 import Foundation
 import SwiftData
 
+public enum MemoDrawingPreviewRules {
+    public static let maximumPixelDimension = 1_800.0
+
+    public static func scale(width: Double, height: Double) -> Double? {
+        guard width.isFinite, height.isFinite, width > 0, height > 0 else { return nil }
+        return min(2, maximumPixelDimension / max(width, height))
+    }
+}
+
 public struct MemoChecklistDraft: Equatable, Identifiable, Sendable {
     public var id: UUID
     public var title: String
@@ -210,11 +219,23 @@ public enum MemoChecklistService {
             let order = Double(index + 1) * 100
             if let item = existingByID[draft.id] {
                 var itemChanged = false
-                itemChanged = assign(&item.title, draft.title) || itemChanged
-                itemChanged = assign(&item.isCompleted, draft.isCompleted) || itemChanged
-                itemChanged = assign(&item.order, order) || itemChanged
+                if item.title != draft.title {
+                    item.title = draft.title
+                    itemChanged = true
+                }
+                if item.isCompleted != draft.isCompleted {
+                    item.isCompleted = draft.isCompleted
+                    itemChanged = true
+                }
+                if item.order != order {
+                    item.order = order
+                    itemChanged = true
+                }
                 let completedAt = draft.isCompleted ? (item.completedAt ?? now) : nil
-                itemChanged = assign(&item.completedAt, completedAt) || itemChanged
+                if item.completedAt != completedAt {
+                    item.completedAt = completedAt
+                    itemChanged = true
+                }
                 if itemChanged {
                     item.updatedAt = now
                     changed = true
@@ -255,12 +276,5 @@ public enum MemoChecklistService {
             }
     }
 
-    private static func assign<Value: Equatable>(
-        _ target: inout Value,
-        _ value: Value
-    ) -> Bool {
-        guard target != value else { return false }
-        target = value
-        return true
-    }
+
 }

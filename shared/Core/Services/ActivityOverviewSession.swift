@@ -28,7 +28,8 @@ public final class ActivityOverviewSession {
             forName: PersistenceCommandService.dataChangedNotification,
             object: context,
             queue: nil
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+                guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
             Swift.Task { @MainActor [weak self] in
                 guard self?.isActive == true else { return }
                 self?.refresh()

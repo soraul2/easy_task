@@ -25,6 +25,7 @@ public enum MemoSaveState: Equatable, Sendable {
 @MainActor
 @Observable
 public final class MemoEditorSession {
+    public typealias ContentLoader = @MainActor (UUID, ModelContext) throws -> (drawing: Data, checklist: [MemoChecklistDraft])
     public typealias CompositeSaver = @MainActor (
         Memo?, String, MemoEditorMode, Data, [MemoChecklistDraft], ModelContext
     ) throws -> Memo?
@@ -35,6 +36,8 @@ public final class MemoEditorSession {
     public private(set) var drawingData: Data
     public private(set) var checklistDrafts: [MemoChecklistDraft]
     public private(set) var saveState: MemoSaveState
+    public private(set) var loadErrorMessage: String?
+    private var pendingPin: Bool?
 
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private var lastSavedContent: String
@@ -42,11 +45,16 @@ public final class MemoEditorSession {
     @ObservationIgnored private var lastSavedDrawingData: Data
     @ObservationIgnored private var lastSavedChecklistDrafts: [MemoChecklistDraft]
     @ObservationIgnored private var pendingSave: Swift.Task<Void, Never>?
+    @ObservationIgnored private let loadContent: ContentLoader
     @ObservationIgnored private let saveComposite: CompositeSaver
 
     public init(
         memo: Memo?,
         context: ModelContext,
+        loadContent: @escaping ContentLoader = { id, context in
+            (try MemoDrawingService.data(for: id, in: context),
+             try MemoChecklistService.drafts(for: id, in: context))
+        },
         saveComposite: @escaping CompositeSaver = { memo, content, mode, drawing, checklist, context in
             try MemoService.saveComposite(
                 memo: memo,
@@ -60,31 +68,21 @@ public final class MemoEditorSession {
     ) {
         let initialContent = memo?.content ?? ""
         let initialMode = memo.map(MemoRules.mode(for:)) ?? .text
-        let initialDrawingData: Data
-        let initialChecklistDrafts: [MemoChecklistDraft]
-        if let memo {
-            initialDrawingData = (try? MemoDrawingService.data(for: memo.id, in: context)) ?? Data()
-            initialChecklistDrafts = (try? MemoChecklistService.drafts(
-                for: memo.id,
-                in: context
-            )) ?? []
-        } else {
-            initialDrawingData = Data()
-            initialChecklistDrafts = []
-        }
 
         self.memo = memo
         self.context = context
         self.saveComposite = saveComposite
+        self.loadContent = loadContent
         content = initialContent
         preferredMode = initialMode
-        drawingData = initialDrawingData
-        checklistDrafts = initialChecklistDrafts
+        drawingData = Data()
+        checklistDrafts = []
         lastSavedContent = initialContent
         lastSavedMode = initialMode
-        lastSavedDrawingData = initialDrawingData
-        lastSavedChecklistDrafts = initialChecklistDrafts
+        lastSavedDrawingData = Data()
+        lastSavedChecklistDrafts = []
         saveState = memo == nil ? .idle : .saved
+        reloadContent()
     }
 
     deinit {
@@ -113,24 +111,28 @@ public final class MemoEditorSession {
     }
 
     public func updateContent(_ value: String) {
+        guard loadErrorMessage == nil else { return }
         guard content != value else { return }
         content = value
         scheduleSave()
     }
 
     public func updatePreferredMode(_ value: MemoEditorMode) {
+        guard loadErrorMessage == nil else { return }
         guard preferredMode != value else { return }
         preferredMode = value
         scheduleSave()
     }
 
     public func updateDrawingData(_ value: Data) {
+        guard loadErrorMessage == nil else { return }
         guard drawingData != value else { return }
         drawingData = value
         scheduleSave()
     }
 
     public func appendChecklistItem() {
+        guard loadErrorMessage == nil else { return }
         let nextOrder = (checklistDrafts.map(\.order).max() ?? 0) + 100
         checklistDrafts.append(MemoChecklistDraft(title: "", order: nextOrder))
         preferredMode = .checklist
@@ -138,6 +140,7 @@ public final class MemoEditorSession {
     }
 
     public func updateChecklistTitle(id: UUID, title: String) {
+        guard loadErrorMessage == nil else { return }
         guard let index = checklistDrafts.firstIndex(where: { $0.id == id }),
               checklistDrafts[index].title != title else { return }
         checklistDrafts[index].title = title
@@ -145,12 +148,14 @@ public final class MemoEditorSession {
     }
 
     public func toggleChecklistItem(id: UUID) {
+        guard loadErrorMessage == nil else { return }
         guard let index = checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
         checklistDrafts[index].isCompleted.toggle()
         scheduleSave()
     }
 
     public func removeChecklistItem(id: UUID) {
+        guard loadErrorMessage == nil else { return }
         guard let index = checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
         checklistDrafts.remove(at: index)
         normalizeChecklistOrder()
@@ -158,6 +163,7 @@ public final class MemoEditorSession {
     }
 
     public func moveChecklistItems(fromOffsets: IndexSet, toOffset: Int) {
+        guard loadErrorMessage == nil else { return }
         let validOffsets = fromOffsets
             .filter { checklistDrafts.indices.contains($0) }
             .sorted()
@@ -178,8 +184,9 @@ public final class MemoEditorSession {
     }
 
     public func scheduleSave() {
+        guard loadErrorMessage == nil else { return }
         pendingSave?.cancel()
-        guard hasChanges else {
+        guard hasUnsavedChanges else {
             saveState = memo == nil ? .idle : .saved
             return
         }
@@ -195,39 +202,39 @@ public final class MemoEditorSession {
         }
     }
 
-    public func flush() {
+    @discardableResult
+    public func flush() -> Bool {
         pendingSave?.cancel()
         pendingSave = nil
-        guard hasChanges else { return }
+        guard loadErrorMessage == nil else { return false }
+        guard hasUnsavedChanges else { return true }
 
         do {
-            memo = try saveComposite(
-                memo,
-                content,
-                preferredMode,
-                drawingData,
-                checklistDrafts,
-                context
-            )
-            lastSavedContent = content
-            lastSavedMode = preferredMode
-            lastSavedDrawingData = drawingData
-            lastSavedChecklistDrafts = checklistDrafts
+            if hasContentChanges {
+                memo = try saveComposite(
+                    memo, content, preferredMode, drawingData, checklistDrafts, context
+                )
+                lastSavedContent = content
+                lastSavedMode = preferredMode
+                lastSavedDrawingData = drawingData
+                lastSavedChecklistDrafts = checklistDrafts
+            }
+            if let pendingPin, let memo {
+                try MemoService.setPinned(pendingPin, for: memo, in: context)
+            }
+            pendingPin = nil
             saveState = memo == nil ? .idle : .saved
+            return true
         } catch {
             saveState = .failed(error.localizedDescription)
+            return false
         }
     }
 
     public func setPinned(_ isPinned: Bool) {
+        guard loadErrorMessage == nil else { return }
+        pendingPin = isPinned
         flush()
-        guard let memo else { return }
-        do {
-            try MemoService.setPinned(isPinned, for: memo, in: context)
-            saveState = .saved
-        } catch {
-            saveState = .failed(error.localizedDescription)
-        }
     }
 
     public func delete() throws {
@@ -245,13 +252,47 @@ public final class MemoEditorSession {
         lastSavedDrawingData = Data()
         lastSavedChecklistDrafts = []
         saveState = .idle
+        loadErrorMessage = nil
+        pendingPin = nil
     }
 
-    private var hasChanges: Bool {
+    /// A failed save must keep this draft alive when navigating between editors.
+    public var hasUnsavedChanges: Bool {
+        hasContentChanges || pendingPin != nil
+    }
+
+    private var hasContentChanges: Bool {
         content != lastSavedContent ||
             preferredMode != lastSavedMode ||
             drawingData != lastSavedDrawingData ||
             checklistDrafts != lastSavedChecklistDrafts
+    }
+
+    public func retryLoad() {
+        guard loadErrorMessage != nil else { return }
+        reloadContent()
+    }
+
+    private func reloadContent() {
+        guard let memo else { return }
+        do {
+            // Commit the loaded snapshot only after both reads succeed. An unread
+            // child collection must never be passed to the replacement saver as empty.
+            let loaded = try loadContent(memo.id, context)
+            content = memo.content
+            preferredMode = MemoRules.mode(for: memo)
+            lastSavedContent = content
+            lastSavedMode = preferredMode
+            drawingData = loaded.drawing
+            checklistDrafts = loaded.checklist
+            lastSavedDrawingData = loaded.drawing
+            lastSavedChecklistDrafts = loaded.checklist
+            loadErrorMessage = nil
+            saveState = .saved
+        } catch {
+            saveState = .idle
+            loadErrorMessage = "메모 내용을 불러오지 못했어요. 다시 시도해 주세요."
+        }
     }
 
     private func normalizeChecklistOrder() {

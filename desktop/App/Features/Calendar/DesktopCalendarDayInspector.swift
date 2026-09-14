@@ -575,7 +575,7 @@ private struct DesktopTemplatePlacementSummaryQueryHost: View {
 
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "square.grid.3x3.fill")
-                .foregroundStyle(AppTheme.event)
+                .foregroundStyle(AppTheme.accent)
                 .frame(width: 24, height: 28)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -591,7 +591,7 @@ private struct DesktopTemplatePlacementSummaryQueryHost: View {
                 .foregroundStyle(
                     summary.canDeleteTasks
                         ? AppTheme.secondaryText
-                        : AppTheme.event
+                        : AppTheme.accent
                 )
                 Text(taskSummary)
                     .font(.caption)

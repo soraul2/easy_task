@@ -53,7 +53,7 @@ public enum TaskProgressEventIntegrityService {
                 event.supersededAt == nil &&
                 !pendingIdentifiers.contains(event.persistentModelID) {
                 if isCancelled() { throw CancellationError() }
-                guard normalize(event, report: &report) else { continue }
+                guard try normalize(event, in: context, report: &report) else { continue }
                 if pendingID == event.id {
                     pendingGroup.append(event)
                 } else {
@@ -89,8 +89,9 @@ private extension TaskProgressEventIntegrityService {
     @MainActor
     static func normalize(
         _ event: TaskProgressEvent,
+        in context: ModelContext,
         report: inout Report
-    ) -> Bool {
+    ) throws -> Bool {
         report.scannedRecords += 1
         report.normalizedFields += DataIntegrityService.normalizeTimestamps(event)
         let kind = TaskProgressEventKind(rawValue: event.kindRawValue)
@@ -112,6 +113,24 @@ private extension TaskProgressEventIntegrityService {
                 supersede(event, at: event.updatedAt, report: &report)
                 return false
             }
+            // Old clients can synthesize this boundary before receiving the
+            // captured stop. Honor an undo even if that fallback arrives later.
+            let taskID = event.taskId
+            let occurredAt = event.occurredAt
+            let captured = TaskProgressEventOrigin.captured.rawValue
+            let stopped = TaskProgressEventKind.stopped.rawValue
+            let canceledStops = try context.fetch(FetchDescriptor<TaskProgressEvent>(
+                predicate: #Predicate { candidate in
+                    candidate.taskId == taskID && candidate.originRawValue == captured &&
+                        candidate.kindRawValue == stopped && candidate.occurredAt == occurredAt &&
+                        candidate.supersededAt != nil
+                }
+            ))
+            if let timestamp = canceledStops.compactMap(\.supersededAt)
+                .filter(DataIntegrityService.isFinite).max() {
+                supersede(event, at: timestamp, report: &report)
+                return false
+            }
         }
         return true
     }
@@ -126,7 +145,7 @@ private extension TaskProgressEventIntegrityService {
         var validIDs: Set<UUID> = []
         for event in pendingEvents where event.supersededAt == nil {
             if isCancelled() { throw CancellationError() }
-            if normalize(event, report: &report) {
+            if try normalize(event, in: context, report: &report) {
                 validIDs.insert(event.id)
             }
         }

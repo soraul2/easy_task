@@ -103,6 +103,7 @@ public struct ArchiveDayDetailContent: View {
         .onReceive(
             NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)
         ) { notification in
+            guard PersistenceCommandService.affects([.tasks, .reviews], in: notification) else { return }
             guard let source = notification.object as? ModelContext, source === modelContext else { return }
             session.refreshPreservingDepth()
         }

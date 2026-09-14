@@ -47,22 +47,22 @@ struct CalendarWidgetTheme {
     }
 
     var accent: Color {
-        usesFullColorPalette ? colors.event.color : .accentColor
+        usesFullColorPalette ? colors.accentForeground.color : .accentColor
     }
 
     var accentFill: Color {
-        usesFullColorPalette ? colors.event.color : Color.primary.opacity(0.16)
+        usesFullColorPalette ? colors.accentFill.color : Color.primary.opacity(0.16)
     }
 
     var accentForeground: Color {
         guard usesFullColorPalette else { return .primary }
-        return colors.resolvedEventForeground(on: colors.event).color
+        return colors.onAccent.color
     }
 
     var sundayText: Color {
         guard usesFullColorPalette else { return .primary }
         return colors.resolvedSemanticForeground(
-            eventToken(CalendarEventColor.red.rawValue),
+            colors.semanticRed,
             on: colors.panel
         ).color
     }

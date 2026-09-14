@@ -65,6 +65,7 @@ public struct TaskRecordSheet: View {
         .onReceive(
             NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)
         ) { notification in
+            guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
             guard let source = notification.object as? ModelContext, source === modelContext else { return }
             refreshID += 1
         }

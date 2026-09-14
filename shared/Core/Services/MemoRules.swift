@@ -25,21 +25,38 @@ public enum MemoRules {
     }
 
     public static func displayTitle(for content: String) -> String {
-        content
-            .split(whereSeparator: \Character.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first(where: { !$0.isEmpty }) ?? emptyTitle
+        nonemptyLines(in: content).next() ?? emptyTitle
     }
 
-    public static func preview(for content: String) -> String {
-        let nonemptyLines = content
-            .split(whereSeparator: \Character.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    /// List previews are bounded independently of the full searchable/editable body.
+    public static func preview(for content: String, maximumLength: Int = 240) -> String {
+        guard maximumLength > 0 else { return "" }
+        let lines = nonemptyLines(in: content)
+        guard let title = lines.next() else { return "" }
+        var line = lines.next() ?? title
+        var result = ""
+        while true {
+            let prefix = line.prefix(maximumLength - result.count)
+            result.append(contentsOf: prefix)
+            if prefix.endIndex != line.endIndex { return result + "…" }
+            guard let next = lines.next() else { return result }
+            guard result.count + 1 < maximumLength else { return result + "…" }
+            result += " "
+            line = next
+        }
+    }
 
-        let remainingLines = nonemptyLines.dropFirst()
-        let source = remainingLines.isEmpty ? nonemptyLines : Array(remainingLines)
-        return source.joined(separator: " ")
+    private static func nonemptyLines(in content: String) -> AnyIterator<String> {
+        var remaining = content[...]
+        return AnyIterator {
+            while !remaining.isEmpty {
+                let end = remaining.firstIndex(where: \.isNewline) ?? remaining.endIndex
+                let line = remaining[..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+                remaining = end == remaining.endIndex ? remaining[end...] : remaining[remaining.index(after: end)...]
+                if !line.isEmpty { return line }
+            }
+            return nil
+        }
     }
 
     public static func updatedAtText(_ date: Date) -> String {
@@ -67,7 +84,10 @@ public enum MemoRules {
         checklistTitles: [String],
         query: String
     ) -> Bool {
-        let normalizedQuery = normalizedSearchText(query)
+        matches(memo, checklistTitles: checklistTitles, normalizedQuery: normalizedSearchText(query))
+    }
+
+    static func matches(_ memo: Memo, checklistTitles: [String], normalizedQuery: String) -> Bool {
         guard !normalizedQuery.isEmpty else { return true }
         let searchableText = ([memo.content, displayTitle(for: memo)] + checklistTitles)
             .joined(separator: "\n")

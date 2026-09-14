@@ -55,6 +55,7 @@ struct WatchRootView: View {
             .onReceive(NotificationCenter.default.publisher(
                 for: PersistenceCommandService.dataChangedNotification
             )) { notification in
+                guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
                 guard let sourceContext = notification.object as? ModelContext,
                       sourceContext === modelContext else { return }
                 Swift.Task { @MainActor in

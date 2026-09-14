@@ -47,13 +47,15 @@ public enum CalendarEventPalette {
     public static let defaultColor = CalendarEventColor.blue.rawValue
 
     @MainActor
-    public static func color(for colorID: String?) -> Color {
-        CalendarEventColor(rawValue: colorID ?? defaultColor)?.color ?? CalendarEventColor.blue.color
+    public static func color(for colorID: String?, isDimmed: Bool = false) -> Color {
+        let index = CalendarEventColor(rawValue: colorID ?? defaultColor)?.paletteIndex ?? 0
+        return AppTheme.colors.eventBackground(at: index, isDimmed: isDimmed).color
     }
 
     @MainActor
-    public static func foreground(for colorID: String?) -> Color {
-        CalendarEventColor(rawValue: colorID ?? defaultColor)?.foregroundColor
-            ?? CalendarEventColor.blue.foregroundColor
+    public static func foreground(for colorID: String?, isDimmed: Bool = false) -> Color {
+        let index = CalendarEventColor(rawValue: colorID ?? defaultColor)?.paletteIndex ?? 0
+        let background = AppTheme.colors.eventBackground(at: index, isDimmed: isDimmed)
+        return AppTheme.colors.resolvedEventForeground(on: background).color
     }
 }

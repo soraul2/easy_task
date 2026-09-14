@@ -138,7 +138,10 @@ public struct SavedTaskLibrarySheet: View {
             .task { reload() }
             .onReceive(
                 NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)
-            ) { _ in reload() }
+            ) { notification in
+                guard PersistenceCommandService.affects(.templates, in: notification) else { return }
+                reload()
+            }
             .onChange(of: scenePhase) { _, phase in if phase == .active { reload() } }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -199,6 +202,7 @@ public struct SavedTaskLibrarySheet: View {
                     Image(systemName: entry.isFavorite ? "star.fill" : "star")
                         .foregroundStyle(entry.isFavorite ? AppTheme.accent : AppTheme.secondaryText)
                         .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(entry.draft.title) 즐겨찾기 \(entry.isFavorite ? "해제" : "추가")")
@@ -220,7 +224,9 @@ public struct SavedTaskLibrarySheet: View {
                     }
                     Button("저장 목록에서 삭제", systemImage: "trash", role: .destructive) { pendingDelete = entry }
                 } label: {
-                    Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44)
+                    Image(systemName: "ellipsis")
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("\(entry.draft.title) 저장 메뉴")
             }

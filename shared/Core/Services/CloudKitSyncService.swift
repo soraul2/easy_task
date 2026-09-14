@@ -274,7 +274,8 @@ public enum CloudKitSyncService {
         context: ModelContext
     ) throws {
         guard shouldReconcile(after: summary) else { return }
-        try PersistenceCommandService.perform(in: context) {
+        // Imported rows may already be saved even when convergence makes no edits.
+        try PersistenceCommandService.perform(in: context, invalidating: .all) {
             _ = try DataIntegrityService.reconcile(
                 context: context,
                 saveChanges: false,

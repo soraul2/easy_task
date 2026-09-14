@@ -76,6 +76,7 @@ struct MobileCalendarView: View {
     @State private var calendarNotice: String?
     @State private var calendarNoticeToken = UUID()
     @State private var pendingEditorNotice: String?
+    @State private var placementSummary = TemplateApplicationSummary(totalCount: 0, newCount: 0)
     @State private var showingTemplateApplyConfirmation = false
     @State private var showingPlacementTemplateDeleteConfirmation = false
     @State private var pendingPlacementTemplateDeletion: TaskTemplate?
@@ -116,11 +117,8 @@ struct MobileCalendarView: View {
                     CalendarTemplatePlacementStatus(
                         templateName: placementTemplate.name,
                         selectedCount: placementDayKeys.count,
-                        taskCount: validPlacementDrafts.count,
-                        message: placementMessage,
-                        onDelete: {
-                            requestPlacementTemplateDeletion(placementTemplate)
-                        }
+                        taskCount: placementSummary.newCount,
+                        message: placementMessage
                     )
                 }
                 monthGrid(events: events, templatePlacements: templatePlacements)
@@ -150,10 +148,11 @@ struct MobileCalendarView: View {
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("적용") {
+                        Button(placementSummary.duplicateCount > 0 ? "추가 옵션" : "\(placementSummary.newCount)개 추가") {
                             requestTemplatePlacementConfirmation()
                         }
                         .disabled(placementDayKeys.isEmpty || validPlacementDrafts.isEmpty)
+                        .accessibilityIdentifier("template-calendar-add")
                     }
                 }
             }
@@ -186,21 +185,21 @@ struct MobileCalendarView: View {
                         .id(dayKey)
                     case .templates:
                         MobileTemplatePlacementSheet(
-                            templates: templates,
-                            items: templateItems,
                             onStartPlacement: startTemplatePlacement
                         )
                     }
                 }
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
-            .alert("템플릿을 적용할까요?", isPresented: $showingTemplateApplyConfirmation, presenting: placementTemplate) { _ in
-                Button("취소", role: .cancel) {}
-                Button("적용") {
-                    applyTemplatePlacement()
+            .onChange(of: placementDayKeys) { refreshPlacementSummary() }
+            .alert("추가할 작업을 선택하세요", isPresented: $showingTemplateApplyConfirmation) {
+                if placementSummary.newCount > 0 {
+                    Button("새 작업 \(placementSummary.newCount)개만 추가") { applyTemplatePlacement() }
                 }
-            } message: { template in
-                Text("\"\(template.name)\" 템플릿의 작업 \(validPlacementDrafts.count)개를 선택한 \(placementDayKeys.count)일에 적용합니다.")
+                Button("전체 \(placementSummary.totalCount)개 다시 추가") { applyTemplatePlacement(skipDuplicates: false) }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("선택한 \(placementDayKeys.count)일에 같은 제목의 작업이 \(placementSummary.duplicateCount)개 있어요. 기존 작업은 유지됩니다.")
             }
             .alert("템플릿을 삭제할까요?", isPresented: $showingPlacementTemplateDeleteConfirmation, presenting: pendingPlacementTemplateDeletion) { template in
                 Button("취소", role: .cancel) {
@@ -383,12 +382,33 @@ struct MobileCalendarView: View {
             placementMessage = "날짜를 선택하세요"
             return
         }
-        showingTemplateApplyConfirmation = true
+        guard refreshPlacementSummary() else { return }
+        if placementSummary.duplicateCount > 0 { showingTemplateApplyConfirmation = true }
+        else { applyTemplatePlacement() }
     }
 
-    private func applyTemplatePlacement() {
+    @discardableResult
+    private func refreshPlacementSummary() -> Bool {
+        do {
+            let tasks = try placementDayKeys.sorted().flatMap { key in
+                try BoundedQueryService.tasks(from: key, through: key, in: modelContext)
+            }
+            placementSummary = TemplateApplicationRules.summary(drafts: validPlacementDrafts,
+                dates: placementDayKeys.compactMap(DayKey.date(from:)), tasks: tasks)
+            placementMessage = placementDayKeys.isEmpty ? "추가할 날짜를 선택하세요" :
+                "\(placementDayKeys.count)일에 작업 \(placementSummary.newCount)개 추가" +
+                (placementSummary.duplicateCount > 0 ? " · 같은 제목 \(placementSummary.duplicateCount)개 있음" : "")
+            return true
+        } catch {
+            placementMessage = "작업 수를 확인하지 못했어요. 추가 버튼을 눌러 다시 확인해 주세요."
+            return false
+        }
+    }
+
+    private func applyTemplatePlacement(skipDuplicates: Bool = true) {
         guard let placementTemplate else { return }
         do {
+            _ = try TemplateEditingService.snapshot(id: placementTemplate.id, in: modelContext)
             let createdCount = try PersistenceCommandService.perform(in: modelContext) {
                 let existingTasks = try placementDayKeys.sorted().flatMap { dayKey in
                     try BoundedQueryService.tasks(
@@ -402,7 +422,8 @@ struct MobileCalendarView: View {
                     drafts: validPlacementDrafts,
                     selectedDates: placementDayKeys.sorted().compactMap(DayKey.date(from:)),
                     existingTasks: existingTasks,
-                    in: modelContext
+                    in: modelContext,
+                    skipDuplicateTitles: skipDuplicates
                 )
             }
             guard createdCount > 0 else {

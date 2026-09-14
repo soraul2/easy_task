@@ -6,7 +6,10 @@ import SwiftUI
 
 private struct MobileMemoRoute: Hashable {
     var id = UUID()
-    var memoInstanceID: UUID?
+    var memo: Memo?
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 struct MobileMemoView: View {
@@ -32,7 +35,7 @@ struct MobileMemoView: View {
                         MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
                         Button {
-                            path.append(MobileMemoRoute(memoInstanceID: nil))
+                            path.append(MobileMemoRoute(memo: nil))
                         } label: {
                             Image(systemName: "square.and.pencil")
                                 .frame(width: 44, height: 44)
@@ -43,7 +46,7 @@ struct MobileMemoView: View {
                 }
                 .navigationDestination(for: MobileMemoRoute.self) { route in
                     MobileMemoEditorView(
-                        memo: memo(for: route.memoInstanceID),
+                        memo: route.memo,
                         onDeleted: {
                             if !path.isEmpty { path.removeLast() }
                         }
@@ -71,6 +74,7 @@ struct MobileMemoView: View {
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
         )) { notification in
+            guard PersistenceCommandService.affects(.memos, in: notification) else { return }
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             querySession?.refresh()
@@ -206,11 +210,11 @@ private extension MobileMemoView {
 
     func memoRow(_ memo: Memo) -> some View {
         Button {
-            path.append(MobileMemoRoute(memoInstanceID: memo.instanceID))
+            path.append(MobileMemoRoute(memo: memo))
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: MemoRules.systemImage(for: memo))
-                    .foregroundStyle(memo.isPinned ? AppTheme.event : AppTheme.secondaryText)
+                    .foregroundStyle(memo.isPinned ? AppTheme.accent : AppTheme.secondaryText)
                     .frame(width: 22, height: 22)
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -237,7 +241,7 @@ private extension MobileMemoView {
                 if memo.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.event)
+                        .foregroundStyle(AppTheme.accent)
                         .accessibilityHidden(true)
                 }
             }
@@ -285,14 +289,9 @@ private extension MobileMemoView {
             querySession = MemoQuerySession(context: modelContext)
             #endif
         }
-        // Tab navigation no longer emits a synthetic data change. Re-entering
-        // the memo screen must refresh even when its SwiftUI state was retained.
-        querySession?.apply(query: searchText, debounce: false)
-    }
-
-    func memo(for instanceID: UUID?) -> Memo? {
-        guard let instanceID else { return nil }
-        return querySession?.memos.first { $0.instanceID == instanceID }
+        // Search changes are applied by onChange. Refresh preserves loaded pages
+        // and also consumes a pending search when returning from another tab.
+        querySession?.refresh()
     }
 
     func setPinned(_ isPinned: Bool, memo: Memo) {
@@ -322,6 +321,7 @@ private struct MobileMemoEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
     @State private var editorSession: MemoEditorSession?
     @State private var showingDeleteConfirmation = false
     @State private var showingClearDrawingConfirmation = false
@@ -349,6 +349,7 @@ private struct MobileMemoEditorView: View {
                     .padding(.vertical, 10)
                     .accessibilityLabel("메모 편집 방식")
                     .accessibilityIdentifier("memo-editor-mode")
+                    .disabled(editorSession.loadErrorMessage != nil)
 
                     Divider()
 
@@ -384,7 +385,17 @@ private struct MobileMemoEditorView: View {
                 .background(AppTheme.panel)
                 .navigationTitle(editorSession.displayTitle)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(true)
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            guard !editorSession.hasUnsavedChanges || editorSession.flush() else { return }
+                            dismiss()
+                        } label: {
+                            Label("메모", systemImage: "chevron.backward")
+                        }
+                        .accessibilityIdentifier("memo-editor-back")
+                    }
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         Button {
                             editorSession.setPinned(!editorSession.isPinned)
@@ -392,7 +403,7 @@ private struct MobileMemoEditorView: View {
                             Image(systemName: editorSession.isPinned ? "pin.fill" : "pin")
                                 .frame(minWidth: 44, minHeight: 44)
                         }
-                        .disabled(editorSession.memo == nil)
+                        .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
                         .accessibilityLabel(editorSession.isPinned ? "고정 해제" : "상단에 고정")
 
                         Button(role: .destructive) {
@@ -401,7 +412,7 @@ private struct MobileMemoEditorView: View {
                             Image(systemName: "trash")
                                 .frame(minWidth: 44, minHeight: 44)
                         }
-                        .disabled(editorSession.memo == nil)
+                        .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
                         .accessibilityLabel("메모 삭제")
                     }
                 }
@@ -436,6 +447,23 @@ private struct MobileMemoEditorView: View {
 
     @ViewBuilder
     private func mobileEditorContent(_ session: MemoEditorSession) -> some View {
+        if let message = session.loadErrorMessage {
+            ContentUnavailableView {
+                Label("메모를 불러오지 못했어요", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                Button("다시 시도") { session.retryLoad() }
+                    .buttonStyle(PlanBaseButtonStyle(.primary))
+                    .accessibilityIdentifier("memo-content-load-retry")
+            }
+        } else {
+            loadedMobileEditorContent(session)
+        }
+    }
+
+    @ViewBuilder
+    private func loadedMobileEditorContent(_ session: MemoEditorSession) -> some View {
         switch session.preferredMode {
         case .text:
             TextEditor(text: Binding(
@@ -531,12 +559,15 @@ private struct MobileMemoEditorView: View {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing"),
-           arguments.contains("--ui-testing-memo-save-failure-once") {
+           (arguments.contains("--ui-testing-memo-save-failure-once") ||
+            arguments.contains("--ui-testing-memo-save-failure-twice")) {
             return MemoEditorSession(
                 memo: memo,
                 context: modelContext,
                 saveComposite: { memo, content, mode, drawing, checklist, context in
-                    if MobileMemoEditorUITestFixture.consumeSaveFailure() {
+                    if MobileMemoEditorUITestFixture.consumeSaveFailure(
+                        limit: arguments.contains("--ui-testing-memo-save-failure-twice") ? 2 : 1
+                    ) {
                         throw NSError(domain: "PlanBase.UIFixture", code: 2)
                     }
                     return try MemoService.saveComposite(
@@ -549,6 +580,16 @@ private struct MobileMemoEditorView: View {
                     )
                 }
             )
+        }
+        if arguments.contains("--ui-testing"),
+           arguments.contains("--ui-testing-memo-content-load-failure-once") {
+            return MemoEditorSession(memo: memo, context: modelContext, loadContent: { id, context in
+                let drawing = try MemoDrawingService.data(for: id, in: context)
+                if MobileMemoEditorUITestFixture.consumeLoadFailure() {
+                    throw NSError(domain: "PlanBase.UIFixture", code: 3)
+                }
+                return (drawing, try MemoChecklistService.drafts(for: id, in: context))
+            })
         }
         #endif
         return MemoEditorSession(memo: memo, context: modelContext)
@@ -567,11 +608,18 @@ private struct MobileMemoEditorView: View {
 #if DEBUG
 @MainActor
 private enum MobileMemoEditorUITestFixture {
-    private static var didFailSave = false
+    private static var saveFailures = 0
+    private static var didFailLoad = false
 
-    static func consumeSaveFailure() -> Bool {
-        guard !didFailSave else { return false }
-        didFailSave = true
+    static func consumeSaveFailure(limit: Int) -> Bool {
+        guard saveFailures < limit else { return false }
+        saveFailures += 1
+        return true
+    }
+
+    static func consumeLoadFailure() -> Bool {
+        guard !didFailLoad else { return false }
+        didFailLoad = true
         return true
     }
 }

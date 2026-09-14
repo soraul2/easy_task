@@ -39,7 +39,11 @@ struct CalendarView: View {
     @State private var presentedSheet: CalendarSheet?
     @State private var pendingAddDateAfterSheetDismissal: Date?
     @State private var placementTemplate: TaskTemplate?
+    @State private var placementDrafts: [TemplateTaskDraft] = []
     @State private var placementDayKeys: Set<String> = []
+    @State private var placementSummary = TemplateApplicationSummary(totalCount: 0, newCount: 0)
+    @State private var showingRepeatOptions = false
+    @State private var placementNotice: String?
     @State private var calendarMessage: String?
     @State private var pendingEventDeletion: CalendarEvent?
 
@@ -130,10 +134,8 @@ struct CalendarView: View {
                 )
             case .templatePlacement:
                 TemplatePlacementSheet(
-                    templates: templates,
-                    items: templateItems,
-                    onSelect: { template in
-                        beginPlacement(with: template)
+                    onSelect: { template, drafts in
+                        beginPlacement(with: template, drafts: drafts)
                         presentedSheet = nil
                     }
                 )
@@ -173,6 +175,29 @@ struct CalendarView: View {
                     }
                 )
             }
+        }
+        .onChange(of: placementDayKeys) { refreshPlacementSummary() }
+        .overlay(alignment: .bottom) {
+            if let placementNotice {
+                Label(placementNotice, systemImage: "checkmark.circle")
+                    .padding(14).background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+                    .padding(16)
+            }
+        }
+        .task(id: placementNotice) {
+            guard placementNotice != nil else { return }
+            try? await Swift.Task.sleep(for: .seconds(5))
+            guard !Swift.Task.isCancelled else { return }
+            placementNotice = nil
+        }
+        .alert("추가할 작업을 선택하세요", isPresented: $showingRepeatOptions) {
+            if placementSummary.newCount > 0 {
+                Button("새 작업 \(placementSummary.newCount)개만 추가") { applyTemplatePlacement() }
+            }
+            Button("전체 \(placementSummary.totalCount)개 다시 추가") { applyTemplatePlacement(skipDuplicates: false) }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("선택한 \(placementDayKeys.count)일에 같은 제목의 작업이 \(placementSummary.duplicateCount)개 있어요. 기존 작업은 유지됩니다.")
         }
         .alert("일정을 삭제할까요?", isPresented: Binding(
             get: { pendingEventDeletion != nil },
@@ -248,9 +273,11 @@ struct CalendarView: View {
             .buttonStyle(PlanBaseButtonStyle(.secondary))
 
             Button {
-                applyTemplatePlacement()
+                guard refreshPlacementSummary() else { return }
+                if placementSummary.duplicateCount > 0 { showingRepeatOptions = true }
+                else { applyTemplatePlacement() }
             } label: {
-                Label("배치", systemImage: "plus.circle")
+                Label(placementSummary.duplicateCount > 0 ? "추가 옵션" : "\(placementDayKeys.count)일에 \(placementSummary.newCount)개 추가", systemImage: "plus.circle")
             }
             .buttonStyle(PlanBaseButtonStyle(.primary))
             .disabled(placementDayKeys.isEmpty)
@@ -489,13 +516,15 @@ struct CalendarView: View {
         }
     }
 
-    private func beginPlacement(with template: TaskTemplate) {
+    private func beginPlacement(with template: TaskTemplate, drafts: [TemplateTaskDraft]) {
         placementTemplate = template
+        placementDrafts = drafts
         placementDayKeys = []
     }
 
     private func cancelPlacement() {
         placementTemplate = nil
+        placementDrafts = []
         placementDayKeys = []
     }
 
@@ -510,11 +539,27 @@ struct CalendarView: View {
         }
     }
 
-    private func applyTemplatePlacement() {
+    @discardableResult
+    private func refreshPlacementSummary() -> Bool {
+        do {
+            let tasks = try placementDayKeys.sorted().flatMap { key in
+                try BoundedQueryService.tasks(from: key, through: key, in: modelContext)
+            }
+            placementSummary = TemplateApplicationRules.summary(drafts: placementDrafts,
+                dates: selectedPlacementDates, tasks: tasks)
+            return true
+        } catch {
+            calendarMessage = "추가할 작업 수를 확인하지 못했어요."
+            return false
+        }
+    }
+
+    private func applyTemplatePlacement(skipDuplicates: Bool = true) {
         guard let placementTemplate else { return }
 
         do {
-            try PersistenceCommandService.perform(in: modelContext) {
+            let snapshot = try TemplateEditingService.snapshot(id: placementTemplate.id, in: modelContext)
+            let count = try PersistenceCommandService.perform(in: modelContext) {
                 let existingTasks = try placementDayKeys.sorted().flatMap { dayKey in
                     try BoundedQueryService.tasks(
                         from: dayKey,
@@ -522,14 +567,20 @@ struct CalendarView: View {
                         in: modelContext
                     )
                 }
-                TemplateService.applyTemplate(
+                return TemplateService.applyTemplate(
                     placementTemplate,
-                    items: templateItems,
+                    drafts: placementDrafts,
                     selectedDates: selectedPlacementDates,
                     existingTasks: existingTasks,
-                    in: modelContext
+                    in: modelContext,
+                    skipDuplicateTitles: skipDuplicates
                 )
             }
+            guard count > 0 else {
+                placementNotice = "같은 제목의 작업이 모두 있어요. 추가 옵션에서 다시 추가할 수 있습니다."
+                return
+            }
+            placementNotice = "‘\(snapshot.name)’ 작업 \(count)개를 \(placementDayKeys.count)일에 추가했어요"
             cancelPlacement()
         } catch {
             calendarMessage = "템플릿을 배치하지 못했어요."

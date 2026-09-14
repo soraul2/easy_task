@@ -160,7 +160,7 @@ public enum TemplateService {
             selectedDates: [selectedDate],
             existingTasks: existingTasks,
             in: context,
-            skipDuplicateTitles: false
+            skipDuplicateTitles: true
         )
     }
 

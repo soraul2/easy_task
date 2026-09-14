@@ -42,7 +42,7 @@ public enum TaskStatus: String, CaseIterable, Identifiable {
     public var guidanceText: String {
         switch self {
         case .todo: "시작을 기다려요"
-        case .doing: "지금 집중하고 있어요"
+        case .doing: "진행 중인 작업이에요"
         case .done: "마무리했어요"
         }
     }

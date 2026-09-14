@@ -16,6 +16,9 @@
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [build 76 기준 전체 최적화](plans/active/OPTIMIZATION_BUILD_76.md): 구현·로컬 검증 완료, [결과와 실기기 인수](plans/active/OPTIMIZATION_BUILD_76_RESULTS.md)
+
+- [칸반 입력·진행·완료와 실행 취소](plans/active/KANBAN_FLOW_IMPROVEMENT.md)
 - [UI 디자인 일관성과 사용 흐름 개선](plans/active/UI_DESIGN_CONSISTENCY.md)
 - [전체 UI 소스·화면 점검 목록](plans/active/UI_DESIGN_SURFACE_INVENTORY.md)
 - [터치·탭 전환 반응성 최적화](plans/active/RESPONSIVENESS_OPTIMIZATION.md)
@@ -38,6 +41,7 @@
 
 ## 완료된 설계·구현 기록
 
+- [저장한 루틴 중심의 템플릿 UI/UX](plans/completed/TEMPLATE_UX_IMPROVEMENT.md)
 - [집중모드 화면과 예상 시간 반영](plans/completed/FOCUS_EXPERIENCE_POLISH_PLAN.md)
 - [칸반 화면·버튼·테마 완성도 개선](plans/completed/KANBAN_SERVICE_POLISH_PLAN.md)
 - [칸반에서 꺼내 쓰는 저장한 작업](plans/completed/SAVED_TASK_LIBRARY_PLAN.md)

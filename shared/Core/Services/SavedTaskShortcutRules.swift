@@ -35,17 +35,19 @@ public enum SavedTaskShortcutRules {
 
     public static func suggestions(_ entries: [SavedTaskEntry], input: String) -> [SavedTaskEntry] {
         guard let query = query(in: input) else { return [] }
-        return entries.filter {
-            query.isEmpty || aliasKey($0.quickEntryAlias)?.contains(query) == true ||
-                $0.draft.title.localizedStandardContains(query)
-        }.sorted {
-            let leftExact = !query.isEmpty && aliasKey($0.quickEntryAlias) == query
-            let rightExact = !query.isEmpty && aliasKey($1.quickEntryAlias) == query
-            if leftExact != rightExact { return leftExact }
-            if $0.isFavorite != $1.isFavorite { return $0.isFavorite }
-            let comparison = $0.draft.title.localizedStandardCompare($1.draft.title)
-            return comparison == .orderedSame ? $0.id.uuidString < $1.id.uuidString : comparison == .orderedAscending
+        let candidates: [(entry: SavedTaskEntry, isExact: Bool)] = entries.compactMap { entry in
+            let alias = query.isEmpty ? nil : aliasKey(entry.quickEntryAlias)
+            guard query.isEmpty || alias?.contains(query) == true ||
+                entry.draft.title.localizedStandardContains(query) else { return nil }
+            return (entry, !query.isEmpty && alias == query)
         }
+        return candidates.sorted {
+            if $0.isExact != $1.isExact { return $0.isExact }
+            if $0.entry.isFavorite != $1.entry.isFavorite { return $0.entry.isFavorite }
+            let comparison = $0.entry.draft.title.localizedStandardCompare($1.entry.draft.title)
+            return comparison == .orderedSame
+                ? $0.entry.id.uuidString < $1.entry.id.uuidString : comparison == .orderedAscending
+        }.map(\.entry)
     }
 
     public static func exactMatch(in entries: [SavedTaskEntry], input: String) throws -> UUID {

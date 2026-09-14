@@ -165,11 +165,18 @@ public enum TaskProgressEventRules {
         if status == .doing, let currentStartedAt = projection.currentStartedAt {
             let start = startTimeText(for: currentStartedAt, locale: locale, timeZone: timeZone)
             let duration = durationText(for: projection.elapsedDuration(at: now))
-            return "\(start) 시작 · 현재 \(duration)"
+            return "\(start) 시작 · 진행 누적 \(duration)"
+        }
+
+        if status == .doing {
+            let recorded = projection.recordedDuration
+            return recorded > 0
+                ? "진행 누적 \(durationText(for: recorded)) · 현재 시작 시각 기록 없음"
+                : "진행 시작 시각 기록 없음"
         }
 
         if projection.hasUnknownDuration {
-            if let completedAt {
+            if status == .done, let completedAt {
                 let completion = startTimeText(
                     for: completedAt,
                     locale: locale,
@@ -181,21 +188,20 @@ public enum TaskProgressEventRules {
         }
 
         let duration = projection.recordedDuration
-        guard duration > 0,
-              let firstInterval = projection.intervals.first,
+        guard let firstInterval = projection.intervals.first,
               let lastInterval = projection.intervals.last else { return nil }
-        let prefix = projection.intervals.count > 1 ? "누적" : "진행"
+        let ending = status == .done ? "완료" : "진행 중단"
         let start = startTimeText(
             for: firstInterval.startedAt,
             locale: locale,
             timeZone: timeZone
         )
         let completion = startTimeText(
-            for: completedAt ?? lastInterval.stoppedAt,
+            for: status == .done ? (completedAt ?? lastInterval.stoppedAt) : lastInterval.stoppedAt,
             locale: locale,
             timeZone: timeZone
         )
-        return "\(start) 시작 · \(completion) 완료 · \(prefix) \(durationText(for: duration))"
+        return "\(start) 시작 · \(completion) \(ending) · 진행 누적 \(durationText(for: duration))"
     }
 
     private static func eventIsOlder(

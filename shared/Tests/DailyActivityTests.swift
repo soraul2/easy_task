@@ -56,6 +56,36 @@ func dailyActivityRespectsShortAndLongCalendarDays() throws {
     }
 }
 
+@Test(arguments: ["America/Los_Angeles", "Asia/Seoul", "Australia/Lord_Howe", "UTC"])
+func dailyActivitySparseProjectionMatchesDailyClipping(timeZone: String) throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: timeZone))
+    for month in [3, 4, 10, 11] {
+        let lower = try #require(calendar.date(from: DateComponents(year: 2026, month: month, day: 1)))
+        let upper = try #require(calendar.date(byAdding: .day, value: 29, to: lower))
+        let outside = lower.addingTimeInterval(-3600)
+        let boundary = try #require(calendar.date(byAdding: .day, value: 10, to: lower))
+        let projection = TaskProgressProjection(
+            intervals: [
+                .init(startedAt: outside, stoppedAt: lower.addingTimeInterval(0.5)),
+                .init(startedAt: lower.addingTimeInterval(3600), stoppedAt: boundary),
+                .init(startedAt: boundary, stoppedAt: boundary.addingTimeInterval(90)),
+                .init(startedAt: upper, stoppedAt: upper.addingTimeInterval(300_000)),
+                .init(startedAt: upper, stoppedAt: lower),
+            ], recordedStarts: [outside, lower, boundary, upper],
+            unknownIntervalStarts: [boundary.addingTimeInterval(1800)])
+        let sparse = DailyActivityRules.progressEvidenceByDay(projection, from: lower, through: upper, calendar: calendar)
+        var date = lower
+        while date <= upper {
+            let expected = DailyActivityRules.progressEvidence(projection, on: date, calendar: calendar)
+            #expect((sparse[date] ?? .init()) == expected)
+            date = try #require(calendar.date(byAdding: .day, value: 1, to: date))
+        }
+        #expect(sparse.keys.allSatisfy { lower <= $0 && $0 <= upper })
+        #expect(DailyActivityRules.progressEvidenceByDay(projection, from: upper, through: lower, calendar: calendar).isEmpty)
+    }
+}
+
 @Test @MainActor
 func dailyActivityCombinesWorkWithoutReviewAndKeepsCompletionAfterReopening() async throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
@@ -83,6 +113,7 @@ func dailyActivityCombinesWorkWithoutReviewAndKeepsCompletionAfterReopening() as
     #expect(entry.evidence.focusSeconds == 1200)
     #expect(entry.evidence.focusSessionCount == 1)
     #expect(task.status == TaskStatus.todo.rawValue)
+    #expect(entry.completionStatusText == "현재 할 일 · 완료 이력 유지")
 }
 
 @Test @MainActor

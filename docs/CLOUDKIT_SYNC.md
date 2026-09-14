@@ -420,6 +420,61 @@ archive가 사용한 컴파일 소스 iOS 190개·macOS 182개의 배포 snapsho
 성공했고 Apple 패키지 처리가 시작됐다. 설치 가능 상태와 실제 기기 운영 인수는 별도 확인하며,
 배포 자료와 로그는 `.local/releases/build-71/`에 보관한다.
 
+2026-09-06에는 칸반 카드 디자인 개선을 포함한 build 72를 업로드했다. 전체 플랫폼
+Debug/Release 회귀와 공통 테스트 Debug 407개·Release 405개, 여섯 앱·위젯의 서명·build 72·
+App Group·CloudKit 권한을 확인했다. 컴파일 소스 iOS 190개·macOS 182개가 배포 snapshot과
+일치한다. Xcode Organizer에서 앱과 Watch의 운영용 CloudKit Production 권한을 확인하고
+iOS 04:00:39, macOS 04:04:12 KST에 업로드 성공 및 Apple 패키지 처리 시작을 확인했다.
+V11 스키마와 백업 V10은 유지한다. 실제 TestFlight 설치 가능 상태는 별도 확인 대상이며,
+배포 자료는 `.local/releases/build-72/`에 보관한다.
+
+2026-09-07에는 테마 정리와 대표색 개선을 포함한 build 74를 업로드했다. 기존 선택과
+위젯 snapshot ID의 호환성을 유지하면서 사용자 선택 테마를 밝은 테마 6개와 다크 테마 2개로
+정리했다. 전체 플랫폼 회귀와 공통 테스트 Debug 415개·Release 413개를 통과했고, iOS 앱·위젯·
+Watch 앱·컴플리케이션과 macOS 앱·위젯의 버전 1.0·build 74·서명·App Group·CloudKit 권한을
+확인했다. Xcode Organizer에서 iOS와 macOS 모두 `Uploaded to Apple` 상태를 확인했다.
+V11 스키마와 백업 V10은 유지하며, Apple 처리 후 TestFlight 설치 가능 상태는 별도 확인 대상이다.
+배포 자료와 로그는 `.local/releases/build-74/`에 보관한다.
+
+같은 날 저장한 루틴을 먼저 보여주는 템플릿 목록, 별도 생성·편집·복제, 작업 순서 변경,
+`이번에만 조정`, 보드·캘린더의 명시적 중복 추가 선택을 포함한 build 75를 업로드했다.
+전체 플랫폼 회귀에서 공통 테스트 Debug 419개·Release 417개와 iOS·macOS·watchOS
+Debug/Release 빌드를 통과했고, iPhone·iPad UI 흐름과 Mac 실제 화면 조작을 확인했다.
+iOS 앱·위젯·Watch 앱·컴플리케이션과 macOS 앱·위젯의 버전 1.0·build 75, 서명,
+App Group·CloudKit 권한을 검증했다. iOS는 20:23:54, macOS는 20:25:44 KST에
+App Store Connect 업로드가 성공했고 Apple 패키지 처리가 시작됐다. V11 스키마와 백업 V10은
+유지하며 실제 TestFlight 설치 가능 상태는 별도 확인 대상이다. 자료는
+`.local/releases/build-75/`에 보관한다.
+
+2026-09-08에는 칸반의 작업 입력→진행→완료→기록 흐름, 단일 완료 실행 취소, 진행 시간과
+완료 이력 표시 및 지연 import 무결성 보완을 포함한 build 76을 업로드했다. 최종 전체 플랫폼
+게이트에서 공통 테스트 Debug 428개·Release 426개와 iOS·macOS·watchOS Debug/Release 빌드를
+통과했다. iOS 앱·위젯·Watch 앱·컴플리케이션과 macOS 앱·위젯의 버전 1.0·build 76, 서명,
+App Group·CloudKit Production 권한을 검증했다. iOS는 17:15:31, macOS는 17:17:32 KST에
+App Store Connect 업로드가 성공했고 Apple 패키지 처리가 시작됐다. V11 스키마와 백업 V10은
+유지하며 실제 TestFlight 설치 가능 상태는 별도 확인 대상이다. 자료는
+`.local/releases/build-76/`에 보관한다.
+
+2026-09-08에는 build 76을 기준으로 수행한 전반 최적화 결과를 iOS·iPadOS·watchOS와
+macOS TestFlight build 77로 업로드했다. iOS 앱·위젯·Watch 앱·컴플리케이션과 macOS
+앱·위젯의 버전 `1.0`·build `77`을 archive에서 확인했고, iOS archive entitlement 검증과
+macOS App Store 배포 재서명의 CloudKit Production, App Group, key-value store 권한을
+확인했다. 두 플랫폼 모두 App Store Connect 업로드가 성공해 Apple 패키지 처리가 시작됐다.
+V11 스키마와 백업 V10은 유지하며 추가 schema 배포는 필요하지 않다. 실제 TestFlight 설치
+가능 상태와 실기기 데이터 수렴은 별도 인수 대상이며 자료는 `.local/releases/build-77/`에
+보관한다.
+
+2026-09-14에는 루틴 목록·항목 검색, 빠른 입력 후보, 여러 날짜 루틴 적용의 반복 계산을
+줄인 build 78을 업로드했다. 빌드 78 기준 전체 플랫폼 게이트와 Debug 일반 검사 443개,
+Release 일반 검사 442개가 통과했다. iOS 앱·위젯·Watch 앱·컴플리케이션 및 macOS universal
+앱·위젯의 버전 `1.0`·build `78`과 서명을 확인했으며, App Store 배포 패키지의 CloudKit
+Production·App Group·key-value store 권한도 검증했다. 컴파일 소스 iOS 196개·macOS 188개가
+배포 snapshot과 일치한다. macOS 14:07:15, iOS 14:24:36 KST 업로드 성공과 Apple 패키지
+처리 시작을 확인했다. V11 스키마와 백업 V10은 유지하며 추가 schema 배포는 하지 않았다.
+TestFlight 설치 가능 상태와 실기기 인수는 별도 확인 대상이다. 배포 자료는
+`.local/releases/build-78/`, 성능 비교는
+`docs/plans/active/OPTIMIZATION_2026_09_14_RESULTS.md`에 보존한다.
+
 ## 운영 회귀 조건
 
 - 두 기기 오프라인 충돌 시나리오 통과

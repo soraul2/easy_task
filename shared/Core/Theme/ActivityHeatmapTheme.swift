@@ -50,10 +50,10 @@ public struct ActivityHeatmapColorTokens: Hashable, Sendable {
 
 public extension AppThemeColorSet {
     var activityHeatmap: ActivityHeatmapColorTokens {
-        let level1 = input.blended(with: event, amount: 0.18)
-        let level2 = input.blended(with: event, amount: 0.34)
-        let level3 = input.blended(with: event, amount: 0.50)
-        let level4 = input.blended(with: event, amount: 0.66)
+        let level1 = input.blended(with: accentFill, amount: 0.18)
+        let level2 = input.blended(with: accentFill, amount: 0.34)
+        let level3 = input.blended(with: accentFill, amount: 0.50)
+        let level4 = input.blended(with: accentFill, amount: 0.66)
         let outline = resolvedSemanticForeground(primaryText, on: input)
         return ActivityHeatmapColorTokens(
             empty: input,

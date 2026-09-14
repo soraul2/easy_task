@@ -14,6 +14,7 @@ struct BoardTaskList: View {
     var onSaveToLibrary: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
     var progressText: ((TodoTask, Date) -> String?)? = nil
+    var highlightedTaskID: UUID? = nil
     @State private var expandedTaskID: UUID?
 
     var body: some View {
@@ -85,6 +86,14 @@ struct BoardTaskList: View {
                     onStatusChange: { onStatusChange(task, $0) },
                     progressText: progressText?(task, date)
                 )
+                .id(task.id)
+                .overlay {
+                    if highlightedTaskID == task.id {
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(AppTheme.accent, lineWidth: 2)
+                            .allowsHitTesting(false)
+                    }
+                }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
@@ -136,18 +145,17 @@ private struct MobileDoingFocusLauncher: View {
     ) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "timer")
-                .font(.headline.weight(.semibold))
+                .font(.title3.weight(.medium))
                 .foregroundStyle(AppTheme.accent)
-                .frame(width: 40, height: 40)
-                .background(AppTheme.event.opacity(0.14), in: Circle())
+                .frame(width: 28, height: 32)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("집중 시작")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.cardText)
+                    .foregroundStyle(AppTheme.primaryText)
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.cardMutedText)
+                    .foregroundStyle(AppTheme.secondaryText)
                     .lineLimit(1)
             }
 
@@ -155,15 +163,12 @@ private struct MobileDoingFocusLauncher: View {
 
             Image(systemName: trailingSystemImage)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.cardMutedText)
+                .foregroundStyle(AppTheme.secondaryText)
         }
         .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .background(AppTheme.panel.opacity(0.94), in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(AppTheme.event.opacity(0.45), lineWidth: 1)
-        }
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .background(AppTheme.input.opacity(0.45), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func displayTitle(for task: TodoTask) -> String {
@@ -243,34 +248,6 @@ private struct MobileTaskRow: View {
         TaskStatus(rawValue: task.status) ?? .todo
     }
 
-    private var cardColor: Color {
-        switch status {
-        case .todo: AppTheme.todo
-        case .doing: AppTheme.doing
-        case .done: AppTheme.done
-        }
-    }
-
-    private var accentColor: Color {
-        switch status {
-        case .todo: AppTheme.secondaryText
-        case .doing: AppTheme.event
-        case .done: AppTheme.done
-        }
-    }
-
-    private var cardFillOpacity: Double {
-        1
-    }
-
-    private var shadowOpacity: Double {
-        switch status {
-        case .todo: 0.025
-        case .doing: 0.05
-        case .done: 0.025
-        }
-    }
-
     private var priority: TaskPriority? {
         task.priority.flatMap(TaskPriority.init(rawValue:))
     }
@@ -299,88 +276,131 @@ private struct MobileTaskRow: View {
         return (formatted, "bell.fill")
     }
 
-    private var hasDetailChips: Bool {
-        priority != nil ||
-            task.estimatedMinutes != nil ||
-            task.reminderAt != nil ||
-            !visibleTags.isEmpty ||
+    private var hasSummary: Bool {
+        priority != nil || task.estimatedMinutes != nil || progressText != nil ||
             (status != .doing && !checklistProgress.isEmpty)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 10) {
-                        taskTitleButton
-                        HStack(spacing: 8) {
-                            Spacer(minLength: 0)
-                            taskActionButtons
-                        }
-                    }
-                } else {
-                    HStack(alignment: .top) {
-                        taskTitleButton
-                        taskActionButtons
-                    }
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                taskTitleButton
+                taskMenu
             }
 
-            if hasDetailChips {
-                Group {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        VStack(alignment: .leading, spacing: 8) {
-                            detailChips
-                        }
-                    } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                detailChips
-                            }
-                        }
-                    }
+            if hasSummary {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { summaryDetails }
+                    VStack(alignment: .leading, spacing: 8) { summaryDetails }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if let progressText {
-                Label(progressText, systemImage: "clock.arrow.circlepath")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.cardMutedText)
-                    .accessibilityLabel("진행 시간 \(progressText)")
+            if let reminderPresentation {
+                MobileTaskMetadataLabel(
+                    title: reminderPresentation.title,
+                    systemImage: reminderPresentation.systemImage
+                )
+                .accessibilityIdentifier("\(task.title) 알림 기록")
+            }
+
+            if !visibleTags.isEmpty {
+                Text(visibleTags.map { "#\($0)" }.joined(separator: "  "))
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if status == .doing, !checklistProgress.isEmpty {
                 checklistSection
             }
 
-            MobileTaskStatusSlider(
-                taskTitle: task.title,
-                status: status,
-                accentColor: accentColor
-            ) { nextStatus in
-                onStatusChange(nextStatus)
+            Rectangle()
+                .fill(AppTheme.border.opacity(0.45))
+                .frame(height: 1)
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    statusControl
+                    if status != .done { focusButton }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    statusControl
+                    if status != .done { focusButton }
+                }
             }
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 16)
-        .padding(.vertical, 16)
-        .frame(maxWidth: .infinity, minHeight: 156, alignment: .topLeading)
-        .background {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(cardColor.opacity(cardFillOpacity))
-        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
         .overlay {
             RoundedRectangle(cornerRadius: 16)
-                .stroke(accentColor.opacity(status == .doing ? 0.42 : 0.24), lineWidth: 1)
+                .strokeBorder(
+                    status == .doing ? AppTheme.accent.opacity(0.36) : AppTheme.border.opacity(0.70),
+                    lineWidth: 1
+                )
         }
-        .shadow(
-            color: accentColor.opacity(shadowOpacity),
-            radius: 6,
-            x: 0,
-            y: 3
+        .shadow(color: .black.opacity(0.025), radius: 4, y: 2)
+    }
+
+    @ViewBuilder
+    private var summaryDetails: some View {
+        if let priority {
+            MobileTaskMetadataLabel(title: priority.title, systemImage: "flag")
+        }
+        if let estimatedMinutes = task.estimatedMinutes {
+            MobileTaskMetadataLabel(
+                title: "예상 \(EstimatedTimeFormatter.short(estimatedMinutes))",
+                systemImage: "clock"
+            )
+        }
+        if let progressText {
+            MobileTaskMetadataLabel(title: progressText, systemImage: "clock.arrow.circlepath")
+                .accessibilityLabel("진행 상태로 둔 시간, \(progressText)")
+                .accessibilityHint("집중 타이머의 집중 시간과 별도로 기록해요")
+        }
+        if status != .doing, !checklistProgress.isEmpty {
+            MobileTaskMetadataLabel(
+                title: "\(checklistProgress.completedCount)/\(checklistProgress.totalCount)",
+                systemImage: "checklist"
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("\(task.title)-checklist-progress")
+            .accessibilityLabel("체크리스트")
+            .accessibilityValue("\(checklistProgress.completedCount)개 완료, 전체 \(checklistProgress.totalCount)개")
+        }
+    }
+
+    private var statusControl: some View {
+        MobileTaskStatusSlider(
+            taskTitle: task.title,
+            status: status,
+            accentColor: AppTheme.accent,
+            onChange: onStatusChange
         )
-        .shadow(color: .black.opacity(0.025), radius: 2, x: 0, y: 1)
+    }
+
+    private var focusButton: some View {
+        Button(action: onStartFocus) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    Label("집중 시작", systemImage: "timer")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else {
+                    Image(systemName: "timer")
+                        .frame(width: 44, height: 44)
+                }
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(AppTheme.accent)
+            .background(AppTheme.input.opacity(0.60), in: RoundedRectangle(cornerRadius: 11))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(MobilePressFeedbackButtonStyle())
+        .accessibilityIdentifier("\(task.title) 집중 시작")
+        .accessibilityLabel("\(task.title) 집중 시작")
     }
 
     private var taskTitleButton: some View {
@@ -400,79 +420,35 @@ private struct MobileTaskRow: View {
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(status == .done
-                    ? AppTheme.cardMutedText
-                    : AppTheme.cardText)
+                    ? AppTheme.secondaryText
+                    : AppTheme.primaryText)
             if let note = task.note,
                !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(note)
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.cardMutedText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder
-    private var detailChips: some View {
-        if let priority {
-            MobileTaskDetailChip(
-                title: priority.title,
-                systemImage: "flag.fill"
-            )
+    private var taskMenu: some View {
+        Menu {
+            Button("작업 편집", systemImage: "pencil", action: onEdit)
+            Button("자주 쓰는 작업으로 저장", systemImage: "bookmark", action: onSaveToLibrary)
+            Button("작업 삭제", systemImage: "trash", role: .destructive, action: onDelete)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppTheme.secondaryText)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
-        if let estimatedMinutes = task.estimatedMinutes {
-            MobileTaskDetailChip(
-                title: EstimatedTimeFormatter.short(estimatedMinutes),
-                systemImage: "clock"
-            )
-        }
-        if let reminderPresentation {
-            MobileTaskDetailChip(
-                title: reminderPresentation.title,
-                systemImage: reminderPresentation.systemImage
-            )
-            .accessibilityIdentifier("\(task.title) 알림 기록")
-        }
-        if status != .doing {
-            MobileChecklistProgressChip(progress: checklistProgress)
-                .accessibilityIdentifier("\(task.title)-checklist-progress")
-        }
-        ForEach(visibleTags, id: \.self) { tag in
-            MobileTaskDetailChip(title: "#\(tag)", systemImage: "tag")
-        }
-    }
-
-    private var taskActionButtons: some View {
-        HStack(spacing: 8) {
-            if status != .done {
-                Button(action: onStartFocus) {
-                    Image(systemName: "timer")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(width: 44, height: 44)
-                        .background(AppTheme.panel.opacity(0.78), in: Circle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityIdentifier("\(task.title) 집중 시작")
-                .accessibilityLabel("\(task.title) 집중 시작")
-            }
-
-            Menu {
-                Button("작업 편집", systemImage: "pencil", action: onEdit)
-                Button("자주 쓰는 작업으로 저장", systemImage: "bookmark", action: onSaveToLibrary)
-                Button("작업 삭제", systemImage: "trash", role: .destructive, action: onDelete)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .background(AppTheme.panel.opacity(0.78), in: Circle())
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("\(task.title) 작업 메뉴")
-            .accessibilityLabel("\(task.title) 작업 메뉴")
-        }
-        .foregroundStyle(AppTheme.cardMutedText)
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("\(task.title) 작업 메뉴")
+        .accessibilityLabel("\(task.title) 작업 메뉴")
     }
 
     private var checklistSection: some View {
@@ -497,10 +473,8 @@ private struct MobileTaskRow: View {
                         .font(.caption.weight(.bold))
                         .rotationEffect(.degrees(isChecklistExpanded ? 180 : 0))
                 }
-                .foregroundStyle(AppTheme.cardMutedText)
-                .padding(.horizontal, 12)
+                .foregroundStyle(AppTheme.secondaryText)
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .background(AppTheme.panel.opacity(0.52), in: RoundedRectangle(cornerRadius: 12))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -525,13 +499,13 @@ private struct MobileTaskRow: View {
                                     : "circle")
                                     .foregroundStyle(item.isCompleted
                                         ? AppTheme.accent
-                                        : AppTheme.cardMutedText)
+                                        : AppTheme.secondaryText)
                                 Text(item.title)
                                     .font(.subheadline)
                                     .strikethrough(item.isCompleted)
                                     .foregroundStyle(item.isCompleted
-                                        ? AppTheme.cardMutedText
-                                        : AppTheme.cardText)
+                                        ? AppTheme.secondaryText
+                                        : AppTheme.primaryText)
                                     .multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)
                             }
@@ -553,7 +527,7 @@ private struct MobileTaskRow: View {
                     }
                 }
                 .background(AppTheme.input.opacity(0.44), in: RoundedRectangle(cornerRadius: 12))
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
 
             if let checklistSaveError {
@@ -577,30 +551,17 @@ private struct MobileTaskRow: View {
     }
 }
 
-private struct MobileTaskDetailChip: View {
+private struct MobileTaskMetadataLabel: View {
     var title: String
     var systemImage: String
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.caption.weight(.semibold))
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .font(.caption)
+            .foregroundStyle(AppTheme.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
-            .foregroundStyle(AppTheme.cardMutedText)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .frame(
-                maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil,
-                minHeight: 36,
-                alignment: .leading
-            )
-            .background(
-                AppTheme.panel.opacity(0.52),
-                in: RoundedRectangle(
-                    cornerRadius: dynamicTypeSize.isAccessibilitySize ? 10 : 18
-                )
-            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
     }
 }
 

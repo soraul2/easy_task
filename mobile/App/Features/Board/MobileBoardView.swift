@@ -99,7 +99,12 @@ struct MobileBoardView: View {
     @State private var statusNotice: String?
     @State private var statusNoticeTone: MobileNoticeTone = .success
     @State private var statusNoticeToken = UUID()
+    @State private var statusDestination: (taskID: UUID, status: TaskStatus)?
+    @State private var completionUndo: TaskCompletionUndoToken?
+    @State private var highlightedTaskID: UUID?
+    @State private var pendingScrollTaskID: UUID?
     @State private var pendingSheetNotice: String?
+    @State private var pendingSheetStatus: TaskStatus?
     @State private var progressSession: TaskProgressEventQuerySession?
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
@@ -153,12 +158,7 @@ struct MobileBoardView: View {
             boardLayout(tasks: tasks)
             .background(AppTheme.background.ignoresSafeArea())
             .overlay(alignment: .bottom) {
-                if let statusNotice {
-                    MobileStatusNotice(message: statusNotice, tone: statusNoticeTone)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
-                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                }
+                statusNoticeOverlay
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: statusNotice)
             .navigationTitle("칸반")
@@ -202,17 +202,18 @@ struct MobileBoardView: View {
                         SavedTaskLibrarySheet(
                             selectedDate: selectedDate,
                             onAdded: { message in
-                                selectedStatus = .todo
+                                pendingSheetStatus = .todo
                                 pendingSheetNotice = message
                             }
                         )
                     case .templates:
                         MobileTemplateLibrarySheet(
-                            templates: templates,
-                            items: templateItems,
                             selectedDate: selectedDate,
                             existingTasks: selectedDayTaskRows,
-                            onApplied: { pendingSheetNotice = $0 }
+                            onApplied: {
+                                pendingSheetStatus = .todo
+                                pendingSheetNotice = $0
+                            }
                         )
                     case .review:
                         MobileReviewComposerSheet(
@@ -276,7 +277,8 @@ struct MobileBoardView: View {
                 progressSession?.apply(taskIDs: taskIDs)
             }
             .onChange(of: quickTitle) { _, value in quickEntry.update(value, in: modelContext) }
-            .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { notification in
+                guard PersistenceCommandService.affects(.templates, in: notification) else { return }
                 quickEntry.refresh(in: modelContext)
             }
             .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
@@ -290,22 +292,54 @@ struct MobileBoardView: View {
             }
             .onDisappear {
                 progressSession?.cancel()
+                clearBoardNotice()
             }
         }
     }
 
     @ViewBuilder
-    private func boardLayout(tasks: [TodoTask]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                boardControls(tasks: tasks)
-                taskList(tasks: tasks, isEmbeddedInScrollView: true)
-            }
-            .frame(maxWidth: 820)
-            .frame(maxWidth: .infinity)
+    private var statusNoticeOverlay: some View {
+        if let statusNotice {
+            MobileStatusNotice(
+                message: statusNotice, tone: statusNoticeTone,
+                destinationTitle: statusDestinationTitle,
+                onShowDestination: showStatusDestination,
+                onUndo: completionUndoAction
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         }
-        .scrollDismissesKeyboard(.interactively)
-        .accessibilityIdentifier("board-accessibility-scroll")
+    }
+
+    private var statusDestinationTitle: String? {
+        guard let statusDestination else { return nil }
+        return "\(statusDestination.status.title) 보기"
+    }
+
+    private var completionUndoAction: (() -> Void)? {
+        guard completionUndo != nil else { return nil }
+        return { undoCompletion() }
+    }
+
+    @ViewBuilder
+    private func boardLayout(tasks: [TodoTask]) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    boardControls(tasks: tasks)
+                    taskList(tasks: tasks, isEmbeddedInScrollView: true)
+                }
+                .frame(maxWidth: 820)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("board-accessibility-scroll")
+            .onChange(of: pendingScrollTaskID) { _, _ in scrollToDestination(using: proxy) }
+            .onChange(of: BoardQueryRules.tasks(tasks, matching: selectedStatus).map(\.id)) { _, _ in
+                scrollToDestination(using: proxy)
+            }
+        }
     }
 
     @ViewBuilder
@@ -341,8 +375,11 @@ struct MobileBoardView: View {
             onDelete: deleteTask,
             onSaveToLibrary: saveToLibrary,
             onStatusChange: requestTaskStatusChange,
-            progressText: progressText
+            progressText: progressText,
+            highlightedTaskID: highlightedTaskID
         )
+        // A status change replaces the filtered list, including its lazy layout cache.
+        .id(selectedStatus)
     }
 
     private func saveToLibrary(_ task: TodoTask) {
@@ -494,13 +531,14 @@ struct MobileBoardView: View {
         let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard currentStatus != status else { return }
         do {
-            try PersistenceCommandService.perform(in: modelContext) {
-                try TaskLifecycleService.applyStatus(
-                    status,
-                    to: task,
-                    in: modelContext,
-                    now: Date()
-                )
+            let undo: TaskCompletionUndoToken?
+            if status == .done {
+                undo = try TaskCompletionUndoService.complete(task, in: modelContext)
+            } else {
+                try PersistenceCommandService.perform(in: modelContext) {
+                    try TaskLifecycleService.applyStatus(status, to: task, in: modelContext)
+                }
+                undo = nil
             }
             if status == .done {
                 TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])
@@ -510,22 +548,22 @@ struct MobileBoardView: View {
             } else {
                 UISelectionFeedbackGenerator().selectionChanged()
             }
-            showStatusNotice(task: task, status: status)
+            showStatusNotice(task: task, status: status, undo: undo)
         } catch {
             persistenceFailureMessage = "작업 상태를 변경하지 못했습니다. 다시 시도해 주세요."
         }
     }
 
-    private func showStatusNotice(task: TodoTask, status: TaskStatus) {
+    private func showStatusNotice(
+        task: TodoTask, status: TaskStatus, undo: TaskCompletionUndoToken? = nil
+    ) {
         let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = title.isEmpty
             ? status.transitionNotice
             : "\(title) · \(status.transitionNotice)"
-        if status == .done, !isTodayBoard {
-            showBoardNotice("\(message) · 오늘 완료에서 확인")
-        } else {
-            showBoardNotice(message)
-        }
+        showBoardNotice(message, duration: undo == nil ? 8 : TaskCompletionUndoService.availabilityDuration)
+        statusDestination = (task.id, status)
+        completionUndo = undo
     }
 
     private func progressText(for task: TodoTask, at date: Date) -> String? {
@@ -539,21 +577,93 @@ struct MobileBoardView: View {
     }
 
     private func showPendingSheetNotice() {
+        if let status = pendingSheetStatus {
+            pendingSheetStatus = nil
+            selectedStatus = status
+        }
         guard let message = pendingSheetNotice else { return }
         pendingSheetNotice = nil
         showBoardNotice(message)
     }
 
-    private func showBoardNotice(_ message: String, tone: MobileNoticeTone = .success) {
-        let token = UUID()
+    private func showStatusDestination() {
+        guard let destination = statusDestination else { return }
+        do {
+            let candidates = try modelContext.fetch(
+                BoundedQueryService.taskCandidatesDescriptor(id: destination.taskID)
+            )
+            guard let task = BoundedQueryService.representativeTask(from: candidates),
+                  let status = TaskStatus(rawValue: task.status), task.archivedAt == nil else {
+                showBoardNotice("작업이 변경되어 이동할 수 없어요", tone: .information)
+                return
+            }
+            let dayKey = status == .done ? task.completedDayKey : task.plannedDayKey
+            guard let dayKey, let date = DayKey.date(from: dayKey) else { return }
+            selectedDate = date
+            selectedStatus = status
+            statusDestination = nil
+            highlightTask(task.id)
+        } catch {
+            persistenceFailureMessage = "작업을 다시 불러오지 못했습니다. 다시 시도해 주세요."
+        }
+    }
 
-        statusNoticeToken = token
+    private func undoCompletion() {
+        guard let token = completionUndo else { return }
+        do {
+            guard try TaskCompletionUndoService.undo(token, in: modelContext) else {
+                showBoardNotice("작업이 변경되었거나 취소할 수 있는 시간이 지났어요", tone: .information)
+                return
+            }
+            selectedDate = token.boardDate
+            selectedStatus = token.previousStatus
+            showBoardNotice("완료를 취소했어요 · 이전 상태로 돌아왔어요")
+            highlightTask(token.taskID)
+            UISelectionFeedbackGenerator().selectionChanged()
+        } catch {
+            persistenceFailureMessage = "완료를 취소하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
+    private func highlightTask(_ taskID: UUID) {
+        highlightedTaskID = taskID
+        pendingScrollTaskID = taskID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            guard highlightedTaskID == taskID else { return }
+            highlightedTaskID = nil
+        }
+    }
+
+    private func scrollToDestination(using proxy: ScrollViewProxy) {
+        guard let taskID = pendingScrollTaskID,
+              BoardQueryRules.tasks(boardTasks, matching: selectedStatus).contains(where: { $0.id == taskID }) else { return }
+        DispatchQueue.main.async {
+            guard pendingScrollTaskID == taskID else { return }
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+                proxy.scrollTo(taskID, anchor: .center)
+            }
+            pendingScrollTaskID = nil
+        }
+    }
+
+    private func clearBoardNotice() {
+        statusNoticeToken = UUID()
+        statusNotice = nil
+        statusDestination = nil
+        completionUndo = nil
+    }
+
+    private func showBoardNotice(
+        _ message: String, tone: MobileNoticeTone = .success, duration: TimeInterval = 4
+    ) {
+        clearBoardNotice()
+        let token = statusNoticeToken
         statusNoticeTone = tone
         statusNotice = message
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard statusNoticeToken == token else { return }
-            statusNotice = nil
+            clearBoardNotice()
         }
     }
 }

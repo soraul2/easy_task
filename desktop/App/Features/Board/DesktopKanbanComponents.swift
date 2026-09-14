@@ -19,87 +19,50 @@ struct KanbanColumn: View {
     var progressText: ((Task, Date) -> String?)? = nil
     @State private var isDropTargeted = false
 
-    private var tint: Color {
-        switch status {
-        case .todo: AppTheme.columnTodo
-        case .doing: AppTheme.columnDoing
-        case .done: AppTheme.columnDone
-        }
-    }
-
-    private var accent: Color {
-        switch status {
-        case .todo: AppTheme.secondaryText
-        case .doing: AppTheme.event
-        case .done: AppTheme.done
-        }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: status.systemImage)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .frame(width: 34, height: 34)
-                    .background(AppTheme.panel.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(accent.opacity(0.66), lineWidth: 1)
-                    }
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: isDropTargeted ? "arrow.down.circle" : status.systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(status == .doing ? AppTheme.accent : AppTheme.secondaryText)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.primaryText)
-                    Text(status.guidanceText)
-                        .font(.caption)
+                Text(isDropTargeted ? "\(title) 영역으로 이동" : title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .lineLimit(1)
+
+                if !isDropTargeted {
+                    Text("\(tasks.count)")
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(AppTheme.secondaryText)
+                        .accessibilityLabel("\(tasks.count)개 작업")
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
-                Text("\(tasks.count)")
-                    .font(.caption.monospacedDigit().weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(AppTheme.panel.opacity(0.72), in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(accent.opacity(0.50), lineWidth: 1)
-                    }
-                    .accessibilityLabel("\(tasks.count)개 작업")
+                if status == .doing, !tasks.isEmpty, !isDropTargeted {
+                    doingFocusLauncher
+                }
             }
-
-            if status == .doing, !tasks.isEmpty {
-                doingFocusLauncher
-            }
-
-            if isDropTargeted {
-                Label("\(title)로 옮기려면 여기에 놓으세요", systemImage: "arrow.down.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
-                    .background(AppTheme.panel.opacity(0.74), in: RoundedRectangle(cornerRadius: 9))
-                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-            }
+            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            .padding(.horizontal, 2)
+            .help(status.guidanceText)
 
             TimelineView(.periodic(from: .now, by: 60)) { timeline in
                 LazyVStack(spacing: 10) {
                     if tasks.isEmpty {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Label(status.emptyStateTitle, systemImage: status.systemImage)
-                                .font(.subheadline.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(status.emptyStateTitle)
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(AppTheme.primaryText)
                             Text(status.emptyStateDescription)
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(AppTheme.panel.opacity(0.76), in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 24)
                     } else {
                         ForEach(tasks) { task in
                             TaskCard(
@@ -122,23 +85,13 @@ struct KanbanColumn: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            isDropTargeted ? tint.opacity(0.96) : tint,
-            in: RoundedRectangle(cornerRadius: 12)
-        )
+        .background(AppTheme.input.opacity(0.42), in: RoundedRectangle(cornerRadius: 18))
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    isDropTargeted ? accent : AppTheme.border,
-                    lineWidth: isDropTargeted ? 2.5 : 1
-                )
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(isDropTargeted ? AppTheme.accent : .clear, lineWidth: 2)
         }
-        .shadow(
-            color: isDropTargeted ? accent.opacity(0.20) : .clear,
-            radius: 14,
-            y: 7
-        )
         .dropDestination(for: String.self) { items, _ in
+            isDropTargeted = false
             guard let item = items.first else { return false }
             return onMove(item, status)
         } isTargeted: { isTargeted in
@@ -153,65 +106,35 @@ struct KanbanColumn: View {
     @ViewBuilder
     private var doingFocusLauncher: some View {
         if tasks.count == 1, let task = tasks.first {
-            Button {
-                onStartFocus(task)
-            } label: {
-                doingFocusLauncherLabel(
-                    detail: displayTitle(for: task),
-                    trailingSystemImage: "chevron.right"
-                )
+            Button { onStartFocus(task) } label: {
+                focusLauncherLabel
             }
             .buttonStyle(.plain)
+            .help("\(displayTitle(for: task)) 집중 시작")
             .accessibilityLabel("진행 중인 작업으로 집중 시작")
         } else {
             Menu {
                 ForEach(tasks) { task in
-                    Button(displayTitle(for: task)) {
-                        onStartFocus(task)
-                    }
+                    Button(displayTitle(for: task)) { onStartFocus(task) }
                 }
             } label: {
-                doingFocusLauncherLabel(
-                    detail: "진행 중인 작업 \(tasks.count)개 중 선택",
-                    trailingSystemImage: "chevron.down"
-                )
+                focusLauncherLabel
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("집중할 진행 중 작업 선택")
             .accessibilityLabel("집중할 진행 중 작업 선택")
         }
     }
 
-    private func doingFocusLauncherLabel(
-        detail: String,
-        trailingSystemImage: String
-    ) -> some View {
-        HStack(spacing: 9) {
-            Image(systemName: "timer")
-                .foregroundStyle(AppTheme.event)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("집중 시작")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 6)
-
-            Image(systemName: trailingSystemImage)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(AppTheme.secondaryText)
-        }
-        .padding(.horizontal, 11)
-        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-        .background(AppTheme.panel.opacity(0.76), in: RoundedRectangle(cornerRadius: 11))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11)
-                .stroke(AppTheme.event.opacity(0.50), lineWidth: 1)
-        }
+    private var focusLauncherLabel: some View {
+        Label("집중 시작", systemImage: "timer")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(AppTheme.accent)
+            .padding(.horizontal, 6)
+            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            .contentShape(Rectangle())
     }
 
     private func displayTitle(for task: Task) -> String {
@@ -239,233 +162,181 @@ struct TaskCard: View {
         TaskStatus(rawValue: task.status) ?? .todo
     }
 
-    private var background: Color {
-        switch status {
-        case .todo: AppTheme.todo
-        case .doing: AppTheme.doing
-        case .done: AppTheme.done
-        }
-    }
-
     private var isLifted: Bool {
         isHovered || isTitleFocused
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    TextField("작업", text: $draftTitle)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(status == .done
-                            ? AppTheme.cardMutedText
-                            : AppTheme.cardText)
-                        .focused($isTitleFocused)
-                        .onSubmit(commitTitle)
-                        .onChange(of: isTitleFocused) { _, isFocused in
-                            if !isFocused {
-                                commitTitle()
-                            }
-                        }
-
-                    if task.plannedDayKey < DayKey.today && status != .done {
-                        Text("\(task.plannedDayKey)에서 이월")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.cardMutedText)
+            HStack(alignment: .top, spacing: 6) {
+                TextField("작업", text: $draftTitle, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(status == .done ? AppTheme.secondaryText : AppTheme.primaryText)
+                    .strikethrough(status == .done && !isTitleFocused)
+                    .lineLimit(1...4)
+                    .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize, alignment: .topLeading)
+                    .focused($isTitleFocused)
+                    .onSubmit(commitTitle)
+                    .onChange(of: isTitleFocused) { _, isFocused in
+                        if !isFocused { commitTitle() }
                     }
 
-                    if let reminderAt = task.reminderAt {
-                        Label(
-                            reminderText(for: reminderAt),
-                            systemImage: reminderSystemImage(for: reminderAt)
-                        )
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.cardMutedText)
-                        .lineLimit(1)
-                    }
-
-                    TaskCardChecklistSection(
-                        taskID: task.id,
-                        taskTitle: task.title,
-                        isExpandable: status == .doing
-                    )
+                Menu {
+                    Button("작업 편집", systemImage: "square.and.pencil") { onEdit(task) }
+                    Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task) }
+                    Divider()
+                    Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task) }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                               height: PlanBaseControlMetrics.minimumTargetSize)
+                        .contentShape(Rectangle())
                 }
-                Spacer()
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("작업 편집 및 메뉴")
+                .accessibilityLabel("\(task.title) 작업 메뉴")
+            }
+
+            if task.plannedDayKey < DayKey.today && status != .done {
+                Label("\(task.plannedDayKey)에서 이월", systemImage: "arrow.turn.down.right")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            if let priority = task.priority.flatMap(TaskPriority.init(rawValue:)) {
+                Label(priority.title, systemImage: "flag")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            if task.estimatedMinutes != nil || progressText != nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { timeDetails }
+                    VStack(alignment: .leading, spacing: 5) { timeDetails }
+                }
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            if let reminderAt = task.reminderAt {
+                Label(reminderText(for: reminderAt), systemImage: reminderSystemImage(for: reminderAt))
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            TaskCardChecklistSection(
+                taskID: task.id,
+                taskTitle: task.title,
+                isExpandable: status == .doing
+            )
+
+            Rectangle()
+                .fill(AppTheme.border.opacity(0.45))
+                .frame(height: 1)
+                .padding(.top, 2)
+
+            HStack(spacing: 6) {
+                statusMenu
+                Spacer(minLength: 0)
+
                 if status != .done {
-                    Button {
-                        onStartFocus(task)
-                    } label: {
+                    Button { onStartFocus(task) } label: {
                         Image(systemName: "timer")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AppTheme.accent)
                             .frame(width: PlanBaseControlMetrics.minimumTargetSize,
                                    height: PlanBaseControlMetrics.minimumTargetSize)
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(AppTheme.cardMutedText)
+                    .buttonStyle(.plain)
                     .help("이 작업으로 집중 시작")
                     .accessibilityLabel("\(task.title) 집중 시작")
                 }
 
-                Button {
-                    onEdit(task)
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
-                               height: PlanBaseControlMetrics.minimumTargetSize)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(AppTheme.cardMutedText)
-                .help("작업 상세 편집")
-                .accessibilityLabel("\(task.title) 작업 편집")
-
-                Menu {
-                    Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task) }
-                    Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task) }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
-                               height: PlanBaseControlMetrics.minimumTargetSize)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(AppTheme.cardMutedText)
-                .help("작업 메뉴")
-                .accessibilityLabel("\(task.title) 작업 메뉴")
-            }
-
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(TaskStatus.allCases) { nextStatus in
-                        Button {
-                            onStatusChange(task, nextStatus)
-                        } label: {
-                            if nextStatus == status {
-                                Label(nextStatus.title, systemImage: "checkmark")
-                            } else {
-                                Label(nextStatus.title, systemImage: nextStatus.systemImage)
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: status.systemImage)
-                        Text(status.title)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.cardText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
-                    .background(AppTheme.input.opacity(0.34), in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(AppTheme.border.opacity(0.72), lineWidth: 1)
-                    }
-                }
-                .buttonStyle(.plain)
-                .fixedSize()
-                .help("현재 \(status.title) · 다른 상태로 변경")
-                .accessibilityLabel("\(task.title) 상태")
-                .accessibilityValue(status.title)
-                .accessibilityHint("다른 상태를 선택할 수 있어요")
-
-                if let priority = task.priority.flatMap(TaskPriority.init(rawValue:)) {
-                    Text(priority.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.cardText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppTheme.input.opacity(0.30), in: Capsule())
-                }
-
-                if let estimatedMinutes = task.estimatedMinutes {
-                    Label(EstimatedTimeFormatter.short(estimatedMinutes), systemImage: "clock")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.cardText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppTheme.input.opacity(0.30), in: Capsule())
-                }
-
-                Spacer()
-
-                Label("드래그", systemImage: "hand.draw")
-                    .labelStyle(.iconOnly)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.cardMutedText)
-                    .help("다른 컬럼으로 드래그해서 상태 변경")
-            }
-
-            HStack(spacing: 10) {
-                Label(status.guidanceText, systemImage: status.systemImage)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.cardMutedText)
-                    .lineLimit(1)
-
-                Spacer(minLength: 8)
-
-                Button {
-                    onStatusChange(task, status.primaryActionStatus)
-                } label: {
+                Button { onStatusChange(task, status.primaryActionStatus) } label: {
                     Label(status.primaryActionTitle, systemImage: status.primaryActionSystemImage)
                         .font(.caption.weight(.semibold))
+                        .fixedSize()
                 }
                 .buttonStyle(PlanBaseButtonStyle(status == .doing ? .primary : .secondary))
                 .help("\(task.title) 작업을 \(status.primaryActionStatus.title) 상태로 변경")
                 .accessibilityLabel("\(task.title) \(status.primaryActionTitle)")
             }
-
-            if let progressText {
-                Label(progressText, systemImage: "clock.arrow.circlepath")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.cardMutedText)
-                    .accessibilityLabel("진행 시간 \(progressText)")
-            }
         }
         .padding(14)
-        .background {
-            LightweightTaskCardBackground(baseColor: background, isLifted: isLifted)
-        }
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 14))
         .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(cardAccent.opacity(status == .doing ? 0.46 : 0.26), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    isTitleFocused ? AppTheme.accent : (status == .doing ? AppTheme.accent.opacity(0.36) : AppTheme.border.opacity(0.70)),
+                    lineWidth: 1
+                )
         }
-        .foregroundStyle(AppTheme.cardText)
-        .contentShape(RoundedRectangle(cornerRadius: 8))
-        .scaleEffect(isLifted && !reduceMotion ? 1.01 : 1.0)
-        .offset(y: isLifted && !reduceMotion ? -2 : 0)
-        .shadow(color: .black.opacity(isLifted ? 0.10 : 0.045), radius: isLifted ? 8 : 4, x: 0, y: isLifted ? 4 : 2)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: isLifted)
-        .onHover { hovering in
-            isHovered = hovering
-        }
-        .onAppear {
-            draftTitle = task.title
-        }
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .offset(y: isLifted && !reduceMotion ? -1 : 0)
+        .shadow(color: .black.opacity(isLifted ? 0.08 : 0.025), radius: isLifted ? 8 : 3, y: isLifted ? 4 : 2)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isLifted)
+        .onHover { isHovered = $0 }
+        .onAppear { draftTitle = task.title }
         .onChange(of: task.title) { _, title in
-            if !isTitleFocused {
-                draftTitle = title
-            }
+            if !isTitleFocused { draftTitle = title }
         }
     }
 
-    private var cardAccent: Color {
-        switch status {
-        case .todo: AppTheme.secondaryText
-        case .doing: AppTheme.event
-        case .done: AppTheme.done
+    @ViewBuilder
+    private var timeDetails: some View {
+        if let estimatedMinutes = task.estimatedMinutes {
+            Label("예상 \(EstimatedTimeFormatter.short(estimatedMinutes))", systemImage: "clock")
+                .fixedSize(horizontal: false, vertical: true)
         }
+        if let progressText {
+            Label(progressText, systemImage: "clock.arrow.circlepath")
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("진행 상태로 둔 시간, \(progressText)")
+                .accessibilityHint("집중 타이머의 집중 시간과 별도로 기록해요")
+                .help("진행 상태로 둔 누적 시간이에요. 집중 타이머의 집중 시간과는 달라요.")
+        }
+    }
+
+    private var statusMenu: some View {
+        Menu {
+            ForEach(TaskStatus.allCases) { nextStatus in
+                Button { onStatusChange(task, nextStatus) } label: {
+                    Label(nextStatus.title, systemImage: nextStatus == status ? "checkmark" : nextStatus.systemImage)
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: status.systemImage)
+                    .foregroundStyle(status == .doing ? AppTheme.accent : AppTheme.secondaryText)
+                Text(status.title)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(AppTheme.secondaryText)
+            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("현재 \(status.title) · 다른 상태로 변경")
+        .accessibilityLabel("\(task.title) 상태")
+        .accessibilityValue(status.title)
+        .accessibilityHint("다른 상태를 선택할 수 있어요")
     }
 
     private func reminderText(for reminderAt: Date) -> String {
         let formatted = reminderAt.formatted(date: .abbreviated, time: .shortened)
-        if status == .done {
-            return "설정했던 알림 · \(formatted)"
-        }
-        if reminderAt <= Date() {
-            return "지난 알림 · \(formatted)"
-        }
+        if status == .done { return "설정했던 알림 · \(formatted)" }
+        if reminderAt <= Date() { return "지난 알림 · \(formatted)" }
         return formatted
     }
 
@@ -483,12 +354,7 @@ struct TaskCard: View {
             draftTitle = trimmedTitle
             return
         }
-
-        if onTitleChange(task, trimmedTitle) {
-            draftTitle = trimmedTitle
-        } else {
-            draftTitle = task.title
-        }
+        draftTitle = onTitleChange(task, trimmedTitle) ? trimmedTitle : task.title
     }
 }
 
@@ -552,13 +418,13 @@ private struct TaskCardChecklistSection: View {
                                         ? "checkmark.circle.fill"
                                         : "circle")
                                         .foregroundStyle(item.isCompleted
-                                            ? AppTheme.event
-                                            : AppTheme.cardMutedText)
+                                            ? AppTheme.accent
+                                            : AppTheme.secondaryText)
                                     Text(item.title)
                                         .strikethrough(item.isCompleted)
                                         .foregroundStyle(item.isCompleted
-                                            ? AppTheme.cardMutedText
-                                            : AppTheme.cardText)
+                                            ? AppTheme.secondaryText
+                                            : AppTheme.primaryText)
                                         .lineLimit(2)
                                     Spacer(minLength: 0)
                                 }
@@ -581,7 +447,7 @@ private struct TaskCardChecklistSection: View {
                 if let saveErrorMessage {
                     Label(saveErrorMessage, systemImage: "exclamationmark.circle")
                         .font(.subheadline)
-                        .foregroundStyle(AppTheme.cardText)
+                        .foregroundStyle(AppTheme.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(saveErrorMessage)
@@ -601,7 +467,7 @@ private struct TaskCardChecklistSection: View {
             systemImage: progress.isComplete ? "checkmark.circle.fill" : "checklist"
         )
         .font(.caption.weight(.semibold))
-        .foregroundStyle(AppTheme.cardMutedText)
+        .foregroundStyle(AppTheme.secondaryText)
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -637,31 +503,5 @@ struct TaskChecklistProgressLabel: View {
             .fixedSize(horizontal: true, vertical: false)
             .help("체크리스트 \(progress.completedCount)/\(progress.totalCount) 완료")
         }
-    }
-}
-
-struct LightweightTaskCardBackground: View {
-    var baseColor: Color
-    var isLifted: Bool
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(baseColor)
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(LinearGradient(
-                        colors: [
-                            Color.white.opacity(isLifted ? 0.22 : 0.12),
-                            Color.clear,
-                            Color.black.opacity(isLifted ? 0.10 : 0.06)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-            }
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(AppTheme.border.opacity(isLifted ? 0.95 : 0.75), lineWidth: 1)
-            }
     }
 }

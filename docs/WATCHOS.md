@@ -3,7 +3,7 @@
 ## 범위
 
 `PlanBase-watchOS`는 iPhone 연결 없이 실행할 수 있는 Apple Watch 앱이다. 같은 Apple ID의
-private CloudKit 데이터베이스에서 V10 모델을 열며 다음 기능을 제공한다.
+private CloudKit 데이터베이스에서 V11 모델을 열며 다음 기능을 제공한다.
 
 - 오늘 남은 작업·완료 작업과 겹치는 일정 요약
 - 받아쓰기와 watchOS 텍스트 입력을 이용한 오늘 작업 빠른 추가
@@ -22,7 +22,7 @@ private CloudKit 데이터베이스에서 V10 모델을 열며 다음 기능을 
 ```text
 PlanBase-watchOS
   → Focus/focus-active-v1.json (Watch 기기 로컬 활성 상태)
-  → PlanBaseContainerFactory / EasyTaskSchemaV10
+  → PlanBaseContainerFactory / EasyTaskSchemaV11
   → iCloud.com.soraul2.easytask private database
   → 종료된 FocusSession 동기화 + bounded 오늘 Task·Event query
   → WatchWidgetSnapshotStore
@@ -66,7 +66,11 @@ swift test --filter WatchWidgetSnapshotTests
 
 TestFlight 업로드와 실제 기기 인수 상태는 다음과 같다.
 
-- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 65로 통일
+2026-09-08 칸반 입력→진행→완료 흐름 개선을 포함한 iOS 묶음의 Watch 앱과
+컴플리케이션을 버전 1.0(76)으로 검증해 App Store Connect에 업로드했다. Apple 패키지 처리
+시작까지 확인했으며 실제 Watch 설치와 기기 간 CloudKit 수렴은 아래 인수 항목으로 유지한다.
+
+- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 76으로 통일
 - [x] Apple Developer의 Watch 앱·위젯 App ID와 iCloud, CloudKit, App Group 권한 확인
 - [x] Release archive의 iOS 앱 아래 `Watch/PlanBaseWatch.app`과 Watch 앱의 `PlugIns` 확인
 - [x] `WKApplication`, companion ID, 네 번들의 배포 서명과 App Store Connect 업로드 확인

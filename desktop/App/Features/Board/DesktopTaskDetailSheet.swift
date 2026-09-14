@@ -640,7 +640,7 @@ private struct ChecklistDraftEditorRow: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(
-                    isDropTargeted ? AppTheme.event : AppTheme.border,
+                    isDropTargeted ? AppTheme.accent : AppTheme.border,
                     lineWidth: isDropTargeted ? 2 : 1
                 )
         }

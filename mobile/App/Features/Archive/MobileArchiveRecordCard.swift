@@ -481,10 +481,10 @@ private struct MobileArchiveTaskRow: View {
                     if isSearchMatch {
                         Text("일치")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(AppTheme.eventForeground)
+                            .foregroundStyle(AppTheme.onAccent)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(AppTheme.event, in: Capsule())
+                            .background(AppTheme.accentFill, in: Capsule())
                     }
                 }
 

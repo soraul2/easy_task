@@ -207,7 +207,8 @@ struct CalendarWidgetSnapshotPublisher: View {
             }
             .onReceive(NotificationCenter.default.publisher(
                 for: PersistenceCommandService.dataChangedNotification
-            )) { _ in
+            )) { notification in
+                guard PersistenceCommandService.affects([.tasks, .calendar], in: notification) else { return }
                 requestPublication()
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in

@@ -117,7 +117,7 @@ struct MonthDayCell: View {
             .overlay {
                 if isPlacementSelected {
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(AppTheme.event, lineWidth: 2)
+                        .stroke(AppTheme.accent, lineWidth: 2)
                         .padding(2)
                 }
             }
@@ -196,14 +196,14 @@ struct MonthDayCell: View {
 
     private var dayBackground: Color {
         if isPlacementSelected || (!placementMode && isSelected) || DayKey.isToday(date) {
-            return AppTheme.event
+            return AppTheme.accentFill
         }
         return Color.clear
     }
 
     private var dayForeground: Color {
         if isPlacementSelected || (!placementMode && isSelected) || DayKey.isToday(date) {
-            return AppTheme.eventText
+            return AppTheme.onAccent
         }
         if hasPublicHoliday, isCurrentMonth {
             return AppTheme.calendarHolidayText
@@ -231,26 +231,26 @@ struct EventSpanBar: View {
     var body: some View {
         Text(event.title)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(AppTheme.eventText)
+            .foregroundStyle(CalendarEventPalette.foreground(for: event.color, isDimmed: isDimmed))
             .lineLimit(1)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(CalendarEventPalette.color(for: event.color).opacity(isDimmed ? 0.55 : 1), in: RoundedRectangle(cornerRadius: 3))
+            .background(CalendarEventPalette.color(for: event.color, isDimmed: isDimmed), in: RoundedRectangle(cornerRadius: 3))
     }
 }
 
 extension View {
     func calendarToolbarButtonBackground(isPrimary: Bool = false) -> some View {
         self
-            .foregroundStyle(AppTheme.primaryText)
+            .foregroundStyle(isPrimary ? AppTheme.onAccent : AppTheme.primaryText)
             .background(
-                isPrimary ? AppTheme.selectedTab : AppTheme.panel,
+                isPrimary ? AppTheme.accentFill : AppTheme.panel,
                 in: RoundedRectangle(cornerRadius: 8)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(AppTheme.border, lineWidth: 1)
+                    .stroke(isPrimary ? .clear : AppTheme.border, lineWidth: 1)
             }
     }
 }

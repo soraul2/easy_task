@@ -71,10 +71,11 @@ struct BoardView: View {
     @State private var quickTitle = ""
     @State private var quickEntry = SavedTaskQuickEntryController()
     @State private var presentedSheet: BoardSheet?
-    @State private var templateName = ""
     @State private var pendingTaskDeletion: PendingDesktopTaskDeletion?
     @State private var pendingEventDeletion: CalendarEvent?
     @State private var savedTaskNotice: String?
+    @State private var completionUndo: TaskCompletionUndoToken?
+    @State private var completedTaskTitle = ""
     @State private var persistenceFailureMessage: String?
     @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
     @State private var pendingLibrarySave: PendingDesktopLibrarySave?
@@ -166,68 +167,9 @@ struct BoardView: View {
                     savedTaskNotice = $0
                 }
             case .templates:
-                TemplateLibrarySheet(
-                    templates: templates,
-                    items: templateItems,
-                    templateName: $templateName,
-                    failureMessage: $persistenceFailureMessage,
-                    currentBoardTasks: tasks
-                        .filter { $0.plannedDayKey == selectedDayKey }
-                        .sorted { $0.order < $1.order },
-                    onApply: { template in
-                        do {
-                            return try PersistenceCommandService.perform(in: modelContext) {
-                                TemplateService.applyTemplate(
-                                    template,
-                                    items: templateItems,
-                                    selectedDate: selectedDate,
-                                    existingTasks: selectedDayTaskRows,
-                                    in: modelContext
-                                )
-                            }
-                        } catch {
-                            persistenceFailureMessage = "템플릿을 적용하지 못했습니다."
-                            return nil
-                        }
-                    },
-                    onSaveCurrentBoard: { drafts in
-                        guard !drafts.isEmpty else { return }
-                        let trimmedName = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmedName.isEmpty else { return }
-
-                        let didSave = performPersistenceCommand(
-                            failureMessage: "템플릿을 저장하지 못했습니다."
-                        ) {
-                            TemplateService.saveTemplate(
-                                named: trimmedName,
-                                from: drafts,
-                                in: modelContext
-                            )
-                        }
-                        guard didSave else { return }
-                        templateName = ""
-                        presentedSheet = nil
-                    },
-                    onToggleFavorite: { template in
-                        performPersistenceCommand(
-                            failureMessage: "즐겨찾기를 변경하지 못했습니다."
-                        ) {
-                            template.isFavorite.toggle()
-                            template.updatedAt = Date()
-                        }
-                    },
-                    onDelete: { template in
-                        performPersistenceCommand(
-                            failureMessage: "템플릿을 삭제하지 못했습니다."
-                        ) {
-                            TemplateService.deleteTemplate(
-                                template,
-                                items: templateItems,
-                                in: modelContext
-                            )
-                        }
-                    }
-                )
+                TemplateLibraryView(selectedDate: selectedDate, currentBoardTasks: selectedDayTaskRows) {
+                    savedTaskNotice = $0
+                }
             case .taskDetail(let id):
                 if let task = (selectedDayTaskRows + carryoverTaskRows).first(where: {
                     $0.supersededAt == nil && $0.id == id
@@ -308,13 +250,34 @@ struct BoardView: View {
             Text("‘\(pending.title)’ 작업은 보드에 그대로 남아 있어요. 다시 시도해 주세요.")
         }
         .overlay(alignment: .bottom) {
-            if let savedTaskNotice {
+            if completionUndo != nil {
+                HStack(spacing: 16) {
+                    Text("\(completedTaskTitle) · 완료했어요")
+                        .lineLimit(2)
+                    Button("완료 실행 취소", action: undoCompletion)
+                        .buttonStyle(PlanBaseButtonStyle(.secondary))
+                        .accessibilityIdentifier("board-completion-undo")
+                }
+                .font(.callout)
+                .padding(12)
+                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+                .overlay { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1) }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 18)
+            } else if let savedTaskNotice {
                 Text(savedTaskNotice)
                     .font(.callout)
                     .padding(12)
                     .background(AppTheme.panel, in: Capsule())
                     .padding(.bottom, 18)
             }
+        }
+        .task(id: completionUndo?.id) {
+            guard let token = completionUndo else { return }
+            let remaining = max(0, token.expiresAt.timeIntervalSinceNow)
+            do { try await _Concurrency.Task.sleep(for: .seconds(remaining)) } catch { return }
+            guard completionUndo?.id == token.id else { return }
+            completionUndo = nil
         }
         .task(id: savedTaskNotice) {
             guard savedTaskNotice != nil else { return }
@@ -332,6 +295,7 @@ struct BoardView: View {
         }
         .onDisappear {
             progressSession?.cancel()
+            completionUndo = nil
         }
     }
 
@@ -407,7 +371,6 @@ struct BoardView: View {
             .help("과거 미완료 작업을 오늘 보드로 가져오기")
 
             Button {
-                templateName = "\(DayKey.key(for: selectedDate)) 템플릿"
                 presentedSheet = .templates
             } label: {
                 Label("템플릿", systemImage: "square.on.square")
@@ -503,7 +466,7 @@ struct BoardView: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
-                        isQuickTitleFocused ? AppTheme.event : AppTheme.border,
+                        isQuickTitleFocused ? AppTheme.accent : AppTheme.border,
                         lineWidth: isQuickTitleFocused ? 2 : 1.25
                     )
             }
@@ -513,7 +476,8 @@ struct BoardView: View {
             }
         }
         .onChange(of: quickTitle) { _, value in quickEntry.update(value, in: modelContext) }
-        .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { notification in
+            guard PersistenceCommandService.affects(.templates, in: notification) else { return }
             quickEntry.refresh(in: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
@@ -683,24 +647,44 @@ struct BoardView: View {
 
     @discardableResult
     private func persistTaskStatusChange(_ task: Task, to status: TaskStatus) -> Bool {
-        let didChange = performPersistenceCommand(
-            failureMessage: "작업 상태를 변경하지 못했습니다."
-        ) {
+        do {
             let now = Date()
             let nextOrder = try BoundedQueryService.nextOrder(
-                in: modelContext,
-                dayKey: task.plannedDayKey,
-                status: status
+                in: modelContext, dayKey: task.plannedDayKey, status: status
             )
-            try TaskLifecycleService.applyStatus(
-                status,
-                to: task,
-                in: modelContext,
-                now: now
-            )
-            task.order = nextOrder
+            if status == .done {
+                completionUndo = try TaskCompletionUndoService.complete(
+                    task, in: modelContext, order: nextOrder, now: now
+                )
+                completedTaskTitle = task.title
+            } else {
+                try PersistenceCommandService.perform(in: modelContext) {
+                    try TaskLifecycleService.applyStatus(status, to: task, in: modelContext, now: now)
+                    task.order = nextOrder
+                }
+                completionUndo = nil
+            }
+            return true
+        } catch {
+            persistenceFailureMessage = "작업 상태를 변경하지 못했습니다."
+            return false
         }
-        return didChange
+    }
+
+    private func undoCompletion() {
+        guard let token = completionUndo else { return }
+        do {
+            guard try TaskCompletionUndoService.undo(token, in: modelContext) else {
+                completionUndo = nil
+                savedTaskNotice = "작업이 변경되었거나 취소할 수 있는 시간이 지났어요"
+                return
+            }
+            completionUndo = nil
+            selectedDate = token.boardDate
+            savedTaskNotice = "완료를 취소했어요 · 이전 상태로 돌아왔어요"
+        } catch {
+            persistenceFailureMessage = "완료를 취소하지 못했습니다. 다시 시도해 주세요."
+        }
     }
 
     private func updateTaskTitle(_ task: Task, to title: String) -> Bool {

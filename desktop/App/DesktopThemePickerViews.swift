@@ -160,38 +160,7 @@ struct ThemePresetCard: View {
                     }
                 }
 
-                HStack(spacing: 0) {
-                    ForEach(Array(preset.sourceColors.enumerated()), id: \.offset) { _, color in
-                        color.frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(height: 18)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(colors.border.color.opacity(0.75), lineWidth: 1)
-                }
-
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 6).fill(colors.todo.color)
-                    RoundedRectangle(cornerRadius: 6).fill(colors.doing.color)
-                    RoundedRectangle(cornerRadius: 6).fill(colors.done.color)
-                    RoundedRectangle(cornerRadius: 6).fill(colors.resolvedAccentForeground.color)
-                }
-                .frame(height: 34)
-
-                HStack(spacing: 6) {
-                    Text("Aa")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(colors.primaryText.color)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(colors.panel.color, in: Capsule())
-                    Text("읽기 편한 대비")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(colors.secondaryText.color)
-                    Spacer()
-                }
+                ThemePalettePreview(preset: preset)
             }
             .padding(12)
             .background(colors.panel.color, in: RoundedRectangle(cornerRadius: 8))

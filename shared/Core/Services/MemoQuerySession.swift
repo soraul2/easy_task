@@ -14,6 +14,9 @@ public final class MemoQuerySession {
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let loadPage: PageLoader
     @ObservationIgnored private var query = ""
+    @ObservationIgnored private var requestedQuery = ""
+    @ObservationIgnored private var loadedPageCount = 0
+    @ObservationIgnored private var retryRefresh = false
     @ObservationIgnored private var nextCursor: MemoQueryCursor?
     @ObservationIgnored private var pendingSearch: Swift.Task<Void, Never>?
 
@@ -29,6 +32,7 @@ public final class MemoQuerySession {
     }
 
     public func apply(query: String, debounce: Bool) {
+        requestedQuery = query
         pendingSearch?.cancel()
         guard debounce else {
             resetAndLoad(query: query)
@@ -58,6 +62,8 @@ public final class MemoQuerySession {
             memos.append(contentsOf: page.memos.filter { !existingIDs.contains($0.instanceID) })
             nextCursor = page.nextCursor
             hasMore = page.hasMore
+            loadedPageCount += 1
+            retryRefresh = false
         } catch {
             errorMessage = "메모를 불러오지 못했습니다."
             hasMore = false
@@ -65,10 +71,46 @@ public final class MemoQuerySession {
     }
 
     public func refresh() {
-        resetAndLoad(query: query)
+        pendingSearch?.cancel()
+        guard query == requestedQuery else {
+            resetAndLoad(query: requestedQuery)
+            return
+        }
+        // Keep the published rows until every requested page has loaded.
+        // Refreshing an autosaved memo must not collapse a scrolled list.
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            var rows: [Memo] = []
+            var seen = Set<UUID>()
+            var cursor: MemoQueryCursor?
+            var more = true
+            var pages = 0
+            for _ in 0..<max(loadedPageCount, 1) {
+                let page = try loadPage(context, query, cursor)
+                rows.append(contentsOf: page.memos.filter { seen.insert($0.instanceID).inserted })
+                cursor = page.nextCursor
+                more = page.hasMore
+                pages += 1
+                if !more { break }
+            }
+            memos = rows
+            nextCursor = cursor
+            hasMore = more
+            loadedPageCount = pages
+            errorMessage = nil
+            retryRefresh = false
+        } catch {
+            errorMessage = "메모를 불러오지 못했습니다."
+            retryRefresh = true
+        }
     }
 
     public func retry() {
+        if retryRefresh {
+            refresh()
+            return
+        }
         hasMore = true
         loadNextPage()
     }
@@ -77,6 +119,8 @@ public final class MemoQuerySession {
 private extension MemoQuerySession {
     func resetAndLoad(query: String) {
         self.query = query
+        loadedPageCount = 0
+        retryRefresh = false
         memos = []
         nextCursor = nil
         hasMore = true

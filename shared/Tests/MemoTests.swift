@@ -66,6 +66,183 @@ func memoRulesDeriveTitlePreviewAndNormalizedSearch() {
     #expect(!MemoRules.matches(memo, query: "장보기"))
 }
 
+@Test @MainActor
+func memoPinDoesNotHideFailedContentSave() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = try #require(try MemoService.save(memo: nil, content: "원본", in: context))
+    let session = MemoEditorSession(memo: memo, context: context, saveComposite: { _, _, _, _, _, _ in
+        throw CocoaError(.fileWriteUnknown)
+    })
+    session.updateContent("보존할 초안")
+    session.setPinned(true)
+    #expect(!memo.isPinned)
+    #expect(memo.content == "원본")
+    #expect(session.content == "보존할 초안")
+    if case .failed = session.saveState {} else { Issue.record("저장 오류가 고정 성공으로 가려짐") }
+}
+
+@Test
+func memoPreviewBoundsLongContentWithoutChangingSearchOrUnicode() {
+    let body = String(repeating: "가족 👨‍👩‍👧‍👦 준비 사항\n", count: 1_000) + "끝의 검색어"
+    let memo = Memo(content: "\r\n \t\u{000B}제목\u{2028}" + body)
+    #expect(MemoRules.displayTitle(for: memo.content) == "제목")
+    let preview = MemoRules.preview(for: memo.content)
+    #expect(preview.count <= 241)
+    #expect(preview.hasSuffix("…"))
+    #expect(MemoRules.matches(memo, query: "끝의 검색어"))
+    #expect(MemoRules.preview(for: "제목\n👨‍👩‍👧‍👦abc", maximumLength: 1) == "👨‍👩‍👧‍👦…")
+    #expect(MemoRules.preview(for: "제목\nabc", maximumLength: 3) == "abc")
+    #expect(MemoRules.preview(for: "제목\nabc\nd", maximumLength: 3) == "abc…")
+    #expect(MemoRules.preview(for: "한 줄") == "한 줄")
+    #expect(MemoRules.preview(for: "제목", maximumLength: 0).isEmpty)
+}
+
+@Test
+func memoDrawingPreviewBoundsRasterSizeWithoutChangingSource() throws {
+    #expect(MemoDrawingPreviewRules.scale(width: 400, height: 300) == 2)
+    for (width, height) in [(10_000.0, 10_000.0), (50_000.0, 500.0), (120.0, 100_000.0)] {
+        let scale = try #require(MemoDrawingPreviewRules.scale(width: width, height: height))
+        #expect(width * scale <= 1_800)
+        #expect(height * scale <= 1_800)
+        #expect(width * height * scale * scale <= 3_240_000.01)
+    }
+    #expect(MemoDrawingPreviewRules.scale(width: .infinity, height: 1) == nil)
+    #expect(MemoDrawingPreviewRules.scale(width: 1, height: .nan) == nil)
+    #expect(MemoDrawingPreviewRules.scale(width: 0, height: 1) == nil)
+}
+
+@Test @MainActor
+func memoRefreshPreservesLoadedPagesAndRowsAfterFailure() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    for index in 0...MemoService.pageSize { context.insert(Memo(content: "메모 \(index)")) }
+    try context.save()
+    var attempts = 0
+    let session = MemoQuerySession(context: context) { context, query, cursor in
+        attempts += 1
+        if attempts == 6 { throw CocoaError(.fileReadUnknown) }
+        return try MemoService.page(in: context, query: query, cursor: cursor)
+    }
+    session.apply(query: "", debounce: false)
+    session.loadNextPage()
+    let ids = session.memos.map(\.instanceID)
+    session.refresh()
+    #expect(session.memos.map(\.instanceID) == ids)
+    session.refresh()
+    #expect(session.errorMessage != nil)
+    #expect(session.memos.map(\.instanceID) == ids)
+    session.retry()
+    #expect(session.errorMessage == nil)
+    #expect(session.memos.map(\.instanceID) == ids)
+}
+
+@Test @MainActor
+func memoRefreshUsesPendingSearch() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    var queries: [String] = []
+    let session = MemoQuerySession(context: context) { context, query, cursor in
+        queries.append(query)
+        return try MemoService.page(in: context, query: query, cursor: cursor)
+    }
+    session.apply(query: "이전", debounce: false)
+    session.apply(query: "새 검색", debounce: true)
+    session.refresh()
+    #expect(queries == ["이전", "새 검색"])
+}
+
+@Test @MainActor
+func memoUnreadChildrenCannotBeOverwrittenAndRetryRestoresThem() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let drawing = Data([1, 2, 3])
+    let checklist = [MemoChecklistDraft(title: "보존할 항목", order: 100)]
+    let memo = try #require(try MemoService.saveComposite(
+        memo: nil, content: "원본", preferredMode: .text,
+        drawingData: drawing, checklistDrafts: checklist, in: context
+    ))
+    var loads = 0
+    let session = MemoEditorSession(memo: memo, context: context, loadContent: { id, context in
+        let drawing = try MemoDrawingService.data(for: id, in: context)
+        loads += 1
+        if loads == 1 { throw CocoaError(.fileReadUnknown) }
+        return (drawing, try MemoChecklistService.drafts(for: id, in: context))
+    })
+    #expect(session.loadErrorMessage != nil)
+    session.updateContent("읽지 못한 상태에서 쓰기")
+    session.updateDrawingData(Data())
+    session.appendChecklistItem()
+    session.setPinned(true)
+    #expect(!session.flush())
+    #expect(!session.hasUnsavedChanges)
+    #expect(memo.content == "원본")
+    #expect(!memo.isPinned)
+    session.retryLoad()
+    #expect(session.loadErrorMessage == nil)
+    #expect(session.drawingData == drawing)
+    #expect(session.checklistDrafts == checklist)
+    session.updateContent("안전한 편집")
+    #expect(session.flush())
+    #expect(try MemoDrawingService.data(for: memo.id, in: context) == drawing)
+    #expect(try MemoChecklistService.drafts(for: memo.id, in: context) == checklist)
+}
+
+@Test @MainActor
+func memoFailedFlushKeepsUnsavedDraftUntilSuccessfulRetry() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    var attempts = 0
+    let session = MemoEditorSession(memo: nil, context: container.mainContext, saveComposite: { memo, content, mode, drawing, checklist, context in
+        attempts += 1
+        if attempts == 1 { throw CocoaError(.fileWriteUnknown) }
+        return try MemoService.saveComposite(memo: memo, content: content, preferredMode: mode,
+            drawingData: drawing, checklistDrafts: checklist, in: context)
+    })
+    session.updateContent("떠나기 전에 저장할 초안")
+    #expect(!session.flush())
+    #expect(session.hasUnsavedChanges)
+    #expect(session.content == "떠나기 전에 저장할 초안")
+    #expect(session.flush())
+    #expect(!session.hasUnsavedChanges)
+    #expect(session.memo?.content == "떠나기 전에 저장할 초안")
+}
+
+@Test @MainActor
+func memoRetrySavesPendingPinAfterContentFailure() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = try #require(try MemoService.save(memo: nil, content: "원본", in: context))
+    var attempts = 0
+    let session = MemoEditorSession(memo: memo, context: context, saveComposite: { memo, content, mode, drawing, checklist, context in
+        attempts += 1
+        if attempts == 1 { throw CocoaError(.fileWriteUnknown) }
+        return try MemoService.saveComposite(memo: memo, content: content, preferredMode: mode,
+            drawingData: drawing, checklistDrafts: checklist, in: context)
+    })
+    session.updateContent("고정할 새 내용")
+    session.setPinned(true)
+    #expect(session.hasUnsavedChanges)
+    #expect(!memo.isPinned)
+    #expect(session.flush())
+    #expect(memo.isPinned)
+    #expect(memo.content == "고정할 새 내용")
+    #expect(!session.hasUnsavedChanges)
+    #expect(session.saveState == .saved)
+}
+
+@Test @MainActor
+func memoUnchangedChecklistDoesNotDirtyPersistentModels() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let id = UUID()
+    let drafts = [MemoChecklistDraft(title: "동일 항목", order: 100)]
+    _ = try MemoChecklistService.replace(for: id, with: drafts, in: context, now: Date())
+    try context.save()
+    #expect(!context.hasChanges)
+    #expect(try !MemoChecklistService.replace(for: id, with: drafts, in: context, now: Date()))
+    #expect(!context.hasChanges)
+}
+
 @Test
 func memoTimestampUsesKoreanDateOrder() throws {
     var components = DateComponents()

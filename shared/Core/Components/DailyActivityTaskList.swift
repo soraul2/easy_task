@@ -41,7 +41,7 @@ public struct DailyActivityTaskList: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("archive-task-\(entry.id.uuidString)")
-                .accessibilityLabel("\(entry.title), \(entry.evidence.summary)")
+                .accessibilityLabel([entry.title, entry.evidence.summary, entry.completionStatusText].compactMap { $0 }.joined(separator: ", "))
                 .accessibilityHint(
                     entry.canOpenTask
                         ? "작업의 생성 시각과 활동 기록을 엽니다"
@@ -110,6 +110,12 @@ public struct DailyActivityTaskList: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(AppTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                if let statusText = entry.completionStatusText {
+                    Text(statusText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if matchedTaskIDs.contains(entry.id) {
                     if let note = entry.note, !note.isEmpty {
                         Text(highlighted(note, query: entry.searchQuery)).font(.caption).lineLimit(3)

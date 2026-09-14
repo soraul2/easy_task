@@ -16,7 +16,7 @@ struct FloatingTabBar: View {
                         .background(tab == selectedTab ? AppTheme.selectedTab : Color.clear, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(tab == selectedTab ? AppTheme.primaryText : AppTheme.secondaryText)
+                .foregroundStyle(tab == selectedTab ? AppTheme.accent : AppTheme.secondaryText)
                 .keyboardShortcut(shortcut(for: tab), modifiers: .command)
                 .help(tab.title)
                 .accessibilityLabel(tab.title)

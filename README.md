@@ -10,9 +10,11 @@ CloudKit 컨테이너를 공유한다.
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 입력어의 Development 독립 저장소 왕복 8단계와
-Production 필드·인덱스 반영을 확인했다. 마지막 업로드본은 버튼·모달·안내·접근성 표현과
-플랫폼별 화면 흐름을 정리한 iOS·iPadOS·watchOS 및 macOS TestFlight build 71(V11)이다.
-2026-09-05 두 플랫폼의 업로드 성공과 Apple 패키지 처리 시작을 확인했다. 실제 TestFlight
+Production 필드·인덱스 반영을 확인했다. 마지막 업로드본은 루틴 목록·항목 검색,
+빠른 입력 후보, 여러 날짜 루틴 적용의 반복 계산을 줄인 iOS·iPadOS·watchOS 및
+macOS TestFlight build 78(V11)이다. 2026-09-14 두 플랫폼의 업로드 성공과 Apple 패키지
+처리 시작을 확인했다. [추가 최적화 결과](docs/plans/active/OPTIMIZATION_2026_09_14_RESULTS.md)에
+전후 측정과 검증 범위를 정리했다. 실제 TestFlight
 설치와 빠른 입력어·FocusSession의 실기기 쌍 인수는 별도로 확인한다.
 성능 변경의 측정 결과와 남은 100ms 초기 피드백 검증은
 [반응성 최적화 기록](docs/plans/active/RESPONSIVENESS_OPTIMIZATION.md)에 정리했다.

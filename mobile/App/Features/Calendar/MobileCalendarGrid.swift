@@ -161,36 +161,21 @@ struct CalendarTemplatePlacementStatus: View {
     var selectedCount: Int
     var taskCount: Int
     var message: String?
-    var onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "square.grid.3x3.fill")
-                .foregroundStyle(AppTheme.event)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(templateName)
-                    .font(.subheadline.weight(.bold))
-                    .lineLimit(1)
-                Text(message ?? "\(selectedCount)일 선택됨 · 작업 \(taskCount)개")
+            Image(systemName: "calendar.badge.plus")
+                .foregroundStyle(AppTheme.accent)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(templateName).font(.subheadline.weight(.bold))
+                Text(message ?? "추가할 날짜를 선택하세요")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .accessibilityLabel("선택한 템플릿 삭제")
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(12)
         .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 16)
     }
@@ -243,19 +228,19 @@ struct MobileMonthDayCell: View {
     }
 
     private var cellBackground: Color {
-        if isPlacementSelected { return AppTheme.event.opacity(0.16) }
-        if isSelected { return AppTheme.event.opacity(0.08) }
+        if isPlacementSelected { return AppTheme.selectedTab }
+        if isSelected { return AppTheme.selectedTab }
         if !isCurrentMonth { return AppTheme.input.opacity(0.30) }
         return AppTheme.panel.opacity(isToday ? 0.92 : 0.78)
     }
 
     private var dayBackground: Color {
-        if isPlacementSelected || isSelected || isToday { return AppTheme.event }
+        if isPlacementSelected || isSelected || isToday { return AppTheme.accentFill }
         return Color.clear
     }
 
     private var dayForeground: Color {
-        if isPlacementSelected || isSelected || isToday { return AppTheme.eventText }
+        if isPlacementSelected || isSelected || isToday { return AppTheme.onAccent }
         if hasPublicHoliday, isCurrentMonth { return AppTheme.calendarHolidayText }
         return isCurrentMonth ? AppTheme.primaryText : AppTheme.secondaryText
     }
@@ -294,7 +279,7 @@ struct MobileMonthDayCell: View {
                 if isPlacementSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.event)
+                        .foregroundStyle(AppTheme.accent)
                         .padding(.top, 2)
                 } else if !templatePlacements.isEmpty {
                     HStack(spacing: 2) {
@@ -304,10 +289,10 @@ struct MobileMonthDayCell: View {
                         }
                     }
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(AppTheme.event)
+                    .foregroundStyle(AppTheme.accent)
                     .padding(.horizontal, 3)
                     .padding(.vertical, 2)
-                    .background(AppTheme.event.opacity(0.12), in: Capsule())
+                    .background(AppTheme.selectedTab, in: Capsule())
                     .fixedSize()
                     .accessibilityLabel("템플릿 배치 \(templatePlacements.count)개")
                         .padding(.top, 2)
@@ -336,7 +321,7 @@ struct MobileMonthDayCell: View {
         .overlay {
             if isPlacementSelected || isSelected {
                 Rectangle()
-                    .strokeBorder(AppTheme.event, lineWidth: isPlacementSelected ? 2 : 1.5)
+                    .strokeBorder(AppTheme.accent, lineWidth: isPlacementSelected ? 2 : 1.5)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -389,8 +374,7 @@ struct MobileCalendarEventSpanBar: View {
             if usesGraphicStyle {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(
-                        CalendarEventPalette.color(for: event.color)
-                            .opacity(isDimmed ? 0.52 : 0.96)
+                        CalendarEventPalette.color(for: event.color, isDimmed: isDimmed)
                     )
             } else {
                 Text(event.title)
@@ -400,9 +384,7 @@ struct MobileCalendarEventSpanBar: View {
                     .allowsTightening(usesCompactTitle)
                     .truncationMode(.tail)
                     .foregroundStyle(
-                        isDimmed
-                            ? AppTheme.secondaryText
-                            : CalendarEventPalette.foreground(for: event.color)
+                        CalendarEventPalette.foreground(for: event.color, isDimmed: isDimmed)
                     )
                     .padding(.horizontal, usesCompactTitle ? 2 : 4)
                     .frame(
@@ -411,8 +393,7 @@ struct MobileCalendarEventSpanBar: View {
                         alignment: .leading
                     )
                     .background(
-                        CalendarEventPalette.color(for: event.color)
-                            .opacity(isDimmed ? 0.52 : 0.96),
+                        CalendarEventPalette.color(for: event.color, isDimmed: isDimmed),
                         in: RoundedRectangle(cornerRadius: 3)
                     )
             }

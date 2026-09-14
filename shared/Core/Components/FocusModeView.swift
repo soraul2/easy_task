@@ -52,7 +52,7 @@ public struct FocusModeLauncher: View {
                         .foregroundStyle(AppTheme.primaryText)
                         .background(AppTheme.floatingBar, in: Capsule())
                         .overlay {
-                            Capsule().stroke(AppTheme.event.opacity(0.55), lineWidth: 1)
+                            Capsule().stroke(AppTheme.accent.opacity(0.55), lineWidth: 1)
                         }
                         .shadow(color: .black.opacity(0.14), radius: 10, y: 5)
                     }
@@ -160,7 +160,8 @@ public struct FocusModeView: View {
         }
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
-        )) { _ in
+        )) { notification in
+            guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
             reconcile()
             loadCandidates()
         }

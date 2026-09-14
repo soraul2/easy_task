@@ -84,7 +84,7 @@ func externalThemePreferenceChangesUpdateOnlyValidLocalValues() {
         ]
     )
 
-    #expect(selectedThemeID == "navyBlush")
+    #expect(selectedThemeID == "appleSystem")
     #expect(store.activityStyle(for: "navyBlush") == .emoji)
     #expect(store.activityEmoji(for: "navyBlush") == "🧭")
 
@@ -94,6 +94,86 @@ func externalThemePreferenceChangesUpdateOnlyValidLocalValues() {
         changedKeys: [ThemePreferenceRules.selectedThemeCloudKey, emojiKey]
     )
 
-    #expect(store.selectedThemeID == "navyBlush")
+    #expect(store.selectedThemeID == "appleSystem")
     #expect(store.activityEmoji(for: "navyBlush") == "🧭")
+}
+
+@Test @MainActor
+func legacyThemeMigrationPreservesSelectedAliasSettingsOfflineAndIsIdempotent() {
+    let local = InMemoryThemePreferenceStore()
+    local.set("navyBlush", forKey: AppTheme.storageKey)
+    local.set("emoji", forKey: ThemePreferenceRules.activityStyleKey(themeID: "navyBlush"))
+    local.set("🐬", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "navyBlush"))
+    local.set("🍎", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "apple2020"))
+    let store = ThemePreferenceStore(localStore: local, cloudStore: nil)
+    #expect(store.start(syncsWithICloud: false) == "appleSystem")
+    #expect(store.activityMark(for: "appleSystem") == .emoji("🐬"))
+    #expect(local.string(forKey: ThemePreferenceRules.activityEmojiKey(themeID: "apple2020")) == "🍎")
+    #expect(local.string(forKey: ThemePreferenceRules.activityEmojiKey(themeID: "navyBlush")) == "🐬")
+    let revision = store.revision
+    #expect(store.start(syncsWithICloud: false) == "appleSystem")
+    #expect(store.revision == revision)
+}
+
+@Test @MainActor
+func canonicalThemePreferencesWinConflictsWithoutDeletingLegacyValues() {
+    let local = InMemoryThemePreferenceStore()
+    local.set("solarBerry", forKey: AppTheme.storageKey)
+    local.set("color", forKey: ThemePreferenceRules.activityStyleKey(themeID: "maroonEmber"))
+    local.set("🍑", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "maroonEmber"))
+    local.set("emoji", forKey: ThemePreferenceRules.activityStyleKey(themeID: "solarBerry"))
+    local.set("🌞", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "solarBerry"))
+    let store = ThemePreferenceStore(localStore: local, cloudStore: nil)
+    #expect(store.start(syncsWithICloud: false) == "maroonEmber")
+    #expect(store.activityStyle(for: "solarBerry") == .color)
+    #expect(store.activityEmoji(for: "solarBerry") == "🍑")
+    #expect(local.string(forKey: ThemePreferenceRules.activityEmojiKey(themeID: "solarBerry")) == "🌞")
+}
+
+@Test @MainActor
+func legacyDefaultEmojiIsPreservedWhenNoExplicitEmojiWasStored() {
+    let local = InMemoryThemePreferenceStore()
+    local.set("navyBlush", forKey: AppTheme.storageKey)
+    local.set("emoji", forKey: ThemePreferenceRules.activityStyleKey(themeID: "navyBlush"))
+    let store = ThemePreferenceStore(localStore: local, cloudStore: nil)
+    _ = store.start(syncsWithICloud: false)
+    #expect(store.activityMark(for: "appleSystem") == .emoji("🌊"))
+}
+
+@Test @MainActor
+func legacyCloudPreferencesConvergeAcrossDevicesAndCanonicalEditsWinLater() {
+    let cloud = InMemoryThemePreferenceStore()
+    cloud.set("solarBerry", forKey: ThemePreferenceRules.selectedThemeCloudKey)
+    cloud.set("emoji", forKey: ThemePreferenceRules.activityStyleKey(themeID: "solarBerry"))
+    cloud.set("🌻", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "solarBerry"))
+    let first = ThemePreferenceStore(localStore: InMemoryThemePreferenceStore(), cloudStore: cloud)
+    #expect(first.start() == "maroonEmber")
+    #expect(first.activityMark(for: "maroonEmber") == .emoji("🌻"))
+    let second = ThemePreferenceStore(localStore: InMemoryThemePreferenceStore(), cloudStore: cloud)
+    #expect(second.start() == "maroonEmber")
+    #expect(second.activityMark(for: "maroonEmber") == .emoji("🌻"))
+    #expect(second.setActivityEmoji("🍊", for: "maroonEmber"))
+    _ = first.refreshFromCloud()
+    #expect(first.activityEmoji(for: "maroonEmber") == "🍊")
+    let oldKey = ThemePreferenceRules.activityEmojiKey(themeID: "solarBerry")
+    cloud.set("🌞", forKey: oldKey)
+    _ = first.applyCloudChanges(changedKeys: [oldKey])
+    #expect(first.activityEmoji(for: "maroonEmber") == "🍊")
+}
+
+@Test @MainActor
+func invalidCanonicalValuesAllowValidLegacyFallbackAndCanonicalWrites() {
+    let local = InMemoryThemePreferenceStore()
+    local.set("apple2020", forKey: AppTheme.storageKey)
+    local.set("invalid", forKey: ThemePreferenceRules.activityStyleKey(themeID: "appleSystem"))
+    local.set("text", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "appleSystem"))
+    local.set("emoji", forKey: ThemePreferenceRules.activityStyleKey(themeID: "apple2020"))
+    local.set("🍎", forKey: ThemePreferenceRules.activityEmojiKey(themeID: "apple2020"))
+    let store = ThemePreferenceStore(localStore: local, cloudStore: nil)
+    _ = store.start(syncsWithICloud: false)
+    #expect(store.activityMark(for: "appleSystem") == .emoji("🍎"))
+    store.setSelectedThemeID("solarBerry")
+    #expect(store.selectedThemeID == "maroonEmber")
+    #expect(store.setActivityEmoji("🍊", for: "solarBerry"))
+    #expect(store.activityEmoji(for: "maroonEmber") == "🍊")
 }

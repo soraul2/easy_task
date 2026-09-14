@@ -379,6 +379,8 @@ private struct WatchSummaryMetric: View {
 }
 
 private struct WatchTaskRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
     let task: PlanBaseCore.Task
     let action: () -> Void
 
@@ -386,35 +388,119 @@ private struct WatchTaskRow: View {
         TaskStatus(rawValue: task.status) ?? .todo
     }
 
+    private var usesLargeTextLayout: Bool {
+        dynamicTypeSize >= .xxxLarge
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text(task.title)
-                    .lineLimit(2)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(status == .done ? Color.secondary : Color.primary)
+                    .lineLimit(usesLargeTextLayout ? nil : 3)
+                    .fixedSize(horizontal: false, vertical: true)
                     .strikethrough(status == .done)
-                Text(status.title)
+                    .privacySensitive()
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { summaryDetails }
+                    VStack(alignment: .leading, spacing: 5) { summaryDetails }
+                }
+
+                if let reminderAt = TaskReminderRules.normalizedDate(task.reminderAt) {
+                    Label {
+                        Text("\(status == .done ? "설정했던 알림" : "알림") \(reminderAt.formatted(date: .abbreviated, time: .shortened))")
+                    } icon: {
+                        Image(systemName: status == .done ? "bell.slash" : "bell")
+                    }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 2)
-            Button(action: action) {
-                Image(systemName: status.primaryActionSystemImage)
-                    .font(.body.weight(.semibold))
-            }
-            .buttonStyle(.borderless)
-            .tint(status == .doing ? .green : .blue)
-            .accessibilityLabel(status.primaryActionTitle)
-
-            if status != .done {
-                NavigationLink(value: WatchFocusDestination(taskID: task.id)) {
-                    Image(systemName: "timer")
-                        .font(.body.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.borderless)
-                .tint(.blue)
-                .accessibilityLabel("\(task.title) 집중 시작")
+            }
+            .accessibilityElement(children: .combine)
+
+            Divider()
+
+            if usesLargeTextLayout {
+                VStack(spacing: 8) {
+                    primaryAction
+                    if status != .done { focusLink }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    primaryAction
+                    if status != .done { focusLink }
+                }
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    status == .doing
+                        ? Color.blue.opacity(0.60)
+                        : Color.primary.opacity(contrast == .increased ? 0.45 : 0.14),
+                    lineWidth: 1
+                )
+        }
+        .listRowInsets(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
+        .listRowBackground(Color.clear)
+    }
+
+    @ViewBuilder
+    private var summaryDetails: some View {
+        Label(status.title, systemImage: status.systemImage)
+            .foregroundStyle(status == .doing ? Color.blue : Color.secondary)
+            .font(.caption2)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if let minutes = task.estimatedMinutes, minutes > 0 {
+            Text("예상 \(EstimatedTimeFormatter.short(minutes))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var primaryAction: some View {
+        Button(action: action) {
+            Text(status.primaryActionTitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(status == .doing ? Color.blue : Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    status == .doing ? Color.blue.opacity(0.20) : Color.primary.opacity(0.08),
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(task.title) \(status.primaryActionTitle)")
+    }
+
+    private var focusLink: some View {
+        NavigationLink(value: WatchFocusDestination(taskID: task.id)) {
+            Group {
+                if usesLargeTextLayout {
+                    Label("집중 시작", systemImage: "timer")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else {
+                    Image(systemName: "timer")
+                        .frame(width: 44, height: 44)
+                }
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.blue)
+            .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(task.title) 집중 시작")
     }
 }
 #endif

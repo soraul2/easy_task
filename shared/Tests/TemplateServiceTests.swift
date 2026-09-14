@@ -450,5 +450,109 @@ func templateListRulesSearchAndSortFavoritesFirst() {
     #expect(favoritesOnly.map(\.name) == ["운동 루틴"])
     #expect(searchedByItem.map(\.name) == ["운동 루틴"])
     #expect(TemplateListRules.preferredScope(for: [work, review]) == .all)
-    #expect(TemplateListRules.preferredScope(for: [workout, work, review]) == .favorites)
+    #expect(TemplateListRules.preferredScope(for: [workout, work, review]) == .all)
+    let globalSearch = TemplateListRules.filterAndSort(
+        [workout, work, review], items: items, query: "막힌", scope: .favorites)
+    #expect(globalSearch.map(\.id) == [work.id])
+}
+
+@Test @MainActor
+func routineEditingPreservesItemIdentityAndExistingBoardHistory() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let template = try TemplateEditingService.save(original: nil, name: "아침",
+        drafts: [TemplateTaskDraft(title: "첫 작업", order: 100),
+                 TemplateTaskDraft(title: "제외할 작업", order: 200)], isFavorite: true, in: context)
+    template.quickEntryAlias = "morning"
+    let original = try TemplateEditingService.snapshot(id: template.id, in: context)
+    let items = try context.fetch(FetchDescriptor<TaskTemplateItem>())
+    _ = TemplateService.applyTemplate(template, items: items, selectedDate: Date(), existingTasks: [], in: context)
+    try context.save()
+    let history = try context.fetch(FetchDescriptor<TemplatePlacement>()).map(\.templateName)
+    var drafts = original.drafts
+    let retainedID = drafts[0].id
+    drafts.removeLast()
+    drafts[0].title = "바뀐 작업"
+    drafts[0].checklistTitles = ["  준비  ", ""]
+    drafts.insert(TemplateTaskDraft(title: "새 작업", order: 500), at: 0)
+    _ = try TemplateEditingService.save(original: original, name: "새 아침", drafts: drafts,
+                                       isFavorite: false, in: context)
+    let saved = try TemplateEditingService.snapshot(id: template.id, in: context)
+    #expect(saved.name == "새 아침")
+    #expect(saved.drafts.map(\.title) == ["새 작업", "바뀐 작업"])
+    #expect(saved.drafts[1].id == retainedID)
+    #expect(saved.drafts[1].checklistTitles == ["준비"])
+    #expect(template.quickEntryAlias == "morning")
+    #expect(try context.fetch(FetchDescriptor<Task>()).map(\.title).sorted() == ["첫 작업", "제외할 작업"].sorted())
+    #expect(try context.fetch(FetchDescriptor<TemplatePlacement>()).map(\.templateName) == history)
+}
+
+@Test @MainActor
+func routineEditingRejectsConcurrentChangesAndAllowsCopy() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let template = try TemplateEditingService.save(original: nil, name: "원본",
+        drafts: [TemplateTaskDraft(title: "작업", order: 100)], isFavorite: false, in: context)
+    let original = try TemplateEditingService.snapshot(id: template.id, in: context)
+    let item = try #require(context.fetch(FetchDescriptor<TaskTemplateItem>()).first)
+    item.title = "다른 기기에서 수정"
+    item.updatedAt = Date().addingTimeInterval(1)
+    try context.save()
+    #expect(throws: TemplateEditingService.Failure.self) {
+        try TemplateEditingService.save(original: original, name: "덮어쓰기", drafts: original.drafts,
+                                        isFavorite: false, in: context)
+    }
+    #expect(item.title == "다른 기기에서 수정")
+    let copy = try TemplateEditingService.save(original: nil, name: "복사본", drafts: original.drafts,
+                                              isFavorite: false, in: context)
+    #expect(copy.id != template.id)
+    let copied = try TemplateEditingService.snapshot(id: copy.id, in: context)
+    #expect(copied.drafts[0].id != original.drafts[0].id)
+    #expect(copied.drafts[0].title == "작업")
+}
+
+@Test @MainActor
+func routineApplyPreviewMatchesBoardCalendarAndExplicitRepeat() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let date = Date()
+    let otherDate = DayKey.addingDays(1, to: date)
+    let template = try TemplateEditingService.save(original: nil, name: "루틴",
+        drafts: [TemplateTaskDraft(title: "Read", order: 100),
+                 TemplateTaskDraft(title: "Walk", order: 200)], isFavorite: false, in: context)
+    let items = try context.fetch(FetchDescriptor<TaskTemplateItem>())
+    let existing = Task(title: " READ ", plannedAt: date, order: 100)
+    context.insert(existing)
+    let drafts = TemplateService.drafts(from: template, items: items)
+    let summary = TemplateApplicationRules.summary(drafts: drafts, dates: [date, otherDate, date], tasks: [existing])
+    #expect(summary.totalCount == 4)
+    #expect(summary.newCount == 3)
+    let count = TemplateService.applyTemplate(template, items: items, selectedDate: date,
+                                             existingTasks: [existing], in: context)
+    #expect(count == 1)
+    let allTasks = try context.fetch(FetchDescriptor<Task>())
+    #expect(TemplateService.applyTemplate(template, items: items, selectedDate: date,
+                                         existingTasks: allTasks, in: context) == 0)
+    #expect(TemplateService.applyTemplate(template, drafts: drafts, selectedDates: [date],
+                                         existingTasks: allTasks, in: context, skipDuplicateTitles: false) == 2)
+}
+
+@Test @MainActor
+func routineEditorInvalidInputAndDeletedOriginalDoNotCreatePartialData() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    #expect(throws: TemplateEditingService.Failure.self) {
+        try TemplateEditingService.save(original: nil, name: "루틴",
+            drafts: [TemplateTaskDraft(title: " ", order: 100)], isFavorite: false, in: context)
+    }
+    #expect(try context.fetch(FetchDescriptor<TaskTemplate>()).isEmpty)
+    let template = try TemplateEditingService.save(original: nil, name: "루틴",
+        drafts: [TemplateTaskDraft(title: "작업", order: 100)], isFavorite: false, in: context)
+    let original = try TemplateEditingService.snapshot(id: template.id, in: context)
+    try TemplateEditingService.delete(id: template.id, in: context)
+    #expect(throws: TemplateEditingService.Failure.self) {
+        try TemplateEditingService.save(original: original, name: "수정", drafts: original.drafts,
+                                        isFavorite: false, in: context)
+    }
+    #expect(try context.fetch(FetchDescriptor<TaskTemplateItem>()).isEmpty)
 }

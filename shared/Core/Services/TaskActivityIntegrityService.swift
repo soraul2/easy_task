@@ -257,9 +257,10 @@ private extension TaskActivityIntegrityService {
             }
         )
         var seen: Set<PersistentIdentifier> = []
+        // A canceled captured completion must also suppress a delayed legacy
+        // copy of the same occurrence. Its inactive physical record is retained.
         let candidates = try context.fetch(candidatesDescriptor).filter { activity in
-            activity.supersededAt == nil &&
-                activity.taskId == taskID &&
+            activity.taskId == taskID &&
                 activity.originRawValue == capturedOrigin &&
                 DataIntegrityService.validDayKey(activity.activityDayKey) != nil &&
                 DataIntegrityService.isFinite(activity.occurredAt) &&

@@ -209,7 +209,8 @@ struct MobileAppRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
-        )) { _ in
+        )) { notification in
+            guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
             reconcileTaskNotifications()
             reconcileLiveActivity()
         }

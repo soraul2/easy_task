@@ -42,12 +42,12 @@ public struct PlanBaseButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         if !isEnabled { return AppTheme.secondaryText }
-        return emphasis == .primary ? AppTheme.eventForeground : AppTheme.primaryText
+        return emphasis == .primary ? AppTheme.onAccent : AppTheme.primaryText
     }
 
     private var background: Color {
         if !isEnabled { return AppTheme.input }
-        return emphasis == .primary ? AppTheme.event : AppTheme.panel
+        return emphasis == .primary ? AppTheme.accentFill : AppTheme.panel
     }
 
 }

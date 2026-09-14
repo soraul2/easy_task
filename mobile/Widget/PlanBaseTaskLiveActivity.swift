@@ -19,7 +19,6 @@ struct PlanBaseTaskLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PlanBaseTaskActivityAttributes.self) { context in
             TaskLiveActivityLockScreen(context: context)
-                .activityBackgroundTint(.clear)
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in
             DynamicIsland {
@@ -224,9 +223,14 @@ private struct TaskLiveActivityActiveDot: View {
 }
 
 private struct TaskLiveActivityLockScreen: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.redactionReasons) private var redactionReasons
 
     let context: ActivityViewContext<PlanBaseTaskActivityAttributes>
+
+    private var theme: TaskLiveActivityTheme {
+        TaskLiveActivityTheme(themeID: context.state.themeID, colorScheme: colorScheme)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -264,6 +268,9 @@ private struct TaskLiveActivityLockScreen: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(minHeight: 88)
+        // A known opaque surface keeps accent controls readable over any wallpaper.
+        .background(theme.surface)
+        .activityBackgroundTint(theme.surface)
         .widgetURL(
             context.state.focusSessionID.flatMap(PlanBaseDeepLink.focusURL(sessionID:))
                 ?? PlanBaseDeepLink.boardTodayURL()
@@ -393,19 +400,25 @@ private struct TaskLiveActivityActionLabel: View {
 
 private struct TaskLiveActivityTheme {
     let colors: AppThemeColorSet
+    let appearance: AppThemeAppearance
 
     init(themeID: String?, colorScheme: ColorScheme) {
+        appearance = AppThemeAppearance(colorScheme: colorScheme)
         colors = AppThemePreset
             .preset(for: themeID)
             .colorSet(for: AppThemeAppearance(colorScheme: colorScheme))
     }
 
     var accent: Color {
-        colors.event.color
+        colors.accent(forSystemAppearance: appearance).color
     }
 
     var buttonBackground: Color {
         accent.opacity(0.18)
+    }
+
+    var surface: Color {
+        ThemeColorToken(hex: appearance == .dark ? "#1C1C1E" : "#FFFFFF").color
     }
 }
 

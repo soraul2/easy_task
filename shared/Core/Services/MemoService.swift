@@ -165,6 +165,7 @@ public enum MemoService {
         var cursor = cursor ?? MemoQueryCursor()
         var matches: [Memo] = []
 
+        let normalizedQuery = MemoRules.normalizedSearchText(query)
         while matches.count < pageSize {
             let pinned = cursor.scansPinned
             let offset = pinned ? cursor.pinnedOffset : cursor.regularOffset
@@ -174,7 +175,8 @@ public enum MemoService {
                 },
                 sortBy: [
                     SortDescriptor(\Memo.updatedAt, order: .reverse),
-                    SortDescriptor(\Memo.createdAt, order: .reverse)
+                    SortDescriptor(\Memo.createdAt, order: .reverse),
+                    SortDescriptor(\Memo.instanceID)
                 ]
             )
             descriptor.fetchOffset = offset
@@ -189,7 +191,6 @@ public enum MemoService {
                 return MemoQueryPage(memos: matches, nextCursor: nil, hasMore: false)
             }
 
-            let normalizedQuery = MemoRules.normalizedSearchText(query)
             let checklistByMemoID: [UUID: [MemoChecklistItem]]
             if normalizedQuery.isEmpty {
                 checklistByMemoID = [:]
@@ -212,7 +213,7 @@ public enum MemoService {
                 if MemoRules.matches(
                     memo,
                     checklistTitles: (checklistByMemoID[memo.id] ?? []).map(\.title),
-                    query: query
+                    normalizedQuery: normalizedQuery
                 ) {
                     matches.append(memo)
                     if matches.count == pageSize {

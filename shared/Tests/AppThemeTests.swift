@@ -12,6 +12,7 @@ func unfilledControlsAndPrimaryButtonsRemainReadableInEveryPalette() {
             #expect(colors.resolvedAccentForeground.contrastRatio(to: surface) >= 4.5)
         }
         #expect(colors.resolvedEventForeground.contrastRatio(to: colors.event) >= 4.5)
+        #expect(colors.onAccent.contrastRatio(to: colors.accentFill) >= 4.5)
     }
 }
 
@@ -106,17 +107,9 @@ func themeColorSetsStayFixedAcrossSystemAppearances() {
 
 @Test
 func fixedThemePalettesUseTheirCanonicalBrightSurfaces() {
-    let expectedBackgroundTop: [String: ThemeColorToken] = [
-        "appleSystem": ThemeColorToken(hex: "#FFFFFF"),
-        "apple2020": ThemeColorToken(hex: "#FFFFFF"),
-        "maroonEmber": ThemeColorToken(hex: "#FFFDFC"),
-        "navyBlush": ThemeColorToken(hex: "#FCFEFF"),
-        "plumNight": ThemeColorToken(hex: "#FFFDFF"),
-        "roseLilac": ThemeColorToken(hex: "#FFFDFE"),
-        "forestCream": ThemeColorToken(hex: "#FDFFFE"),
-        "tealPaper": ThemeColorToken(hex: "#FCFFFF"),
-        "solarBerry": ThemeColorToken(hex: "#FFFDF8")
-    ]
+    let expectedBackgroundTop = Dictionary(uniqueKeysWithValues:
+        ["appleSystem", "maroonEmber", "plumNight", "roseLilac", "forestCream", "tealPaper"]
+            .map { ($0, ThemeColorToken(hex: "#FFFFFF")) })
 
     let brightPresets = AppThemePreset.all.filter { !$0.isDarkTheme }
     #expect(brightPresets.count == expectedBackgroundTop.count)
@@ -158,7 +151,7 @@ func roseLilacThemeUsesRequestedBrightPinkPalette() {
 
     #expect(preset.id == "roseLilac")
     #expect(preset.name == "Blush Pink")
-    #expect(preset.sourcePaletteHexes == ["#FFFFFF", "#FFEFF6", "#FFD6E5", "#A94F73"])
+    #expect(preset.sourcePaletteHexes == ["#FFFFFF", "#FFF1F6", "#FFE5EF", "#C32F72"])
     #expect(preset.targetsWCAGTextContrast)
 
     for appearance in AppThemeAppearance.allCases {
@@ -173,14 +166,100 @@ func roseLilacThemeUsesRequestedBrightPinkPalette() {
 }
 
 @Test
-func apple2020ThemeUsesClassicGroupedSurfacesAndSystemBlue() {
-    let preset = AppThemePreset.preset(for: "apple2020")
-    let colors = preset.colorSet(for: .light)
+func consolidatedThemesResolveLegacySelectionAndWidgetIdentifiers() {
+    #expect(AppThemePreset.all.count == 8)
+    #expect(Set(AppThemePreset.all.map(\.name)) == Set([
+        "Clean White", "Apricot", "Lavender Cloud", "Blush Pink", "Mint Cream", "Aqua Mist",
+        "Midnight Blue", "Charcoal Rose"
+    ]))
+    for (legacy, canonical) in [("apple2020", "appleSystem"), ("navyBlush", "appleSystem"),
+                                ("solarBerry", "maroonEmber")] {
+        #expect(ThemePreferenceRules.isKnownThemeID(legacy))
+        #expect(!AppThemePreset.all.contains { $0.id == legacy })
+        #expect(AppThemePreset.preset(for: legacy) == AppThemePreset.preset(for: canonical))
+    }
+}
 
-    #expect(preset.name == "Apple 2020")
-    #expect(colors.backgroundBottom == ThemeColorToken(hex: "#F2F2F7"))
-    #expect(colors.panel == ThemeColorToken(hex: "#FFFFFF"))
-    #expect(colors.event == ThemeColorToken(hex: "#007AFF"))
+@Test
+func persistedWidgetSnapshotsResolveRetiredThemeIDsWithoutRewritingPayloads() throws {
+    for (legacy, canonical) in [("apple2020", "appleSystem"), ("navyBlush", "appleSystem"),
+                                ("solarBerry", "maroonEmber")] {
+        let payload = """
+        {"schemaVersion":2,"generatedAt":"2026-09-07T00:00:00Z","themeID":"\(legacy)","events":[]}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot = try decoder.decode(CalendarWidgetSnapshot.self, from: Data(payload.utf8))
+        #expect(snapshot.themeID == legacy)
+        #expect(AppThemePreset.preset(for: snapshot.themeID).id == canonical)
+        #expect(AppThemePreset.preset(for: snapshot.themeID).colorSet(for: .dark)
+                == AppThemePreset.preset(for: canonical).colorSet(for: .light))
+    }
+}
+
+@Test
+func themeAccentsRetainColorAndContrastOnActualApplicationAndSystemSurfaces() {
+    for preset in AppThemePreset.all {
+        let colors = preset.colorSet(for: .light)
+        for surface in [colors.backgroundTop, colors.backgroundBottom, colors.panel, colors.input,
+                        colors.floatingBar, colors.selectedTab, colors.columnTodo, colors.columnDoing,
+                        colors.columnDone, colors.todo, colors.doing, colors.done] {
+            #expect(colors.accentForeground.contrastRatio(to: surface) >= 4.5, "\(preset.id)")
+        }
+        #expect(colors.onAccent.contrastRatio(to: colors.accentFill) >= 4.5)
+        #expect(colors.accentFill.contrastRatio(to: colors.panel) >= 3)
+        #expect(colors.semanticRed.contrastRatio(to: colors.panel) >= 4.5)
+        let channels = [colors.accentForeground.red, colors.accentForeground.green, colors.accentForeground.blue]
+        #expect(channels.max()! - channels.min()! >= 0.3, "Accent must retain chroma: \(preset.id)")
+        for (appearance, surfaces) in [
+            (AppThemeAppearance.light, ["#FFFFFF", "#F2F2F7"]),
+            (AppThemeAppearance.dark, ["#000000", "#1C1C1E"])
+        ] {
+            let accent = colors.accent(forSystemAppearance: appearance)
+            for hex in surfaces {
+                let surface = ThemeColorToken(hex: hex)
+                #expect(accent.contrastRatio(to: surface) >= 4.5)
+                let buttonSurface = ThemeColorToken(
+                    red: surface.red * 0.82 + accent.red * 0.18,
+                    green: surface.green * 0.82 + accent.green * 0.18,
+                    blue: surface.blue * 0.82 + accent.blue * 0.18)
+                #expect(accent.contrastRatio(to: buttonSurface) >= 4.5)
+            }
+        }
+    }
+}
+
+@Test
+func calendarCategoryHuesAndStoredColorIdentifiersStayStableAcrossThemes() {
+    let expectedIDs = ["blue", "red", "green", "purple", "orange", "teal"]
+    #expect(CalendarEventColor.allCases.map(\.rawValue) == expectedIDs)
+    // Broad hue ranges validate the meaning of the visible names, not specific hex values.
+    let hueRanges: [ClosedRange<Double>] = [200...250, 340...365, 120...170, 260...300, 15...45, 175...199]
+    for preset in AppThemePreset.all {
+        let colors = preset.colorSet(for: .light)
+        #expect(colors.eventPalette.count == expectedIDs.count)
+        for (index, color) in colors.eventPalette.enumerated() {
+            let maxValue = max(color.red, color.green, color.blue)
+            let minValue = min(color.red, color.green, color.blue)
+            let delta = maxValue - minValue
+            #expect(delta > 0.1)
+            let sector: Double
+            if maxValue == color.red { sector = (color.green - color.blue) / delta }
+            else if maxValue == color.green { sector = (color.blue - color.red) / delta + 2 }
+            else { sector = (color.red - color.green) / delta + 4 }
+            let hue = (sector * 60 + 360).truncatingRemainder(dividingBy: 360)
+            #expect(hueRanges[index].contains(hue), "\(preset.name): \(expectedIDs[index])")
+            #expect(colors.resolvedEventForeground(on: color).contrastRatio(to: color) >= 4.5)
+            let faded = colors.eventBackground(at: index, isDimmed: true)
+            #expect(faded != color)
+            #expect(colors.resolvedEventForeground(on: faded).contrastRatio(to: faded) >= 4.5)
+        }
+        var changed = colors
+        changed.accentFill = ThemeColorToken(hex: "#FF00FF")
+        #expect(changed.eventPalette == colors.eventPalette)
+        #expect(changed.event == colors.event)
+        #expect(changed.activityHeatmap != colors.activityHeatmap)
+    }
 }
 
 @Test

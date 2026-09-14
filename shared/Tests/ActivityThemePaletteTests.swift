@@ -17,10 +17,10 @@ func activityThemePaletteUsesOrderedThemeAccentBlendsForEveryPreset() {
             #expect(distances.allSatisfy { $0 > 0.04 }, "\(preset.id) \(appearance)")
             #expect(palette.empty == colors.input)
             let accentDistances = [
-                colorDistance(palette.level1, colors.event),
-                colorDistance(palette.level2, colors.event),
-                colorDistance(palette.level3, colors.event),
-                colorDistance(palette.level4, colors.event)
+                colorDistance(palette.level1, colors.accentFill),
+                colorDistance(palette.level2, colors.accentFill),
+                colorDistance(palette.level3, colors.accentFill),
+                colorDistance(palette.level4, colors.accentFill)
             ]
             #expect(
                 zip(accentDistances, accentDistances.dropFirst()).allSatisfy {

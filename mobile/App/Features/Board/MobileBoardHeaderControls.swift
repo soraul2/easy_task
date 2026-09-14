@@ -404,7 +404,7 @@ private struct BoardStatusFilterButton: View {
     private var accent: Color {
         switch status {
         case .todo: AppTheme.secondaryText
-        case .doing: AppTheme.event
+        case .doing: AppTheme.accent
         case .done: AppTheme.done
         }
     }

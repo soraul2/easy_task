@@ -6,7 +6,6 @@ import SwiftData
 import SwiftUI
 
 struct MobileArchiveView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var state: ArchiveScreenState
     var onOpenBoardDate: (Date) -> Void
     var onShowTheme: () -> Void
@@ -39,26 +38,10 @@ struct MobileArchiveView: View {
 
         NavigationStack {
             List {
-                Button {
-                    withAnimation(reduceMotion ? nil : .snappy) { showsOverview.toggle() }
-                } label: {
-                    HStack {
-                        Label("완료 활동", systemImage: "chart.bar.xaxis")
-                        Spacer()
-                        Image(systemName: showsOverview ? "chevron.up" : "chevron.down")
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .frame(minHeight: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("archive-overview-disclosure")
-                .accessibilityValue(showsOverview ? "펼침" : "접힘")
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                if showsOverview, let activitySession = state.activitySession {
+                if let activitySession = state.activitySession {
                     MobileArchiveActivityOverview(
                         session: activitySession,
+                        isExpanded: $showsOverview,
                         selectedDayKey: $state.selectedActivityDayKey,
                         onOpenDay: openDay
                     )
@@ -260,7 +243,6 @@ struct MobileArchiveView: View {
             state.querySession?.refreshPreservingDepth()
             refreshOverview()
         }
-        .onChange(of: showsOverview) { _, _ in refreshOverview() }
         .onChange(of: state.filter) { oldFilter, newFilter in
             state.querySession?.apply(
                 newFilter,
@@ -271,15 +253,15 @@ struct MobileArchiveView: View {
             )
         }
         .onChange(of: horizontalSizeClass) { _, _ in
-            guard showsOverview else { return }
             state.selectedActivityDayKey = nil
-            state.activitySession?.apply(weekCount: activityWeekCount)
+            refreshOverview()
         }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: PersistenceCommandService.dataChangedNotification
             )
         ) { notification in
+            guard PersistenceCommandService.affects([.tasks, .reviews], in: notification) else { return }
             guard isVisible, scenePhase == .active,
                 let sourceContext = notification.object as? ModelContext,
                 sourceContext === modelContext
@@ -359,10 +341,7 @@ struct MobileArchiveView: View {
     }
 
     private func refreshOverview() {
-        guard showsOverview else {
-            state.activitySession?.cancel()
-            return
-        }
+        guard isVisible, scenePhase == .active else { return }
         state.activitySession?.apply(weekCount: activityWeekCount)
     }
 
@@ -442,7 +421,9 @@ struct MobileArchiveView: View {
 }
 
 private struct MobileArchiveActivityOverview: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var session: ActivityOverviewSession
+    @Binding var isExpanded: Bool
     @Binding var selectedDayKey: String?
     var onOpenDay: (String) -> Void
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
@@ -450,68 +431,48 @@ private struct MobileArchiveActivityOverview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(AppTheme.doneForeground)
-                    .padding(7)
-                    .background(AppTheme.done, in: Circle())
-                    .accessibilityHidden(true)
-                Text("\(session.overview.currentStreak)일 연속")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .contentTransition(.numericText())
-                Spacer()
-                if session.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("활동 기록 계산 중")
-                }
-            }
-
-            Text(session.overview.todayState.message)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.secondaryText)
-            Text("최근 1년 최고 \(session.overview.bestStreakInLastYear)일")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
-
-            if session.overview.range != nil {
-                ActivityHeatmapView(
-                    overview: session.overview,
-                    palette: AppTheme.activityHeatmapPalette,
-                    mark: themePreferences.activityMark(for: selectedThemeID),
-                    selectedDayKey: selectedDayKey,
-                    onSelectDay: { key in
-                        selectedDayKey = key
-                        if let key { onOpenDay(key) }
-                    }
-                )
-                .frame(maxWidth: .infinity)
-
-                activityLegend
-
-                if let selectedDayKey,
-                    let day = session.overview.days.first(where: {
-                        $0.dayKey == selectedDayKey
-                    })
-                {
-                    Text(selectionSummary(day))
+            Button {
+                withAnimation(reduceMotion ? nil : .snappy) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(AppTheme.doneForeground)
+                        .accessibilityHidden(true)
+                    Text(overviewTitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
-                        .accessibilityIdentifier("activity-selected-day-summary")
+                        .contentTransition(.numericText())
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    if session.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityHidden(true)
+                    }
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .accessibilityHidden(true)
                 }
-            } else if !session.isLoading {
-                Text(session.errorMessage ?? "작업을 완료하면 활동 기록이 시작돼요")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .frame(maxWidth: .infinity, minHeight: 90, alignment: .center)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("archive-overview-disclosure")
+            .accessibilityLabel(overviewTitle)
+            .accessibilityValue(isExpanded ? "펼침" : "접힘")
+            .accessibilityHint(isExpanded ? "완료 활동 그래프를 접습니다" : "완료 활동 그래프를 펼칩니다")
+
+            if isExpanded, session.overview.range != nil {
+                graph
             }
 
-            if session.errorMessage != nil {
-                Button("다시 시도") {
-                    session.retry()
-                }
-                .buttonStyle(.bordered)
+            if let errorMessage = session.errorMessage {
+                Text(errorMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
+                Button("다시 시도") { session.retry() }
+                    .buttonStyle(.bordered)
             }
         }
         .padding(16)
@@ -520,7 +481,51 @@ private struct MobileArchiveActivityOverview: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(AppTheme.border, lineWidth: 1)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("activity-overview")
+    }
+
+    private var overviewTitle: String {
+        if session.overview.range != nil {
+            return "완료 활동 · \(session.overview.currentStreak)일 연속"
+        }
+        return session.isLoading ? "완료 활동 · 불러오는 중" : "완료 활동"
+    }
+
+    private var graph: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(session.overview.todayState.message)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.secondaryText)
+            Text("최근 1년 최고 \(session.overview.bestStreakInLastYear)일")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+
+            ActivityHeatmapView(
+                overview: session.overview,
+                palette: AppTheme.activityHeatmapPalette,
+                mark: themePreferences.activityMark(for: selectedThemeID),
+                selectedDayKey: selectedDayKey,
+                onSelectDay: { key in
+                    selectedDayKey = key
+                    if let key { onOpenDay(key) }
+                }
+            )
+            .frame(maxWidth: .infinity)
+
+            activityLegend
+
+            if let selectedDayKey,
+                let day = session.overview.days.first(where: { $0.dayKey == selectedDayKey })
+            {
+                Text(selectionSummary(day))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .accessibilityIdentifier("activity-selected-day-summary")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("activity-graph")
     }
 
     private var activityLegend: some View {

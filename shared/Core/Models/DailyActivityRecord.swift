@@ -52,6 +52,14 @@ public struct DailyActivityEntry: Identifiable, Equatable, Sendable {
     public var canOpenTask: Bool
     public var matchingChecklistTitles: [String]
     public var searchQuery: String
+    public var currentStatusRawValue: String?
+
+    public var completionStatusText: String? {
+        guard evidence.completed || evidence.legacyCompletion,
+              let currentStatusRawValue, let status = TaskStatus(rawValue: currentStatusRawValue),
+              status != .done else { return nil }
+        return "현재 \(status.title) · 완료 이력 유지"
+    }
 
     public init(
         id: UUID,
@@ -60,7 +68,8 @@ public struct DailyActivityEntry: Identifiable, Equatable, Sendable {
         evidence: DailyActivityEvidence,
         canOpenTask: Bool = true,
         matchingChecklistTitles: [String] = [],
-        searchQuery: String = ""
+        searchQuery: String = "",
+        currentStatusRawValue: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -69,6 +78,7 @@ public struct DailyActivityEntry: Identifiable, Equatable, Sendable {
         self.canOpenTask = canOpenTask
         self.matchingChecklistTitles = matchingChecklistTitles
         self.searchQuery = searchQuery
+        self.currentStatusRawValue = currentStatusRawValue
     }
 }
 

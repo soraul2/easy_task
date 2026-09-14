@@ -157,23 +157,7 @@ private struct MobileThemePresetCard: View {
                         .foregroundStyle(isSelected ? colors.resolvedAccentForeground.color : colors.secondaryText.color)
                 }
 
-                HStack(spacing: 0) {
-                    ForEach(Array(preset.sourceColors.enumerated()), id: \.offset) { _, color in
-                        color.frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(height: 24)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(colors.border.color.opacity(0.75), lineWidth: 1)
-                }
-
-                HStack(spacing: 6) {
-                    themeSample(color: colors.todo, symbol: "circle")
-                    themeSample(color: colors.doing, symbol: "arrow.right")
-                    themeSample(color: colors.done, symbol: "checkmark")
-                }
+                ThemePalettePreview(preset: preset)
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
@@ -195,13 +179,5 @@ private struct MobileThemePresetCard: View {
         .accessibilityHint(isSelected ? "현재 적용된 테마" : "두 번 탭하여 테마 적용")
     }
 
-    private func themeSample(color: ThemeColorToken, symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(colors.resolvedCardForeground(on: color).color)
-            .frame(maxWidth: .infinity)
-            .frame(height: 30)
-            .background(color.color, in: RoundedRectangle(cornerRadius: 6))
-    }
 }
 #endif

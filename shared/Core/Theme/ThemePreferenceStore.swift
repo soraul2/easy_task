@@ -58,7 +58,7 @@ public enum ThemePreferenceRules {
     }
 
     public static func isKnownThemeID(_ themeID: String) -> Bool {
-        AppThemePreset.all.contains { $0.id == themeID }
+        AppThemePreset.canonicalID(for: themeID) != nil
     }
 }
 
@@ -101,6 +101,7 @@ public final class ThemePreferenceStore {
     public func start(syncsWithICloud: Bool = true) -> String {
         cloudSyncEnabled = syncsWithICloud
         guard syncsWithICloud, let cloudStore else {
+            if migrateLegacyPreferences() { revision &+= 1 }
             return selectedThemeID
         }
 
@@ -125,35 +126,34 @@ public final class ThemePreferenceStore {
     }
 
     public var selectedThemeID: String {
-        let stored = localStore.string(forKey: AppTheme.storageKey)
-        return ThemePreferenceRules.isKnownThemeID(stored ?? "")
-            ? stored ?? AppThemePreset.defaultID
-            : AppThemePreset.defaultID
+        AppThemePreset.preset(for: localStore.string(forKey: AppTheme.storageKey)).id
     }
 
     public func setSelectedThemeID(_ themeID: String) {
-        guard ThemePreferenceRules.isKnownThemeID(themeID) else { return }
-        let changed = localStore.string(forKey: AppTheme.storageKey) != themeID
-        localStore.set(themeID, forKey: AppTheme.storageKey)
+        guard let canonical = AppThemePreset.canonicalID(for: themeID) else { return }
+        let migrated = migrateLegacyPreferences(preferredID: themeID)
+        let changed = setLocalValue(canonical, key: AppTheme.storageKey)
         if cloudSyncEnabled {
-            cloudStore?.set(themeID, forKey: ThemePreferenceRules.selectedThemeCloudKey)
+            cloudStore?.set(canonical, forKey: ThemePreferenceRules.selectedThemeCloudKey)
+            seedMissingCanonicalPreferences()
         }
-        if changed { revision &+= 1 }
+        if changed || migrated { revision &+= 1 }
     }
 
     public func activityStyle(for themeID: String) -> ActivityHeatmapMarkStyle {
         _ = revision
-        let key = ThemePreferenceRules.activityStyleKey(themeID: themeID)
-        return localStore.string(forKey: key)
-            .flatMap(ActivityHeatmapMarkStyle.init(rawValue:)) ?? .color
+        return preferenceSourceIDs(for: themeID).lazy.compactMap { id in
+            self.localStore.string(forKey: ThemePreferenceRules.activityStyleKey(themeID: id))
+                .flatMap(ActivityHeatmapMarkStyle.init(rawValue:))
+        }.first ?? .color
     }
 
     public func setActivityStyle(
         _ style: ActivityHeatmapMarkStyle,
         for themeID: String
     ) {
-        guard ThemePreferenceRules.isKnownThemeID(themeID) else { return }
-        let key = ThemePreferenceRules.activityStyleKey(themeID: themeID)
+        guard let canonical = AppThemePreset.canonicalID(for: themeID) else { return }
+        let key = ThemePreferenceRules.activityStyleKey(themeID: canonical)
         let changed = localStore.string(forKey: key) != style.rawValue
         localStore.set(style.rawValue, forKey: key)
         if cloudSyncEnabled {
@@ -164,18 +164,19 @@ public final class ThemePreferenceStore {
 
     public func activityEmoji(for themeID: String) -> String {
         _ = revision
-        let key = ThemePreferenceRules.activityEmojiKey(themeID: themeID)
-        return ThemePreferenceRules.normalizedEmoji(localStore.string(forKey: key))
-            ?? ThemePreferenceRules.defaultEmoji(for: themeID)
+        return preferenceSourceIDs(for: themeID).lazy.compactMap { id in
+            ThemePreferenceRules.normalizedEmoji(self.localStore.string(
+                forKey: ThemePreferenceRules.activityEmojiKey(themeID: id)))
+        }.first ?? ThemePreferenceRules.defaultEmoji(for: AppThemePreset.preset(for: themeID).id)
     }
 
     @discardableResult
     public func setActivityEmoji(_ emoji: String, for themeID: String) -> Bool {
-        guard ThemePreferenceRules.isKnownThemeID(themeID),
+        guard let canonical = AppThemePreset.canonicalID(for: themeID),
               let normalized = ThemePreferenceRules.normalizedEmoji(emoji) else {
             return false
         }
-        let key = ThemePreferenceRules.activityEmojiKey(themeID: themeID)
+        let key = ThemePreferenceRules.activityEmojiKey(themeID: canonical)
         let changed = localStore.string(forKey: key) != normalized
         localStore.set(normalized, forKey: key)
         if cloudSyncEnabled {
@@ -187,7 +188,7 @@ public final class ThemePreferenceStore {
 
     public func resetActivityEmoji(for themeID: String) {
         _ = setActivityEmoji(
-            ThemePreferenceRules.defaultEmoji(for: themeID),
+            ThemePreferenceRules.defaultEmoji(for: AppThemePreset.preset(for: themeID).id),
             for: themeID
         )
     }
@@ -224,8 +225,9 @@ private extension ThemePreferenceStore {
             }
         }
 
-        for preset in AppThemePreset.all {
-            let styleKey = ThemePreferenceRules.activityStyleKey(themeID: preset.id)
+        // Keep receiving shipped keys from older devices, even when their theme is hidden.
+        for id in AppThemePreset.knownIDs {
+            let styleKey = ThemePreferenceRules.activityStyleKey(themeID: id)
             if changedKeys == nil || changedKeys?.contains(styleKey) == true {
                 if let remoteStyle = cloudStore.string(forKey: styleKey),
                    ActivityHeatmapMarkStyle(rawValue: remoteStyle) != nil {
@@ -240,7 +242,7 @@ private extension ThemePreferenceStore {
                 }
             }
 
-            let emojiKey = ThemePreferenceRules.activityEmojiKey(themeID: preset.id)
+            let emojiKey = ThemePreferenceRules.activityEmojiKey(themeID: id)
             if changedKeys == nil || changedKeys?.contains(emojiKey) == true {
                 if let remoteEmoji = ThemePreferenceRules.normalizedEmoji(
                     cloudStore.string(forKey: emojiKey)
@@ -258,8 +260,68 @@ private extension ThemePreferenceStore {
             }
         }
 
+        didChangeLocalValue = migrateLegacyPreferences() || didChangeLocalValue
+        seedMissingCanonicalPreferences()
         if didChangeLocalValue { revision &+= 1 }
         return selectedThemeID
+    }
+
+    /// Existing canonical values win per field. Otherwise prefer the selected legacy
+    /// theme, then aliases in a stable order. Never delete or overwrite legacy keys.
+    func migrateLegacyPreferences(preferredID: String? = nil) -> Bool {
+        let selectedRawID = preferredID ?? localStore.string(forKey: AppTheme.storageKey)
+        var changed = false
+        for preset in AppThemePreset.all {
+            let source = AppThemePreset.canonicalID(for: selectedRawID) == preset.id
+                ? selectedRawID ?? preset.id : preset.id
+            let ids = preferenceSourceIDs(for: source)
+            let styleKey = ThemePreferenceRules.activityStyleKey(themeID: preset.id)
+            let emojiKey = ThemePreferenceRules.activityEmojiKey(themeID: preset.id)
+            let style = ids.lazy.compactMap { id in
+                self.localStore.string(forKey: ThemePreferenceRules.activityStyleKey(themeID: id))
+                    .flatMap(ActivityHeatmapMarkStyle.init(rawValue:))
+            }.first
+            let emoji = ids.lazy.compactMap { id in
+                ThemePreferenceRules.normalizedEmoji(self.localStore.string(
+                    forKey: ThemePreferenceRules.activityEmojiKey(themeID: id)))
+            }.first
+            // An emoji style without an explicit emoji used the old theme's default.
+            // Materialize that value so a selected Sky Blue does not lose its wave.
+            let oldEmojiDefault = ids.first { id in
+                localStore.string(forKey: ThemePreferenceRules.activityStyleKey(themeID: id))
+                    == ActivityHeatmapMarkStyle.emoji.rawValue
+            }.map(ThemePreferenceRules.defaultEmoji(for:))
+            if let emoji = emoji ?? oldEmojiDefault {
+                changed = setLocalValue(emoji, key: emojiKey) || changed
+            }
+            if let style { changed = setLocalValue(style.rawValue, key: styleKey) || changed }
+        }
+        let canonical = AppThemePreset.preset(for: selectedRawID).id
+        changed = setLocalValue(canonical, key: AppTheme.storageKey) || changed
+        return changed
+    }
+
+    func preferenceSourceIDs(for themeID: String) -> [String] {
+        let canonical = AppThemePreset.preset(for: themeID).id
+        let aliases = AppThemePreset.aliases(for: canonical)
+        return [canonical] + (aliases.contains(themeID) ? [themeID] : [])
+            + aliases.filter { $0 != themeID }
+    }
+
+    func seedMissingCanonicalPreferences() {
+        guard cloudSyncEnabled, let cloudStore else { return }
+        for preset in AppThemePreset.all {
+            let styleKey = ThemePreferenceRules.activityStyleKey(themeID: preset.id)
+            if cloudStore.string(forKey: styleKey).flatMap(ActivityHeatmapMarkStyle.init(rawValue:)) == nil,
+               let style = localStore.string(forKey: styleKey).flatMap(ActivityHeatmapMarkStyle.init(rawValue:)) {
+                cloudStore.set(style.rawValue, forKey: styleKey)
+            }
+            let emojiKey = ThemePreferenceRules.activityEmojiKey(themeID: preset.id)
+            if ThemePreferenceRules.normalizedEmoji(cloudStore.string(forKey: emojiKey)) == nil,
+               let emoji = ThemePreferenceRules.normalizedEmoji(localStore.string(forKey: emojiKey)) {
+                cloudStore.set(emoji, forKey: emojiKey)
+            }
+        }
     }
 
     func setLocalValue(_ value: String, key: String) -> Bool {

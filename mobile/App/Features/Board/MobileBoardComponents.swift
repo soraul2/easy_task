@@ -5,12 +5,61 @@ import SwiftData
 import SwiftUI
 
 struct MobileStatusNotice: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var message: String
     var tone: MobileNoticeTone = .success
+    var destinationTitle: String? = nil
+    var onShowDestination: () -> Void = {}
+    var onUndo: (() -> Void)? = nil
 
     var body: some View {
-        MobileNoticeBanner(message: message, tone: tone)
-            .accessibilityIdentifier("board-status-notice")
+        VStack(alignment: .leading, spacing: 4) {
+            Label(message, systemImage: tone.symbol)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
+                .foregroundStyle(tone == .error ? Color.red : AppTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(message)
+                .accessibilityIdentifier("board-status-notice")
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 0) { actions }
+            } else {
+                HStack(spacing: 16) { actions }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
+        .overlay { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1) }
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .onAppear { AccessibilityNotification.Announcement(message).post() }
+        .onChange(of: message) { _, message in AccessibilityNotification.Announcement(message).post() }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if let destinationTitle {
+            Button(action: onShowDestination) {
+                Text(destinationTitle)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.accent)
+                .accessibilityIdentifier("board-status-destination")
+        }
+        if let onUndo {
+            Button(action: onUndo) {
+                Text("완료 실행 취소")
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.accent)
+                .accessibilityIdentifier("board-completion-undo")
+        }
     }
 }
 
@@ -58,23 +107,23 @@ struct MobileTaskStatusSlider: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("작업 상태")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.cardMutedText)
+                        .foregroundStyle(AppTheme.secondaryText)
                     Text(status.title)
                         .font(.headline)
-                        .foregroundStyle(AppTheme.cardText)
+                        .foregroundStyle(AppTheme.primaryText)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.cardMutedText)
+                    .foregroundStyle(AppTheme.secondaryText)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-            .background(AppTheme.input.opacity(0.82), in: RoundedRectangle(cornerRadius: 12))
+            .background(AppTheme.input.opacity(0.60), in: RoundedRectangle(cornerRadius: 12))
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(accentColor.opacity(0.48), lineWidth: 1)
+                    .stroke(AppTheme.border.opacity(0.50), lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
@@ -91,20 +140,12 @@ struct MobileTaskStatusSlider: View {
 
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(AppTheme.input.opacity(0.82))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(AppTheme.border.opacity(0.26), lineWidth: 1)
-                    }
+                    .fill(AppTheme.input.opacity(0.60))
 
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(AppTheme.panel)
+                    .fill(AppTheme.selectedTab)
                     .frame(width: max(segmentWidth - 6, 0), height: 42)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(accentColor.opacity(0.82), lineWidth: 1.5)
-                    }
-                    .shadow(color: accentColor.opacity(0.06), radius: 3, x: 0, y: 1)
+                    .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
                     .offset(x: CGFloat(selectedIndex) * segmentWidth + 3)
                     .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selectedIndex)
 
@@ -115,16 +156,17 @@ struct MobileTaskStatusSlider: View {
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: nextStatus.systemImage)
-                                    .font(.caption.weight(.bold))
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(nextStatus == status ? accentColor : AppTheme.secondaryText)
                                 Text(nextStatus.title)
-                                    .font(.caption.weight(.bold))
+                                    .font(.caption.weight(nextStatus == status ? .semibold : .regular))
                                     .lineLimit(1)
-                                    .minimumScaleFactor(0.72)
+                                    .minimumScaleFactor(0.90)
                             }
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .foregroundStyle(nextStatus == status
-                                ? AppTheme.cardText
-                                : AppTheme.cardMutedText)
+                                ? AppTheme.primaryText
+                                : AppTheme.secondaryText)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(MobilePressFeedbackButtonStyle())

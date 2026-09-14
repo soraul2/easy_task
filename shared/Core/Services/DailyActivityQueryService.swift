@@ -143,22 +143,15 @@ public final class DailyActivityQueryService {
 
         for (taskID, projection) in progressIndex ?? [:] {
             try Swift.Task.checkCancellation()
-            let overlaps =
-                projection.recordedStarts.contains { start <= $0 && $0 < endExclusive }
-                || projection.intervals.contains { $0.startedAt < endExclusive && $0.stoppedAt > start }
-            guard overlaps else { continue }
-            var date = start
-            while date <= end {
-                let evidence = DailyActivityRules.progressEvidence(projection, on: date)
-                if evidence.hasActivity {
-                    let key = DayKey.key(for: date)
-                    var combined = facts[key, default: [:]][taskID, default: .init()]
-                    combined.started = evidence.started
-                    combined.progressSeconds = evidence.progressSeconds
-                    combined.unknownProgress = evidence.unknownProgress
-                    facts[key, default: [:]][taskID] = combined
-                }
-                date = DayKey.addingDays(1, to: date)
+            let progressByDay = DailyActivityRules.progressEvidenceByDay(
+                projection, from: start, through: end)
+            for (date, evidence) in progressByDay {
+                let key = DayKey.key(for: date)
+                var combined = facts[key, default: [:]][taskID, default: .init()]
+                combined.started = evidence.started
+                combined.progressSeconds = evidence.progressSeconds
+                combined.unknownProgress = evidence.unknownProgress
+                facts[key, default: [:]][taskID] = combined
             }
             await Swift.Task.yield()
         }
@@ -276,7 +269,8 @@ public final class DailyActivityQueryService {
                     matchingChecklistTitles: hasSearch
                         ? (checklistByTask[id] ?? []).filter {
                             ArchiveQueryRules.contains($0.title, query: query)
-                        }.map(\.title) : [], searchQuery: query
+                        }.map(\.title) : [], searchQuery: query,
+                    currentStatusRawValue: tasks[id]?.status
                 )
             }.sorted {
                 if matchedTaskIDs.contains($0.id) != matchedTaskIDs.contains($1.id) {

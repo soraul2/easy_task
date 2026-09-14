@@ -39,6 +39,8 @@ struct AppRootView: View {
 
     @State private var selectedTab: AppTab = .board
     @State private var archiveState = ArchiveScreenState()
+    // A failed memo save must survive removal of the memo tab's view hierarchy.
+    @State private var memoEditorSession: MemoEditorSession?
     @State private var selectedBoardDate = DayKey.startOfDay(for: Date())
     @State private var calendarNavigationDate: Date?
     @State private var activeDayKey = DayKey.today
@@ -84,6 +86,7 @@ struct AppRootView: View {
         }
         .background(AppTheme.background)
         .foregroundStyle(AppTheme.primaryText)
+        .tint(AppTheme.accent)
         .environment(syncMonitor)
         .task {
             start()
@@ -131,6 +134,7 @@ struct AppRootView: View {
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
         )) { notification in
+            guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             reconcileFocusSession()
@@ -514,7 +518,7 @@ struct AppRootView: View {
                 selectedTab = .board
             }
         case .memo:
-            MemoView()
+            MemoView(editorSession: $memoEditorSession)
         }
     }
 

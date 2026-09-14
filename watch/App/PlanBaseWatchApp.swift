@@ -29,6 +29,15 @@ struct PlanBaseWatchApp: App {
                 }
             }
             .environment(\.locale, Locale(identifier: "ko_KR"))
+#if DEBUG
+            .transformEnvironment(\.dynamicTypeSize) { size in
+                let arguments = ProcessInfo.processInfo.arguments
+                if arguments.contains("--ui-testing"),
+                   arguments.contains("--ui-testing-accessibility-text-size") {
+                    size = .xxxLarge
+                }
+            }
+#endif
         }
     }
 

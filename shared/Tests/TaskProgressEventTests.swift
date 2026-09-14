@@ -181,7 +181,7 @@ func lifecycleRecordsStartStopAndTransactionalDelete() throws {
     ))
     #expect(detail.contains("시작"))
     #expect(detail.contains("완료"))
-    #expect(detail.hasSuffix("진행 1시간 15분"))
+    #expect(detail.hasSuffix("진행 누적 1시간 15분"))
 
     try PersistenceCommandService.perform(in: context) {
         try TaskRules.delete(task, from: context)

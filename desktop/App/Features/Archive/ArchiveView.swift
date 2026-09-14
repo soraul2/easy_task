@@ -5,7 +5,6 @@ import SwiftData
 import SwiftUI
 
 struct ArchiveView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var state: ArchiveScreenState
     var onOpenBoardDate: (Date) -> Void
 
@@ -53,9 +52,10 @@ struct ArchiveView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if showsOverview, let activitySession = state.activitySession {
+                    if let activitySession = state.activitySession {
                         ArchiveActivityOverview(
                             session: activitySession,
+                            isExpanded: $showsOverview,
                             selectedDayKey: $state.selectedActivityDayKey,
                             onOpenDay: openDay
                         )
@@ -170,7 +170,6 @@ struct ArchiveView: View {
             state.querySession?.refreshPreservingDepth()
             refreshOverview()
         }
-        .onChange(of: showsOverview) { _, _ in refreshOverview() }
         .onChange(of: state.filter) { oldFilter, newFilter in
             state.querySession?.apply(
                 newFilter,
@@ -185,6 +184,7 @@ struct ArchiveView: View {
                 for: PersistenceCommandService.dataChangedNotification
             )
         ) { notification in
+            guard PersistenceCommandService.affects([.tasks, .reviews], in: notification) else { return }
             guard isVisible, scenePhase == .active,
                 let sourceContext = notification.object as? ModelContext,
                 sourceContext === modelContext
@@ -245,15 +245,6 @@ struct ArchiveView: View {
             .buttonStyle(.bordered)
             .accessibilityLabel("날짜로 기록 찾기")
 
-            Button {
-                withAnimation(reduceMotion ? nil : .snappy) { showsOverview.toggle() }
-            } label: {
-                Label("완료 활동", systemImage: "chart.bar.xaxis")
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("archive-overview-disclosure")
-            .accessibilityValue(showsOverview ? "펼침" : "접힘")
-
             Menu {
                 Button {
                     exportBackup()
@@ -309,10 +300,7 @@ struct ArchiveView: View {
     }
 
     private func refreshOverview() {
-        guard showsOverview else {
-            state.activitySession?.cancel()
-            return
-        }
+        guard isVisible, scenePhase == .active else { return }
         state.activitySession?.apply(weekCount: TaskActivityRules.regularWeekCount)
     }
 
@@ -392,7 +380,9 @@ struct ArchiveView: View {
 }
 
 private struct ArchiveActivityOverview: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var session: ActivityOverviewSession
+    @Binding var isExpanded: Bool
     @Binding var selectedDayKey: String?
     var onOpenDay: (String) -> Void
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
@@ -400,24 +390,69 @@ private struct ArchiveActivityOverview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(AppTheme.doneForeground)
-                    .padding(6)
-                    .background(AppTheme.done, in: Circle())
-                    .accessibilityHidden(true)
-                Text("\(session.overview.currentStreak)일 연속")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .contentTransition(.numericText())
-                Spacer()
-                if session.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("활동 기록 계산 중")
+            Button {
+                withAnimation(reduceMotion ? nil : .snappy) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(AppTheme.doneForeground)
+                        .accessibilityHidden(true)
+                    Text(overviewTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                        .contentTransition(.numericText())
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    if session.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityHidden(true)
+                    }
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .accessibilityHidden(true)
                 }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("archive-overview-disclosure")
+            .accessibilityLabel(overviewTitle)
+            .accessibilityValue(isExpanded ? "펼침" : "접힘")
+            .accessibilityHint(isExpanded ? "완료 활동 그래프를 접습니다" : "완료 활동 그래프를 펼칩니다")
+
+            if isExpanded, session.overview.range != nil {
+                graph
             }
 
+            if let errorMessage = session.errorMessage {
+                Text(errorMessage)
+                    .font(.callout)
+                    .foregroundStyle(AppTheme.secondaryText)
+                Button("다시 시도") { session.retry() }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(16)
+        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppTheme.border, lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("activity-overview")
+    }
+
+    private var overviewTitle: String {
+        if session.overview.range != nil {
+            return "완료 활동 · \(session.overview.currentStreak)일 연속"
+        }
+        return session.isLoading ? "완료 활동 · 불러오는 중" : "완료 활동"
+    }
+
+    private var graph: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text(session.overview.todayState.message)
                 .font(.callout)
                 .foregroundStyle(AppTheme.secondaryText)
@@ -425,52 +460,31 @@ private struct ArchiveActivityOverview: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
 
-            if session.overview.range != nil {
-                ActivityHeatmapView(
-                    overview: session.overview,
-                    palette: AppTheme.activityHeatmapPalette,
-                    mark: themePreferences.activityMark(for: selectedThemeID),
-                    selectedDayKey: selectedDayKey,
-                    onSelectDay: { key in
-                        selectedDayKey = key
-                        if let key { onOpenDay(key) }
-                    }
-                )
-                .frame(maxWidth: .infinity)
-
-                activityLegend
-
-                if let selectedDayKey,
-                    let day = session.overview.days.first(where: {
-                        $0.dayKey == selectedDayKey
-                    })
-                {
-                    Text(selectionSummary(day))
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText)
-                        .accessibilityIdentifier("activity-selected-day-summary")
+            ActivityHeatmapView(
+                overview: session.overview,
+                palette: AppTheme.activityHeatmapPalette,
+                mark: themePreferences.activityMark(for: selectedThemeID),
+                selectedDayKey: selectedDayKey,
+                onSelectDay: { key in
+                    selectedDayKey = key
+                    if let key { onOpenDay(key) }
                 }
-            } else if !session.isLoading {
-                Text(session.errorMessage ?? "작업을 완료하면 활동 기록이 시작돼요")
-                    .font(.callout)
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
-            }
+            )
+            .frame(maxWidth: .infinity)
 
-            if session.errorMessage != nil {
-                Button("다시 시도") {
-                    session.retry()
-                }
-                .buttonStyle(.bordered)
+            activityLegend
+
+            if let selectedDayKey,
+                let day = session.overview.days.first(where: { $0.dayKey == selectedDayKey })
+            {
+                Text(selectionSummary(day))
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .accessibilityIdentifier("activity-selected-day-summary")
             }
         }
-        .padding(16)
-        .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
-        .accessibilityIdentifier("activity-overview")
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("activity-graph")
     }
 
     private var activityLegend: some View {

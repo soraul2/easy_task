@@ -556,7 +556,7 @@ private struct MobileTemplatePlacementSummaryRow: View {
     private var placementIcon: some View {
         Image(systemName: "square.grid.3x3.fill")
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(AppTheme.event)
+            .foregroundStyle(AppTheme.accent)
             .frame(width: 24, height: 28)
             .accessibilityHidden(true)
     }
@@ -568,7 +568,7 @@ private struct MobileTemplatePlacementSummaryRow: View {
                 .foregroundStyle(
                     deleteSummary.canDeleteTasks
                         ? AppTheme.secondaryText
-                        : AppTheme.event
+                        : AppTheme.accent
                 )
             Text(taskSummary)
                 .font(.caption)

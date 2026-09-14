@@ -8,7 +8,7 @@ struct MemoView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var querySession: MemoQuerySession?
-    @State private var editorSession: MemoEditorSession?
+    @Binding var editorSession: MemoEditorSession?
     @State private var searchText = ""
     @State private var memoPendingDeletion: Memo?
     @State private var actionFailure: String?
@@ -39,11 +39,17 @@ struct MemoView: View {
             editorSession?.flush()
         }
         .onDisappear {
-            editorSession?.flush()
+            // Release saved snapshots so returning to this tab reads current data.
+            // Only a failed draft stays owned by the root until it can be saved.
+            if let editorSession,
+               !editorSession.hasUnsavedChanges || editorSession.flush() {
+                self.editorSession = nil
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: PersistenceCommandService.dataChangedNotification
-        )) { _ in
+        )) { notification in
+            guard PersistenceCommandService.affects(.memos, in: notification) else { return }
             querySession?.refresh()
         }
         .onReceive(NotificationCenter.default.publisher(
@@ -213,7 +219,7 @@ private extension MemoView {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: MemoRules.systemImage(for: memo))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(memo.isPinned ? AppTheme.event : AppTheme.secondaryText)
+                    .foregroundStyle(memo.isPinned ? AppTheme.accent : AppTheme.secondaryText)
                     .frame(width: 18, height: 18)
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -238,7 +244,7 @@ private extension MemoView {
                 if memo.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.event)
+                        .foregroundStyle(AppTheme.accent)
                         .accessibilityHidden(true)
                 }
             }
@@ -290,7 +296,7 @@ private extension MemoView {
                             .frame(width: 34, height: 32)
                     }
                     .buttonStyle(.plain)
-                    .disabled(editorSession.memo == nil)
+                    .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
                     .help(editorSession.isPinned ? "고정 해제" : "상단에 고정")
 
                     Button {
@@ -300,7 +306,7 @@ private extension MemoView {
                             .frame(width: 34, height: 32)
                     }
                     .buttonStyle(.plain)
-                    .disabled(editorSession.memo == nil)
+                    .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
                     .help("메모 삭제")
                 }
                 .foregroundStyle(AppTheme.primaryText)
@@ -329,6 +335,7 @@ private extension MemoView {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
                 .accessibilityLabel("메모 편집 방식")
+                .disabled(editorSession.loadErrorMessage != nil)
 
                 Rectangle()
                     .fill(AppTheme.border)
@@ -338,10 +345,15 @@ private extension MemoView {
 
                 HStack(spacing: 7) {
                     saveStateIcon(editorSession.saveState)
-                    Text(editorSession.saveState.title)
+                    Text(editorSession.hasUnsavedChanges && editorSession.saveState != .saving
+                         ? "저장 실패 · 내용은 화면에 남아 있어요." : editorSession.saveState.title)
                         .font(.caption)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
+                    if case .failed = editorSession.saveState {
+                        Button("다시 시도") { editorSession.flush() }
+                            .accessibilityIdentifier("memo-save-retry")
+                    }
                 }
                 .foregroundStyle(saveStateColor(editorSession.saveState))
                 .frame(minHeight: 34)
@@ -364,6 +376,22 @@ private extension MemoView {
 
     @ViewBuilder
     func desktopEditorContent(_ session: MemoEditorSession) -> some View {
+        if let message = session.loadErrorMessage {
+            ContentUnavailableView {
+                Label("메모를 불러오지 못했어요", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                Button("다시 시도") { session.retryLoad() }
+                    .accessibilityIdentifier("memo-content-load-retry")
+            }
+        } else {
+            loadedDesktopEditorContent(session)
+        }
+    }
+
+    @ViewBuilder
+    func loadedDesktopEditorContent(_ session: MemoEditorSession) -> some View {
         switch session.preferredMode {
         case .text:
             TextEditor(text: Binding(
@@ -379,27 +407,7 @@ private extension MemoView {
 
         case .drawing:
             VStack(spacing: 14) {
-                if let image = drawingImage(from: session.drawingData) {
-                    ScrollView([.horizontal, .vertical]) {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 900, maxHeight: 900)
-                            .padding(24)
-                    }
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 10))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "아직 필기 내용이 없습니다",
-                        systemImage: "pencil.tip",
-                        description: Text("iPhone 또는 iPad에서 필기를 시작하세요.")
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                DesktopMemoDrawingPreview(data: session.drawingData)
 
                 HStack {
                     Label("필기는 iPhone 또는 iPad에서 편집할 수 있습니다.", systemImage: "ipad.and.iphone")
@@ -493,14 +501,6 @@ private extension MemoView {
         }
     }
 
-    func drawingImage(from data: Data) -> NSImage? {
-        guard !data.isEmpty,
-              let drawing = try? PKDrawing(data: data),
-              !drawing.bounds.isEmpty else { return nil }
-        let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
-        return drawing.image(from: bounds, scale: 2)
-    }
-
     @ViewBuilder
     func saveStateIcon(_ state: MemoSaveState) -> some View {
         switch state {
@@ -534,8 +534,8 @@ private extension MemoView {
     }
 
     func createMemo() {
-        editorSession?.flush()
-        editorSession = MemoEditorSession(memo: nil, context: modelContext)
+        if let editorSession, editorSession.hasUnsavedChanges, !editorSession.flush() { return }
+        editorSession = makeEditorSession(memo: nil)
         Swift.Task { @MainActor in
             editorFocused = true
         }
@@ -543,9 +543,29 @@ private extension MemoView {
 
     func openMemo(_ memo: Memo) {
         guard editorSession?.memo?.instanceID != memo.instanceID else { return }
-        editorSession?.flush()
-        editorSession = MemoEditorSession(memo: memo, context: modelContext)
+        if let editorSession, editorSession.hasUnsavedChanges, !editorSession.flush() { return }
+        editorSession = makeEditorSession(memo: memo)
         editorFocused = true
+    }
+
+    func makeEditorSession(memo: Memo?) -> MemoEditorSession {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing"),
+           arguments.contains("--ui-testing-memo-save-failure-twice") {
+            var remainingFailures = 2
+            return MemoEditorSession(memo: memo, context: modelContext, saveComposite: {
+                memo, content, mode, drawing, checklist, context in
+                if remainingFailures > 0 {
+                    remainingFailures -= 1
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                return try MemoService.saveComposite(memo: memo, content: content,
+                    preferredMode: mode, drawingData: drawing, checklistDrafts: checklist, in: context)
+            })
+        }
+#endif
+        return MemoEditorSession(memo: memo, context: modelContext)
     }
 
     func setPinned(_ isPinned: Bool, memo: Memo) {
@@ -567,6 +587,51 @@ private extension MemoView {
             }
         } catch {
             actionFailure = "메모를 삭제하지 못했어요. 내용은 그대로 유지됩니다."
+        }
+    }
+}
+
+/// Keep rasterization outside body; unrelated save/pin/sidebar updates reuse the image.
+private struct DesktopMemoDrawingPreview: View {
+    let data: Data
+    @State private var preview: NSImage?
+    @State private var hasLoaded = false
+
+    var body: some View {
+        Group {
+            if let preview {
+                ScrollView([.horizontal, .vertical]) {
+                    Image(nsImage: preview)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 900, maxHeight: 900)
+                        .padding(24)
+                }
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.border, lineWidth: 1)
+                }
+            } else if !data.isEmpty, !hasLoaded {
+                ProgressView("필기 미리보기 준비 중")
+            } else {
+                ContentUnavailableView(
+                    data.isEmpty ? "아직 필기 내용이 없습니다" : "필기 미리보기를 표시하지 못했어요",
+                    systemImage: "pencil.tip",
+                    description: Text(data.isEmpty
+                        ? "iPhone 또는 iPad에서 필기를 시작하세요."
+                        : "원본 필기는 유지됩니다. iPhone 또는 iPad에서 확인해 주세요.")
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: data) {
+            hasLoaded = false
+            preview = nil
+            defer { hasLoaded = true }
+            guard !data.isEmpty, let drawing = try? PKDrawing(data: data), !drawing.bounds.isEmpty else { return }
+            let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
+            guard let scale = MemoDrawingPreviewRules.scale(width: bounds.width, height: bounds.height) else { return }
+            preview = drawing.image(from: bounds, scale: scale)
         }
     }
 }

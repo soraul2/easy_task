@@ -25,6 +25,11 @@ public struct ThemeColorToken: Hashable, Sendable {
         Color(red: red, green: green, blue: blue)
     }
 
+    public var hexString: String {
+        String(format: "#%02X%02X%02X", Int((red * 255).rounded()),
+               Int((green * 255).rounded()), Int((blue * 255).rounded()))
+    }
+
     public var relativeLuminance: Double {
         func convert(_ value: Double) -> Double {
             if value <= 0.03928 {
@@ -66,6 +71,12 @@ public struct AppThemeColorSet: Hashable, Sendable {
     public var cardMutedText: ThemeColorToken
     public var eventText: ThemeColorToken
 
+    public var accentFill: ThemeColorToken
+    public var onAccent: ThemeColorToken
+    public var accentOnLight: ThemeColorToken
+    public var accentOnDark: ThemeColorToken
+    public var semanticRed: ThemeColorToken
+
     public var selectedTab: ThemeColorToken
     public var columnTodo: ThemeColorToken
     public var columnDoing: ThemeColorToken
@@ -76,6 +87,25 @@ public struct AppThemeColorSet: Hashable, Sendable {
     public var event: ThemeColorToken
     public var eventPalette: [ThemeColorToken]
 
+    public var accentForeground: ThemeColorToken {
+        panel.relativeLuminance < 0.5 ? accentOnDark : accentOnLight
+    }
+
+    /// Live Activities use system-owned surfaces even when the app theme is fixed.
+    public func accent(forSystemAppearance appearance: AppThemeAppearance) -> ThemeColorToken {
+        appearance == .dark ? accentOnDark : accentOnLight
+    }
+
+    /// Resolve a faded event to an opaque surface before choosing its text color.
+    /// Applying opacity only in the view would invalidate the foreground contrast.
+    public func eventBackground(at index: Int, isDimmed: Bool = false) -> ThemeColorToken {
+        let color = eventPalette.indices.contains(index) ? eventPalette[index] : event
+        guard isDimmed else { return color }
+        return ThemeColorToken(red: color.red * 0.52 + panel.red * 0.48,
+                               green: color.green * 0.52 + panel.green * 0.48,
+                               blue: color.blue * 0.52 + panel.blue * 0.48)
+    }
+
     public var resolvedDoneForeground: ThemeColorToken {
         resolvedCardForeground(on: done)
     }
@@ -84,24 +114,9 @@ public struct AppThemeColorSet: Hashable, Sendable {
         resolvedEventForeground(on: event)
     }
 
-    /// Unfilled controls need a different accent from filled buttons, especially on dark surfaces.
+    /// Authored for every supported surface; never desaturate the brand color at runtime.
     public var resolvedAccentForeground: ThemeColorToken {
-        let surfaces = [backgroundTop, backgroundBottom, panel, input, floatingBar, selectedTab, todo, doing, done]
-        func isReadable(_ color: ThemeColorToken) -> Bool {
-            surfaces.allSatisfy { color.contrastRatio(to: $0) >= 4.5 }
-        }
-        if isReadable(event) { return event }
-        for step in 1...100 {
-            let amount = Double(step) / 100
-            for target in [1.0, 0.0] {
-                let candidate = ThemeColorToken(
-                    red: event.red + (target - event.red) * amount,
-                    green: event.green + (target - event.green) * amount,
-                    blue: event.blue + (target - event.blue) * amount)
-                if isReadable(candidate) { return candidate }
-            }
-        }
-        return primaryText
+        accentForeground
     }
 
     public func resolvedCardForeground(on background: ThemeColorToken) -> ThemeColorToken {
@@ -178,10 +193,10 @@ public enum AppTheme {
     }
 
     public static func activate(_ id: String, colorScheme: ColorScheme) {
-        runtime.id = id
+        runtime.id = AppThemePreset.preset(for: id).id
         runtime.appearance = AppThemeAppearance(colorScheme: colorScheme)
         runtime.accent = colors.resolvedAccentForeground
-        UserDefaults.standard.set(id, forKey: storageKey)
+        UserDefaults.standard.set(runtime.id, forKey: storageKey)
     }
 
     public static func migrateStoredDefaultIfNeeded(_ id: String) -> String {
@@ -191,8 +206,10 @@ public enum AppTheme {
         }
 
         UserDefaults.standard.set(currentDefaultMigrationVersion, forKey: defaultMigrationKey)
-        UserDefaults.standard.set(AppThemePreset.defaultID, forKey: storageKey)
-        return AppThemePreset.defaultID
+        // A valid explicit choice must survive even if the old default marker is absent.
+        let preservedID = ThemePreferenceRules.isKnownThemeID(id) ? id : AppThemePreset.defaultID
+        UserDefaults.standard.set(preservedID, forKey: storageKey)
+        return preservedID
     }
 
     public static var background: LinearGradient {
@@ -207,7 +224,7 @@ public enum AppTheme {
     public static var secondaryText: Color { colors.secondaryText.color }
     public static var calendarHolidayText: Color {
         colors.resolvedSemanticForeground(
-            colors.eventPalette[CalendarEventColor.red.paletteIndex],
+            colors.semanticRed,
             on: colors.panel
         ).color
     }
@@ -228,6 +245,8 @@ public enum AppTheme {
     public static var doneForeground: Color { colors.resolvedDoneForeground.color }
     public static var event: Color { colors.event.color }
     public static var accent: Color { runtime.accent.color }
+    public static var accentFill: Color { colors.accentFill.color }
+    public static var onAccent: Color { colors.onAccent.color }
     public static var eventText: Color { colors.resolvedEventForeground.color }
     public static var eventForeground: Color { colors.resolvedEventForeground.color }
     public static var cardText: Color { colors.cardText.color }
