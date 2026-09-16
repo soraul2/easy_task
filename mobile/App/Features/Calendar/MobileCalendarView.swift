@@ -5,13 +5,11 @@ import SwiftUI
 
 private enum CalendarSheet: Identifiable {
     case addEvent(Date)
-    case day(Date)
     case templates
 
     var id: String {
         switch self {
         case .addEvent(let date): "add-\(DayKey.key(for: date))"
-        case .day(let date): "day-\(DayKey.key(for: date))"
         case .templates: "templates"
         }
     }
@@ -67,6 +65,7 @@ struct MobileCalendarView: View {
     @State private var visibleMonth = DayKey.startOfMonth(for: Date())
     @State private var selectedDate = DayKey.startOfDay(for: Date())
     @State private var sheet: CalendarSheet?
+    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var placementTemplate: TaskTemplate?
     @State private var placementDrafts: [TemplateTaskDraft] = []
     @State private var placementHasEditedDrafts = false
@@ -103,7 +102,7 @@ struct MobileCalendarView: View {
         events: [CalendarEvent],
         templatePlacements: [TemplatePlacement]
     ) -> some View {
-        NavigationStack {
+        MobileAdaptiveSplitView(compactColumn: $compactColumn, sidebarIdealWidth: 480) {
             VStack(spacing: 6) {
                 CalendarHeader(
                     visibleMonth: $visibleMonth,
@@ -171,18 +170,6 @@ struct MobileCalendarView: View {
                             initialDate: date,
                             onComplete: { pendingEditorNotice = $0 }
                         )
-                    case .day(let date):
-                        let dayKey = DayKey.key(for: date)
-                        MobileCalendarDayQueryHost(
-                            dayKey: dayKey,
-                            date: date,
-                            events: eventsForDate(date, in: events),
-                            templatePlacements: placementsForDate(date, in: templatePlacements),
-                            onOpenBoard: {
-                                onOpenBoardDate(date)
-                            }
-                        )
-                        .id(dayKey)
                     case .templates:
                         MobileTemplatePlacementSheet(
                             onStartPlacement: startTemplatePlacement
@@ -211,6 +198,14 @@ struct MobileCalendarView: View {
             } message: { template in
                 Text("\"\(template.name)\" 템플릿과 저장된 작업 \(TemplateListRules.itemsForTemplate(template, in: templateItems).count)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.")
             }
+        } detail: {
+            MobileCalendarDayQueryHost(
+                dayKey: DayKey.key(for: selectedDate),
+                date: selectedDate,
+                onOpenBoard: { onOpenBoardDate(selectedDate) },
+                onClose: { compactColumn = .sidebar }
+            )
+            .accessibilityIdentifier("calendar-day-detail")
         }
     }
 
@@ -289,7 +284,7 @@ struct MobileCalendarView: View {
                                 let day = DayKey.startOfDay(for: date)
                                 selectedDate = day
                                 if placementTemplate == nil {
-                                    sheet = .day(day)
+                                    compactColumn = .detail
                                 } else {
                                     togglePlacementDate(day)
                                 }
@@ -344,6 +339,7 @@ struct MobileCalendarView: View {
     }
 
     private func startTemplatePlacement(_ template: TaskTemplate, drafts: [TemplateTaskDraft]) {
+        compactColumn = .sidebar
         placementTemplate = template
         placementDrafts = drafts
         placementHasEditedDrafts = drafts != TemplateService.drafts(from: template, items: templateItems)
@@ -486,7 +482,7 @@ struct MobileCalendarView: View {
         }
         visibleMonth = DayKey.startOfMonth(for: date)
         selectedDate = date
-        sheet = .day(date)
+        compactColumn = .detail
         self.navigationDate = nil
     }
 }

@@ -37,6 +37,9 @@ public final class MemoEditorSession {
     public private(set) var checklistDrafts: [MemoChecklistDraft]
     public private(set) var saveState: MemoSaveState
     public private(set) var loadErrorMessage: String?
+    public private(set) var isComposite = false
+    private var hasWrittenContent = false
+    private var isFlushing = false
     private var pendingPin: Bool?
 
     @ObservationIgnored private let context: ModelContext
@@ -51,6 +54,7 @@ public final class MemoEditorSession {
     public init(
         memo: Memo?,
         context: ModelContext,
+        initialMode: MemoEditorMode = .text,
         loadContent: @escaping ContentLoader = { id, context in
             (try MemoDrawingService.data(for: id, in: context),
              try MemoChecklistService.drafts(for: id, in: context))
@@ -67,7 +71,7 @@ public final class MemoEditorSession {
         }
     ) {
         let initialContent = memo?.content ?? ""
-        let initialMode = memo.map(MemoRules.mode(for:)) ?? .text
+        let initialMode = memo.map(MemoRules.mode(for:)) ?? initialMode
 
         self.memo = memo
         self.context = context
@@ -94,15 +98,25 @@ public final class MemoEditorSession {
     }
 
     public var displayTitle: String {
-        let title = MemoRules.displayTitle(for: content)
-        guard title == MemoRules.emptyTitle else { return title }
-        switch preferredMode {
-        case .text:
-            return title
-        case .drawing:
-            return "필기 메모"
-        case .checklist:
-            return "체크리스트"
+        MemoTypeRules.title(content: content, checklist: checklistDrafts, mode: preferredMode)
+    }
+
+    public var canChooseType: Bool {
+        memo == nil && !hasWrittenContent && !isComposite && loadErrorMessage == nil
+    }
+
+    private func canEdit(_ mode: MemoEditorMode) -> Bool {
+        loadErrorMessage == nil && (isComposite || preferredMode == mode)
+    }
+
+    private func updateTypePolicy() {
+        let modes = MemoTypeRules.contentModes(
+            content: content, hasDrawing: !drawingData.isEmpty, checklist: checklistDrafts
+        )
+        if !modes.isEmpty { hasWrittenContent = true }
+        if modes.count > 1 { isComposite = true }
+        if !isComposite {
+            preferredMode = MemoTypeRules.resolvedMode(preferred: preferredMode, contentModes: modes)
         }
     }
 
@@ -111,28 +125,31 @@ public final class MemoEditorSession {
     }
 
     public func updateContent(_ value: String) {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.text) else { return }
         guard content != value else { return }
         content = value
+        updateTypePolicy()
         scheduleSave()
     }
 
     public func updatePreferredMode(_ value: MemoEditorMode) {
-        guard loadErrorMessage == nil else { return }
+        guard loadErrorMessage == nil, isComposite || canChooseType else { return }
         guard preferredMode != value else { return }
         preferredMode = value
-        scheduleSave()
+        // Choosing an empty draft's type must not create a database record.
+        if isComposite { scheduleSave() }
     }
 
     public func updateDrawingData(_ value: Data) {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.drawing) else { return }
         guard drawingData != value else { return }
         drawingData = value
+        updateTypePolicy()
         scheduleSave()
     }
 
     public func appendChecklistItem() {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.checklist) else { return }
         let nextOrder = (checklistDrafts.map(\.order).max() ?? 0) + 100
         checklistDrafts.append(MemoChecklistDraft(title: "", order: nextOrder))
         preferredMode = .checklist
@@ -140,22 +157,23 @@ public final class MemoEditorSession {
     }
 
     public func updateChecklistTitle(id: UUID, title: String) {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.checklist) else { return }
         guard let index = checklistDrafts.firstIndex(where: { $0.id == id }),
               checklistDrafts[index].title != title else { return }
         checklistDrafts[index].title = title
+        updateTypePolicy()
         scheduleSave()
     }
 
     public func toggleChecklistItem(id: UUID) {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.checklist) else { return }
         guard let index = checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
         checklistDrafts[index].isCompleted.toggle()
         scheduleSave()
     }
 
     public func removeChecklistItem(id: UUID) {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.checklist) else { return }
         guard let index = checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
         checklistDrafts.remove(at: index)
         normalizeChecklistOrder()
@@ -163,7 +181,7 @@ public final class MemoEditorSession {
     }
 
     public func moveChecklistItems(fromOffsets: IndexSet, toOffset: Int) {
-        guard loadErrorMessage == nil else { return }
+        guard canEdit(.checklist) else { return }
         let validOffsets = fromOffsets
             .filter { checklistDrafts.indices.contains($0) }
             .sorted()
@@ -208,9 +226,15 @@ public final class MemoEditorSession {
         pendingSave = nil
         guard loadErrorMessage == nil else { return false }
         guard hasUnsavedChanges else { return true }
+        isFlushing = true
+        defer { isFlushing = false }
 
         do {
+            // Also resolve the current representative for a pin-only save.
+            try mergeUneditedContentFromStore()
             if hasContentChanges {
+                // The snapshot may predate a CloudKit import from an older app.
+                // Refresh only untouched fields before the atomic replacement save.
                 memo = try saveComposite(
                     memo, content, preferredMode, drawingData, checklistDrafts, context
                 )
@@ -254,6 +278,8 @@ public final class MemoEditorSession {
         saveState = .idle
         loadErrorMessage = nil
         pendingPin = nil
+        isComposite = false
+        hasWrittenContent = false
     }
 
     /// A failed save must keep this draft alive when navigating between editors.
@@ -273,31 +299,65 @@ public final class MemoEditorSession {
         reloadContent()
     }
 
+    public func refreshFromStore() {
+        guard !isFlushing else { return }
+        reloadContent()
+    }
+
     private func reloadContent() {
-        guard let memo else { return }
+        guard memo != nil else { return }
         do {
-            // Commit the loaded snapshot only after both reads succeed. An unread
-            // child collection must never be passed to the replacement saver as empty.
-            let loaded = try loadContent(memo.id, context)
-            content = memo.content
-            preferredMode = MemoRules.mode(for: memo)
-            lastSavedContent = content
-            lastSavedMode = preferredMode
-            drawingData = loaded.drawing
-            checklistDrafts = loaded.checklist
-            lastSavedDrawingData = loaded.drawing
-            lastSavedChecklistDrafts = loaded.checklist
+            try mergeUneditedContentFromStore()
             loadErrorMessage = nil
-            saveState = .saved
+            if !hasUnsavedChanges { saveState = .saved }
         } catch {
-            saveState = .idle
             loadErrorMessage = "메모 내용을 불러오지 못했어요. 다시 시도해 주세요."
         }
+    }
+
+    private func mergeUneditedContentFromStore() throws {
+        guard let previous = memo else { return }
+        let logicalID = previous.id
+        let candidates = try context.fetch(FetchDescriptor<Memo>(predicate: #Predicate {
+            $0.id == logicalID && $0.supersededAt == nil
+        }))
+        // CloudKit can replace the physical representative while this editor
+        // remains open. Use the existing convergence order, including temporary
+        // duplicates, without changing or deleting any superseded record.
+        guard let memo = candidates.max(by: { DataIntegrityService.scalarPrecedes($0, $1) }) else {
+            throw MemoEditorLoadError.unavailable
+        }
+        // Both reads must succeed before any baseline is advanced.
+        let loaded = try loadContent(memo.id, context)
+        self.memo = memo
+        if content == lastSavedContent {
+            content = memo.content
+            lastSavedContent = content
+        }
+        if drawingData == lastSavedDrawingData {
+            drawingData = loaded.drawing
+            lastSavedDrawingData = loaded.drawing
+        }
+        if checklistDrafts == lastSavedChecklistDrafts {
+            checklistDrafts = loaded.checklist
+            lastSavedChecklistDrafts = loaded.checklist
+        }
+        // Keep the editor the user is using when new content arrives. A reopened
+        // composite memo still starts in its persisted preferred editor.
+        updateTypePolicy()
     }
 
     private func normalizeChecklistOrder() {
         for index in checklistDrafts.indices {
             checklistDrafts[index].order = Double(index + 1) * 100
         }
+    }
+}
+
+private enum MemoEditorLoadError: LocalizedError {
+    case unavailable
+
+    var errorDescription: String? {
+        "메모를 찾을 수 없어요. 목록을 새로 고친 뒤 다시 열어 주세요."
     }
 }

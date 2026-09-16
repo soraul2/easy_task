@@ -5,32 +5,38 @@ import SwiftUI
 
 struct MobileCalendarDayQueryHost: View {
     private let date: Date
-    private let events: [CalendarEvent]
-    private let templatePlacements: [TemplatePlacement]
+    @Query private var events: [CalendarEvent]
+    @Query private var templatePlacements: [TemplatePlacement]
     private let onOpenBoard: () -> Void
+    private let onClose: (() -> Void)?
     @Query private var tasks: [TodoTask]
 
     init(
         dayKey: String,
         date: Date,
-        events: [CalendarEvent],
-        templatePlacements: [TemplatePlacement],
-        onOpenBoard: @escaping () -> Void
+        onOpenBoard: @escaping () -> Void,
+        onClose: (() -> Void)? = nil
     ) {
         self.date = date
-        self.events = events
-        self.templatePlacements = templatePlacements
         self.onOpenBoard = onOpenBoard
+        self.onClose = onClose
+        _events = Query(BoundedQueryService.eventsDescriptor(
+            overlappingStartDayKey: dayKey, endDayKey: dayKey
+        ))
+        _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
+            from: dayKey, through: dayKey
+        ))
         _tasks = Query(BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey))
     }
 
     var body: some View {
         MobileCalendarDaySheet(
             date: date,
-            events: events,
-            templatePlacements: templatePlacements,
+            events: CalendarEventRules.events(on: date, in: events),
+            templatePlacements: TemplateService.placements(on: date, in: templatePlacements),
             tasks: tasks,
-            onOpenBoard: onOpenBoard
+            onOpenBoard: onOpenBoard,
+            onClose: onClose
         )
     }
 }
@@ -42,6 +48,7 @@ private struct MobileCalendarDaySheet: View {
     var templatePlacements: [TemplatePlacement]
     var tasks: [TodoTask]
     var onOpenBoard: () -> Void
+    var onClose: (() -> Void)? = nil
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -132,7 +139,7 @@ private struct MobileCalendarDaySheet: View {
                 }
                 .listRowBackground(AppTheme.panel)
                 Button {
-                    dismiss()
+                    if onClose == nil { dismiss() }
                     onOpenBoard()
                 } label: {
                     Label("이 날짜 칸반보드 열기", systemImage: "rectangle.3.group")
@@ -147,7 +154,9 @@ private struct MobileCalendarDaySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("닫기") { dismiss() }
+                    Button("닫기") {
+                        if let onClose { onClose() } else { dismiss() }
+                    }
                 }
             }
         }

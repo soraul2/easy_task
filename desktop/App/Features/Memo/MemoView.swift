@@ -51,6 +51,7 @@ struct MemoView: View {
         )) { notification in
             guard PersistenceCommandService.affects(.memos, in: notification) else { return }
             querySession?.refresh()
+            editorSession?.refreshFromStore()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: CloudKitSyncService.eventChangedNotification
@@ -60,6 +61,7 @@ struct MemoView: View {
                   summary.isCompleted,
                   summary.succeeded else { return }
             querySession?.refresh()
+            editorSession?.refreshFromStore()
         }
         .alert(
             "메모 삭제",
@@ -86,7 +88,14 @@ private extension MemoView {
                 Text("메모")
                     .font(.title2.bold())
                 Spacer()
-                Button(action: createMemo) {
+                Menu {
+                    ForEach(MemoEditorMode.creationOrder) { mode in
+                        Button { createMemo(mode: mode) } label: {
+                            Label(mode.creationTitle, systemImage: mode.systemImage)
+                        }
+                        .accessibilityIdentifier("memo-create-\(mode.rawValue)")
+                    }
+                } label: {
                     Image(systemName: "square.and.pencil")
                         .font(.system(size: 17, weight: .semibold))
                         .frame(width: 36, height: 32)
@@ -213,22 +222,23 @@ private extension MemoView {
 
     func memoRow(_ memo: Memo) -> some View {
         let isSelected = editorSession?.memo?.instanceID == memo.instanceID
+        let summary = querySession?.summaries[memo.instanceID]
         return Button {
             openMemo(memo)
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: MemoRules.systemImage(for: memo))
+                Image(systemName: summary?.systemImage ?? MemoRules.systemImage(for: memo))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(memo.isPinned ? AppTheme.accent : AppTheme.secondaryText)
                     .frame(width: 18, height: 18)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(MemoRules.displayTitle(for: memo))
+                    Text(summary?.title ?? MemoRules.displayTitle(for: memo))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(1)
 
-                    let preview = MemoRules.preview(for: memo.content)
+                    let preview = summary?.preview ?? MemoRules.preview(for: memo.content)
                     if !preview.isEmpty {
                         Text(preview)
                             .font(.caption)
@@ -241,6 +251,9 @@ private extension MemoView {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer(minLength: 0)
+                if let revision = summary?.drawingUpdatedAt {
+                    DesktopMemoThumbnail(memoID: memo.id, revision: revision)
+                }
                 if memo.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.caption2)
@@ -270,7 +283,8 @@ private extension MemoView {
                 Label("삭제", systemImage: "trash")
             }
         }
-        .accessibilityLabel(MemoRules.displayTitle(for: memo))
+        .accessibilityLabel(summary?.title ?? MemoRules.displayTitle(for: memo))
+        .accessibilityValue(summary?.typeTitle ?? MemoRules.mode(for: memo).creationTitle)
     }
 
     @ViewBuilder
@@ -288,6 +302,21 @@ private extension MemoView {
                     }
 
                     Spacer()
+
+                    if editorSession.canChooseType {
+                        Menu("유형 변경") {
+                            ForEach(MemoEditorMode.creationOrder) { mode in
+                                Button {
+                                    editorSession.updatePreferredMode(mode)
+                                    editorFocused = mode == .text
+                                } label: {
+                                    Label(mode.creationTitle, systemImage: mode.systemImage)
+                                }
+                            }
+                        }
+                        .fixedSize()
+                        .accessibilityIdentifier("memo-change-type")
+                    }
 
                     Button {
                         editorSession.setPinned(!editorSession.isPinned)
@@ -317,36 +346,38 @@ private extension MemoView {
                     .fill(AppTheme.border)
                     .frame(height: 1)
 
-                Picker("편집 방식", selection: Binding(
-                    get: { editorSession.preferredMode },
-                    set: { mode in
-                        editorSession.updatePreferredMode(mode)
-                        editorFocused = mode == .text
+                if editorSession.isComposite {
+                    Picker("편집 방식", selection: Binding(
+                        get: { editorSession.preferredMode },
+                        set: { mode in
+                            editorSession.updatePreferredMode(mode)
+                            editorFocused = mode == .text
+                        }
+                    )) {
+                        ForEach(MemoEditorMode.allCases) { mode in
+                            Label(mode.title, systemImage: mode.systemImage)
+                                .tag(mode)
+                        }
                     }
-                )) {
-                    ForEach(MemoEditorMode.allCases) { mode in
-                        Label(mode.title, systemImage: mode.systemImage)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 440)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .accessibilityLabel("메모 편집 방식")
-                .disabled(editorSession.loadErrorMessage != nil)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 440)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .accessibilityLabel("메모 편집 방식")
+                    .disabled(editorSession.loadErrorMessage != nil)
 
-                Rectangle()
-                    .fill(AppTheme.border)
-                    .frame(height: 1)
+                    Rectangle()
+                        .fill(AppTheme.border)
+                        .frame(height: 1)
+
+                }
 
                 desktopEditorContent(editorSession)
 
                 HStack(spacing: 7) {
                     saveStateIcon(editorSession.saveState)
-                    Text(editorSession.hasUnsavedChanges && editorSession.saveState != .saving
-                         ? "저장 실패 · 내용은 화면에 남아 있어요." : editorSession.saveState.title)
+                    Text(saveStateText(editorSession.saveState))
                         .font(.caption)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
@@ -404,6 +435,15 @@ private extension MemoView {
             .padding(16)
             .focused($editorFocused)
             .accessibilityLabel("메모 내용")
+            .overlay(alignment: .topLeading) {
+                if session.content.isEmpty {
+                    Text("생각을 자유롭게 적어보세요.")
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(21)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
 
         case .drawing:
             VStack(spacing: 14) {
@@ -424,7 +464,9 @@ private extension MemoView {
                         }
                         Button("취소", role: .cancel) {}
                     } message: {
-                        Text("이 메모의 필기만 지워집니다. 텍스트와 체크리스트는 유지돼요.")
+                        Text(session.isComposite
+                            ? "이 메모의 필기만 지워집니다. 텍스트와 체크리스트는 유지돼요."
+                            : "이 메모의 필기와 그림이 모두 지워집니다.")
                     }
                 }
             }
@@ -433,6 +475,11 @@ private extension MemoView {
         case .checklist:
             ScrollView {
                 LazyVStack(spacing: 9) {
+                    if session.checklistDrafts.isEmpty {
+                        Text("항목을 추가해 목록을 만들어보세요.")
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     if !session.checklistDrafts.isEmpty {
                         let progress = session.checklistProgress
                         HStack {
@@ -472,6 +519,22 @@ private extension MemoView {
                             .onSubmit {
                                 session.appendChecklistItem()
                             }
+
+                            Menu {
+                                Button("위로 이동", systemImage: "arrow.up") {
+                                    moveChecklistItem(item.id, down: false, session: session)
+                                }
+                                .disabled(session.checklistDrafts.first?.id == item.id)
+                                Button("아래로 이동", systemImage: "arrow.down") {
+                                    moveChecklistItem(item.id, down: true, session: session)
+                                }
+                                .disabled(session.checklistDrafts.last?.id == item.id)
+                            } label: {
+                                Image(systemName: "arrow.up.arrow.down")
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 이동")
 
                             Button(role: .destructive) {
                                 session.removeChecklistItem(id: item.id)
@@ -533,11 +596,16 @@ private extension MemoView {
         session.apply(query: searchText, debounce: false)
     }
 
-    func createMemo() {
+    func moveChecklistItem(_ id: UUID, down: Bool, session: MemoEditorSession) {
+        guard let index = session.checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
+        session.moveChecklistItems(fromOffsets: IndexSet(integer: index), toOffset: down ? index + 2 : index - 1)
+    }
+
+    func createMemo(mode: MemoEditorMode) {
         if let editorSession, editorSession.hasUnsavedChanges, !editorSession.flush() { return }
-        editorSession = makeEditorSession(memo: nil)
+        editorSession = makeEditorSession(memo: nil, initialMode: mode)
         Swift.Task { @MainActor in
-            editorFocused = true
+            editorFocused = mode == .text
         }
     }
 
@@ -545,16 +613,16 @@ private extension MemoView {
         guard editorSession?.memo?.instanceID != memo.instanceID else { return }
         if let editorSession, editorSession.hasUnsavedChanges, !editorSession.flush() { return }
         editorSession = makeEditorSession(memo: memo)
-        editorFocused = true
+        editorFocused = editorSession?.preferredMode == .text
     }
 
-    func makeEditorSession(memo: Memo?) -> MemoEditorSession {
+    func makeEditorSession(memo: Memo?, initialMode: MemoEditorMode = .text) -> MemoEditorSession {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--ui-testing"),
            arguments.contains("--ui-testing-memo-save-failure-twice") {
             var remainingFailures = 2
-            return MemoEditorSession(memo: memo, context: modelContext, saveComposite: {
+            return MemoEditorSession(memo: memo, context: modelContext, initialMode: initialMode, saveComposite: {
                 memo, content, mode, drawing, checklist, context in
                 if remainingFailures > 0 {
                     remainingFailures -= 1
@@ -565,7 +633,7 @@ private extension MemoView {
             })
         }
 #endif
-        return MemoEditorSession(memo: memo, context: modelContext)
+        return MemoEditorSession(memo: memo, context: modelContext, initialMode: initialMode)
     }
 
     func setPinned(_ isPinned: Bool, memo: Memo) {
@@ -574,6 +642,13 @@ private extension MemoView {
         } catch {
             actionFailure = "메모 고정을 변경하지 못했어요. 다시 시도해 주세요."
         }
+    }
+
+    func saveStateText(_ state: MemoSaveState) -> String {
+        if case .failed = state {
+            return "저장 실패 · 내용은 화면에 남아 있어요."
+        }
+        return state.title
     }
 
     func deleteMemo(_ memo: Memo) {
@@ -632,6 +707,38 @@ private struct DesktopMemoDrawingPreview: View {
             let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
             guard let scale = MemoDrawingPreviewRules.scale(width: bounds.width, height: bounds.height) else { return }
             preview = drawing.image(from: bounds, scale: scale)
+        }
+    }
+}
+
+private struct DesktopMemoThumbnail: View {
+    let memoID: UUID
+    let revision: Date
+    @Environment(\.modelContext) private var modelContext
+    @State private var preview: NSImage?
+
+    var body: some View {
+        Group {
+            if let preview { Image(nsImage: preview).renderingMode(.original).resizable().scaledToFit() }
+            else { Image(systemName: "pencil.tip").foregroundStyle(AppTheme.secondaryText) }
+        }
+        .frame(width: 68, height: 56)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityHidden(true)
+        .task(id: revision) {
+            preview = nil
+            guard let data = try? MemoDrawingService.data(for: memoID, in: modelContext),
+                  let drawing = try? PKDrawing(data: data), !drawing.bounds.isEmpty else { return }
+            let bounds = drawing.bounds.insetBy(dx: -8, dy: -8)
+            guard let scale = MemoDrawingPreviewRules.scale(width: bounds.width, height: bounds.height) else { return }
+            let rendered = drawing.image(from: bounds, scale: min(scale, 240 / max(bounds.width, bounds.height)))
+            // Resolve the PencilKit image to a stable bitmap before SwiftUI
+            // resizes the small button label.
+            if let raster = rendered.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                preview = NSImage(cgImage: raster, size: rendered.size)
+            } else {
+                preview = rendered
+            }
         }
     }
 }

@@ -180,7 +180,7 @@ struct PlanBaseMobileApp: App {
                         storeURL: directory.appendingPathComponent("v1.store"), mode: .local)
                     try ResponsivenessPreviewFixtures.seed(in: modelContainer.mainContext)
                 } else {
-                    modelContainer = try PlanBaseContainerFactory.makeInMemory()
+                    modelContainer = try MemoUITestSupport.makeContainer(arguments: ProcessInfo.processInfo.arguments)
                 }
                 try seedUITestingDemoDataIfNeeded(in: modelContainer)
                 PlanBaseTaskIntentRuntime.install(modelContainer: modelContainer)

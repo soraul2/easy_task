@@ -78,7 +78,7 @@ struct PlanBaseDesktopApp: App {
         do {
 #if DEBUG
             if PlanBaseDesktopLaunchEnvironment.isUITesting {
-                return .ready(try PlanBaseContainerFactory.makeInMemory())
+                return .ready(try MemoUITestSupport.makeContainer(arguments: ProcessInfo.processInfo.arguments))
             }
             _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif

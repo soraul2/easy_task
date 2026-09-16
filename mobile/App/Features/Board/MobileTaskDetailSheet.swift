@@ -86,6 +86,7 @@ struct MobileTaskDetailSheet: View {
                     Section("기본") {
                         TextField("제목", text: $title)
                             .focused($focusedField, equals: .title)
+                            .accessibilityLabel("제목")
                             .accessibilityIdentifier("task-detail-title")
                         DatePicker("보드 날짜", selection: $plannedDate, displayedComponents: .date)
                         Picker("상태", selection: $status) {
@@ -98,6 +99,8 @@ struct MobileTaskDetailSheet: View {
                     Section("상세") {
                         TextField("메모", text: $note, axis: .vertical)
                             .focused($focusedField, equals: .note)
+                            .accessibilityLabel("메모")
+                            .accessibilityIdentifier("task-detail-note")
                         Picker("우선순위", selection: $priority) {
                             Text("없음").tag(nil as TaskPriority?)
                             ForEach(TaskPriority.allCases) { priority in

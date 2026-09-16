@@ -67,6 +67,15 @@ struct MobileAppRootView: View {
         AppThemePreset.preset(for: selectedThemeID).preferredColorScheme
     }
 
+    private var focusLauncher: some View {
+        FocusModeLauncher {
+            initialFocusTaskID = nil
+            showingFocusMode = true
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             MobileBoardView(
@@ -75,11 +84,12 @@ struct MobileAppRootView: View {
                 onStartFocus: presentFocusMode,
                 onShowTheme: { showingThemePicker = true }
             )
-                .tabItem {
-                    Image(systemName: MobileTab.board.symbol)
-                        .accessibilityLabel(MobileTab.board.title)
-                }
-                .tag(MobileTab.board)
+            .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
+            .tabItem {
+                Image(systemName: MobileTab.board.symbol)
+                    .accessibilityLabel(MobileTab.board.title)
+            }
+            .tag(MobileTab.board)
 
             MobileCalendarView(
                 navigationDate: $calendarNavigationDate,
@@ -89,6 +99,7 @@ struct MobileAppRootView: View {
                 },
                 onShowTheme: { showingThemePicker = true }
             )
+            .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
             .tabItem {
                 Image(systemName: MobileTab.calendar.symbol)
                     .accessibilityLabel(MobileTab.calendar.title)
@@ -103,6 +114,7 @@ struct MobileAppRootView: View {
                 },
                 onShowTheme: { showingThemePicker = true }
             )
+            .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
             .tabItem {
                 Image(systemName: MobileTab.archive.symbol)
                     .accessibilityLabel(MobileTab.archive.title)
@@ -110,6 +122,7 @@ struct MobileAppRootView: View {
             .tag(MobileTab.archive)
 
             MobileMemoView(onShowTheme: { showingThemePicker = true })
+                .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
                 .tabItem {
                     Image(systemName: MobileTab.memo.symbol)
                         .accessibilityLabel(MobileTab.memo.title)
@@ -117,6 +130,9 @@ struct MobileAppRootView: View {
                 .tag(MobileTab.memo)
         }
         .tint(AppTheme.accent)
+        #if DEBUG
+        .modifier(MobileAdaptiveLayoutTestModifier())
+        #endif
         .background(AppTheme.background)
         .background {
             if isWidgetSnapshotPublisherReady {
@@ -125,14 +141,6 @@ struct MobileAppRootView: View {
         }
         .toolbarBackground(AppTheme.floatingBar, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
-        .overlay(alignment: .bottomTrailing) {
-            FocusModeLauncher {
-                initialFocusTaskID = nil
-                showingFocusMode = true
-            }
-            .padding(.trailing, 16)
-            .padding(.bottom, 72)
-        }
         .preferredColorScheme(preferredThemeColorScheme)
         .environment(syncMonitor)
         .task {

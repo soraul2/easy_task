@@ -77,6 +77,8 @@ struct MobileBoardView: View {
     let onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @ScaledMetric(relativeTo: .body) private var minimumBoardColumnWidth = 280.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var selectedDayTaskRows: [TodoTask]
     @Query private var carryoverTaskRows: [TodoTask]
@@ -324,26 +326,56 @@ struct MobileBoardView: View {
 
     @ViewBuilder
     private func boardLayout(tasks: [TodoTask]) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    boardControls(tasks: tasks)
-                    taskList(tasks: tasks, isEmbeddedInScrollView: true)
+        GeometryReader { geometry in
+            let showsColumns = horizontalSizeClass == .regular
+                && !dynamicTypeSize.isAccessibilitySize
+                && geometry.size.width >= minimumBoardColumnWidth * 3
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        boardControls(tasks: tasks, showsColumns: showsColumns)
+                        HStack(alignment: .top, spacing: 0) {
+                            ForEach(TaskStatus.allCases) { status in
+                                // Keep each list's identity stable while reflowing.
+                                VStack(spacing: 12) {
+                                    if showsColumns {
+                                        HStack {
+                                            Label(status.title, systemImage: status.systemImage)
+                                                .font(.headline)
+                                            Spacer()
+                                            Text("\(BoardQueryRules.tasks(tasks, matching: status).count)")
+                                                .foregroundStyle(AppTheme.secondaryText)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .accessibilityIdentifier("board-column-\(status.rawValue)")
+                                    }
+                                    taskList(tasks: tasks, status: status, isEmbeddedInScrollView: true)
+                                }
+                                .frame(maxWidth: showsColumns || selectedStatus == status ? .infinity : 0)
+                                .frame(height: showsColumns || selectedStatus == status ? nil : 0)
+                                .clipped()
+                                .opacity(showsColumns || selectedStatus == status ? 1 : 0)
+                                .accessibilityHidden(!showsColumns && selectedStatus != status)
+                                .allowsHitTesting(showsColumns || selectedStatus == status)
+                            }
+                        }
+                        .padding(.top, showsColumns ? 16 : 0)
+                    }
+                    .frame(maxWidth: showsColumns ? .infinity : 820)
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: 820)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .accessibilityIdentifier("board-accessibility-scroll")
-            .onChange(of: pendingScrollTaskID) { _, _ in scrollToDestination(using: proxy) }
-            .onChange(of: BoardQueryRules.tasks(tasks, matching: selectedStatus).map(\.id)) { _, _ in
-                scrollToDestination(using: proxy)
+                .scrollDismissesKeyboard(.interactively)
+                .accessibilityIdentifier("board-accessibility-scroll")
+                .onChange(of: pendingScrollTaskID) { _, _ in scrollToDestination(using: proxy) }
+                .onChange(of: BoardQueryRules.tasks(tasks, matching: selectedStatus).map(\.id)) { _, _ in
+                    scrollToDestination(using: proxy)
+                }
             }
         }
     }
 
     @ViewBuilder
-    private func boardControls(tasks: [TodoTask]) -> some View {
+    private func boardControls(tasks: [TodoTask], showsColumns: Bool) -> some View {
         BoardHeader(
             selectedDate: $selectedDate,
             isTodayBoard: isTodayBoard,
@@ -363,12 +395,17 @@ struct MobileBoardView: View {
             selectedStatus: $selectedStatus,
             taskCount: { status in tasks.filter { $0.status == status.rawValue }.count }
         )
+        .opacity(showsColumns ? 0 : 1)
+        .frame(height: showsColumns ? 0 : nil)
+        .clipped()
+        .accessibilityHidden(showsColumns)
+        .allowsHitTesting(!showsColumns)
     }
 
-    private func taskList(tasks: [TodoTask], isEmbeddedInScrollView: Bool) -> some View {
+    private func taskList(tasks: [TodoTask], status: TaskStatus, isEmbeddedInScrollView: Bool) -> some View {
         BoardTaskList(
-            tasks: BoardQueryRules.tasks(tasks, matching: selectedStatus),
-            selectedStatus: selectedStatus,
+            tasks: BoardQueryRules.tasks(tasks, matching: status),
+            selectedStatus: status,
             isEmbeddedInScrollView: isEmbeddedInScrollView,
             onEdit: { presentedSheet = .task($0) },
             onStartFocus: { onStartFocus($0.id) },
@@ -378,8 +415,7 @@ struct MobileBoardView: View {
             progressText: progressText,
             highlightedTaskID: highlightedTaskID
         )
-        // A status change replaces the filtered list, including its lazy layout cache.
-        .id(selectedStatus)
+        .id(status)
     }
 
     private func saveToLibrary(_ task: TodoTask) {

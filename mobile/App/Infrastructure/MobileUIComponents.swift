@@ -5,8 +5,87 @@ import SwiftUI
 typealias TodoTask = Task
 
 enum MobileLayout {
-    static let bottomTabClearance: CGFloat = 96
+    // System tab bars already contribute their own safe-area inset, including
+    // side-mounted bars. Keep only breathing room for the last row.
+    static let bottomTabClearance: CGFloat = 20
 }
+
+/// One navigation hierarchy for both a list/detail pair and its collapsed form.
+/// Changing the available space never creates a second copy of an editor.
+struct MobileAdaptiveSplitView<Sidebar: View, Detail: View>: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var minimumColumnWidth = 320.0
+    @Binding var compactColumn: NavigationSplitViewColumn
+    var sidebarIdealWidth: CGFloat = 360
+    @ViewBuilder var sidebar: () -> Sidebar
+    @ViewBuilder var detail: () -> Detail
+    @State private var visibility: NavigationSplitViewVisibility = .all
+
+    var body: some View {
+        GeometryReader { geometry in
+            let idealColumnWidth = max(minimumColumnWidth, sidebarIdealWidth)
+            let usesColumns = horizontalSizeClass == .regular
+                && !dynamicTypeSize.isAccessibilitySize
+                && geometry.size.width >= minimumColumnWidth * 2
+
+            NavigationSplitView(
+                columnVisibility: $visibility,
+                preferredCompactColumn: $compactColumn
+            ) {
+                sidebar()
+                    .navigationSplitViewColumnWidth(
+                        min: minimumColumnWidth,
+                        ideal: idealColumnWidth,
+                        max: max(idealColumnWidth, geometry.size.width * 0.6)
+                    )
+            } detail: {
+                detail()
+            }
+            .navigationSplitViewStyle(.balanced)
+            .transformEnvironment(\.horizontalSizeClass) { sizeClass in
+                // Preserve the system's trait when it already fits. Only
+                // constrain regular-width content that cannot fit two columns.
+                if !usesColumns, sizeClass == .regular { sizeClass = .compact }
+            }
+            .onChange(of: usesColumns) { _, expanded in
+                if expanded { visibility = .all }
+            }
+        }
+    }
+}
+
+#if DEBUG
+/// Deterministic resizing of the same view tree in UI tests. This exercises
+/// layout/state continuity; it does not simulate Duo hardware or its fold.
+struct MobileAdaptiveLayoutTestModifier: ViewModifier {
+    @State private var compact = false
+
+    func body(content: Content) -> some View {
+        if PlanBaseLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-adaptive-layout") {
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    HStack {
+                        Button("좁은 테스트 영역") { compact = true }
+                            .accessibilityIdentifier("layout-test-compact")
+                        Button("넓은 테스트 영역") { compact = false }
+                            .accessibilityIdentifier("layout-test-expanded")
+                    }
+                    .buttonStyle(.bordered)
+                    content
+                        .frame(width: compact ? min(390, geometry.size.width) : geometry.size.width)
+                        .frame(maxHeight: .infinity)
+                        .environment(\.horizontalSizeClass, compact ? .compact : .regular)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        } else {
+            content
+        }
+    }
+}
+#endif
 
 enum MobileNoticeTone {
     case success, information, error

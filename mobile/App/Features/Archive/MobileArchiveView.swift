@@ -11,6 +11,9 @@ struct MobileArchiveView: View {
     var onShowTheme: () -> Void
 
     @State private var selectedDay: ArchiveDaySelection?
+    @State private var daySession: ArchiveQuerySession?
+    @State private var daySelectionID = UUID()
+    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var selectedTask: TaskRecordSelection?
     @State private var selectedReviewDay: ArchiveDaySelection?
     @State private var pendingReviewNotice: String?
@@ -36,7 +39,7 @@ struct MobileArchiveView: View {
         )
         let records = state.querySession?.records ?? []
 
-        NavigationStack {
+        MobileAdaptiveSplitView(compactColumn: $compactColumn, sidebarIdealWidth: 400) {
             List {
                 if let activitySession = state.activitySession {
                     MobileArchiveActivityOverview(
@@ -138,11 +141,13 @@ struct MobileArchiveView: View {
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: MobileLayout.bottomTabClearance)
             }
-            .modifier(
-                MobileArchiveSearchModifier(
-                    searchText: $state.filter.searchText, onShowFilter: { showingFilter = true })
+            .searchable(
+                text: $state.filter.searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "작업 제목, 메모, 회고 검색"
             )
             .navigationTitle("기록")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
@@ -156,21 +161,19 @@ struct MobileArchiveView: View {
 
                     MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
-                    if horizontalSizeClass != .regular {
-                        Button {
-                            showingFilter = true
-                        } label: {
-                            Image(
-                                systemName: hasActiveFilterOptions
-                                    ? "line.3.horizontal.decrease.circle.fill"
-                                    : "line.3.horizontal.decrease.circle"
-                            )
-                            .foregroundStyle(AppTheme.primaryText)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel(hasActiveFilterOptions ? "적용된 기록 필터 변경" : "기록 필터")
+                    Button {
+                        showingFilter = true
+                    } label: {
+                        Image(
+                            systemName: hasActiveFilterOptions
+                                ? "line.3.horizontal.decrease.circle.fill"
+                                : "line.3.horizontal.decrease.circle"
+                        )
+                        .foregroundStyle(AppTheme.primaryText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(hasActiveFilterOptions ? "적용된 기록 필터 변경" : "기록 필터")
 
                     Menu {
                         Button {
@@ -205,6 +208,21 @@ struct MobileArchiveView: View {
             .sheet(isPresented: $showingFilter) {
                 MobileArchiveFilterSheet(filter: $state.filter)
                     .environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+        } detail: {
+            if let selectedDay, let daySession {
+                MobileArchiveDayDetail(
+                    date: selectedDay.date,
+                    session: daySession,
+                    onOpenBoardDate: onOpenBoardDate,
+                    onOpenTask: { selectedTask = $0 },
+                    onEditReview: { selectedReviewDay = ArchiveDaySelection(date: $0) },
+                    onClose: { compactColumn = .sidebar }
+                )
+                .id(daySelectionID)
+            } else {
+                ContentUnavailableView("하루 기록 선택", systemImage: "book.closed",
+                    description: Text("목록에서 날짜를 선택해 하루의 작업과 회고를 확인하세요."))
             }
         }
         .task {
@@ -253,7 +271,6 @@ struct MobileArchiveView: View {
             )
         }
         .onChange(of: horizontalSizeClass) { _, _ in
-            state.selectedActivityDayKey = nil
             refreshOverview()
         }
         .onReceive(
@@ -268,14 +285,6 @@ struct MobileArchiveView: View {
             else { return }
             state.querySession?.refreshPreservingDepth()
         }
-        .sheet(item: $selectedDay) { selection in
-            MobileArchiveSingleDaySheet(
-                date: selection.date,
-                session: state.querySession?.makeDaySession()
-                    ?? ArchiveQuerySession(context: modelContext),
-                onOpenBoardDate: onOpenBoardDate)
-                .dynamicTypeSize(dynamicTypeSize)
-        }
         .sheet(item: $selectedTask) { selection in
             TaskRecordSheet(selection: selection)
                 .dynamicTypeSize(dynamicTypeSize)
@@ -284,6 +293,7 @@ struct MobileArchiveView: View {
             item: $selectedReviewDay,
             onDismiss: {
                 state.querySession?.refreshPreservingDepth()
+                daySession?.refreshPreservingDepth()
                 reviewNotice = pendingReviewNotice
                 pendingReviewNotice = nil
             }
@@ -368,7 +378,13 @@ struct MobileArchiveView: View {
     }
 
     private func openDay(_ key: String) {
-        if let date = DayKey.date(from: key) { selectedDay = ArchiveDaySelection(date: date) }
+        guard let date = DayKey.date(from: key) else { return }
+        // A user choosing a day starts a new detail query. Resizing does not.
+        daySession = state.querySession?.makeDaySession()
+            ?? ArchiveQuerySession(context: modelContext)
+        daySelectionID = UUID()
+        selectedDay = ArchiveDaySelection(date: date)
+        compactColumn = .detail
     }
 
     private func shouldDebounceSearch(
@@ -562,49 +578,6 @@ private struct MobileArchiveActivityOverview: View {
     }
 }
 
-private struct MobileArchiveSearchModifier: ViewModifier {
-    @Binding var searchText: String
-    var onShowFilter: () -> Void
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if horizontalSizeClass == .regular {
-            content.safeAreaInset(edge: .top, spacing: 0) {
-                HStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(AppTheme.secondaryText)
-                        TextField("작업 제목, 메모, 회고 검색", text: $searchText)
-                            .textFieldStyle(.plain)
-                            .accessibilityIdentifier("archive-search-field")
-                        if !searchText.isEmpty {
-                            Button {
-                                searchText = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                            }
-                            .accessibilityLabel("검색어 지우기")
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 44)
-                    .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
-                    Button(action: onShowFilter) {
-                        Label("필터", systemImage: "line.3.horizontal.decrease.circle")
-                            .frame(minHeight: 44)
-                    }
-                    .accessibilityLabel("기록 필터")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(AppTheme.background)
-            }
-        } else {
-            content.searchable(text: $searchText, prompt: "작업 제목, 메모, 회고 검색")
-        }
-    }
-}
-
 private struct MobileArchiveActiveFilterBar: View {
     @Binding var filter: ArchiveFilter
 
@@ -699,50 +672,30 @@ private struct MobileArchiveSkeletonCard: View {
     }
 }
 
-private struct MobileArchiveSingleDaySheet: View {
+private struct MobileArchiveDayDetail: View {
     var date: Date
     var session: ArchiveQuerySession
     var onOpenBoardDate: (Date) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var selectedTask: TaskRecordSelection?
-    @State private var reviewDay: ArchiveDaySelection?
-    @State private var pendingReviewNotice: String?
-    @State private var reviewNotice: String?
+    var onOpenTask: (TaskRecordSelection) -> Void
+    var onEditReview: (Date) -> Void
+    var onClose: () -> Void
 
     var body: some View {
         NavigationStack {
             ArchiveDayDetailContent(
                 date: date, session: session,
-                onOpenTask: { selectedTask = $0 },
-                onEditReview: { reviewDay = ArchiveDaySelection(date: $0) },
-                onOpenBoard: { date in
-                    dismiss()
-                    onOpenBoardDate(date)
-                }
+                onOpenTask: onOpenTask,
+                onEditReview: onEditReview,
+                onOpenBoard: onOpenBoardDate
             )
             .navigationTitle("하루 기록")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("닫기") { dismiss() }
+                    Button("닫기", action: onClose)
                 }
             }
         }
-
-        .sheet(item: $selectedTask) { selection in
-            TaskRecordSheet(selection: selection)
-                .dynamicTypeSize(dynamicTypeSize)
-        }
-        .sheet(item: $reviewDay, onDismiss: {
-            session.refreshPreservingDepth()
-            reviewNotice = pendingReviewNotice
-            pendingReviewNotice = nil
-        }) { selection in
-            MobileReviewComposerSheet(selectedDate: selection.date, onSaved: { pendingReviewNotice = $0 })
-                .environment(\.dynamicTypeSize, dynamicTypeSize)
-        }
-        .mobileSavedNotice($reviewNotice)
     }
 }
 #endif

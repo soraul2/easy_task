@@ -199,6 +199,9 @@ struct MobileReviewComposerSheet: View {
             message: "저장하지 않은 회고 내용과 사진 변경사항이 사라집니다.",
             onDiscard: discardAndDismiss
         )
+        // Keep a stable status-bar preference while the editor and keyboard
+        // rotate together; implicit child preferences can cycle on iOS 26.5.
+        .statusBarHidden(false)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

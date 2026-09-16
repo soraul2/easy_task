@@ -6,6 +6,984 @@ final class PlanBaseLaunchUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    @MainActor
+    func testAdaptiveVoiceOverCanNavigateAndActivateMemo() throws {
+        guard ProcessInfo.processInfo.environment["PLANBASE_VOICEOVER_UI_AUDIT"] == "1" else {
+            throw XCTSkip("VoiceOver 검사는 지원 런타임에서 명시적으로 실행합니다")
+        }
+        #if compiler(>=6.4)
+        guard #available(iOS 27, *) else {
+            throw XCTSkip("VoiceOver 제어에는 iOS 27 XCTest 런타임이 필요합니다")
+        }
+        let voiceOver = XCUIDevice.shared.voiceOverService
+        let wasEnabled = voiceOver.isEnabled
+        addTeardownBlock {
+            await MainActor.run {
+                if !wasEnabled { try? XCUIDevice.shared.voiceOverService.disable() }
+            }
+        }
+        // Start with a fresh automation connection before the app launches.
+        // The beta runtime can report enabled while its previous connection
+        // rejects commands in both the tested app and system Settings.
+        if wasEnabled { try voiceOver.disable() }
+        try voiceOver.enable()
+        XCTAssertTrue(voiceOver.isEnabled)
+        let app = launchKanbanFlowApp()
+        var speech: [String] = []
+        func attachSpeech() {
+            let attachment = XCTAttachment(string: speech.joined(separator: "\n"))
+            attachment.name = "adaptive-voiceover-navigation"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        func focus(_ label: String, role: String? = nil, backwards: Bool = false) throws {
+            func matches(_ utterance: String) -> Bool {
+                let roleMatches = role.map {
+                    let pattern = "(?:^|\\s)" + NSRegularExpression.escapedPattern(for: $0) + "(?:\\s|$)"
+                    return utterance.range(of: pattern, options: .regularExpression) != nil
+                } ?? true
+                return utterance.contains(label) && roleMatches
+            }
+            if let current = try? voiceOver.currentSpeech().utterance {
+                speech.append(current)
+                if matches(current) {
+                    attachSpeech()
+                    return
+                }
+            }
+            var previousUtterance: String?
+            var repeatedUtterances = 0
+            var direction = backwards
+            var hasReversed = false
+            for _ in 0..<80 {
+                let utterance: String
+                do {
+                    utterance = try (direction ? voiceOver.moveBackward() : voiceOver.moveForward()).utterance
+                } catch {
+                    // Compare with a system app before attributing an
+                    // automation transport failure to PlanBase's labels.
+                    var diagnostic = "PlanBase: \(error)\n\(voiceOver.debugDescription)"
+                    let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+                    settings.launch()
+                    do {
+                        diagnostic += "\nSettings: \(try voiceOver.moveForward().utterance)"
+                    } catch {
+                        diagnostic += "\nSettings: \(error)"
+                    }
+                    let attachment = XCTAttachment(string: diagnostic)
+                    attachment.name = "voiceover-system-app-comparison"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                    app.activate()
+                    throw error
+                }
+                speech.append(utterance)
+                if matches(utterance) {
+                    attachSpeech()
+                    return
+                }
+                repeatedUtterances = utterance == previousUtterance ? repeatedUtterances + 1 : 0
+                previousUtterance = utterance
+                // A navigation change may focus the first control rather than
+                // retain the tab. Reverse once at the boundary; never spin there.
+                if repeatedUtterances >= 2 {
+                    guard !hasReversed else { break }
+                    direction.toggle()
+                    hasReversed = true
+                    previousUtterance = nil
+                    repeatedUtterances = 0
+                }
+            }
+            attachSpeech()
+            XCTFail("VoiceOver로 \(label)에 도달하지 못했습니다")
+        }
+        try focus("해당 날짜에 할 일 입력", role: "텍스트 필드")
+        try focus("캘린더", role: "탭 총")
+        // Touch the element VoiceOver just focused. An application-centred
+        // gesture can move focus to unrelated content before activation.
+        app.tabBars.buttons["캘린더"].doubleTap()
+        XCTAssertTrue(app.buttons["일정 추가"].waitForExistence(timeout: 10))
+        try focus("일정 추가", role: "버튼", backwards: true)
+        try focus("기록", role: "탭 총")
+        app.tabBars.buttons["기록"].doubleTap()
+        XCTAssertTrue(app.buttons["날짜로 기록 찾기"].waitForExistence(timeout: 10))
+        try focus("날짜로 기록 찾기", role: "버튼", backwards: true)
+        try focus("메모", role: "탭 총")
+        app.tabBars.buttons["메모"].doubleTap()
+        XCTAssertTrue(app.buttons["새 메모"].waitForExistence(timeout: 10))
+        try focus("새 메모", role: "버튼", backwards: true)
+        app.buttons["새 메모"].doubleTap()
+        try focus("글 메모", role: "버튼")
+        app.buttons["memo-create-text"].doubleTap()
+        XCTAssertTrue(app.textViews["메모 내용"].waitForExistence(timeout: 10))
+        let keyboardIntroduction = app.buttons["Continue"]
+        if keyboardIntroduction.waitForExistence(timeout: 2) {
+            try focus("Continue", role: "버튼")
+            keyboardIntroduction.doubleTap()
+            XCTAssertTrue(keyboardIntroduction.waitForNonExistence(timeout: 5))
+        }
+        try focus("메모 내용", role: "텍스트 필드", backwards: true)
+        addReferenceScreenshot(named: "adaptive-voiceover-memo")
+        #else
+        throw XCTSkip("VoiceOver 제어에는 Xcode 27의 XCTest API가 필요합니다")
+        #endif
+    }
+
+    @MainActor
+    func testAdaptiveBoardKeepsScrolledTaskAndOpenDetailDraft() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("목록 열 전환의 스크롤 위치는 iPad에서 확인합니다")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-adaptive-layout"])
+        let quickEntry = app.textFields["해당 날짜에 할 일 입력"]
+        for index in 1...10 {
+            quickEntry.tap()
+            quickEntry.typeText("스크롤 작업 \(index)")
+            app.buttons["작업 추가"].tap()
+            // Later cards are outside the lazy list's visible region. Verify
+            // the submitted input clears, then scroll to the target below.
+            XCTAssertEqual(quickEntry.value as? String, "해당 날짜에 할 일 입력")
+        }
+        let scroll = app.scrollViews["board-accessibility-scroll"]
+        let edit = app.buttons["스크롤 작업 8 작업 편집"]
+        XCTAssertTrue(scrollToHittable(edit, in: scroll))
+        let wideY = edit.frame.midY
+        app.buttons["layout-test-compact"].tap()
+        XCTAssertTrue(edit.isHittable, "열 전환 후 사용자가 보던 작업을 계속 보여줘야 합니다")
+        XCTAssertLessThan(abs(edit.frame.midY - wideY), 200)
+        app.buttons["layout-test-expanded"].tap()
+        XCTAssertTrue(edit.isHittable)
+        addReferenceScreenshot(named: "adaptive-board-restored-scroll")
+        edit.tap()
+        let title = app.textFields["task-detail-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "스크롤 작업 8")
+        let note = app.textFields["task-detail-note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        note.tap()
+        note.typeText("회전하면서 작성한 상세 초안")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertEqual(title.value as? String, "스크롤 작업 8")
+        XCTAssertEqual(note.value as? String, "회전하면서 작성한 상세 초안")
+        XCTAssertEqual(title.label, "제목")
+        XCTAssertEqual(note.label, "메모")
+        note.typeText(" 이어쓰기")
+        XCTAssertEqual(note.value as? String, "회전하면서 작성한 상세 초안 이어쓰기")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(note.value as? String, "회전하면서 작성한 상세 초안 이어쓰기")
+        app.buttons["task-detail-keyboard-dismiss"].tap()
+        app.navigationBars["작업 상세"].buttons["저장"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(edit.isHittable)
+        XCTAssertEqual(app.buttons.matching(identifier: "스크롤 작업 8 작업 편집").count, 1)
+        edit.tap()
+        XCTAssertEqual(note.value as? String, "회전하면서 작성한 상세 초안 이어쓰기")
+        XCTAssertEqual(note.label, "메모")
+        addReferenceScreenshot(named: "adaptive-task-detail-restored-draft")
+    }
+
+    @MainActor
+    func testAdaptiveLargestTextCalendarAndArchiveRemainUsable() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone else {
+            throw XCTSkip("가장 큰 글자의 좁은 화면 검사는 iPhone에서 확인합니다")
+        }
+        XCUIDevice.shared.orientation = .portrait
+        for theme in ["appleSystem", "charcoalRose"] {
+            let app = XCUIApplication()
+            app.launchArguments = [
+                "--ui-testing", "--ui-testing-accessibility-text-size",
+                "--ui-testing-archive-collapsed", "--ui-testing-theme=\(theme)",
+            ]
+            app.launch()
+            app.terminate()
+            app.launch()
+            let dateTitle = app.descendants(matching: .any)["board-date-title"].firstMatch
+            XCTAssertTrue(dateTitle.waitForExistence(timeout: 15))
+            XCTAssertTrue(isHorizontallyContained(dateTitle, in: app.windows.firstMatch))
+            XCTAssertTrue(app.buttons["board-status-filter-menu"].isHittable)
+            addReferenceScreenshot(named: "adaptive-AX5-\(theme)-board")
+
+            tapRootDestination("캘린더", in: app)
+            let month = app.staticTexts["calendar-month-title"]
+            XCTAssertTrue(month.waitForExistence(timeout: 5))
+            XCTAssertTrue(isHorizontallyContained(month, in: app.windows.firstMatch))
+            let originalMonth = month.label
+            let next = app.buttons["다음 달"]
+            let previous = app.buttons["이전 달"]
+            XCTAssertTrue(next.isHittable && previous.isHittable)
+            next.tap()
+            XCTAssertNotEqual(month.label, originalMonth)
+            previous.tap()
+            XCTAssertEqual(month.label, originalMonth)
+            addReferenceScreenshot(named: "adaptive-AX5-\(theme)-calendar-month")
+            let today = app.buttons.matching(NSPredicate(
+                format: "label BEGINSWITH %@", koreanDayDisplay(Date())
+            )).firstMatch
+            XCTAssertTrue(today.waitForExistence(timeout: 5))
+            XCTAssertTrue(today.isHittable)
+            today.tap()
+            XCTAssertTrue(app.buttons["일정 추가"].firstMatch.waitForExistence(timeout: 5))
+            addReferenceScreenshot(named: "adaptive-AX5-\(theme)-calendar-day")
+
+            tapRootDestination("기록", in: app)
+            let search = app.searchFields.firstMatch
+            XCTAssertTrue(search.waitForExistence(timeout: 5))
+            XCTAssertTrue(isHorizontallyContained(search, in: app.windows.firstMatch))
+            addReferenceScreenshot(named: "adaptive-AX5-\(theme)-archive-browse")
+            // Compact iPhone search temporarily replaces navigation actions
+            // with its system close button. Set the filter before entering it.
+            app.buttons["기록 필터"].tap()
+            let mode = app.buttons["archive-content-mode-picker"]
+            XCTAssertTrue(scrollToHittable(mode, in: app.collectionViews.firstMatch))
+            mode.tap()
+            app.buttons["완료 작업"].tap()
+            app.navigationBars["검색 필터"].buttons["완료"].tap()
+            XCTAssertTrue(app.buttons["적용된 기록 필터 변경"].isHittable)
+            search.tap()
+            search.typeText("영어\n")
+            XCTAssertEqual(search.value as? String, "영어")
+            addReferenceScreenshot(named: "adaptive-AX5-\(theme)-archive-search")
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "adaptive-AX5-\(theme)-archive-hierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+            let filters = app.scrollViews["적용된 기록 필터"]
+            filters.swipeLeft()
+            let clearFilters = app.buttons["모두 지우기"]
+            XCTAssertTrue(isHorizontallyContained(clearFilters, in: app.windows.firstMatch))
+            XCTAssertTrue(clearFilters.isHittable)
+            addReferenceScreenshot(named: "adaptive-AX5-\(theme)-archive-filter-actions")
+            clearFilters.tap()
+            XCTAssertEqual(search.value as? String, "영어")
+            XCTAssertTrue(filters.waitForNonExistence(timeout: 5))
+        }
+    }
+
+    @MainActor
+    func testAdaptiveBoardRetainsQuickEntryAcrossRotation() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp()
+        let input = app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        input.tap()
+        input.typeText("회전 중 작성한 작업")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(input.value as? String, "회전 중 작성한 작업")
+        app.buttons["작업 추가"].tap()
+        let edit = app.buttons["회전 중 작성한 작업 작업 편집"]
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            for status in ["todo", "doing", "done"] {
+                XCTAssertTrue(app.descendants(matching: .any)["board-column-\(status)"].firstMatch.exists)
+            }
+        }
+        addReferenceScreenshot(named: "adaptive-board-wide")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertEqual(app.buttons.matching(identifier: "회전 중 작성한 작업 작업 편집").count, 1)
+        addReferenceScreenshot(named: "adaptive-board-portrait")
+    }
+
+    @MainActor
+    func testAdaptiveBoardPreservesStatusAcrossColumnChanges() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("세 열과 단일 열 전환은 넓은 시뮬레이터에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-adaptive-layout"])
+        let title = "넓은 보드에서 시작한 작업"
+        addKanbanFlowTask(title, in: app)
+        app.buttons["\(title) 진행 중 상태"].tap()
+        let destination = app.buttons["board-status-destination"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        destination.tap()
+        app.buttons["layout-test-compact"].tap()
+        XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-doing"]))
+        let edit = app.buttons["\(title) 작업 편집"]
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 1)
+        app.buttons["layout-test-expanded"].tap()
+        for status in ["todo", "doing", "done"] {
+            XCTAssertTrue(app.descendants(matching: .any)["board-column-\(status)"].firstMatch.exists)
+        }
+        let done = app.buttons["\(title) 완료 상태"]
+        XCTAssertTrue(scrollToHittable(done, in: app.scrollViews["board-accessibility-scroll"]))
+        done.tap()
+        let undo = app.buttons["board-completion-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5))
+        app.buttons["layout-test-compact"].tap()
+        undo.tap()
+        XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-doing"]))
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        addReferenceScreenshot(named: "adaptive-board-restored-status")
+    }
+
+    @MainActor
+    func testAdaptiveBoardUsesSingleColumnForAccessibilityText() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("넓은 화면의 큰 글자 배치는 iPad에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-accessibility-text-size"])
+        let statusMenu = app.buttons["board-status-filter-menu"]
+        XCTAssertTrue(statusMenu.waitForExistence(timeout: 10))
+        XCTAssertTrue(isHorizontallyContained(statusMenu, in: app.windows.firstMatch))
+        XCTAssertFalse(app.descendants(matching: .any)["board-column-todo"].firstMatch.exists)
+        let title = "큰 글자에서도 읽을 수 있는 작업"
+        addKanbanFlowTask(title, in: app)
+        let edit = app.buttons["\(title) 작업 편집"]
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertTrue(isHorizontallyContained(edit, in: app.windows.firstMatch))
+        addReferenceScreenshot(named: "adaptive-board-wide-accessibility-text")
+    }
+
+    @MainActor
+    func testAdaptiveQuickEntryKeepsInputAcrossColumnChanges() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("열 전환 중 입력은 넓은 시뮬레이터에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-adaptive-layout"])
+        let input = app.textFields["해당 날짜에 할 일 입력"]
+        input.tap()
+        input.typeText("넓게 작성")
+        app.buttons["layout-test-compact"].tap()
+        input.typeText(" 좁게 이어쓰기")
+        XCTAssertEqual(input.value as? String, "넓게 작성 좁게 이어쓰기")
+        app.buttons["layout-test-expanded"].tap()
+        input.typeText(" 완료")
+        XCTAssertEqual(input.value as? String, "넓게 작성 좁게 이어쓰기 완료")
+    }
+
+    @MainActor
+    func testAdaptiveChecklistKeepsInputAcrossColumnChanges() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("열 전환 중 입력은 넓은 시뮬레이터에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-adaptive-layout"])
+        tapRootDestination("메모", in: app)
+        createMemo(in: app, type: "checklist")
+        app.buttons["항목 추가"].tap()
+        app.typeText("작성 중인 항목")
+        app.buttons["layout-test-compact"].tap()
+        app.typeText(" 계속 작성")
+        let field = app.descendants(matching: .any)["memo-checklist-title"].firstMatch
+        XCTAssertEqual(field.value as? String, "작성 중인 항목 계속 작성")
+        app.buttons["layout-test-expanded"].tap()
+        app.typeText(" 완료")
+        XCTAssertEqual(field.value as? String, "작성 중인 항목 계속 작성 완료")
+        app.buttons["memo-checklist-keyboard-dismiss"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        app.buttons["layout-test-compact"].tap()
+        app.buttons["layout-test-expanded"].tap()
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertEqual(field.value as? String, "작성 중인 항목 계속 작성 완료")
+    }
+
+    @MainActor
+    func testAdaptiveMemoDraftSurvivesWindowResizeAndTiling() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("실제 창 너비 변경은 iPad에서 확인")
+        }
+        guard #available(iOS 26, *) else {
+            throw XCTSkip("이 창 조절 검사는 iPadOS 26의 윈도우 제어기를 사용합니다")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch()
+        let app = launchKanbanFlowApp()
+        let window = app.windows.firstMatch
+        if window.frame.width < 800 {
+            window.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
+            let fill = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["채우기"].firstMatch
+            XCTAssertTrue(fill.waitForExistence(timeout: 5))
+            fill.tap()
+            let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                window.frame.width > 800
+            }, object: window)
+            XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed)
+        }
+        let originalFrame = window.frame
+        addTeardownBlock {
+            await MainActor.run {
+                app.activate()
+                let hideKeyboard = app.keyboards.buttons["키보드 가리기"]
+                if hideKeyboard.isHittable { hideKeyboard.tap() }
+                settings.terminate()
+                if window.frame.width < originalFrame.width - 100 {
+                    window.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
+                    let fill = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["채우기"].firstMatch
+                    if fill.waitForExistence(timeout: 3) { fill.tap() }
+                }
+                XCUIDevice.shared.orientation = .portrait
+            }
+        }
+        XCTAssertGreaterThan(originalFrame.width, 800)
+        tapRootDestination("메모", in: app)
+        createMemo(in: app)
+        let editor = app.textViews["메모 내용"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        editor.tap()
+        editor.typeText("실제 창에서도 이어지는 메모")
+        // The software keyboard covers iPadOS's bottom-corner resize handle.
+        // Dismiss it deliberately; the separate column-change tests keep the
+        // keyboard open and verify uninterrupted typing without tapping again.
+        app.keyboards.buttons["키보드 가리기"].tap()
+        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        let editorWindow = app.windows.containing(.textView, identifier: "메모 내용").firstMatch
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "adaptive-real-window-before-resize"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        addReferenceScreenshot(named: "adaptive-memo-real-window-before-resize")
+        editorWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.995))
+            .press(forDuration: 0.3, thenDragTo:
+                editorWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.9)))
+        let narrowed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.state == .runningForeground && editorWindow.frame.width <= 600 && editor.isHittable
+        }, object: editorWindow)
+        XCTAssertEqual(XCTWaiter.wait(for: [narrowed], timeout: 5), .completed)
+        addReferenceScreenshot(named: "adaptive-memo-real-window-after-resize")
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.tap()
+        editor.typeText("\n창을 줄인 뒤 계속 작성")
+        let content = "실제 창에서도 이어지는 메모\n창을 줄인 뒤 계속 작성"
+        XCTAssertEqual(editor.value as? String, content)
+        let frames = XCTAttachment(string: "변경 전: \(originalFrame)\n변경 후: \(window.frame)")
+        frames.name = "adaptive-real-window-frames"
+        frames.lifetime = .keepAlways
+        add(frames)
+        addReferenceScreenshot(named: "adaptive-memo-real-narrow-window")
+        app.keyboards.buttons["키보드 가리기"].tap()
+        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        editorWindow.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
+        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let tile = system.buttons["좌우"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 5))
+        tile.tap()
+        // Tiling a lone foreground window leaves the other half empty. Bring
+        // Settings into this workspace from the Dock, rather than assuming
+        // a previously launched background app is already beside PlanBase.
+        let screenOrigin = system.coordinate(withNormalizedOffset: .zero)
+        screenOrigin.withOffset(CGVector(dx: originalFrame.midX, dy: originalFrame.maxY - 2))
+            .press(forDuration: 0.1, thenDragTo: screenOrigin.withOffset(CGVector(
+                dx: originalFrame.midX, dy: originalFrame.maxY - 100)))
+        let settingsIcon = system.icons["설정"].firstMatch
+        XCTAssertTrue(settingsIcon.waitForExistence(timeout: 5))
+        settingsIcon.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.5, thenDragTo: screenOrigin.withOffset(CGVector(
+            dx: originalFrame.width * 0.75, dy: originalFrame.midY)))
+        addReferenceScreenshot(named: "adaptive-tiling-arrangement")
+        let arrangement = XCTAttachment(string: "PlanBase: \(editorWindow.frame)\nSettings: \(settings.debugDescription)\nSystem: \(system.debugDescription)")
+        arrangement.name = "adaptive-tiling-arrangement"
+        arrangement.lifetime = .keepAlways
+        add(arrangement)
+        let sideBySide = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let memoFrame = editorWindow.frame
+            let settingsFrame = settings.windows.firstMatch.frame
+            return memoFrame.width >= 320 && settingsFrame.width >= 320
+                && memoFrame.width <= 600 && settingsFrame.width <= 600
+                && (memoFrame.maxX <= settingsFrame.minX + 1 || settingsFrame.maxX <= memoFrame.minX + 1)
+                && editor.isHittable && settings.windows.firstMatch.isHittable
+        }, object: editorWindow)
+        XCTAssertEqual(XCTWaiter.wait(for: [sideBySide], timeout: 10), .completed)
+        XCTAssertEqual(editor.value as? String, content)
+        addReferenceScreenshot(named: "adaptive-memo-side-by-side")
+        // Dock dragging activates Settings. Return to PlanBase before tapping
+        // the editor to bring back the keyboard we deliberately dismissed.
+        app.activate()
+        // The element's default activation point can place the cursor at the
+        // start. Tap below the two existing lines to explicitly append instead.
+        editor.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.15)).tap()
+        editor.typeText("\n다른 앱 옆에서 계속 작성")
+        XCTAssertEqual(editor.value as? String, content + "\n다른 앱 옆에서 계속 작성")
+        addReferenceScreenshot(named: "adaptive-memo-side-by-side-edited")
+        app.buttons["memo-editor-back"].tap()
+        let row = app.buttons["실제 창에서도 이어지는 메모"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(identifier: "실제 창에서도 이어지는 메모").count, 1)
+        row.tap()
+        XCTAssertEqual(editor.value as? String, content + "\n다른 앱 옆에서 계속 작성")
+    }
+
+    @MainActor
+    func testAdaptiveBoardAndFocusRetainStateBesideAnotherApp() throws {
+        let (app, settings, fullFrame) = try prepareAdaptiveWindowingApp()
+        createFocusTask(in: app, title: "두 창 사이에서도 집중", minutes: 30)
+        let input = app.textFields["해당 날짜에 할 일 입력"]
+        input.tap()
+        input.typeText("분할하며 작성한 작업")
+        tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
+        XCTAssertEqual(input.value as? String, "분할하며 작성한 작업")
+        input.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        input.typeText(" 이어쓰기")
+        app.buttons["작업 추가"].tap()
+        let title = "분할하며 작성한 작업 이어쓰기"
+        let edit = app.buttons["\(title) 작업 편집"]
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 1)
+        app.buttons["\(title) 진행 중 상태"].tap()
+        app.buttons["board-status-destination"].tap()
+        XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-doing"]))
+        addReferenceScreenshot(named: "adaptive-board-side-by-side")
+        fillAdaptiveWindow(in: app)
+        XCTAssertTrue(scrollToHittable(edit, in: app.scrollViews["board-accessibility-scroll"]))
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 1)
+
+        let entry = app.buttons["두 창 사이에서도 집중 집중 시작"]
+        XCTAssertTrue(scrollToHittable(entry, in: app.scrollViews["board-accessibility-scroll"]))
+        entry.tap()
+        let scroll = app.scrollViews["focus-content-scroll"]
+        let start = app.buttons["focus-start"]
+        XCTAssertTrue(scrollToHittable(start, in: scroll))
+        start.tap()
+        let timer = app.descendants(matching: .any)["focus-timer"].firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 10))
+        func seconds(_ value: String?) -> Int? {
+            guard let clock = value?.split(separator: ",").first else { return nil }
+            let parts = clock.split(separator: ":").compactMap { Int($0) }
+            guard parts.count == 2 else { return nil }
+            return parts[0] * 60 + parts[1]
+        }
+        let before = try XCTUnwrap(seconds(timer.value as? String))
+        let changedAt = Date()
+        tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
+        let after = try XCTUnwrap(seconds(timer.value as? String))
+        XCTAssertTrue((timer.value as? String)?.contains("진행 중") == true)
+        XCTAssertGreaterThanOrEqual(before - after, 0)
+        XCTAssertLessThanOrEqual(before - after, Int(Date().timeIntervalSince(changedAt)) + 4)
+        let pause = app.buttons["focus-pause-resume"]
+        XCTAssertTrue(scrollToHittable(pause, in: scroll))
+        pause.tap()
+        XCTAssertTrue(app.staticTexts["멈춘 시간은 집중 기록에 포함되지 않아요."].waitForExistence(timeout: 5))
+        let paused = timer.value as? String
+        addReferenceScreenshot(named: "adaptive-focus-side-by-side")
+        fillAdaptiveWindow(in: app)
+        XCTAssertEqual(timer.value as? String, paused)
+        app.buttons["focus-close"].tap()
+        let reopen = app.buttons["focus-active-launcher"]
+        XCTAssertTrue(reopen.waitForExistence(timeout: 5))
+        reopen.tap()
+        XCTAssertEqual(timer.value as? String, paused)
+    }
+
+    @MainActor
+    func testAdaptiveCalendarAndArchiveRetainStateBesideAnotherApp() throws {
+        let (app, settings, fullFrame) = try prepareAdaptiveWindowingApp(
+            additionalArguments: ["--ui-testing-daily-activity-fixtures"])
+        tapRootDestination("캘린더", in: app)
+        let today = app.buttons.matching(NSPredicate(
+            format: "label BEGINSWITH %@", koreanDayDisplay(Date())
+        )).firstMatch
+        XCTAssertTrue(today.waitForExistence(timeout: 10))
+        today.tap()
+        app.buttons["일정 추가"].firstMatch.tap()
+        let title = app.textFields["event-title-field"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("다른 앱 옆에서 저장한 일정")
+        app.buttons["event-editor-keyboard-dismiss"].tap()
+        tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
+        XCTAssertEqual(title.value as? String, "다른 앱 옆에서 저장한 일정")
+        app.navigationBars["일정 추가"].buttons["추가"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["일정 편집"].firstMatch.waitForExistence(timeout: 10))
+        let savedEvent = app.buttons["다른 앱 옆에서 저장한 일정 일정 메뉴"]
+        XCTAssertTrue(savedEvent.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "다른 앱 옆에서 저장한 일정 일정 메뉴").count, 1)
+        addReferenceScreenshot(named: "adaptive-calendar-side-by-side")
+        fillAdaptiveWindow(in: app)
+        XCTAssertTrue(app.buttons["일정 편집"].firstMatch.isHittable)
+        XCTAssertTrue(savedEvent.isHittable)
+
+        tapRootDestination("기록", in: app)
+        app.buttons["기록 필터"].tap()
+        let mode = app.segmentedControls["archive-content-mode-picker"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 5))
+        mode.buttons["완료 작업"].tap()
+        app.navigationBars["검색 필터"].buttons["완료"].tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("영어\n")
+        app.buttons["날짜로 기록 찾기"].tap()
+        let detail = app.descendants(matching: .any)["archive-day-detail"].firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+        app.buttons["이전 날짜"].tap()
+        let previousDayTask = detail.buttons.matching(NSPredicate(
+            format: "label CONTAINS %@", "집중해서 책 읽기"
+        )).firstMatch
+        XCTAssertTrue(previousDayTask.waitForExistence(timeout: 5))
+        tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
+        XCTAssertTrue(previousDayTask.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "adaptive-archive-side-by-side")
+        fillAdaptiveWindow(in: app)
+        XCTAssertTrue(previousDayTask.waitForExistence(timeout: 5))
+        XCTAssertEqual(search.value as? String, "영어")
+        app.buttons["적용된 기록 필터 변경"].tap()
+        XCTAssertTrue(mode.waitForExistence(timeout: 5))
+        XCTAssertTrue(mode.buttons["완료 작업"].isSelected)
+        app.navigationBars["검색 필터"].buttons["완료"].tap()
+    }
+
+    @MainActor
+    private func prepareAdaptiveWindowingApp(
+        additionalArguments: [String] = []
+    ) throws -> (XCUIApplication, XCUIApplication, CGRect) {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("실제 두 앱 창 배치는 iPad에서 확인합니다")
+        }
+        guard #available(iOS 26, *) else {
+            throw XCTSkip("이 창 배치 검사는 iPadOS 26의 윈도우 제어기를 사용합니다")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch()
+        let app = launchKanbanFlowApp(additionalArguments: additionalArguments)
+        addTeardownBlock {
+            await MainActor.run {
+                app.activate()
+                let hide = app.keyboards.buttons["키보드 가리기"]
+                if hide.isHittable { hide.tap() }
+                settings.terminate()
+                let window = app.windows.firstMatch
+                if window.frame.width < 800 {
+                    window.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
+                    let fill = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["채우기"].firstMatch
+                    if fill.waitForExistence(timeout: 3) { fill.tap() }
+                }
+                XCUIDevice.shared.orientation = .portrait
+            }
+        }
+        fillAdaptiveWindow(in: app)
+        return (app, settings, app.windows.firstMatch.frame)
+    }
+
+    @MainActor
+    private func fillAdaptiveWindow(in app: XCUIApplication) {
+        app.activate()
+        let hide = app.keyboards.buttons["키보드 가리기"]
+        if hide.isHittable { hide.tap() }
+        let window = app.windows.firstMatch
+        guard window.frame.width < 800 else { return }
+        window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
+        let fill = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["채우기"].firstMatch
+        XCTAssertTrue(fill.waitForExistence(timeout: 5))
+        fill.tap()
+        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            window.frame.width > 800
+        }, object: window)
+        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed)
+    }
+
+    @MainActor
+    private func tileAdaptiveApp(_ app: XCUIApplication, beside settings: XCUIApplication, fullFrame: CGRect) {
+        let hide = app.keyboards.buttons["키보드 가리기"]
+        if hide.isHittable { hide.tap() }
+        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        let window = app.windows.firstMatch
+        // A full-screen iPad window hides the traffic-light controls. Expose
+        // them through the actual resize handle before opening their menu.
+        if window.frame.width > 800 {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.995))
+                .press(forDuration: 0.3, thenDragTo:
+                    window.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.9)))
+            let narrowed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                window.frame.width <= 600 && app.state == .runningForeground
+            }, object: window)
+            XCTAssertEqual(XCTWaiter.wait(for: [narrowed], timeout: 5), .completed)
+        }
+        window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
+        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let tile = system.buttons["좌우"].firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 5))
+        tile.tap()
+        let origin = system.coordinate(withNormalizedOffset: .zero)
+        origin.withOffset(CGVector(dx: fullFrame.midX, dy: fullFrame.maxY - 2))
+            .press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(
+                dx: fullFrame.midX, dy: fullFrame.maxY - 100)))
+        let settingsIcon = system.icons["설정"].firstMatch
+        XCTAssertTrue(settingsIcon.waitForExistence(timeout: 5))
+        settingsIcon.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.5, thenDragTo: origin.withOffset(CGVector(
+                dx: fullFrame.width * 0.75, dy: fullFrame.midY)))
+        let sideBySide = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let a = window.frame
+            let b = settings.windows.firstMatch.frame
+            return a.width >= 320 && b.width >= 320 && a.width <= 600 && b.width <= 600
+                && (a.maxX <= b.minX + 1 || b.maxX <= a.minX + 1)
+                && window.isHittable && settings.windows.firstMatch.isHittable
+        }, object: window)
+        XCTAssertEqual(XCTWaiter.wait(for: [sideBySide], timeout: 10), .completed)
+        app.activate()
+    }
+
+    @MainActor
+    private func waitForKeyboardHidden(in app: XCUIApplication) -> Bool {
+        // iPadOS can retain a zero-height keyboard accessibility element after
+        // dismissal. Its presence alone doesn't mean it covers the window.
+        let hidden = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            let keyboard = app.keyboards.firstMatch
+            return !keyboard.exists || keyboard.frame.height < 1
+                || !keyboard.frame.intersects(app.windows.firstMatch.frame)
+        }, object: app)
+        return XCTWaiter.wait(for: [hidden], timeout: 5) == .completed
+    }
+
+    @MainActor
+    func testAdaptiveMemoDraftAndSelectionSurviveRotation() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-theme=appleSystem",
+                               "--ui-testing-memo-save-failure-twice"]
+        app.launch()
+        tapRootDestination("메모", in: app)
+        createMemo(in: app)
+        let editor = app.textViews["메모 내용"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        editor.tap()
+        editor.typeText("크기가 바뀌어도 남는 메모\n초안 보존 확인")
+        XCTAssertTrue(app.buttons["memo-save-retry"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(editor.value as? String, "크기가 바뀌어도 남는 메모\n초안 보존 확인")
+        addReferenceScreenshot(named: "adaptive-memo-wide-draft")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertEqual(editor.value as? String, "크기가 바뀌어도 남는 메모\n초안 보존 확인")
+        // Consume remaining injected failures without replacing the editor/session.
+        for _ in 0..<2 where app.buttons["memo-save-retry"].exists {
+            app.buttons["memo-save-retry"].tap()
+        }
+        app.buttons["memo-editor-back"].tap()
+        let row = app.buttons["크기가 바뀌어도 남는 메모"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(identifier: "크기가 바뀌어도 남는 메모").count, 1)
+        row.tap()
+        XCTAssertEqual(editor.value as? String, "크기가 바뀌어도 남는 메모\n초안 보존 확인")
+        addReferenceScreenshot(named: "adaptive-memo-restored")
+    }
+
+    @MainActor
+    func testAdaptiveCalendarPreservesEventDraftAndDaySelection() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp()
+        tapRootDestination("캘린더", in: app)
+        let today = app.buttons.matching(NSPredicate(
+            format: "label BEGINSWITH %@", koreanDayDisplay(Date())
+        )).firstMatch
+        XCTAssertTrue(today.waitForExistence(timeout: 10))
+        today.tap()
+        app.buttons["일정 추가"].firstMatch.tap()
+        let field = app.textFields["event-title-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("펼쳐도 유지되는 일정")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(field.value as? String, "펼쳐도 유지되는 일정")
+        addReferenceScreenshot(named: "adaptive-calendar-editor-wide")
+        app.navigationBars["일정 추가"].buttons["추가"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 10))
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.buttons["일정 편집"].firstMatch.waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "adaptive-calendar-day")
+    }
+
+    @MainActor
+    func testAdaptiveMemoSurvivesColumnCollapseAndExpansion() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("두 열과 단일 열 전환은 넓은 시뮬레이터에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-adaptive-layout"])
+        tapRootDestination("메모", in: app)
+        createMemo(in: app)
+        let editor = app.textViews["메모 내용"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        editor.tap()
+        editor.typeText("동일 편집 세션 유지\n넓은 화면에서 작성")
+        app.buttons["layout-test-compact"].tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(editor.value as? String, "동일 편집 세션 유지\n넓은 화면에서 작성")
+        editor.typeText("\n좁은 화면에서 이어쓰기")
+        let content = "동일 편집 세션 유지\n넓은 화면에서 작성\n좁은 화면에서 이어쓰기"
+        XCTAssertEqual(editor.value as? String, content)
+        addReferenceScreenshot(named: "adaptive-width-memo-compact")
+        app.buttons["layout-test-expanded"].tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(editor.value as? String, content)
+        XCTAssertTrue(app.buttons["새 메모"].isHittable)
+        for _ in 0..<2 {
+            app.buttons["layout-test-compact"].tap()
+            XCTAssertEqual(editor.value as? String, content)
+            app.buttons["layout-test-expanded"].tap()
+            XCTAssertEqual(editor.value as? String, content)
+        }
+        addReferenceScreenshot(named: "adaptive-width-memo-expanded")
+        app.buttons["memo-editor-back"].tap()
+        let row = app.buttons["동일 편집 세션 유지"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(identifier: "동일 편집 세션 유지").count, 1)
+        row.tap()
+        XCTAssertEqual(editor.value as? String, content)
+    }
+
+    @MainActor
+    func testAdaptiveArchiveSelectionSurvivesColumnCollapse() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("두 열과 단일 열 전환은 넓은 시뮬레이터에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-daily-activity-fixtures",
+                               "--ui-testing-archive-collapsed", "--ui-testing-adaptive-layout"]
+        app.launch()
+        tapRootDestination("기록", in: app)
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("영어\n")
+        app.buttons["날짜로 기록 찾기"].tap()
+        let detail = app.descendants(matching: .any)["archive-day-detail"].firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        app.buttons["이전 날짜"].tap()
+        let previousDayTask = detail.buttons.matching(NSPredicate(
+            format: "label CONTAINS %@", "집중해서 책 읽기"
+        )).firstMatch
+        XCTAssertTrue(previousDayTask.waitForExistence(timeout: 10))
+        app.buttons["layout-test-compact"].tap()
+        XCTAssertTrue(previousDayTask.waitForExistence(timeout: 5))
+        app.buttons["layout-test-expanded"].tap()
+        XCTAssertTrue(previousDayTask.waitForExistence(timeout: 5))
+        XCTAssertEqual(search.value as? String, "영어")
+        addReferenceScreenshot(named: "adaptive-archive-expanded")
+    }
+
+    @MainActor
+    func testAdaptiveMemoPreservesChecklistAndDrawingAcrossColumnChanges() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else {
+            throw XCTSkip("두 열과 단일 열 전환은 넓은 시뮬레이터에서 확인")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-adaptive-layout", "--ui-testing-legacy-memo"])
+        tapRootDestination("메모", in: app)
+        app.buttons["기존 복합 메모"].tap()
+        let text = app.textViews["메모 내용"]
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText(" 추가 기록")
+        app.buttons["체크리스트"].tap()
+        app.buttons["항목 추가"].tap()
+        app.typeText("전환 후에도 유지할 항목")
+        app.buttons["memo-checklist-keyboard-dismiss"].tap()
+        app.buttons["전환 후에도 유지할 항목 완료"].tap()
+        app.buttons["layout-test-compact"].tap()
+        XCTAssertTrue(app.buttons["전환 후에도 유지할 항목 완료 해제"].waitForExistence(timeout: 5))
+        app.buttons["layout-test-expanded"].tap()
+        XCTAssertTrue(app.buttons["전환 후에도 유지할 항목 완료 해제"].waitForExistence(timeout: 5))
+        app.buttons["필기"].tap()
+        let canvas = app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.2))
+            .press(forDuration: 0.1, thenDragTo: canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
+        let clear = app.buttons["memo-clear-drawing"]
+        XCTAssertTrue(clear.isEnabled)
+        app.buttons["layout-test-compact"].tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        XCTAssertTrue(clear.isEnabled)
+        addReferenceScreenshot(named: "adaptive-memo-drawing-compact")
+        app.buttons["layout-test-expanded"].tap()
+        XCTAssertTrue(clear.isEnabled)
+        addReferenceScreenshot(named: "adaptive-memo-drawing-expanded")
+        app.buttons["memo-editor-back"].tap()
+        app.buttons["기존 복합 메모 추가 기록"].tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        XCTAssertTrue(clear.isEnabled)
+        app.buttons["체크리스트"].tap()
+        XCTAssertTrue(app.buttons["전환 후에도 유지할 항목 완료 해제"].waitForExistence(timeout: 5))
+        app.buttons["텍스트"].tap()
+        XCTAssertEqual(text.value as? String, "기존 복합 메모 추가 기록")
+    }
+
+    @MainActor
+    func testAdaptiveArchivePreservesReviewDraftAcrossRotation() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp()
+        tapRootDestination("기록", in: app)
+        app.buttons["날짜로 기록 찾기"].tap()
+        let compose = app.buttons["회고 남기기"]
+        XCTAssertTrue(compose.waitForExistence(timeout: 10))
+        compose.tap()
+        let title = app.textFields["review-title-field"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        title.tap()
+        title.typeText("회전 중 작성한 하루 회고")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(title.value as? String, "회전 중 작성한 하루 회고")
+        XCTAssertTrue(app.buttons["review-save-button"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "adaptive-archive-review-draft")
+        app.buttons["review-save-button"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 10))
+        XCUIDevice.shared.orientation = .portrait
+        let edit = app.buttons["회고 수정"].firstMatch
+        XCTAssertTrue(scrollToHittable(edit, in: app))
+        edit.tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertEqual(title.value as? String, "회전 중 작성한 하루 회고")
+    }
+
+    @MainActor
+    func testAdaptiveFocusRetainsPausedSessionAcrossRotation() {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launchKanbanFlowApp()
+        createFocusTask(in: app, title: "화면 변화 중 집중", minutes: 30)
+        let entry = app.buttons["화면 변화 중 집중 집중 시작"]
+        XCTAssertTrue(scrollToHittable(entry, in: app.scrollViews["board-accessibility-scroll"]))
+        entry.tap()
+        let scroll = app.scrollViews["focus-content-scroll"]
+        let start = app.buttons["focus-start"]
+        XCTAssertTrue(scrollToHittable(start, in: scroll))
+        start.tap()
+        let timer = app.descendants(matching: .any)["focus-timer"].firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 10))
+        let pause = app.buttons["focus-pause-resume"]
+        XCTAssertTrue(scrollToHittable(pause, in: scroll))
+        pause.tap()
+        XCTAssertTrue(app.staticTexts["멈춘 시간은 집중 기록에 포함되지 않아요."].waitForExistence(timeout: 5))
+        let pausedValue = timer.value as? String
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(timer.value as? String, pausedValue)
+        XCTAssertTrue(pause.isHittable)
+        addReferenceScreenshot(named: "adaptive-focus-wide-paused")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertEqual(timer.value as? String, pausedValue)
+        app.buttons["focus-close"].tap()
+        let reopen = app.buttons["focus-active-launcher"]
+        XCTAssertTrue(reopen.waitForExistence(timeout: 10))
+        reopen.tap()
+        XCTAssertEqual(timer.value as? String, pausedValue)
+        addReferenceScreenshot(named: "adaptive-focus-restored")
+    }
+
     private func requireWidgetAudit() throws {
         guard ProcessInfo.processInfo.environment["PLANBASE_WIDGET_UI_AUDIT"] == "1" else {
             throw XCTSkip("위젯 감사는 준비된 시뮬레이터에서 명시적으로 실행합니다")
@@ -1667,7 +2645,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
             ? app.buttons["메모"].firstMatch : app.tabBars.buttons["메모"]
         XCTAssertTrue(memoTab.waitForExistence(timeout: 15))
         memoTab.tap()
-        app.buttons["새 메모"].tap()
+        createMemo(in: app)
         let editor = app.textViews["메모 내용"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
         let content = "복귀 검증 메모\n화면을 옮겨도 남는 내용"
@@ -4427,6 +5405,136 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
+    func testMemoCreationChoiceAndEmptyDraftLeaveNoRows() {
+        let app = launchKanbanFlowApp()
+        tapRootDestination("메모", in: app)
+        app.buttons["새 메모"].tap()
+        for type in ["text", "checklist", "drawing"] {
+            XCTAssertTrue(app.buttons["memo-create-\(type)"].waitForExistence(timeout: 5))
+        }
+        addReferenceScreenshot(named: "memo-type-creation-menu")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.65)).tap()
+        XCTAssertTrue(app.buttons["memo-create-text"].waitForNonExistence(timeout: 5))
+        for type in ["text", "checklist", "drawing"] {
+            createMemo(in: app, type: type)
+            XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+            let change = app.buttons["memo-change-type"]
+            XCTAssertTrue(change.waitForExistence(timeout: 5))
+            change.tap()
+            app.buttons["memo-change-type-checklist"].tap()
+            app.buttons["항목 추가"].tap()
+            app.buttons["memo-checklist-keyboard-dismiss"].tap()
+            app.buttons["memo-editor-back"].tap()
+            XCTAssertTrue(app.staticTexts["메모 없음"].waitForExistence(timeout: 5))
+        }
+    }
+
+    @MainActor
+    func testMemoTypedTextAndChecklistPersistAcrossRelaunch() {
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-memo-store=\(UUID().uuidString)"])
+        tapRootDestination("메모", in: app)
+        createMemo(in: app)
+        let text = app.textViews["메모 내용"]
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        text.tap()
+        text.typeText("유형별 글 메모\n재실행 뒤에도 남는 본문")
+        XCTAssertFalse(app.buttons["memo-change-type"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+        app.buttons["memo-editor-back"].tap()
+        createMemo(in: app, type: "checklist")
+        app.buttons["항목 추가"].tap()
+        app.typeText("첫 번째 확인")
+        app.buttons["memo-checklist-keyboard-dismiss"].tap()
+        app.buttons["항목 추가"].tap()
+        app.typeText("두 번째 확인")
+        app.buttons["memo-checklist-keyboard-dismiss"].tap()
+        app.buttons["첫 번째 확인 완료"].tap()
+        app.buttons["두 번째 확인 항목 이동"].tap()
+        app.buttons["위로 이동"].tap()
+        let fields = app.textFields.matching(identifier: "memo-checklist-title")
+        XCTAssertEqual(fields.element(boundBy: 0).value as? String, "두 번째 확인")
+        XCTAssertTrue(app.buttons["첫 번째 확인 완료 해제"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+        addReferenceScreenshot(named: "memo-typed-checklist-reordered")
+        app.buttons["memo-editor-back"].tap()
+        XCTAssertTrue(app.buttons["두 번째 확인"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        tapRootDestination("메모", in: app)
+        app.buttons["두 번째 확인"].tap()
+        XCTAssertEqual(fields.element(boundBy: 0).value as? String, "두 번째 확인")
+        XCTAssertTrue(app.buttons["첫 번째 확인 완료 해제"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+        app.buttons["상단에 고정"].tap()
+        app.buttons["memo-editor-back"].tap()
+        XCTAssertTrue(app.staticTexts["고정됨"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "memo-typed-list-previews")
+        let search = app.searchFields.firstMatch
+        for _ in 0..<2 where !search.exists {
+            app.collectionViews.firstMatch.swipeDown()
+        }
+        XCTAssertTrue(search.waitForExistence(timeout: 5), app.debugDescription)
+        search.tap()
+        search.typeText("재실행\n")
+        let row = app.buttons["유형별 글 메모"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertEqual(text.value as? String, "유형별 글 메모\n재실행 뒤에도 남는 본문")
+        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+        addReferenceScreenshot(named: "memo-typed-text-reopened")
+        app.buttons["메모 삭제"].tap()
+        app.alerts["메모 삭제"].buttons["삭제"].tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testMemoTypedDrawingPersistsAndClearKeepsItsType() {
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-memo-store=\(UUID().uuidString)"])
+        tapRootDestination("메모", in: app)
+        createMemo(in: app, type: "drawing")
+        let canvas = app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.25))
+            .press(forDuration: 0.1, thenDragTo: canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
+        let clear = app.buttons["memo-clear-drawing"]
+        XCTAssertTrue(clear.isEnabled)
+        XCTAssertFalse(app.buttons["memo-change-type"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+        addReferenceScreenshot(named: "memo-typed-drawing")
+        app.buttons["memo-editor-back"].tap()
+        let row = app.buttons["필기·그림"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "memo-typed-drawing-thumbnail")
+        app.terminate()
+        app.launch()
+        tapRootDestination("메모", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        XCTAssertTrue(clear.isEnabled)
+        clear.tap()
+        app.buttons["취소"].tap()
+        XCTAssertTrue(clear.isEnabled)
+        clear.tap()
+        app.buttons["필기 모두 지우기"].tap()
+        XCTAssertFalse(clear.isEnabled)
+        app.buttons["memo-editor-back"].tap()
+        row.tap()
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        XCTAssertFalse(clear.isEnabled)
+        XCTAssertFalse(app.buttons["memo-change-type"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+    }
+
+    @MainActor
+    private func createMemo(in app: XCUIApplication, type: String = "text") {
+        app.buttons["새 메모"].tap()
+        let choice = app.buttons["memo-create-\(type)"]
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        choice.tap()
+    }
+
+    @MainActor
     func testMemoInitialLoadFailureShowsRetryInsteadOfEmptyList() {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -4444,7 +5552,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         retry.tap()
         XCTAssertTrue(app.staticTexts["메모 없음"].waitForExistence(timeout: 5))
         XCTAssertFalse(retry.exists)
-        app.buttons["새 메모"].tap()
+        createMemo(in: app)
         let text = app.textViews["메모 내용"]
         XCTAssertTrue(text.waitForExistence(timeout: 5))
         text.tap()
@@ -4471,7 +5579,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))
         app.tabBars.buttons["메모"].tap()
-        app.buttons["새 메모"].tap()
+        createMemo(in: app)
 
         let editor = app.textViews["메모 내용"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
@@ -4514,7 +5622,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
             "--ui-testing-memo-save-failure-twice", "--ui-testing-theme=appleSystem"]
         app.launch()
         tapRootDestination("메모", in: app)
-        app.buttons["새 메모"].tap()
+        createMemo(in: app)
         let editor = app.textViews["메모 내용"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
         editor.tap()
@@ -4538,7 +5646,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
             "--ui-testing-memo-content-load-failure-once", "--ui-testing-theme=appleSystem"]
         app.launch()
         tapRootDestination("메모", in: app)
-        app.buttons["새 메모"].tap()
+        createMemo(in: app)
         let editor = app.textViews["메모 내용"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
         editor.tap()
@@ -4567,20 +5675,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.terminate()
         app.launch()
         tapRootDestination("메모", in: app)
-        app.buttons["새 메모"].tap()
-        let memoTitle = "큰 글자 체크리스트 검증"
-        let text = app.textViews["메모 내용"]
-        XCTAssertTrue(text.waitForExistence(timeout: 5))
-        text.tap()
-        text.typeText(memoTitle)
-        let checklistMode = app.buttons["체크리스트"]
-        if !checklistMode.waitForExistence(timeout: 1) {
-            let mode = app.descendants(matching: .any)["memo-editor-mode"].firstMatch
-            XCTAssertTrue(mode.waitForExistence(timeout: 5))
-            mode.tap()
-        }
-        XCTAssertTrue(checklistMode.waitForExistence(timeout: 5))
-        checklistMode.tap()
+        createMemo(in: app, type: "checklist")
         app.buttons["항목 추가"].tap()
         let field = app.descendants(matching: .any)["memo-checklist-title"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
@@ -4595,7 +5690,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(app.buttons["\(title) 완료 해제"].waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "memo-checklist-AX5-completed")
         app.navigationBars.buttons["메모"].firstMatch.tap()
-        let row = app.buttons[memoTitle]
+        let row = app.buttons[title]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         tapRootDestination("칸반", in: app)
         tapRootDestination("메모", in: app)
@@ -4609,15 +5704,15 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     func testMemoDrawingClearRequiresConfirmationAndKeepsText() {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-theme=appleSystem"]
+        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-legacy-memo", "--ui-testing-theme=appleSystem"]
         app.terminate()
         app.launch()
         tapRootDestination("메모", in: app)
-        app.buttons["새 메모"].tap()
+        app.buttons["기존 복합 메모"].tap()
         let text = app.textViews["메모 내용"]
         XCTAssertTrue(text.waitForExistence(timeout: 5))
         text.tap()
-        text.typeText("필기를 지워도 남는 메모")
+        text.typeText(" 추가 기록")
         app.buttons["필기"].tap()
         let canvas = app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch
         XCTAssertTrue(canvas.waitForExistence(timeout: 5))
@@ -4636,7 +5731,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.buttons["필기 모두 지우기"].tap()
         XCTAssertFalse(clear.isEnabled)
         app.buttons["텍스트"].tap()
-        XCTAssertEqual(text.value as? String, "필기를 지워도 남는 메모")
+        XCTAssertEqual(text.value as? String, "기존 복합 메모 추가 기록")
     }
 
     @MainActor
@@ -4810,21 +5905,20 @@ final class PlanBaseLaunchUITests: XCTestCase {
             "--ui-testing", "--ui-testing-accessibility-text-size", "--ui-testing-theme=charcoalRose", "--ui-testing-archive-collapsed",
         ]
         app.launch()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))
-        app.tabBars.buttons["메모"].tap()
+        tapRootDestination("메모", in: app)
         app.buttons["cloud-sync-status-button"].tap()
         XCTAssertTrue(app.navigationBars["iCloud 동기화"].waitForExistence(timeout: 5))
         let bannerToggle = app.switches["상단 경고 배너"]
-        XCTAssertTrue(scrollToHittable(bannerToggle, in: app))
+        XCTAssertTrue(scrollToHittable(bannerToggle, in: app.collectionViews.firstMatch))
         XCTAssertTrue(isHorizontallyContained(bannerToggle, in: app.windows.firstMatch))
         XCTAssertGreaterThan(bannerToggle.frame.height, 60, "부모의 접근성 글자 크기를 sheet 본문에도 적용해야 합니다")
         addReferenceScreenshot(named: "sync-large-text-controls")
         app.navigationBars["iCloud 동기화"].buttons["완료"].tap()
-        app.tabBars.buttons["기록"].tap()
+        tapRootDestination("기록", in: app)
         app.buttons["기록 필터"].tap()
         XCTAssertTrue(app.navigationBars["검색 필터"].waitForExistence(timeout: 5))
         let mode = app.buttons["archive-content-mode-picker"]
-        XCTAssertTrue(scrollToFullyVisible(mode, in: app, below: app.navigationBars["검색 필터"]))
+        XCTAssertTrue(scrollToHittable(mode, in: app.collectionViews.firstMatch))
         mode.tap()
         let completed = app.buttons["완료 작업"]
         XCTAssertTrue(completed.waitForExistence(timeout: 5))

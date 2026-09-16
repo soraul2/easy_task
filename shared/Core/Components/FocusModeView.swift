@@ -81,6 +81,7 @@ public struct FocusModeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
+    @ScaledMetric(relativeTo: .body) private var timerColumnWidth = 320.0
     @AppStorage("planbase.focusAlwaysOnTop") private var alwaysOnTop = true
 
     @State private var snapshot: FocusActiveSessionSnapshot?
@@ -108,22 +109,26 @@ public struct FocusModeView: View {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
 
-                ScrollView {
-                    Group {
-                        if let snapshot {
-                            timerView(snapshot)
-                        } else if let completion {
-                            completionView(completion)
-                        } else {
-                            setupView
+                GeometryReader { geometry in
+                    let usesColumns = !dynamicTypeSize.isAccessibilitySize
+                        && geometry.size.width >= timerColumnWidth * 2 + 40
+                    ScrollView {
+                        Group {
+                            if let snapshot {
+                                timerView(snapshot, usesColumns: usesColumns)
+                            } else if let completion {
+                                completionView(completion)
+                            } else {
+                                setupView
+                            }
                         }
+                        .frame(maxWidth: snapshot != nil && usesColumns ? 920 : 540)
+                        .padding(20)
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: 540)
-                    .padding(20)
-                    .frame(maxWidth: .infinity)
+                    .id(screenIdentity)
+                    .accessibilityIdentifier("focus-content-scroll")
                 }
-                .id(screenIdentity)
-                .accessibilityIdentifier("focus-content-scroll")
             }
             .foregroundStyle(AppTheme.primaryText)
             .navigationTitle("집중 모드")
@@ -436,42 +441,51 @@ public struct FocusModeView: View {
         return "\(status) · \(date)\(estimate)"
     }
 
-    private func timerView(_ active: FocusActiveSessionSnapshot) -> some View {
+    private func timerView(_ active: FocusActiveSessionSnapshot, usesColumns: Bool) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let remaining = FocusTimerRules.remainingSeconds(for: active, now: timeline.date)
             let planned = active.phase == .focus ? active.plannedFocusSeconds : active.plannedBreakSeconds
-            VStack(spacing: 22) {
-                VStack(spacing: 10) {
-                    Label(active.phase == .focus ? "집중하는 시간" : "쉬어가는 시간",
-                          systemImage: active.phase == .focus ? "scope" : "cup.and.saucer")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.accent)
-                    Text(active.taskTitleSnapshot).font(.title2.bold())
-                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                    Text("이번 \(active.phase == .focus ? "집중" : "휴식") \(planned / 60)분")
-                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                }
-                FocusTimerDial(seconds: remaining,
-                    progress: planned > 0 ? 1 - remaining / Double(planned) : 0,
-                    paused: active.runState == .paused, isBreak: active.phase == .breakTime)
-                if active.runState == .running, let deadline = active.deadline {
-                    Text("\(deadline.formatted(.dateTime.hour().minute().locale(Locale(identifier: "ko_KR")))) 종료 예정")
-                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                } else {
-                    Text("멈춘 시간은 집중 기록에 포함되지 않아요.")
-                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-                timerActions(active)
-                if active.phase == .focus {
-                    Button { requestTaskCompletion(active) } label: {
-                        Label("작업도 완료하기", systemImage: "checkmark.circle")
-                            .frame(maxWidth: .infinity, minHeight: 28)
+            let layout = usesColumns
+                ? AnyLayout(HStackLayout(alignment: .center, spacing: 28))
+                : AnyLayout(VStackLayout(spacing: 22))
+            layout {
+                VStack(spacing: 18) {
+                    VStack(spacing: 10) {
+                        Label(active.phase == .focus ? "집중하는 시간" : "쉬어가는 시간",
+                              systemImage: active.phase == .focus ? "scope" : "cup.and.saucer")
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.accent)
+                        Text(active.taskTitleSnapshot).font(.title2.bold())
+                            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        Text("이번 \(active.phase == .focus ? "집중" : "휴식") \(planned / 60)분")
+                            .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
                     }
-                    .buttonStyle(PlanBaseButtonStyle(.secondary))
-                    .accessibilityIdentifier("focus-complete-task")
+                    FocusTimerDial(seconds: remaining,
+                        progress: planned > 0 ? 1 - remaining / Double(planned) : 0,
+                        paused: active.runState == .paused, isBreak: active.phase == .breakTime)
                 }
-                Text("화면을 닫아도 타이머는 계속돼요.")
-                    .font(.caption).foregroundStyle(AppTheme.secondaryText)
+                .frame(maxWidth: .infinity)
+                VStack(spacing: 18) {
+                    if active.runState == .running, let deadline = active.deadline {
+                        Text("\(deadline.formatted(.dateTime.hour().minute().locale(Locale(identifier: "ko_KR")))) 종료 예정")
+                            .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                    } else {
+                        Text("멈춘 시간은 집중 기록에 포함되지 않아요.")
+                            .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    timerActions(active)
+                    if active.phase == .focus {
+                        Button { requestTaskCompletion(active) } label: {
+                            Label("작업도 완료하기", systemImage: "checkmark.circle")
+                                .frame(maxWidth: .infinity, minHeight: 28)
+                        }
+                        .buttonStyle(PlanBaseButtonStyle(.secondary))
+                        .accessibilityIdentifier("focus-complete-task")
+                    }
+                    Text("화면을 닫아도 타이머는 계속돼요.")
+                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
             .onChange(of: remaining) { _, value in if value <= 0 { reconcile() } }

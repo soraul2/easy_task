@@ -3,11 +3,14 @@ import SwiftData
 
 public struct MemoQueryPage {
     public var memos: [Memo]
+    public var summaries: [UUID: MemoListSummary]
     public var nextCursor: MemoQueryCursor?
     public var hasMore: Bool
 
-    public init(memos: [Memo], nextCursor: MemoQueryCursor?, hasMore: Bool) {
+    public init(memos: [Memo], nextCursor: MemoQueryCursor?, hasMore: Bool,
+                summaries: [UUID: MemoListSummary] = [:]) {
         self.memos = memos
+        self.summaries = summaries
         self.nextCursor = nextCursor
         self.hasMore = hasMore
     }
@@ -188,7 +191,7 @@ public enum MemoService {
                     cursor.scansPinned = false
                     continue
                 }
-                return MemoQueryPage(memos: matches, nextCursor: nil, hasMore: false)
+                return try makePage(memos: matches, nextCursor: nil, hasMore: false, in: context)
             }
 
             let checklistByMemoID: [UUID: [MemoChecklistItem]]
@@ -217,11 +220,7 @@ public enum MemoService {
                 ) {
                     matches.append(memo)
                     if matches.count == pageSize {
-                        return MemoQueryPage(
-                            memos: matches,
-                            nextCursor: cursor,
-                            hasMore: true
-                        )
+                        return try makePage(memos: matches, nextCursor: cursor, hasMore: true, in: context)
                     }
                 }
             }
@@ -230,15 +229,36 @@ public enum MemoService {
                 if cursor.scansPinned {
                     cursor.scansPinned = false
                 } else {
-                    return MemoQueryPage(memos: matches, nextCursor: nil, hasMore: false)
+                    return try makePage(memos: matches, nextCursor: nil, hasMore: false, in: context)
                 }
             }
         }
 
-        return MemoQueryPage(
-            memos: matches,
-            nextCursor: cursor,
-            hasMore: true
-        )
+        return try makePage(memos: matches, nextCursor: cursor, hasMore: true, in: context)
     }
+
+    @MainActor
+    private static func makePage(
+        memos: [Memo], nextCursor: MemoQueryCursor?, hasMore: Bool, in context: ModelContext
+    ) throws -> MemoQueryPage {
+        let ids = memos.map(\.id)
+        guard !ids.isEmpty else { return MemoQueryPage(memos: [], nextCursor: nextCursor, hasMore: hasMore) }
+        let checklists = Dictionary(grouping: try context.fetch(
+            MemoChecklistService.descriptor(memoIDs: ids)
+        ), by: \.memoId)
+        var drawingDescriptor = FetchDescriptor<MemoDrawing>(predicate: #Predicate {
+            ids.contains($0.memoId) && $0.supersededAt == nil
+        })
+        // Only load metadata for this page. Visible rows rasterize their drawing
+        // on demand instead of loading every original canvas into the list.
+        drawingDescriptor.propertiesToFetch = [\.memoId, \.updatedAt]
+        let drawings = Dictionary(grouping: try context.fetch(drawingDescriptor), by: \.memoId)
+        let summaries = Dictionary(uniqueKeysWithValues: memos.map { memo in
+            (memo.instanceID, MemoListSummary(content: memo.content, preferred: MemoRules.mode(for: memo),
+                checklist: (checklists[memo.id] ?? []).map(MemoChecklistDraft.init(item:)),
+                drawingUpdatedAt: drawings[memo.id]?.map(\.updatedAt).max()))
+        })
+        return MemoQueryPage(memos: memos, nextCursor: nextCursor, hasMore: hasMore, summaries: summaries)
+    }
+
 }

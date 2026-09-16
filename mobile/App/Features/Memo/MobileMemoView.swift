@@ -1,15 +1,22 @@
 #if os(iOS)
 import PencilKit
+import Observation
 import PlanBaseCore
 import SwiftData
 import SwiftUI
 
-private struct MobileMemoRoute: Hashable {
-    var id = UUID()
-    var memo: Memo?
+@MainActor
+@Observable
+private final class MobileMemoRoute: Identifiable {
+    let id = UUID()
+    let session: MemoEditorSession
+    var textSelection: TextSelection?
+    var checklistItemID: UUID?
+    var checklistSelections: [UUID: TextSelection] = [:]
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    init(session: MemoEditorSession) {
+        self.session = session
+    }
 }
 
 struct MobileMemoView: View {
@@ -19,12 +26,13 @@ struct MobileMemoView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var querySession: MemoQuerySession?
     @State private var searchText = ""
-    @State private var path: [MobileMemoRoute] = []
+    @State private var selection: MobileMemoRoute?
+    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var memoPendingDeletion: Memo?
     @State private var actionFailure: String?
 
     var body: some View {
-        NavigationStack(path: $path) {
+        MobileAdaptiveSplitView(compactColumn: $compactColumn) {
             memoList
                 .navigationTitle("메모")
                 .searchable(text: $searchText, prompt: "메모 검색")
@@ -34,8 +42,15 @@ struct MobileMemoView: View {
 
                         MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
-                        Button {
-                            path.append(MobileMemoRoute(memo: nil))
+                        Menu {
+                            ForEach(MemoEditorMode.creationOrder) { mode in
+                                Button {
+                                    openMemo(nil, initialMode: mode)
+                                } label: {
+                                    Label(mode.creationTitle, systemImage: mode.systemImage)
+                                }
+                                .accessibilityIdentifier("memo-create-\(mode.rawValue)")
+                            }
                         } label: {
                             Image(systemName: "square.and.pencil")
                                 .frame(width: 44, height: 44)
@@ -43,15 +58,6 @@ struct MobileMemoView: View {
                         }
                         .accessibilityLabel("새 메모")
                     }
-                }
-                .navigationDestination(for: MobileMemoRoute.self) { route in
-                    MobileMemoEditorView(
-                        memo: route.memo,
-                        onDeleted: {
-                            if !path.isEmpty { path.removeLast() }
-                        }
-                    )
-                    .id(route.id)
                 }
                 .safeAreaInset(edge: .bottom) {
                     if let actionFailure {
@@ -64,6 +70,23 @@ struct MobileMemoView: View {
                         .background(AppTheme.background)
                     }
                 }
+        } detail: {
+            NavigationStack {
+                if let selection {
+                    MobileMemoEditorView(
+                        route: selection,
+                        onClose: closeEditor,
+                        onDeleted: {
+                            self.selection = nil
+                            compactColumn = .sidebar
+                        }
+                    )
+                    .id(selection.id)
+                } else {
+                    ContentUnavailableView("메모 선택", systemImage: "note.text",
+                        description: Text("목록에서 메모를 선택하거나 새 메모를 작성하세요."))
+                }
+            }
         }
         .task {
             refreshQuery()
@@ -78,6 +101,7 @@ struct MobileMemoView: View {
             guard let sourceContext = notification.object as? ModelContext,
                   sourceContext === modelContext else { return }
             querySession?.refresh()
+            selection?.session.refreshFromStore()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: CloudKitSyncService.eventChangedNotification
@@ -87,6 +111,7 @@ struct MobileMemoView: View {
                   summary.isCompleted,
                   summary.succeeded else { return }
             querySession?.refresh()
+            selection?.session.refreshFromStore()
         }
         .alert(
             "메모 삭제",
@@ -140,7 +165,7 @@ private extension MobileMemoView {
                 }
             } description: {
                 Text(searchText.isEmpty
-                    ? "오른쪽 위 작성 버튼으로 메모를 추가하세요."
+                    ? "새 메모 버튼으로 메모를 추가하세요."
                     : "다른 검색어를 입력해 보세요.")
                     .foregroundStyle(AppTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -209,22 +234,23 @@ private extension MobileMemoView {
     }
 
     func memoRow(_ memo: Memo) -> some View {
-        Button {
-            path.append(MobileMemoRoute(memo: memo))
+        let summary = querySession?.summaries[memo.instanceID]
+        return Button {
+            openMemo(memo)
         } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: MemoRules.systemImage(for: memo))
+                Image(systemName: summary?.systemImage ?? MemoRules.systemImage(for: memo))
                     .foregroundStyle(memo.isPinned ? AppTheme.accent : AppTheme.secondaryText)
                     .frame(width: 22, height: 22)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(MemoRules.displayTitle(for: memo))
+                    Text(summary?.title ?? MemoRules.displayTitle(for: memo))
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primaryText)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    let preview = MemoRules.preview(for: memo.content)
+                    let preview = summary?.preview ?? MemoRules.preview(for: memo.content)
                     if !preview.isEmpty {
                         Text(preview)
                             .font(.subheadline)
@@ -238,6 +264,9 @@ private extension MobileMemoView {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer(minLength: 0)
+                if let revision = summary?.drawingUpdatedAt {
+                    MobileMemoThumbnail(memoID: memo.id, revision: revision)
+                }
                 if memo.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.caption)
@@ -249,7 +278,7 @@ private extension MobileMemoView {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(AppTheme.panel)
+        .listRowBackground(selection?.session.memo?.id == memo.id ? AppTheme.selectedTab : AppTheme.panel)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
                 setPinned(!memo.isPinned, memo: memo)
@@ -265,7 +294,8 @@ private extension MobileMemoView {
                 Label("삭제", systemImage: "trash")
             }
         }
-        .accessibilityLabel(MemoRules.displayTitle(for: memo))
+        .accessibilityLabel(summary?.title ?? MemoRules.displayTitle(for: memo))
+        .accessibilityValue(summary?.typeTitle ?? MemoRules.mode(for: memo).creationTitle)
         .accessibilityHint("두 번 탭하여 메모 편집")
     }
 
@@ -294,6 +324,66 @@ private extension MobileMemoView {
         querySession?.refresh()
     }
 
+    func openMemo(_ memo: Memo?, initialMode: MemoEditorMode = .text) {
+        if let current = selection {
+            if let memo, current.session.memo?.id == memo.id {
+                compactColumn = .detail
+                return
+            }
+            guard !current.session.hasUnsavedChanges || current.session.flush() else { return }
+        }
+        selection = MobileMemoRoute(session: makeEditorSession(memo: memo, initialMode: initialMode))
+        compactColumn = .detail
+    }
+
+    func closeEditor() {
+        guard let current = selection,
+              !current.session.hasUnsavedChanges || current.session.flush() else { return }
+        compactColumn = .sidebar
+        selection = nil
+    }
+
+    func makeEditorSession(memo: Memo?, initialMode: MemoEditorMode) -> MemoEditorSession {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing"),
+           (arguments.contains("--ui-testing-memo-save-failure-once") ||
+            arguments.contains("--ui-testing-memo-save-failure-twice")) {
+            return MemoEditorSession(
+                memo: memo,
+                context: modelContext,
+                initialMode: initialMode,
+                saveComposite: { memo, content, mode, drawing, checklist, context in
+                    if MobileMemoEditorUITestFixture.consumeSaveFailure(
+                        limit: arguments.contains("--ui-testing-memo-save-failure-twice") ? 2 : 1
+                    ) {
+                        throw NSError(domain: "PlanBase.UIFixture", code: 2)
+                    }
+                    return try MemoService.saveComposite(
+                        memo: memo,
+                        content: content,
+                        preferredMode: mode,
+                        drawingData: drawing,
+                        checklistDrafts: checklist,
+                        in: context
+                    )
+                }
+            )
+        }
+        if arguments.contains("--ui-testing"),
+           arguments.contains("--ui-testing-memo-content-load-failure-once") {
+            return MemoEditorSession(memo: memo, context: modelContext, initialMode: initialMode, loadContent: { id, context in
+                let drawing = try MemoDrawingService.data(for: id, in: context)
+                if MobileMemoEditorUITestFixture.consumeLoadFailure() {
+                    throw NSError(domain: "PlanBase.UIFixture", code: 3)
+                }
+                return (drawing, try MemoChecklistService.drafts(for: id, in: context))
+            })
+        }
+        #endif
+        return MemoEditorSession(memo: memo, context: modelContext, initialMode: initialMode)
+    }
+
     func setPinned(_ isPinned: Bool, memo: Memo) {
         do {
             try MemoService.setPinned(isPinned, for: memo, in: modelContext)
@@ -306,7 +396,14 @@ private extension MobileMemoView {
     func deleteMemo(_ memo: Memo) {
         defer { memoPendingDeletion = nil }
         do {
+            if selection?.session.memo?.id == memo.id,
+               selection?.session.hasUnsavedChanges == true,
+               selection?.session.flush() != true { return }
             try MemoService.delete(memo, in: modelContext)
+            if selection?.session.memo?.id == memo.id {
+                selection = nil
+                compactColumn = .sidebar
+            }
             actionFailure = nil
         } catch {
             actionFailure = "메모를 삭제하지 못했어요. 내용은 그대로 유지됩니다."
@@ -315,133 +412,156 @@ private extension MobileMemoView {
 }
 
 private struct MobileMemoEditorView: View {
-    var memo: Memo?
+    @Bindable var route: MobileMemoRoute
+    var onClose: () -> Void
     var onDeleted: () -> Void
+
+    private var editorSession: MemoEditorSession { route.session }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.dismiss) private var dismiss
-    @State private var editorSession: MemoEditorSession?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingDeleteConfirmation = false
     @State private var showingClearDrawingConfirmation = false
     @State private var deletionFailure: String?
     @FocusState private var editorFocused: Bool
 
     var body: some View {
-        Group {
-            if let editorSession {
-                VStack(spacing: 0) {
-                    Picker("편집 방식", selection: Binding(
-                        get: { editorSession.preferredMode },
-                        set: { mode in
-                            editorSession.updatePreferredMode(mode)
-                            editorFocused = mode == .text
-                        }
-                    )) {
-                        ForEach(MemoEditorMode.allCases) { mode in
-                            Label(mode.title, systemImage: mode.systemImage)
-                                .tag(mode)
-                        }
+        VStack(spacing: 0) {
+            if editorSession.isComposite {
+                Picker("편집 방식", selection: Binding(
+                    get: { editorSession.preferredMode },
+                    set: { mode in
+                        editorSession.updatePreferredMode(mode)
+                        editorFocused = mode == .text
+                        if mode != .checklist { route.checklistItemID = nil }
                     }
-                    .planBaseAdaptiveSegmentedPicker()
+                )) {
+                    ForEach(MemoEditorMode.allCases) { mode in
+                        Label(mode.title, systemImage: mode.systemImage)
+                            .tag(mode)
+                    }
+                }
+                .planBaseAdaptiveSegmentedPicker()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .accessibilityLabel("메모 편집 방식")
+                .accessibilityIdentifier("memo-editor-mode")
+                .disabled(editorSession.loadErrorMessage != nil)
+
+                Divider()
+
+            }
+
+            mobileEditorContent(editorSession)
+
+            HStack(spacing: 7) {
+                saveStateIcon(editorSession.saveState)
+                Text(saveStateText(editorSession.saveState))
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("memo-save-state")
+                Spacer()
+                if case .failed = editorSession.saveState {
+                    Button("다시 시도") {
+                        editorSession.flush()
+                    }
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    .accessibilityIdentifier("memo-save-retry")
+                }
+            }
+            .foregroundStyle(saveStateColor(editorSession.saveState))
+            .frame(minHeight: 38)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            if let deletionFailure {
+                MobileNoticeBanner(message: deletionFailure, tone: .error)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .accessibilityLabel("메모 편집 방식")
-                    .accessibilityIdentifier("memo-editor-mode")
-                    .disabled(editorSession.loadErrorMessage != nil)
-
-                    Divider()
-
-                    mobileEditorContent(editorSession)
-
-                    HStack(spacing: 7) {
-                        saveStateIcon(editorSession.saveState)
-                        Text(saveStateText(editorSession.saveState))
-                            .font(.caption)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("memo-save-state")
-                        Spacer()
-                        if case .failed = editorSession.saveState {
-                            Button("다시 시도") {
-                                editorSession.flush()
-                            }
-                            .buttonStyle(PlanBaseButtonStyle(.secondary))
-                            .accessibilityIdentifier("memo-save-retry")
-                        }
-                    }
-                    .foregroundStyle(saveStateColor(editorSession.saveState))
-                    .frame(minHeight: 38)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 16)
-                    if let deletionFailure {
-                        MobileNoticeBanner(message: deletionFailure, tone: .error)
-                            .padding(.horizontal, 16)
-                        Button("확인") { self.deletionFailure = nil }
-                            .buttonStyle(PlanBaseButtonStyle(.secondary))
-                            .padding(.bottom, 8)
-                    }
-                }
-                .background(AppTheme.panel)
-                .navigationTitle(editorSession.displayTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarBackButtonHidden(true)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            guard !editorSession.hasUnsavedChanges || editorSession.flush() else { return }
-                            dismiss()
-                        } label: {
-                            Label("메모", systemImage: "chevron.backward")
-                        }
-                        .accessibilityIdentifier("memo-editor-back")
-                    }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            editorSession.setPinned(!editorSession.isPinned)
-                        } label: {
-                            Image(systemName: editorSession.isPinned ? "pin.fill" : "pin")
-                                .frame(minWidth: 44, minHeight: 44)
-                        }
-                        .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
-                        .accessibilityLabel(editorSession.isPinned ? "고정 해제" : "상단에 고정")
-
-                        Button(role: .destructive) {
-                            showingDeleteConfirmation = true
-                        } label: {
-                            Image(systemName: "trash")
-                                .frame(minWidth: 44, minHeight: 44)
-                        }
-                        .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
-                        .accessibilityLabel("메모 삭제")
-                    }
-                }
-                .alert("메모 삭제", isPresented: $showingDeleteConfirmation) {
-                    Button("삭제", role: .destructive) {
-                        deleteMemo(editorSession)
-                    }
-                    Button("취소", role: .cancel) {}
-                } message: {
-                    Text("삭제한 메모는 복구할 수 없습니다.")
-                }
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.panel)
+                Button("확인") { self.deletionFailure = nil }
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    .padding(.bottom, 8)
             }
         }
-        .task {
-            guard editorSession == nil else { return }
-            let session = makeEditorSession()
-            editorSession = session
-            editorFocused = session.preferredMode == .text
+        .background(AppTheme.panel)
+        .navigationTitle(editorSession.displayTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    guard !editorSession.hasUnsavedChanges || editorSession.flush() else { return }
+                    onClose()
+                } label: {
+                    Label("메모", systemImage: "chevron.backward")
+                }
+                .accessibilityIdentifier("memo-editor-back")
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if editorSession.canChooseType {
+                    Menu {
+                        ForEach(MemoEditorMode.creationOrder) { mode in
+                            Button {
+                                editorSession.updatePreferredMode(mode)
+                                editorFocused = mode == .text
+                                route.checklistItemID = nil
+                            } label: {
+                                Label(mode.creationTitle, systemImage: mode.systemImage)
+                            }
+                            .accessibilityIdentifier("memo-change-type-\(mode.rawValue)")
+                        }
+                    } label: {
+                        Label("유형 변경", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .accessibilityIdentifier("memo-change-type")
+                }
+                Button {
+                    editorSession.setPinned(!editorSession.isPinned)
+                } label: {
+                    Image(systemName: editorSession.isPinned ? "pin.fill" : "pin")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
+                .accessibilityLabel(editorSession.isPinned ? "고정 해제" : "상단에 고정")
+
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
+                .accessibilityLabel("메모 삭제")
+            }
+        }
+        .alert("메모 삭제", isPresented: $showingDeleteConfirmation) {
+            Button("삭제", role: .destructive) {
+                deleteMemo(editorSession)
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("삭제한 메모는 복구할 수 없습니다.")
+        }
+        .onAppear {
+            // NavigationSplitView can reattach the editor when its columns
+            // collapse. Restore input using the route's retained selection.
+            editorFocused = editorSession.preferredMode == .text
+        }
+        .task(id: horizontalSizeClass) {
+            // The split view reparents its UIKit text view after the trait
+            // update. Apply focus after SwiftUI has installed the new column.
+            guard editorSession.preferredMode == .text else { return }
+            editorFocused = false
+            await _Concurrency.Task.yield()
+            guard !_Concurrency.Task.isCancelled else { return }
+            editorFocused = true
         }
         .onChange(of: scenePhase) { _, newValue in
             guard newValue != .active else { return }
-            editorSession?.flush()
+            editorSession.flush()
         }
         .onDisappear {
-            editorSession?.flush()
+            editorSession.flush()
         }
     }
 
@@ -469,7 +589,7 @@ private struct MobileMemoEditorView: View {
             TextEditor(text: Binding(
                 get: { session.content },
                 set: { session.updateContent($0) }
-            ))
+            ), selection: $route.textSelection)
             .font(.body)
             .scrollContentBackground(.hidden)
             .foregroundStyle(AppTheme.primaryText)
@@ -477,6 +597,15 @@ private struct MobileMemoEditorView: View {
             .padding(.top, 8)
             .focused($editorFocused)
             .accessibilityLabel("메모 내용")
+            .overlay(alignment: .topLeading) {
+                if session.content.isEmpty {
+                    Text("생각을 자유롭게 적어보세요.")
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.horizontal, 17).padding(.top, 16)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
 
         case .drawing:
             VStack(spacing: 8) {
@@ -512,14 +641,20 @@ private struct MobileMemoEditorView: View {
                         }
                         Button("취소", role: .cancel) {}
                     } message: {
-                        Text("이 메모의 필기만 지워집니다. 텍스트와 체크리스트는 유지돼요.")
+                        Text(session.isComposite
+                            ? "이 메모의 필기만 지워집니다. 텍스트와 체크리스트는 유지돼요."
+                            : "이 메모의 필기와 그림이 모두 지워집니다.")
                     }
                 }
             }
             .padding(12)
 
         case .checklist:
-            MobileMemoChecklistEditor(session: session)
+            MobileMemoChecklistEditor(
+                session: session,
+                editingItemID: $route.checklistItemID,
+                textSelections: $route.checklistSelections
+            )
         }
     }
 
@@ -555,46 +690,6 @@ private struct MobileMemoEditorView: View {
         return state.title
     }
 
-    private func makeEditorSession() -> MemoEditorSession {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("--ui-testing"),
-           (arguments.contains("--ui-testing-memo-save-failure-once") ||
-            arguments.contains("--ui-testing-memo-save-failure-twice")) {
-            return MemoEditorSession(
-                memo: memo,
-                context: modelContext,
-                saveComposite: { memo, content, mode, drawing, checklist, context in
-                    if MobileMemoEditorUITestFixture.consumeSaveFailure(
-                        limit: arguments.contains("--ui-testing-memo-save-failure-twice") ? 2 : 1
-                    ) {
-                        throw NSError(domain: "PlanBase.UIFixture", code: 2)
-                    }
-                    return try MemoService.saveComposite(
-                        memo: memo,
-                        content: content,
-                        preferredMode: mode,
-                        drawingData: drawing,
-                        checklistDrafts: checklist,
-                        in: context
-                    )
-                }
-            )
-        }
-        if arguments.contains("--ui-testing"),
-           arguments.contains("--ui-testing-memo-content-load-failure-once") {
-            return MemoEditorSession(memo: memo, context: modelContext, loadContent: { id, context in
-                let drawing = try MemoDrawingService.data(for: id, in: context)
-                if MobileMemoEditorUITestFixture.consumeLoadFailure() {
-                    throw NSError(domain: "PlanBase.UIFixture", code: 3)
-                }
-                return (drawing, try MemoChecklistService.drafts(for: id, in: context))
-            })
-        }
-        #endif
-        return MemoEditorSession(memo: memo, context: modelContext)
-    }
-
     private func deleteMemo(_ session: MemoEditorSession) {
         do {
             try session.delete()
@@ -624,6 +719,35 @@ private enum MobileMemoEditorUITestFixture {
     }
 }
 #endif
+
+/// Render only a visible row's canvas, at a bounded thumbnail size.
+private struct MobileMemoThumbnail: View {
+    let memoID: UUID
+    let revision: Date
+    @Environment(\.modelContext) private var modelContext
+    @State private var preview: UIImage?
+
+    var body: some View {
+        Group {
+            if let preview {
+                Image(uiImage: preview).resizable().scaledToFit()
+            } else {
+                Image(systemName: "pencil.tip").foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .frame(width: 76, height: 60)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityHidden(true)
+        .task(id: revision) {
+            preview = nil
+            guard let data = try? MemoDrawingService.data(for: memoID, in: modelContext),
+                  let drawing = try? PKDrawing(data: data), !drawing.bounds.isEmpty else { return }
+            let bounds = drawing.bounds.insetBy(dx: -8, dy: -8)
+            guard let scale = MemoDrawingPreviewRules.scale(width: bounds.width, height: bounds.height) else { return }
+            preview = drawing.image(from: bounds, scale: min(scale, 240 / max(bounds.width, bounds.height)))
+        }
+    }
+}
 
 private struct MobileMemoDrawingCanvas: UIViewRepresentable {
     var drawingData: Data
@@ -687,11 +811,19 @@ private struct MobileMemoDrawingCanvas: UIViewRepresentable {
 
 private struct MobileMemoChecklistEditor: View {
     var session: MemoEditorSession
+    @Binding var editingItemID: UUID?
+    @Binding var textSelections: [UUID: TextSelection]
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @FocusState private var focusedItemID: UUID?
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
+                if session.checklistDrafts.isEmpty {
+                    Text("항목을 추가해 목록을 만들어보세요.")
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if !session.checklistDrafts.isEmpty {
                     let progress = session.checklistProgress
                     HStack {
@@ -720,6 +852,9 @@ private struct MobileMemoChecklistEditor: View {
                         TextField("체크 항목", text: Binding(
                             get: { item.title },
                             set: { session.updateChecklistTitle(id: item.id, title: $0) }
+                        ), selection: Binding(
+                            get: { textSelections[item.id] },
+                            set: { textSelections[item.id] = $0 }
                         ), axis: .vertical)
                         .textFieldStyle(.plain)
                         .focused($focusedItemID, equals: item.id)
@@ -734,7 +869,23 @@ private struct MobileMemoChecklistEditor: View {
                             appendAndFocusItem()
                         }
 
+                        Menu {
+                            Button("위로 이동", systemImage: "arrow.up") { moveItem(item.id, down: false) }
+                                .disabled(session.checklistDrafts.first?.id == item.id)
+                            Button("아래로 이동", systemImage: "arrow.down") { moveItem(item.id, down: true) }
+                                .disabled(session.checklistDrafts.last?.id == item.id)
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .frame(minWidth: 44, minHeight: 44)
+                        }
+                        .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 이동")
+
                         Button(role: .destructive) {
+                            if editingItemID == item.id {
+                                editingItemID = nil
+                                focusedItemID = nil
+                            }
+                            textSelections[item.id] = nil
                             session.removeChecklistItem(id: item.id)
                         } label: {
                             Image(systemName: "trash")
@@ -760,18 +911,45 @@ private struct MobileMemoChecklistEditor: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .accessibilityLabel("메모 체크리스트")
+        .onScrollPhaseChange { oldPhase, newPhase in
+            if oldPhase != .idle, newPhase == .idle, focusedItemID == nil {
+                editingItemID = nil
+            }
+        }
+        .task(id: horizontalSizeClass) {
+            // Restore the same field and selection after split-view reparenting.
+            guard let itemID = editingItemID else { return }
+            focusedItemID = nil
+            await _Concurrency.Task.yield()
+            guard !_Concurrency.Task.isCancelled else { return }
+            focusedItemID = itemID
+        }
+        .onChange(of: focusedItemID) { _, itemID in
+            // A detached text field resigns focus before its replacement exists.
+            // Only an explicit dismissal clears the route's editing target.
+            if let itemID { editingItemID = itemID }
+        }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("완료") { focusedItemID = nil }
+                Button("완료") {
+                    editingItemID = nil
+                    focusedItemID = nil
+                }
                     .accessibilityIdentifier("memo-checklist-keyboard-dismiss")
             }
         }
     }
 
+    private func moveItem(_ id: UUID, down: Bool) {
+        guard let index = session.checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
+        session.moveChecklistItems(fromOffsets: IndexSet(integer: index), toOffset: down ? index + 2 : index - 1)
+    }
+
     private func appendAndFocusItem() {
         session.appendChecklistItem()
-        focusedItemID = session.checklistDrafts.last?.id
+        editingItemID = session.checklistDrafts.last?.id
+        focusedItemID = editingItemID
     }
 }
 #endif

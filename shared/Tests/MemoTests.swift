@@ -366,17 +366,19 @@ func memoEditorDebouncesAndFlushesPendingChanges() async throws {
 func memoEditorPreservesTextDrawingAndChecklistTogether() throws {
     let container = try PlanBaseContainerFactory.makeInMemory()
     let context = container.mainContext
-    let session = MemoEditorSession(memo: nil, context: context)
-
-    session.updateContent("회의 메모")
-    session.updateDrawingData(Data([0x01, 0x02, 0x03]))
-    session.appendChecklistItem()
+    // An older app could create all three kinds in one memo. Keep that
+    // compatibility fixture explicit; new editors intentionally cannot do so.
+    let memo = try #require(try MemoService.saveComposite(
+        memo: nil, content: "회의 메모", preferredMode: .checklist,
+        drawingData: Data([0x01, 0x02, 0x03]),
+        checklistDrafts: [MemoChecklistDraft(title: "초기 항목", order: 100)], in: context
+    ))
+    let session = MemoEditorSession(memo: memo, context: context)
+    #expect(session.isComposite)
     let itemID = try #require(session.checklistDrafts.first?.id)
     session.updateChecklistTitle(id: itemID, title: "자료 보내기")
-    session.updatePreferredMode(.checklist)
-    session.flush()
+    #expect(session.flush())
 
-    let memo = try #require(session.memo)
     #expect(memo.content == "회의 메모")
     #expect(MemoRules.mode(for: memo) == .checklist)
     #expect(try MemoDrawingService.data(for: memo.id, in: context) == Data([0x01, 0x02, 0x03]))
@@ -571,3 +573,221 @@ private func refreshMemoPackageRecordsMetadata(_ contents: inout BackupPackageCo
         .map { String(format: "%02x", $0) }
         .joined()
 }
+
+@Test @MainActor
+func memoTypeSelectionDoesNotSaveEmptyDrafts() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    for mode in MemoEditorMode.creationOrder {
+        let session = MemoEditorSession(memo: nil, context: container.mainContext, initialMode: mode)
+        #expect(session.preferredMode == mode)
+        #expect(session.canChooseType)
+        session.updatePreferredMode(.checklist)
+        session.appendChecklistItem()
+        session.updatePreferredMode(.drawing)
+        #expect(session.flush())
+        #expect(session.memo == nil)
+    }
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<Memo>()) == 0)
+    #expect(try container.mainContext.fetchCount(FetchDescriptor<MemoChecklistItem>()) == 0)
+}
+
+@Test @MainActor
+func memoSingleTypeRemainsLockedAfterSaveReopenAndClear() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    for mode in MemoEditorMode.creationOrder {
+        let session = MemoEditorSession(memo: nil, context: context, initialMode: mode)
+        switch mode {
+        case .text: session.updateContent("글 메모 내용")
+        case .drawing: session.updateDrawingData(Data([1, 2, 3]))
+        case .checklist:
+            session.appendChecklistItem()
+            session.updateChecklistTitle(id: try #require(session.checklistDrafts.first?.id), title: "할 일")
+        }
+        #expect(!session.canChooseType)
+        for other in MemoEditorMode.creationOrder { session.updatePreferredMode(other) }
+        #expect(session.preferredMode == mode)
+        #expect(session.flush())
+        let memo = try #require(session.memo)
+        let reopened = MemoEditorSession(memo: memo, context: context)
+        #expect(reopened.preferredMode == mode)
+        #expect(!reopened.isComposite)
+        #expect(!reopened.canChooseType)
+        switch mode {
+        case .text: reopened.updateContent("")
+        case .drawing: reopened.updateDrawingData(Data())
+        case .checklist: reopened.removeChecklistItem(id: try #require(reopened.checklistDrafts.first?.id))
+        }
+        #expect(reopened.flush())
+        let cleared = MemoEditorSession(memo: memo, context: context)
+        #expect(cleared.preferredMode == mode)
+        #expect(!cleared.canChooseType)
+    }
+    #expect(try context.fetchCount(FetchDescriptor<Memo>()) == 3)
+}
+
+@Test @MainActor
+func memoSingleEditorCannotAccidentallyWriteAnotherType() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let session = MemoEditorSession(memo: nil, context: container.mainContext)
+    session.updateContent("원문")
+    session.updateDrawingData(Data([1]))
+    session.appendChecklistItem()
+    #expect(session.flush())
+    #expect(session.drawingData.isEmpty)
+    #expect(session.checklistDrafts.isEmpty)
+    #expect(!session.isComposite)
+}
+
+@Test @MainActor
+func memoContentOverridesStaleLegacyPreferenceWithoutHidingAnything() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = try #require(try MemoService.saveComposite(
+        memo: nil, content: "", preferredMode: .text, drawingData: Data(),
+        checklistDrafts: [MemoChecklistDraft(title: "체크 내용", order: 100)], in: context
+    ))
+    let session = MemoEditorSession(memo: memo, context: context)
+    #expect(session.preferredMode == .checklist)
+    #expect(session.displayTitle == "체크 내용")
+    #expect(!session.isComposite)
+}
+
+@Test @MainActor
+func memoSavePreservesNewlySyncedOtherTypesWithoutNotification() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = try #require(try MemoService.save(memo: nil, content: "원문", in: context))
+    let session = MemoEditorSession(memo: memo, context: context)
+    session.updateContent("로컬 초안")
+    let remoteItems = [MemoChecklistDraft(title: "구버전 기기의 항목", order: 100)]
+    _ = try MemoService.saveComposite(memo: memo, content: "원문", preferredMode: .drawing,
+        drawingData: Data([4, 5]), checklistDrafts: remoteItems, in: context)
+    #expect(session.flush())
+    #expect(memo.content == "로컬 초안")
+    #expect(try MemoDrawingService.data(for: memo.id, in: context) == Data([4, 5]))
+    #expect(try MemoChecklistService.drafts(for: memo.id, in: context) == remoteItems)
+    #expect(session.isComposite)
+    session.updatePreferredMode(.drawing)
+    #expect(session.drawingData == Data([4, 5]))
+}
+
+@Test @MainActor
+func memoImportRefreshKeepsDraftAndMakesAddedTypesAccessible() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let memo = try #require(try MemoService.saveComposite(memo: nil, content: "",
+        preferredMode: .drawing, drawingData: Data([1]), checklistDrafts: [], in: context))
+    let session = MemoEditorSession(memo: memo, context: context)
+    session.updateDrawingData(Data([9]))
+    _ = try MemoService.saveComposite(memo: memo, content: "동기화된 글", preferredMode: .text,
+        drawingData: Data([1]), checklistDrafts: [], in: context)
+    session.refreshFromStore()
+    #expect(session.drawingData == Data([9]))
+    #expect(session.content == "동기화된 글")
+    #expect(session.preferredMode == .drawing)
+    #expect(session.isComposite)
+    #expect(session.hasUnsavedChanges)
+    #expect(session.flush())
+    #expect(memo.content == "동기화된 글")
+    #expect(try MemoDrawingService.data(for: memo.id, in: context) == Data([9]))
+}
+
+@Test(arguments: [false, true], [false, true]) @MainActor
+func memoImportAdoptsNewRepresentativeWithoutLosingOtherTypes(
+    refreshBeforeSave: Bool, reconcileBeforeSave: Bool
+) throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let original = try #require(try MemoService.saveComposite(memo: nil, content: "",
+        preferredMode: .drawing, drawingData: Data([1]), checklistDrafts: [], in: context))
+    let session = MemoEditorSession(memo: original, context: context)
+    session.updateDrawingData(Data([9]))
+    let imported = Memo(id: original.id, content: "구버전 기기가 추가한 글",
+        updatedAt: original.updatedAt.addingTimeInterval(1))
+    context.insert(imported)
+    try context.save()
+    if reconcileBeforeSave {
+        _ = try DataIntegrityService.reconcile(context: context)
+        #expect(original.supersededAt != nil)
+    }
+    if refreshBeforeSave { session.refreshFromStore() }
+    #expect(session.flush())
+    #expect(session.memo?.instanceID == imported.instanceID)
+    #expect(session.content == "구버전 기기가 추가한 글")
+    #expect(session.isComposite)
+    #expect(try MemoDrawingService.data(for: imported.id, in: context) == Data([9]))
+    #expect(original.content.isEmpty)
+    let reopened = MemoEditorSession(memo: imported, context: context)
+    #expect(reopened.isComposite)
+    #expect(reopened.content == session.content)
+    #expect(reopened.drawingData == session.drawingData)
+}
+
+@Test @MainActor
+func memoPinTargetsImportedRepresentativeAndDeletedMemoKeepsUnsavedDraft() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let original = try #require(try MemoService.save(memo: nil, content: "처음 글", in: context))
+    let session = MemoEditorSession(memo: original, context: context)
+    let imported = Memo(id: original.id, content: "동기화된 글",
+        updatedAt: original.updatedAt.addingTimeInterval(1))
+    context.insert(imported)
+    try context.save()
+    _ = try DataIntegrityService.reconcile(context: context)
+    session.setPinned(true)
+    #expect(session.memo?.instanceID == imported.instanceID)
+    #expect(imported.isPinned)
+    #expect(!original.isPinned)
+    session.updateContent("아직 저장하지 않은 글")
+    try MemoService.delete(imported, in: context)
+    #expect(!session.flush())
+    #expect(session.content == "아직 저장하지 않은 글")
+    #expect(session.hasUnsavedChanges)
+    #expect(try MemoService.page(in: context, query: "").memos.isEmpty)
+}
+
+@Test @MainActor
+func memoPageSummariesIncludeChecklistCountsAndCompositeContent() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let items = [MemoChecklistDraft(title: "첫 항목", isCompleted: true, order: 100),
+                 MemoChecklistDraft(title: "둘째 항목", order: 200)]
+    let checklist = try #require(try MemoService.saveComposite(memo: nil, content: "",
+        preferredMode: .text, drawingData: Data(), checklistDrafts: items, in: context))
+    let mixed = try #require(try MemoService.saveComposite(memo: nil, content: "기존 복합 내용",
+        preferredMode: .drawing, drawingData: Data([1]), checklistDrafts: items, in: context))
+    let page = try MemoService.page(in: context, query: "")
+    let summary = try #require(page.summaries[checklist.instanceID])
+    #expect(summary.title == "첫 항목")
+    #expect(summary.mode == .checklist)
+    #expect(summary.preview.contains("1/2 완료"))
+    #expect(summary.preview.contains("둘째 항목"))
+    #expect(!summary.isComposite)
+    let composite = try #require(page.summaries[mixed.instanceID])
+    #expect(composite.isComposite)
+    #expect(composite.drawingUpdatedAt != nil)
+    #expect(composite.preview.contains("기존 복합 내용"))
+    #expect(composite.preview.contains("1/2 완료"))
+}
+
+#if DEBUG
+@Test @MainActor
+func memoLegacyUITestFixtureDoesNotDuplicateOrResetEditedContent() throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    try MemoUITestSupport.seedLegacyMemo(in: context)
+    let memo = try #require(try context.fetch(FetchDescriptor<Memo>()).first)
+    let editor = MemoEditorSession(memo: memo, context: context)
+    #expect(editor.isComposite)
+    editor.updateContent("수정한 기존 메모")
+    editor.toggleChecklistItem(id: try #require(editor.checklistDrafts.first?.id))
+    #expect(editor.flush())
+    try MemoUITestSupport.seedLegacyMemo(in: context)
+    #expect(try context.fetchCount(FetchDescriptor<Memo>()) == 1)
+    #expect(memo.content == "수정한 기존 메모")
+    let items = try MemoChecklistService.drafts(for: memo.id, in: context)
+    #expect(items.count == 1)
+    #expect(items.first?.isCompleted == true)
+}
+#endif

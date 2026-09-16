@@ -16,6 +16,7 @@
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [iPhone Duo 적응형 인터페이스](plans/active/IPHONE_DUO_INTERFACE_PLAN.md): 일반 iPhone·iPad 적응형 구현·검증 완료, Duo 전용 도구와 실기기 검증 대기
 - [build 76 기준 전체 최적화](plans/active/OPTIMIZATION_BUILD_76.md): 구현·로컬 검증 완료, [결과와 실기기 인수](plans/active/OPTIMIZATION_BUILD_76_RESULTS.md)
 
 - [칸반 입력·진행·완료와 실행 취소](plans/active/KANBAN_FLOW_IMPROVEMENT.md)
@@ -41,6 +42,7 @@
 
 ## 완료된 설계·구현 기록
 
+- [메모 생성 유형 분리](plans/completed/MEMO_TYPE_CREATION_PLAN.md): 구현·로컬 기능 검증 완료, 과거 검증 중 CloudKit 일반 실행의 영향은 별도 미확인 기록 유지
 - [저장한 루틴 중심의 템플릿 UI/UX](plans/completed/TEMPLATE_UX_IMPROVEMENT.md)
 - [집중모드 화면과 예상 시간 반영](plans/completed/FOCUS_EXPERIENCE_POLISH_PLAN.md)
 - [칸반 화면·버튼·테마 완성도 개선](plans/completed/KANBAN_SERVICE_POLISH_PLAN.md)
@@ -55,3 +57,7 @@
 
 완료 기록의 파일 크기와 구현 스냅샷은 당시 완료 시점을 설명한다. 현재 구조 판단은
 에이전트 작업 지도, 프로젝트 구조와 아키텍처 문서를 우선한다.
+
+## 배포 기록
+
+- [TestFlight 1.0 (79)](releases/TESTFLIGHT_BUILD_79.md): 2026-09-16 iOS·macOS 업로드 성공과 검증 근거

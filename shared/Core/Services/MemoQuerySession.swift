@@ -7,6 +7,7 @@ import SwiftData
 public final class MemoQuerySession {
     public typealias PageLoader = @MainActor (ModelContext, String, MemoQueryCursor?) throws -> MemoQueryPage
     public private(set) var memos: [Memo] = []
+    public private(set) var summaries: [UUID: MemoListSummary] = [:]
     public private(set) var isLoading = false
     public private(set) var hasMore = false
     public private(set) var errorMessage: String?
@@ -60,6 +61,7 @@ public final class MemoQuerySession {
             let page = try loadPage(context, query, nextCursor)
             let existingIDs = Set(memos.map(\.instanceID))
             memos.append(contentsOf: page.memos.filter { !existingIDs.contains($0.instanceID) })
+            summaries.merge(page.summaries) { _, new in new }
             nextCursor = page.nextCursor
             hasMore = page.hasMore
             loadedPageCount += 1
@@ -82,6 +84,7 @@ public final class MemoQuerySession {
         defer { isLoading = false }
         do {
             var rows: [Memo] = []
+            var summaries: [UUID: MemoListSummary] = [:]
             var seen = Set<UUID>()
             var cursor: MemoQueryCursor?
             var more = true
@@ -89,12 +92,14 @@ public final class MemoQuerySession {
             for _ in 0..<max(loadedPageCount, 1) {
                 let page = try loadPage(context, query, cursor)
                 rows.append(contentsOf: page.memos.filter { seen.insert($0.instanceID).inserted })
+                summaries.merge(page.summaries) { _, new in new }
                 cursor = page.nextCursor
                 more = page.hasMore
                 pages += 1
                 if !more { break }
             }
             memos = rows
+            self.summaries = summaries
             nextCursor = cursor
             hasMore = more
             loadedPageCount = pages
@@ -122,6 +127,7 @@ private extension MemoQuerySession {
         loadedPageCount = 0
         retryRefresh = false
         memos = []
+        summaries = [:]
         nextCursor = nil
         hasMore = true
         errorMessage = nil
