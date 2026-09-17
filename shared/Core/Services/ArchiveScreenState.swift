@@ -5,6 +5,12 @@ import Observation
 @MainActor
 @Observable
 public final class ArchiveScreenState {
+    public var pane: ArchivePane = .activity
+    public var reviewFilter = ReviewDiscoveryFilter()
+    public var reviewSession: ReviewDiscoverySession?
+    public var reviewScrollDayKey: String?
+    public var selectedReviewDayKey: String?
+    public var reviewShowsDetail = false
     public var filter = ArchiveFilter(contentMode: .dailyActivity)
     public var querySession: ArchiveQuerySession?
     public var activitySession: ActivityOverviewSession?

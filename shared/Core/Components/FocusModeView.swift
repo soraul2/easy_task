@@ -100,8 +100,11 @@ public struct FocusModeView: View {
     @State private var pendingTaskCompletion: FocusActiveSessionSnapshot?
     @State private var pendingReminderAt: Date?
 
-    public init(initialTaskID: UUID? = nil) {
+    private let onExplicitStart: () -> Void
+
+    public init(initialTaskID: UUID? = nil, onExplicitStart: @escaping () -> Void = {}) {
         _selectedTaskID = State(initialValue: initialTaskID)
+        self.onExplicitStart = onExplicitStart
     }
 
     public var body: some View {
@@ -609,6 +612,7 @@ public struct FocusModeView: View {
                 breakSeconds: breakMinutes * 60,
                 in: modelContext
             )
+            onExplicitStart()
         } catch {
             present(error)
         }
@@ -627,6 +631,7 @@ public struct FocusModeView: View {
                     expectedRevision: active.revision
                 )
             }
+            if active.runState == .paused { onExplicitStart() }
         } catch {
             present(error)
             reloadSnapshot()
@@ -789,6 +794,7 @@ public struct FocusModeView: View {
             )
             completion = nil
             try? FocusNotificationActionTokenStore.clear()
+            onExplicitStart()
         } catch {
             present(error)
         }
@@ -804,6 +810,7 @@ public struct FocusModeView: View {
             )
             completion = nil
             try? FocusNotificationActionTokenStore.clear()
+            onExplicitStart()
         } catch {
             present(error)
         }
@@ -819,6 +826,7 @@ public struct FocusModeView: View {
             )
             completion = nil
             try? FocusNotificationActionTokenStore.clear()
+            onExplicitStart()
         } catch {
             present(error)
         }

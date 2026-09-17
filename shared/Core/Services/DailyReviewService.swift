@@ -7,8 +7,8 @@ public enum DailyReviewService {
         review existingReview: DailyReview?,
         dayKey: String,
         title: String = "",
-        weather: String = "",
-        mood: String = "",
+        weather: String? = nil,
+        mood: String? = nil,
         content: String,
         imageFileNames: [String] = [],
         in context: ModelContext,
@@ -20,8 +20,6 @@ public enum DailyReviewService {
         }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedWeather = weather.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedMood = mood.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedImageFileNames = imageFileNames.filter {
             !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -40,6 +38,11 @@ public enum DailyReviewService {
                 $0.instanceID.uuidString < $1.instanceID.uuidString
             }
         }
+
+        // Current composers do not edit these legacy fields. Omission preserves them;
+        // an explicit empty value still clears a field.
+        let trimmedWeather = (weather ?? reusableReview?.weather ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedMood = (mood ?? reusableReview?.mood ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard reusableReview != nil || forceCreate || DailyReviewRules.hasContent(
             title: trimmedTitle,

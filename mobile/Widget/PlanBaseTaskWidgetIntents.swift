@@ -4,6 +4,7 @@ import Foundation
 
 enum PlanBaseTaskIntentCommand: Hashable, Sendable {
     case start(taskID: UUID)
+    case startSelected(taskID: UUID, selectionToken: String)
     case complete(taskID: UUID, taskSessionID: String)
     case advance(taskID: UUID, taskSessionID: String)
     case pauseFocus(sessionID: UUID, revision: Int)
@@ -114,13 +115,17 @@ struct StartPlanBaseTaskIntent: LiveActivityIntent {
     @Parameter(title: "작업 ID")
     var taskID: String
 
+    @Parameter(title: "표시 선택")
+    var selectionToken: String?
+
     @AppDependency(key: PlanBaseTaskIntentDependency.key)
     private var handler: any PlanBaseTaskIntentCommandHandling
 
     init() {}
 
-    init(taskID: UUID) {
+    init(taskID: UUID, selectionToken: String? = nil) {
         self.taskID = taskID.uuidString
+        self.selectionToken = selectionToken
     }
 
     @MainActor
@@ -128,7 +133,11 @@ struct StartPlanBaseTaskIntent: LiveActivityIntent {
         guard let taskID = UUID(uuidString: taskID) else {
             throw PlanBaseTaskIntentError.invalidTask
         }
-        try await handler.perform(.start(taskID: taskID))
+        if let selectionToken {
+            try await handler.perform(.startSelected(taskID: taskID, selectionToken: selectionToken))
+        } else {
+            try await handler.perform(.start(taskID: taskID))
+        }
         return .result()
     }
 }
@@ -171,7 +180,7 @@ struct CompletePlanBaseTaskIntent: LiveActivityIntent {
 
 struct AdvancePlanBaseTaskIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "PlanBase 다음 작업"
-    static let description = IntentDescription("현재 작업을 예정으로 돌리고 다음 작업을 진행합니다.")
+    static let description = IntentDescription("남은 작업 중 표시할 작업만 변경합니다.")
     static let isDiscoverable = false
     static let authenticationPolicy: IntentAuthenticationPolicy =
         .requiresLocalDeviceAuthentication

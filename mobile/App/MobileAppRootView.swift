@@ -132,6 +132,12 @@ struct MobileAppRootView: View {
         .tint(AppTheme.accent)
         #if DEBUG
         .modifier(MobileAdaptiveLayoutTestModifier())
+        .overlay(alignment: .topLeading) {
+            if PlanBaseLaunchEnvironment.isUITesting,
+               ProcessInfo.processInfo.arguments.contains("--ui-testing-live-card-audit") {
+                TaskLiveActivityAuditView()
+            }
+        }
         #endif
         .background(AppTheme.background)
         .background {
@@ -297,7 +303,11 @@ struct MobileAppRootView: View {
             isPresented: $showingFocusMode,
             onDismiss: { initialFocusTaskID = nil }
         ) {
-            FocusModeView(initialTaskID: initialFocusTaskID)
+            FocusModeView(initialTaskID: initialFocusTaskID) {
+                Swift.Task {
+                    await TaskLiveActivityCoordinator.shared.reconcile(context: modelContext, explicitStart: true)
+                }
+            }
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
@@ -408,6 +418,8 @@ struct MobileAppRootView: View {
 
     private func seedDemoDataIfNeeded() throws {
 #if DEBUG
+        if PlanBaseLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-discovery-fixtures") { return }
         if PlanBaseLaunchEnvironment.isUITesting,
            ProcessInfo.processInfo.arguments.contains("--ui-testing-performance") { return }
         if PlanBaseLaunchEnvironment.isUITesting,

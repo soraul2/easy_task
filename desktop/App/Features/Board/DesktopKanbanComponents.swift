@@ -7,7 +7,8 @@ struct KanbanColumn: View {
     var title: String
     var status: TaskStatus
     var tasks: [Task]
-    var emptyTitle: String
+    var isBoardEmpty: Bool
+    var onAddTask: () -> Void
     var selectedDayKey: String
     var onMove: (String, TaskStatus) -> Bool
     var onStatusChange: (Task, TaskStatus) -> Void
@@ -51,18 +52,12 @@ struct KanbanColumn: View {
             TimelineView(.periodic(from: .now, by: 60)) { timeline in
                 LazyVStack(spacing: 10) {
                     if tasks.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(status.emptyStateTitle)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(AppTheme.primaryText)
-                            Text(status.emptyStateDescription)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 24)
+                        BoardEmptyStateView(
+                            status: status,
+                            isBoardEmpty: isBoardEmpty,
+                            showsIcon: false,
+                            onAddTask: onAddTask
+                        )
                     } else {
                         ForEach(tasks) { task in
                             TaskCard(
@@ -232,8 +227,7 @@ struct TaskCard: View {
 
             TaskCardChecklistSection(
                 taskID: task.id,
-                taskTitle: task.title,
-                isExpandable: status == .doing
+                taskTitle: task.title
             )
 
             Rectangle()
@@ -362,15 +356,13 @@ private struct TaskCardChecklistSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
     @Query private var checklistItems: [TaskChecklistItem]
-    @State private var isExpanded = false
+    @State private var isExpanded = true
     @State private var saveErrorMessage: String?
 
     let taskTitle: String
-    let isExpandable: Bool
 
-    init(taskID: UUID, taskTitle: String, isExpandable: Bool) {
+    init(taskID: UUID, taskTitle: String) {
         self.taskTitle = taskTitle
-        self.isExpandable = isExpandable
         _checklistItems = Query(TaskChecklistService.descriptor(taskID: taskID))
     }
 
@@ -381,33 +373,29 @@ private struct TaskCardChecklistSection: View {
     var body: some View {
         if !progress.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                if isExpandable {
-                    Button {
-                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            progressLabel
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .bold))
-                                .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        }
-                        .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
-                        .contentShape(Rectangle())
+                Button {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+                        isExpanded.toggle()
                     }
-                    .buttonStyle(.plain)
-                    .help(isExpanded ? "체크리스트 접기" : "체크리스트 펼치기")
-                    .accessibilityLabel("\(taskTitle) 체크리스트")
-                    .accessibilityValue(
-                        "\(progress.completedCount)개 완료, 전체 \(progress.totalCount)개, " +
-                        (isExpanded ? "펼쳐짐" : "접힘")
-                    )
-                } else {
-                    progressLabel
+                } label: {
+                    HStack(spacing: 6) {
+                        progressLabel
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                    .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "체크리스트 접기" : "체크리스트 펼치기")
+                .accessibilityLabel("\(taskTitle) 체크리스트")
+                .accessibilityValue(
+                    "\(progress.completedCount)개 완료, 전체 \(progress.totalCount)개, " +
+                    (isExpanded ? "펼쳐짐" : "접힘")
+                )
 
-                if isExpandable, isExpanded {
+                if isExpanded {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(checklistItems) { item in
                             Button {
@@ -451,11 +439,6 @@ private struct TaskCardChecklistSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(saveErrorMessage)
-                }
-            }
-            .onChange(of: isExpandable) { _, canExpand in
-                if !canExpand {
-                    isExpanded = false
                 }
             }
         }

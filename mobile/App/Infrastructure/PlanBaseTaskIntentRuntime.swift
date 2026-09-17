@@ -21,8 +21,6 @@ enum PlanBaseTaskIntentRuntime {
 private final class PlanBaseTaskIntentCommandExecutor:
     PlanBaseTaskIntentCommandHandling,
     @unchecked Sendable {
-    private static var actionGate = PlanBaseTaskIntentActionGate()
-
     private let modelContainer: ModelContainer
 
     init(modelContainer: ModelContainer) {
@@ -42,7 +40,9 @@ private final class PlanBaseTaskIntentCommandExecutor:
             )
             await TaskLiveActivityCoordinator.shared.reconcile(
                 context: context,
-                now: now
+                now: now,
+                fromIntent: true,
+                explicitStart: false
             )
             return
         case .resumeFocus(let sessionID, let revision):
@@ -53,7 +53,9 @@ private final class PlanBaseTaskIntentCommandExecutor:
             )
             await TaskLiveActivityCoordinator.shared.reconcile(
                 context: context,
-                now: now
+                now: now,
+                fromIntent: true,
+                explicitStart: true
             )
             return
         case .stopFocus(let sessionID, let revision):
@@ -73,150 +75,65 @@ private final class PlanBaseTaskIntentCommandExecutor:
             }
             await TaskLiveActivityCoordinator.shared.reconcile(
                 context: context,
-                now: now
+                now: now,
+                fromIntent: true,
+                explicitStart: false
             )
             return
-        case .start, .complete, .advance:
+        case .start, .startSelected, .complete, .advance:
             break
         }
 
-        let todayDayKey = DayKey.key(for: now)
-        let fetchedTasks = try context.fetch(
-            BoundedQueryService.widgetPlannedTasksDescriptor(
-                from: todayDayKey,
-                through: todayDayKey
-            )
-        )
-        let tasks = TodayTaskWidgetRules.eligibleRepresentatives(
-            from: fetchedTasks,
-            dayKey: todayDayKey
-        )
-
-        switch command {
-        case .start(let taskID):
-            guard tasks.allSatisfy({ $0.status != TaskStatus.doing.rawValue }),
-                  let task = tasks.first(where: { $0.id == taskID }),
-                  task.status == TaskStatus.todo.rawValue else {
+        let coordinator = TaskLiveActivityCoordinator.shared
+        let store = coordinator.selectionStore
+        var explicitStart = false
+        do {
+            guard try FocusSessionService.activeSnapshot() == nil else {
                 throw PlanBaseTaskIntentRuntimeError.staleTask
             }
-            try PersistenceCommandService.perform(in: context) {
-                try TaskLifecycleService.applyStatus(
-                    .doing,
-                    to: task,
-                    in: context,
-                    now: now
-                )
+            switch command {
+            case .start(let id):
+                try TaskLiveActivityCommandService.start(taskID: id, token: nil, in: context, selectionStore: store, now: now)
+                explicitStart = true
+            case .startSelected(let id, let token):
+                try TaskLiveActivityCommandService.start(taskID: id, token: token, in: context, selectionStore: store, now: now)
+                explicitStart = true
+            case .complete(let id, let token):
+                try TaskLiveActivityCommandService.complete(taskID: id, token: token, in: context, selectionStore: store, now: now)
+                TaskNotificationScheduler.shared.cancelNotifications(for: [id])
+            case .advance(let id, let token):
+                try TaskLiveActivityCommandService.browse(taskID: id, token: token, in: context, selectionStore: store, now: now)
+            case .pauseFocus, .resumeFocus, .stopFocus:
+                return
             }
-
-        case .complete(let taskID, let taskSessionID):
-            guard Self.actionGate.canAccept(at: now) else { return }
-            let task = try validatedCurrentTask(
-                id: taskID,
-                sessionID: taskSessionID,
-                tasks: tasks,
-                context: context
-            )
-            guard !TaskReminderRules.hasUpcomingReminder(task, now: now) else {
+        } catch {
+            await coordinator.reconcile(context: context, now: now, fromIntent: true)
+            switch error {
+            case TaskLiveActivitySelectionError.completionNeedsConfirmation:
                 throw PlanBaseTaskIntentRuntimeError.completionNeedsConfirmation
-            }
-            try PersistenceCommandService.perform(in: context) {
-                try TaskLifecycleService.applyStatus(
-                    .done,
-                    to: task,
-                    in: context,
-                    now: now
-                )
-            }
-            Self.actionGate.recordAccepted(at: now)
-            TaskNotificationScheduler.shared.cancelNotifications(for: [task.id])
-
-        case .advance(let taskID, let taskSessionID):
-            guard Self.actionGate.canAccept(at: now) else { return }
-            let task = try validatedCurrentTask(
-                id: taskID,
-                sessionID: taskSessionID,
-                tasks: tasks,
-                context: context
-            )
-            guard let nextTask = TodayTaskWidgetRules.nextTask(
-                after: task.id,
-                from: tasks,
-                dayKey: todayDayKey
-            ) else {
+            case TaskLiveActivitySelectionError.noOtherTask:
                 throw PlanBaseTaskIntentRuntimeError.noNextTask
+            case is TaskLiveActivitySelectionError:
+                throw PlanBaseTaskIntentRuntimeError.staleTask
+            default:
+                throw error
             }
-            let nextStatus = TaskStatus(rawValue: nextTask.status) ?? .todo
-            try PersistenceCommandService.perform(in: context) {
-                try TaskLifecycleService.applyStatus(
-                    .todo,
-                    to: task,
-                    in: context,
-                    now: now
-                )
-                if nextStatus == .todo {
-                    try TaskLifecycleService.applyStatus(
-                        .doing,
-                        to: nextTask,
-                        in: context,
-                        now: now
-                    )
-                }
-            }
-            Self.actionGate.recordAccepted(at: now)
-        case .pauseFocus, .resumeFocus, .stopFocus:
-            return
         }
 
-        let themeID = UserDefaults.standard.string(forKey: AppTheme.storageKey)
-            ?? AppThemePreset.defaultID
-        _ = try await CalendarWidgetSnapshotPublicationService.publish(
-            context: context,
-            themeID: themeID,
-            forceTimelineReload: true,
-            referenceDate: now
-        )
-        await TaskLiveActivityCoordinator.shared.reconcile(
-            context: context,
-            now: now
-        )
-    }
-
-    private func validatedCurrentTask(
-        id: UUID,
-        sessionID: String,
-        tasks: [PlanBaseCore.Task],
-        context: ModelContext
-    ) throws -> PlanBaseCore.Task {
-        guard let task = tasks.first(where: { $0.id == id }),
-              task.status == TaskStatus.doing.rawValue,
-              try TaskLiveActivityCoordinator.shared.taskSessionID(
-                  for: task,
-                  in: context
-              ) == sessionID else {
-            throw PlanBaseTaskIntentRuntimeError.staleTask
+        // The model command has committed. Publishing is a separate, retryable cache update.
+        do {
+            _ = try await CalendarWidgetSnapshotPublicationService.publish(
+                context: context,
+                themeID: UserDefaults.standard.string(forKey: AppTheme.storageKey) ?? AppThemePreset.defaultID,
+                forceTimelineReload: true,
+                referenceDate: now
+            )
+        } catch {
+            print("PlanBase widget refresh after intent failed: \(error)")
         }
-        return task
-    }
-}
-
-struct PlanBaseTaskIntentActionGate {
-    static let defaultMinimumInterval: TimeInterval = 1
-
-    private let minimumInterval: TimeInterval
-    private var lastAcceptedAt: Date?
-
-    init(minimumInterval: TimeInterval = Self.defaultMinimumInterval) {
-        self.minimumInterval = minimumInterval
+        await coordinator.reconcile(context: context, now: now, fromIntent: true, explicitStart: explicitStart)
     }
 
-    func canAccept(at now: Date) -> Bool {
-        guard let lastAcceptedAt else { return true }
-        return now.timeIntervalSince(lastAcceptedAt) >= minimumInterval
-    }
-
-    mutating func recordAccepted(at now: Date) {
-        lastAcceptedAt = now
-    }
 }
 
 private enum PlanBaseTaskIntentRuntimeError: LocalizedError {

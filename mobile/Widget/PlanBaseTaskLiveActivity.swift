@@ -24,7 +24,9 @@ struct PlanBaseTaskLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
-                        TaskLiveActivityActiveDot(themeID: context.state.themeID)
+                        if !context.state.isTodo {
+                            TaskLiveActivityActiveDot(themeID: context.state.themeID)
+                        }
                         TaskLiveActivityTimeText(
                             state: context.state,
                             style: .expanded
@@ -35,11 +37,12 @@ struct PlanBaseTaskLiveActivity: Widget {
                     TaskLiveActivityActions(context: context)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    TaskLiveActivityExpandedTitle(title: context.state.title)
+                    TaskLiveActivityExpandedTitle(title: context.state.title, isTodo: context.state.isTodo)
                 }
             } compactLeading: {
                 TaskLiveActivityCompactTitle(
                     title: context.state.title,
+                    isTodo: context.state.isTodo,
                     themeID: context.state.themeID
                 )
             } compactTrailing: {
@@ -61,6 +64,7 @@ private struct TaskLiveActivityExpandedTitle: View {
     @Environment(\.redactionReasons) private var redactionReasons
 
     let title: String
+    var isTodo = false
 
     var body: some View {
         Text(redactedTitle)
@@ -75,13 +79,13 @@ private struct TaskLiveActivityExpandedTitle: View {
     }
 
     private var redactedTitle: String {
-        redactionReasons.contains(.privacy) ? "진행 중인 작업" : title
+        redactionReasons.contains(.privacy) ? (isTodo ? "할 일" : "진행 중인 작업") : title
     }
 
     private var accessibilityTitle: String {
         redactionReasons.contains(.privacy)
-            ? "진행 중인 작업"
-            : "진행 중인 작업 \(title)"
+            ? (isTodo ? "할 일" : "진행 중인 작업")
+            : "\(isTodo ? "할 일" : "진행 중인 작업") \(title)"
     }
 }
 
@@ -90,6 +94,7 @@ private struct TaskLiveActivityCompactTitle: View {
     @Environment(\.redactionReasons) private var redactionReasons
 
     let title: String
+    var isTodo = false
     let themeID: String?
 
     private var theme: TaskLiveActivityTheme {
@@ -97,7 +102,7 @@ private struct TaskLiveActivityCompactTitle: View {
     }
 
     var body: some View {
-        Text(redactionReasons.contains(.privacy) ? "진행" : title)
+        Text(redactionReasons.contains(.privacy) ? (isTodo ? "할 일" : "진행") : title)
             .font(.caption2.weight(.semibold))
             .lineLimit(1)
             .truncationMode(.tail)
@@ -105,7 +110,7 @@ private struct TaskLiveActivityCompactTitle: View {
             .foregroundStyle(theme.accent)
             .frame(maxWidth: 46, alignment: .leading)
             .privacySensitive()
-            .accessibilityLabel(redactionReasons.contains(.privacy) ? "진행 중인 작업" : "진행 중인 작업 \(title)")
+            .accessibilityLabel(redactionReasons.contains(.privacy) ? (isTodo ? "할 일" : "진행 중인 작업") : "\(isTodo ? "할 일" : "진행 중인 작업") \(title)")
     }
 }
 
@@ -152,7 +157,13 @@ private struct TaskLiveActivityTimeText: View {
 
     @ViewBuilder
     var body: some View {
-        if state.isFocusSession {
+        if state.isTodo {
+            if style == .minimal {
+                Image(systemName: "circle").font(style.font).accessibilityLabel("할 일")
+            } else {
+                Text("할 일").font(style.font).foregroundStyle(.secondary)
+            }
+        } else if state.isFocusSession {
             if !state.isFocusPaused, let deadline = state.focusDeadline {
                 Text(
                     timerInterval: Date.now...max(Date.now, deadline),
@@ -242,7 +253,9 @@ private struct TaskLiveActivityLockScreen: View {
 
                 HStack(spacing: 8) {
                     HStack(spacing: 6) {
-                        TaskLiveActivityActiveDot(themeID: context.state.themeID)
+                        if !context.state.isTodo {
+                            TaskLiveActivityActiveDot(themeID: context.state.themeID)
+                        }
                         TaskLiveActivityTimeText(
                             state: context.state,
                             style: .expanded
@@ -278,7 +291,7 @@ private struct TaskLiveActivityLockScreen: View {
     }
 
     private var redactedTitle: String {
-        redactionReasons.contains(.privacy) ? "진행 중인 작업" : context.state.title
+        redactionReasons.contains(.privacy) ? (context.state.isTodo ? "할 일" : "진행 중인 작업") : context.state.title
     }
 }
 
@@ -337,10 +350,18 @@ private struct TaskLiveActivityActions: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("다음 작업 진행")
+                .accessibilityLabel("표시할 작업 변경")
             }
 
-            if !context.state.isFocusSession {
+            if context.state.isTodo {
+                Button(intent: StartPlanBaseTaskIntent(
+                    taskID: context.state.taskID, selectionToken: context.state.taskSessionID
+                )) {
+                    TaskLiveActivityActionLabel(systemImage: "play.fill", themeID: context.state.themeID)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("이 작업 시작")
+            } else if !context.state.isFocusSession {
                 completionControl
             }
         }
@@ -370,7 +391,7 @@ private struct TaskLiveActivityActions: View {
                 )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("작업 완료")
+            .accessibilityLabel("이 작업 완료")
         }
     }
 }

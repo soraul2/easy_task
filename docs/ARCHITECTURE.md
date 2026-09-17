@@ -310,3 +310,28 @@ controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명�
 개발 컨테이너 발급과 검증 절차는 [`CLOUDKIT_SYNC.md`](CLOUDKIT_SYNC.md)를 따른다.
 Task 1회성 알림의 V4 스키마, iOS 예약 수명주기와 검증 순서는
 [`Task 알림 완료 기록`](plans/completed/TASK_REMINDER_PLAN.md)을 따른다.
+
+
+## 이월함·회고 탐색과 남은 작업 실시간 카드
+
+- `CarryoverInboxSession`은 실제 오늘을 기준으로 과거 미완료 논리 작업을 조회한다. 후보 ID의 활성
+  형제 레코드까지 조회해 대표를 정한 뒤 날짜·상태를 판정하므로 늦은 동기화의 이전 레코드를 세지 않는다.
+  기기 로컬 확인 키는 `(task.id, plannedDayKey)`이며 최초 성공 조회를 기준으로 삼는다. 표시된 목록만
+  확인 처리하고 현재 열린 화면의 새 작업 묶음은 유지한다. 확인/안내 상태는 Task나 CloudKit에 쓰지 않는다.
+- `ArchiveScreenState`는 활동 기록과 회고의 검색·기간·페이지·스크롤·선택을 별도로 보존한다.
+  `ReviewDiscoveryQueryService`는 존재하는 회고 날짜를 64행씩 탐색하며 경계 날짜의 중복을 완성하고
+  Task/진행/집중 이력을 읽지 않는다. 날짜 대표를 먼저 정한 뒤 본문·제목·날씨·기분·첨부·레거시 블록
+  내용을 판정한다. 수정은 기존 작성기를 재사용하며 작성기가 다루지 않는 날씨·기분은 보존한다.
+- `TaskLiveActivitySelectionStore`는 오늘 todo/doing 중 표시할 논리 작업과 선택 버전을 기기에 보존한다.
+  `TaskLiveActivityCommandService.browse`는 표시만 바꾸고 `start/complete`는 최신 선택·상태를 확인한 뒤
+  `PersistenceCommandService`와 `TaskLifecycleService`로 작업과 진행 이벤트를 함께 저장한다.
+  기존 정적 위젯의 token 없는 시작은 ‘다른 doing 없음’ 정책을 그대로 적용한다.
+- `TaskLiveActivityCoordinator`는 오늘 미완료 후보가 있으면 하나의 Activity를 생성·갱신한다.
+  Focus/휴식이 우선하며 모든 후보가 없어지면 즉시 종료한다. ContentState의 todo는 타이머 대신
+  할 일과 시작 버튼을 표시한다. 기존 payload의 `updatedAt` wire key와 상태 필드 누락 호환성을 유지한다.
+- Activity 수명은 작업 시작 시각이 아니라 Activity 생성 시각으로 계산한다. `TaskLiveActivityLifetimeStore`는
+  앱의 종료를 먼저 기록하고, 관찰된 수명 만료와 원인 불명 사라짐을 분리한다. ActivityKit은 해제 주체를
+  보장하지 않으므로 후자는 당일 자동 재생성을 억제한다. 새 요청은 foreground/지원 Intent 등 허용된
+  경로에서만 수행한다. 무기한 백그라운드 유지나 서버 push-to-start는 제공하지 않는다.
+- 모델 스키마·호환 bundle/App Group/CloudKit 식별자는 변경하지 않는다. 테스트 fixture·로컬 설정은
+  `--ui-testing`과 명시적 fixture 인수를 함께 요구하고 UUID별 테스트 저장소를 사용한다.

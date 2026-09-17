@@ -62,7 +62,7 @@ struct BoardView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
     @Query private var selectedDayTaskRows: [Task]
-    @Query private var carryoverTaskRows: [Task]
+    @State private var carryoverSession: CarryoverInboxSession?
     @Query private var overlappingEventRows: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
@@ -92,9 +92,6 @@ struct BoardView: View {
         _selectedDayTaskRows = Query(
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
         )
-        _carryoverTaskRows = Query(
-            BoundedQueryService.carryoverTasksDescriptor(before: DayKey.today)
-        )
         _overlappingEventRows = Query(
             BoundedQueryService.eventsDescriptor(
                 overlappingStartDayKey: dayKey,
@@ -116,7 +113,7 @@ struct BoardView: View {
     }
 
     private var carryoverTasks: [Task] {
-        TaskRules.carryoverTasks(carryoverTaskRows, before: todayKey)
+        carryoverSession?.tasks ?? []
     }
 
     private var boardFailureMessage: Binding<String?> {
@@ -146,22 +143,28 @@ struct BoardView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     eventStrip
                     quickCreate
+                    if let carryoverSession {
+                        CarryoverArrivalBanner(session: carryoverSession) { presentedSheet = .carryover }
+                    }
                     kanbanBoard(tasks: tasks)
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
             }
         }
+        .carryoverInboxSession($carryoverSession)
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .carryover:
-                CarryoverSheet(
-                    tasks: carryoverTasks,
-                    failureMessage: $persistenceFailureMessage,
-                    onBringToToday: bringToToday,
-                    onCompleteAll: completeAllCarryoverTasks,
-                    onDelete: deleteTask
-                )
+                if let carryoverSession {
+                    CarryoverSheet(
+                        session: carryoverSession,
+                        failureMessage: $persistenceFailureMessage,
+                        onBringToToday: bringToToday,
+                        onCompleteAll: completeAllCarryoverTasks,
+                        onDelete: deleteTask
+                    )
+                }
             case .savedTasks:
                 SavedTaskLibrarySheet(selectedDate: selectedDate) {
                     savedTaskNotice = $0
@@ -171,7 +174,7 @@ struct BoardView: View {
                     savedTaskNotice = $0
                 }
             case .taskDetail(let id):
-                if let task = (selectedDayTaskRows + carryoverTaskRows).first(where: {
+                if let task = (selectedDayTaskRows + carryoverTasks).first(where: {
                     $0.supersededAt == nil && $0.id == id
                 }) {
                     TaskDetailSheet(task: task)
@@ -353,14 +356,7 @@ struct BoardView: View {
                 HStack(spacing: 7) {
                     Image(systemName: "tray")
                     Text("이월함")
-                    if !carryoverTasks.isEmpty {
-                        Text("\(carryoverTasks.count)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.selectedTab.opacity(0.22), in: Capsule())
-                    }
+                    CarryoverCountBadge(session: carryoverSession)
                 }
                 .font(.system(size: 13, weight: .semibold))
                 .padding(.horizontal, 12)
@@ -368,6 +364,8 @@ struct BoardView: View {
                 .calendarToolbarButtonBackground()
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(carryoverSession?.accessibilityLabel ?? "이월함, 불러오는 중")
+            .accessibilityIdentifier("carryover-button")
             .help("과거 미완료 작업을 오늘 보드로 가져오기")
 
             Button {
@@ -491,7 +489,8 @@ struct BoardView: View {
                 title: TaskStatus.todo.title,
                 status: .todo,
                 tasks: BoardQueryRules.tasks(tasks, matching: .todo),
-                emptyTitle: "할 일 없음",
+                isBoardEmpty: tasks.isEmpty,
+                onAddTask: { isQuickTitleFocused = true },
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
@@ -507,7 +506,8 @@ struct BoardView: View {
                 title: TaskStatus.doing.title,
                 status: .doing,
                 tasks: BoardQueryRules.tasks(tasks, matching: .doing),
-                emptyTitle: "진행 중인 작업 없음",
+                isBoardEmpty: tasks.isEmpty,
+                onAddTask: { isQuickTitleFocused = true },
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
@@ -523,7 +523,8 @@ struct BoardView: View {
                 title: TaskStatus.done.title,
                 status: .done,
                 tasks: BoardQueryRules.tasks(tasks, matching: .done),
-                emptyTitle: "완료한 작업 없음",
+                isBoardEmpty: tasks.isEmpty,
+                onAddTask: { isQuickTitleFocused = true },
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
@@ -700,6 +701,10 @@ struct BoardView: View {
         performPersistenceCommand(
             failureMessage: "작업을 오늘로 가져오지 못했습니다."
         ) {
+            guard let task = try CarryoverInboxRules.currentTasks(withIDs: [task.id], in: modelContext).first else {
+                carryoverSession?.refresh()
+                return
+            }
             let now = Date()
             let currentTodayKey = DayKey.key(for: now)
             let nextOrder = try BoundedQueryService.nextOrder(
@@ -718,15 +723,7 @@ struct BoardView: View {
 
     private func completeAllCarryoverTasks(taskIDs: [UUID]) {
         do {
-            var tasksToComplete: [Task] = []
-            for taskID in taskIDs {
-                if let task = try modelContext.fetch(
-                    BoundedQueryService.taskDescriptor(id: taskID)
-                ).first,
-                   task.status != TaskStatus.done.rawValue {
-                    tasksToComplete.append(task)
-                }
-            }
+            let tasksToComplete = try CarryoverInboxRules.currentTasks(withIDs: taskIDs, in: modelContext)
             guard !tasksToComplete.isEmpty else { return }
             try PersistenceCommandService.perform(in: modelContext) {
                 try TaskLifecycleService.completeOnPlannedDays(

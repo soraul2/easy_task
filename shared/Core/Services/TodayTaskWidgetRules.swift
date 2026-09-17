@@ -9,15 +9,14 @@ public enum TodayTaskWidgetRules {
         let representatives = Dictionary(
             grouping: tasks.filter {
                 $0.supersededAt == nil
-                    && $0.archivedAt == nil
-                    && $0.plannedDayKey == dayKey
-                    && TaskStatus(rawValue: $0.status) != nil
             },
             by: \.id
         ).values.compactMap { candidates in
             BoundedQueryService.representativeTask(from: candidates)
         }
-        return representatives.sorted(by: taskSort)
+        return representatives.filter {
+            $0.archivedAt == nil && $0.plannedDayKey == dayKey && TaskStatus(rawValue: $0.status) != nil
+        }.sorted(by: taskSort)
     }
 
     @MainActor

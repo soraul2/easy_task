@@ -8,7 +8,8 @@ private struct PendingDesktopCarryoverCompletion {
 }
 
 struct CarryoverSheet: View {
-    var tasks: [Task]
+    var session: CarryoverInboxSession
+    private var tasks: [Task] { session.displayedTasks }
     @Binding var failureMessage: String?
     var onBringToToday: (Task) -> Void
     var onCompleteAll: ([UUID]) -> Void
@@ -54,7 +55,9 @@ struct CarryoverSheet: View {
                 .keyboardShortcut(.cancelAction)
             }
 
-            if tasks.isEmpty {
+            CarryoverInboxSummary(session: session)
+
+            if tasks.isEmpty && session.errorMessage == nil {
                 EmptySheetState(
                     symbol: "tray",
                     title: "이월할 작업 없음",
@@ -63,18 +66,32 @@ struct CarryoverSheet: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 10) {
-                        ForEach(tasks) { task in
-                            CarryoverTaskRow(
-                                task: task,
-                                onBringToToday: onBringToToday,
-                                onDelete: onDelete
-                            )
+                        ForEach([true, false], id: \.self) { isNew in
+                            let group = tasks.filter {
+                                session.presentedNewKeys.contains(CarryoverEntryKey($0)) == isNew
+                            }
+                            if !group.isEmpty {
+                                Text(isNew ? "새로 들어온 작업" : "이전에 남은 작업")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AppTheme.secondaryText)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.top, 4)
+                                ForEach(group) { task in
+                                    CarryoverTaskRow(
+                                        task: task,
+                                        onBringToToday: onBringToToday,
+                                        onDelete: onDelete
+                                    )
+                                }
+                            }
                         }
                     }
                     .padding(.vertical, 2)
                 }
             }
         }
+        .task(id: session.snapshotRevision) { session.didDisplayInbox() }
+        .onDisappear { session.endPresentation() }
         .padding(22)
         .frame(minWidth: 520, idealWidth: 620, minHeight: 360, idealHeight: 480)
         .background(AppTheme.panel)

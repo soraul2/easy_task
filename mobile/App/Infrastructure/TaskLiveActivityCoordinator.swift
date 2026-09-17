@@ -3,319 +3,223 @@ import ActivityKit
 import Foundation
 import PlanBaseCore
 import SwiftData
+import UIKit
 
 @MainActor
 final class TaskLiveActivityCoordinator {
     static let shared = TaskLiveActivityCoordinator()
-
-    private static let maximumSessionAge: TimeInterval = 8 * 60 * 60
-    private static let receiptDefaultsKey = "planbase.live-activity.handled-sessions.v1"
-    private static let maximumReceiptCount = 128
-
+#if DEBUG
+    static let didReconcileNotification = Notification.Name("PlanBaseLiveActivityAuditUpdated")
+#endif
+    let selectionStore = TaskLiveActivitySelectionStore()
+    private let lifetimeStore = TaskLiveActivityLifetimeStore()
+    private var observers: [String: Swift.Task<Void, Never>] = [:]
     private var isReconciling = false
-    private var needsAnotherPass = false
+    private var pending: Request?
+
+    private struct Request {
+        var context: ModelContext
+        var now: Date
+        var allowStarting: Bool
+        var fromIntent: Bool
+        var explicitStart: Bool
+    }
+
+    func resumeAfterExplicitStart(taskID: UUID, context: ModelContext) async {
+        do {
+            let tasks = try TaskLiveActivitySelectionRules.fetchTodayTasks(in: context, dayKey: DayKey.today)
+            try selectionStore.select(taskID: taskID, tasks: tasks, dayKey: DayKey.today)
+            await reconcile(context: context, explicitStart: true)
+        } catch {
+            // The task may have moved out of today after the successful status command.
+            await reconcile(context: context)
+        }
+    }
 
     func reconcile(
-        context: ModelContext,
-        now: Date = Date(),
-        allowStarting: Bool = true
+        context: ModelContext, now: Date = Date(), allowStarting: Bool = true,
+        fromIntent: Bool = false, explicitStart: Bool = false
     ) async {
-        if isReconciling {
-            needsAnotherPass = true
-            return
-        }
-
+        pending = Request(context: context, now: now,
+            allowStarting: allowStarting || pending?.allowStarting == true,
+            fromIntent: fromIntent || pending?.fromIntent == true,
+            explicitStart: explicitStart || pending?.explicitStart == true)
+        guard !isReconciling else { return }
         isReconciling = true
         defer { isReconciling = false }
-        repeat {
-            needsAnotherPass = false
-            do {
-                try await reconcileOnce(
-                    context: context,
-                    now: now,
-                    allowStarting: allowStarting
-                )
-            } catch {
-                print("PlanBase Live Activity reconciliation failed: \(error)")
-            }
-        } while needsAnotherPass
+        while let request = pending {
+            pending = nil
+            do { try await reconcileOnce(request) }
+            catch { print("PlanBase Live Activity reconciliation failed: \(error)") }
+#if DEBUG
+            NotificationCenter.default.post(name: Self.didReconcileNotification, object: nil)
+#endif
+        }
     }
 
-    func taskSessionID(
-        for task: PlanBaseCore.Task,
-        in context: ModelContext
-    ) throws -> String {
-        let events = try TaskProgressEventService.events(
-            forTaskIDs: Set([task.id]),
-            in: context
-        )
-        return Self.taskSession(
-            task: task,
-            projection: TaskProgressEventRules.projection(for: events)
-        ).id
-    }
-
-    private func reconcileOnce(
-        context: ModelContext,
-        now: Date,
-        allowStarting: Bool
-    ) async throws {
-        if let focus = try FocusSessionService.activeSnapshot() {
-            try await reconcileFocus(
-                focus,
-                context: context,
-                now: now,
-                allowStarting: allowStarting
-            )
+    private func reconcileOnce(_ request: Request) async throws {
+        let context = request.context
+        let now = request.now
+        observeExisting(now: now)
+        if try FocusSessionService.activeSnapshot() != nil,
+           case .unchanged(let active) = try FocusSessionService.reconcile(now: now, in: context) {
+            let state = PlanBaseTaskActivityAttributes.ContentState(
+                taskSessionID: "focus:\(active.sessionID.uuidString.lowercased())",
+                taskID: active.taskID, title: active.taskTitleSnapshot,
+                completedCount: 0, totalCount: 0, hasNextTask: false,
+                requiresCompletionConfirmation: false, elapsedTimerStartedAt: active.phaseStartedAt,
+                themeID: themeID, focusSessionID: active.sessionID, focusRevision: active.revision,
+                focusPhaseRawValue: active.phaseRawValue, focusRunStateRawValue: active.runStateRawValue,
+                focusDeadline: active.deadline, focusRemainingSecondsAtPause: active.remainingSecondsAtPause)
+            await synchronize(state: state, dayKey: DayKey.key(for: now), staleDate: active.deadline,
+                              isFocus: true, request: request)
             return
         }
 
         let dayKey = DayKey.key(for: now)
-        let fetchedTasks = try context.fetch(
-            BoundedQueryService.widgetPlannedTasksDescriptor(
-                from: dayKey,
-                through: dayKey
-            )
-        )
-        let tasks = TodayTaskWidgetRules.eligibleRepresentatives(
-            from: fetchedTasks,
-            dayKey: dayKey
-        )
-        guard let currentTask = tasks.first(where: {
-            $0.status == TaskStatus.doing.rawValue
-        }) else {
-            await Self.endAllActivities()
+        let tasks = try TaskLiveActivitySelectionRules.fetchTodayTasks(in: context, dayKey: dayKey)
+        guard let selection = selectionStore.selection(tasks: tasks, dayKey: dayKey),
+              let task = tasks.first(where: { $0.id == selection.taskID }) else {
+            await endAllActivities()
             return
         }
-
-        let events = try TaskProgressEventService.events(
-            forTaskIDs: Set([currentTask.id]),
-            in: context
-        )
-        let projection = TaskProgressEventRules.projection(for: events)
-        let session = Self.taskSession(task: currentTask, projection: projection)
-        if now.timeIntervalSince(session.startedAt) >= Self.maximumSessionAge {
-            markHandled(session.id)
-            await Self.endAllActivities()
-            return
+        var timerStart = task.updatedAt
+        if task.status == TaskStatus.doing.rawValue {
+            let events = try TaskProgressEventService.events(forTaskIDs: [task.id], in: context)
+            let projection = TaskProgressEventRules.projection(for: events)
+            let currentStart = projection.currentStartedAt ?? task.updatedAt
+            timerStart = now.addingTimeInterval(-(projection.recordedDuration + max(0, now.timeIntervalSince(currentStart))))
         }
-
-        let contentState = makeContentState(
-            currentTask: currentTask,
-            tasks: tasks,
-            sessionID: session.id,
-            elapsedTimerStartedAt: Self.elapsedTimerStartedAt(
-                sessionStartedAt: session.startedAt,
-                projection: projection,
-                now: now
-            ),
-            now: now
-        )
-        let content = ActivityContent(
-            state: contentState,
-            staleDate: DayKey.addingDays(1, to: DayKey.startOfDay(for: now)),
-            relevanceScore: 80
-        )
-
-        if await Self.updateExistingActivity(dayKey: dayKey, content: content) {
-            markHandled(session.id)
-            return
-        }
-
-        guard allowStarting, !handledSessionIDs.contains(session.id) else { return }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            markHandled(session.id)
-            return
-        }
-
-        do {
-            _ = try Activity.request(
-                attributes: PlanBaseTaskActivityAttributes(
-                    activityID: UUID(),
-                    dayKey: dayKey
-                ),
-                content: content,
-                pushType: nil
-            )
-            markHandled(session.id)
-        } catch {
-            markHandled(session.id)
-            throw error
-        }
-    }
-
-    private func reconcileFocus(
-        _ focus: FocusActiveSessionSnapshot,
-        context: ModelContext,
-        now: Date,
-        allowStarting: Bool
-    ) async throws {
-        let reconciliation = try FocusSessionService.reconcile(
-            now: now,
-            in: context
-        )
-        guard case .unchanged(let active) = reconciliation else {
-            await Self.endAllActivities()
-            return
-        }
-
-        let sessionID = "focus:\(active.sessionID.uuidString.lowercased())"
-        let contentState = PlanBaseTaskActivityAttributes.ContentState(
-            taskSessionID: sessionID,
-            taskID: active.taskID,
-            title: active.taskTitleSnapshot,
-            completedCount: 0,
-            totalCount: 0,
-            hasNextTask: false,
-            requiresCompletionConfirmation: false,
-            elapsedTimerStartedAt: active.phaseStartedAt,
-            themeID: UserDefaults.standard.string(forKey: AppTheme.storageKey)
-                ?? AppThemePreset.defaultID,
-            focusSessionID: active.sessionID,
-            focusRevision: active.revision,
-            focusPhaseRawValue: active.phaseRawValue,
-            focusRunStateRawValue: active.runStateRawValue,
-            focusDeadline: active.deadline,
-            focusRemainingSecondsAtPause: active.remainingSecondsAtPause
-        )
-        let content = ActivityContent(
-            state: contentState,
-            staleDate: active.deadline,
-            relevanceScore: 100
-        )
-
-        if await Self.updateExistingFocusActivity(content: content) {
-            markHandled(sessionID)
-            return
-        }
-        guard allowStarting, !handledSessionIDs.contains(sessionID) else { return }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            markHandled(sessionID)
-            return
-        }
-
-        do {
-            _ = try Activity.request(
-                attributes: PlanBaseTaskActivityAttributes(
-                    activityID: active.sessionID,
-                    dayKey: DayKey.key(for: active.phaseStartedAt)
-                ),
-                content: content,
-                pushType: nil
-            )
-            markHandled(sessionID)
-        } catch {
-            markHandled(sessionID)
-            throw error
-        }
-    }
-
-    private func makeContentState(
-        currentTask: PlanBaseCore.Task,
-        tasks: [PlanBaseCore.Task],
-        sessionID: String,
-        elapsedTimerStartedAt: Date,
-        now: Date
-    ) -> PlanBaseTaskActivityAttributes.ContentState {
-        let completedCount = tasks.reduce(0) { result, task in
-            result + (task.status == TaskStatus.done.rawValue ? 1 : 0)
-        }
-        let title = currentTask.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return PlanBaseTaskActivityAttributes.ContentState(
-            taskSessionID: sessionID,
-            taskID: currentTask.id,
-            title: title.isEmpty ? "진행 중인 작업" : title,
-            completedCount: completedCount,
+        let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state = PlanBaseTaskActivityAttributes.ContentState(
+            taskSessionID: selection.token, taskID: task.id,
+            title: title.isEmpty ? (task.status == TaskStatus.todo.rawValue ? "할 일" : "진행 중인 작업") : title,
+            completedCount: tasks.filter { $0.status == TaskStatus.done.rawValue }.count,
             totalCount: tasks.count,
-            hasNextTask: TodayTaskWidgetRules.nextTask(
-                after: currentTask.id,
-                from: tasks,
-                dayKey: currentTask.plannedDayKey
-            ) != nil,
-            requiresCompletionConfirmation: TaskReminderRules.hasUpcomingReminder(
-                currentTask,
-                now: now
-            ),
-            elapsedTimerStartedAt: elapsedTimerStartedAt,
-            themeID: UserDefaults.standard.string(forKey: AppTheme.storageKey)
-                ?? AppThemePreset.defaultID
-        )
+            hasNextTask: TaskLiveActivitySelectionRules.candidates(from: tasks, dayKey: dayKey).count > 1,
+            requiresCompletionConfirmation: task.status == TaskStatus.doing.rawValue
+                && TaskReminderRules.hasUpcomingReminder(task, now: now),
+            elapsedTimerStartedAt: timerStart, themeID: themeID, taskStatusRawValue: task.status)
+        await synchronize(state: state, dayKey: dayKey,
+                          staleDate: DayKey.addingDays(1, to: DayKey.startOfDay(for: now)),
+                          isFocus: false, request: request)
     }
 
-    private static func taskSession(
-        task: PlanBaseCore.Task,
-        projection: TaskProgressProjection
-    ) -> (id: String, startedAt: Date) {
-        if let startedAt = projection.currentStartedAt {
-            return (
-                "\(task.id.uuidString.lowercased()):\(startedAt.timeIntervalSinceReferenceDate.bitPattern)",
-                startedAt
-            )
+    private func synchronize(
+        state: PlanBaseTaskActivityAttributes.ContentState, dayKey: String, staleDate: Date?,
+        isFocus: Bool, request: Request
+    ) async {
+        let canRequest = request.allowStarting && (request.fromIntent || UIApplication.shared.applicationState == .active)
+        let content = ActivityContent(state: state, staleDate: staleDate, relevanceScore: isFocus ? 100 : 80)
+        let activities = Activity<PlanBaseTaskActivityAttributes>.activities.sorted { $0.id < $1.id }
+        var matching = activities.first { isUpdatable($0) && (isFocus || $0.attributes.dayKey == dayKey) }
+        // Lifetime belongs to the Activity, regardless of how long a task has been running.
+        if let current = matching, canRequest,
+           let startedAt = current.attributes.createdAt ?? lifetimeStore.receipt?.startedAt,
+           request.now.timeIntervalSince(startedAt) >= TaskLiveActivityLifetimeStore.maximumActivityAge {
+            lifetimeStore.observeEnded(id: current.id, now: request.now)
+            await end(current)
+            matching = nil
         }
-        return (
-            "\(task.id.uuidString.lowercased()):legacy-doing",
-            task.updatedAt
-        )
-    }
-
-    private static func elapsedTimerStartedAt(
-        sessionStartedAt: Date,
-        projection: TaskProgressProjection,
-        now: Date
-    ) -> Date {
-        let currentSessionDuration = max(0, now.timeIntervalSince(sessionStartedAt))
-        let knownElapsedDuration = projection.recordedDuration + currentSessionDuration
-        return now.addingTimeInterval(-knownElapsedDuration)
-    }
-
-    private nonisolated static func updateExistingActivity(
-        dayKey: String,
-        content: ActivityContent<PlanBaseTaskActivityAttributes.ContentState>
-    ) async -> Bool {
-        let activities = Activity<PlanBaseTaskActivityAttributes>.activities
-            .sorted { $0.id < $1.id }
-        let matching = activities.first { $0.attributes.dayKey == dayKey }
-        for activity in activities where activity.id != matching?.id {
-            await activity.end(nil, dismissalPolicy: .immediate)
+        for activity in activities where activity.id != matching?.id { await end(activity) }
+        if let matching {
+            if matching.content.state != state { await Self.updateActivity(id: matching.id, content: content) }
+            return
         }
-        guard let matching else { return false }
-        await matching.update(content)
-        return true
-    }
-
-    private nonisolated static func updateExistingFocusActivity(
-        content: ActivityContent<PlanBaseTaskActivityAttributes.ContentState>
-    ) async -> Bool {
-        let activities = Activity<PlanBaseTaskActivityAttributes>.activities
-            .sorted { $0.id < $1.id }
-        let matching = activities.first
-        for activity in activities where activity.id != matching?.id {
-            await activity.end(nil, dismissalPolicy: .immediate)
+        guard canRequest, ActivityAuthorizationInfo().areActivitiesEnabled,
+              lifetimeStore.permitsStarting(dayKey: dayKey, activityIsMissing: true, explicitStart: request.explicitStart) else { return }
+        do {
+            let activity = try Activity.request(
+                attributes: PlanBaseTaskActivityAttributes(activityID: UUID(), dayKey: dayKey, createdAt: request.now),
+                content: content, pushType: nil)
+            lifetimeStore.recordStarted(id: activity.id, dayKey: dayKey, at: request.now)
+            observe(activity)
+        } catch {
+            // Permissions and foreground eligibility can change. A failed request is retryable.
+            print("PlanBase Live Activity request failed: \(error)")
         }
-        guard let matching else { return false }
-        await matching.update(content)
-        return true
     }
 
-    private nonisolated static func endAllActivities() async {
-        let activities = Activity<PlanBaseTaskActivityAttributes>.activities
+    private var themeID: String {
+        UserDefaults.standard.string(forKey: AppTheme.storageKey) ?? AppThemePreset.defaultID
+    }
+
+    private func isUpdatable(_ activity: Activity<PlanBaseTaskActivityAttributes>) -> Bool {
+        activity.activityState == .active || activity.activityState == .stale
+    }
+
+    private func observeExisting(now: Date) {
+        let activities = Activity<PlanBaseTaskActivityAttributes>.activities.sorted { $0.id < $1.id }
+        if lifetimeStore.receipt?.activityID == nil, let activity = activities.first(where: isUpdatable) {
+            lifetimeStore.recordStarted(id: activity.id, dayKey: activity.attributes.dayKey,
+                                        at: activity.attributes.createdAt ?? now)
+        }
         for activity in activities {
-            await activity.end(nil, dismissalPolicy: .immediate)
+            record(activity.activityState, for: activity.id, now: now)
+            observe(activity)
         }
     }
 
-    private var handledSessionIDs: Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: Self.receiptDefaultsKey) ?? [])
+    private func observe(_ activity: Activity<PlanBaseTaskActivityAttributes>) {
+        guard observers[activity.id] == nil else { return }
+        observers[activity.id] = Swift.Task { [weak self] in
+            for await state in activity.activityStateUpdates {
+                guard !Swift.Task.isCancelled else { return }
+                self?.record(state, for: activity.id, now: Date())
+                if state == .dismissed { break }
+            }
+            self?.observers[activity.id] = nil
+        }
     }
 
-    private func markHandled(_ sessionID: String) {
-        var receipts = UserDefaults.standard.stringArray(forKey: Self.receiptDefaultsKey) ?? []
-        receipts.removeAll { $0 == sessionID }
-        receipts.append(sessionID)
-        if receipts.count > Self.maximumReceiptCount {
-            receipts.removeFirst(receipts.count - Self.maximumReceiptCount)
-        }
-        UserDefaults.standard.set(receipts, forKey: Self.receiptDefaultsKey)
+    private func record(_ state: ActivityState, for id: String, now: Date) {
+        if state == .ended { lifetimeStore.observeEnded(id: id, now: now) }
+        if state == .dismissed { lifetimeStore.observeDismissed(id: id, now: now) }
+    }
+
+    private func end(_ activity: Activity<PlanBaseTaskActivityAttributes>) async {
+        lifetimeStore.recordAppEnding(id: activity.id)
+        observers.removeValue(forKey: activity.id)?.cancel()
+        await Self.endActivity(id: activity.id)
+    }
+
+    private nonisolated static func updateActivity(
+        id: String, content: ActivityContent<PlanBaseTaskActivityAttributes.ContentState>
+    ) async {
+        guard let activity = Activity<PlanBaseTaskActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
+        await activity.update(content)
+    }
+
+    private nonisolated static func endActivity(id: String) async {
+        guard let activity = Activity<PlanBaseTaskActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
+        await activity.end(nil, dismissalPolicy: .immediate)
+    }
+
+    private func endAllActivities() async {
+        for activity in Activity<PlanBaseTaskActivityAttributes>.activities { await end(activity) }
     }
 }
+#if DEBUG
+import SwiftUI
+
+struct TaskLiveActivityAuditView: View {
+    @State private var summary = ""
+    var body: some View {
+        Text(summary)
+            .font(.system(size: 8, design: .monospaced))
+            .padding(3)
+            .background(.thinMaterial)
+            .accessibilityIdentifier("live-card-audit")
+            .allowsHitTesting(false)
+            .task { refresh() }
+            .onReceive(NotificationCenter.default.publisher(for: TaskLiveActivityCoordinator.didReconcileNotification)) { _ in refresh() }
+    }
+    private func refresh() {
+        let cards = Activity<PlanBaseTaskActivityAttributes>.activities.filter {
+            $0.activityState == .active || $0.activityState == .stale
+        }
+        summary = "cards=\(cards.count)|activity=\(cards.first?.id ?? "none")|status=\(cards.first?.content.state.taskStatusRawValue ?? "focus")"
+    }
+}
+#endif
 #endif

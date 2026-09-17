@@ -49,17 +49,29 @@ public enum TaskStatus: String, CaseIterable, Identifiable {
 
     public var emptyStateTitle: String {
         switch self {
-        case .todo: "새 할 일을 추가해볼까요?"
-        case .doing: "할 일을 시작해볼까요?"
-        case .done: "하나씩 마무리해볼까요?"
+        case .todo: "할 일이 없어요"
+        case .doing: "진행 중인 작업이 없어요"
+        case .done: "완료한 작업이 없어요"
+        }
+    }
+
+    public func emptyStateTitle(isBoardEmpty: Bool) -> String {
+        self == .todo && isBoardEmpty ? "첫 할 일을 추가해 보세요" : emptyStateTitle
+    }
+
+    public var emptyStateSystemImage: String {
+        switch self {
+        case .todo: "circle.dashed"
+        case .doing: "play.circle"
+        case .done: "checkmark.circle"
         }
     }
 
     public var emptyStateDescription: String {
         switch self {
-        case .todo: "빠른 입력이나 템플릿으로 오늘 할 일을 준비해요."
-        case .doing: "준비된 작업을 진행 중으로 옮기면 여기에 모여요."
-        case .done: "작업을 완료하면 오늘의 성과를 여기서 확인할 수 있어요."
+        case .todo: "위 입력창에서 작업을 추가할 수 있어요."
+        case .doing: "작업을 시작하면 여기에 표시돼요."
+        case .done: "완료한 작업이 여기에 모여요."
         }
     }
 

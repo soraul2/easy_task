@@ -567,6 +567,11 @@ struct MobileTaskDetailSheet: View {
             if status == .done {
                 TaskNotificationScheduler.shared.cancelNotifications(for: [currentTask.id])
             }
+            if status == .doing, oldStatus != .doing {
+                Swift.Task {
+                    await TaskLiveActivityCoordinator.shared.resumeAfterExplicitStart(taskID: currentTask.id, context: modelContext)
+                }
+            }
             finishSaving(
                 reminderRequested: status != .done && reminderAt.map { $0 > Date() } == true
             )

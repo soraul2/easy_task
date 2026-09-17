@@ -33,6 +33,14 @@ struct MobileArchiveView: View {
     }
 
     var body: some View {
+        if state.pane == .reviews {
+            MobileReviewDiscoveryView(state: state, onOpenBoardDate: onOpenBoardDate, onShowTheme: onShowTheme)
+        } else {
+            activityContent
+        }
+    }
+
+    @ViewBuilder private var activityContent: some View {
         let attachmentIndex = DiaryAttachmentIndex(
             attachments: state.querySession?.attachments ?? [],
             blocks: state.querySession?.blocks ?? []
@@ -135,9 +143,15 @@ struct MobileArchiveView: View {
                     .listRowBackground(Color.clear)
                 }
             }
+            .archiveRestoringScrollPosition(id: $state.scrollDayKey)
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                ArchivePanePicker(selection: $state.pane)
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    .background(AppTheme.background)
+            }
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: MobileLayout.bottomTabClearance)
             }
@@ -672,7 +686,7 @@ private struct MobileArchiveSkeletonCard: View {
     }
 }
 
-private struct MobileArchiveDayDetail: View {
+struct MobileArchiveDayDetail: View {
     var date: Date
     var session: ArchiveQuerySession
     var onOpenBoardDate: (Date) -> Void

@@ -205,7 +205,7 @@ private struct MobileExpandableReviewText: View {
     }
 }
 
-private struct MobileArchiveImageCarousel: View {
+struct MobileArchiveImageCarousel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]

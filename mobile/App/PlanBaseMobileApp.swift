@@ -223,6 +223,10 @@ struct PlanBaseMobileApp: App {
         in modelContainer: ModelContainer
     ) throws {
         let arguments = ProcessInfo.processInfo.arguments
+        if PlanBaseLaunchEnvironment.isUITesting, arguments.contains("--ui-testing-discovery-fixtures") {
+            try DiscoveryPreviewFixtures.seed(in: modelContainer.mainContext)
+            return
+        }
         guard PlanBaseLaunchEnvironment.isUITesting,
               !PlanBaseLaunchEnvironment.usesEmptyBoardFixture,
               !arguments.contains("--ui-testing-performance"),

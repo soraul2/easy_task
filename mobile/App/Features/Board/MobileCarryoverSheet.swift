@@ -10,7 +10,8 @@ private struct PendingMobileCarryoverCompletion {
 }
 
 struct MobileCarryoverSheet: View {
-    var tasks: [TodoTask]
+    var session: CarryoverInboxSession
+    private var tasks: [TodoTask] { session.displayedTasks }
     var onApplied: (String) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -27,15 +28,11 @@ struct MobileCarryoverSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if let message {
-                    Section {
-                        MobileNoticeBanner(message: message, tone: isErrorMessage ? .error : .success)
-                            .accessibilityIdentifier("carryover-result-notice")
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                Section {
+                    CarryoverInboxSummary(session: session)
                 }
-                if remainingTasks.isEmpty {
+                .listRowBackground(Color.clear)
+                if remainingTasks.isEmpty && session.errorMessage == nil {
                     ContentUnavailableView {
                         Label {
                             Text("이월할 작업 없음")
@@ -63,28 +60,29 @@ struct MobileCarryoverSheet: View {
                         }
                     }
                     .listRowBackground(AppTheme.panel)
-                    ForEach(remainingTasks) { task in
-                        Button {
-                            moveToToday(task)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(task.title)
-                                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                                    Text(DayKey.date(from: task.plannedDayKey).map(DayKey.display) ?? task.plannedDayKey)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Image(systemName: "arrow.right.circle")
-                            }
-                            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                    ForEach([true, false], id: \.self) { isNew in
+                        let group = remainingTasks.filter {
+                            session.presentedNewKeys.contains(CarryoverEntryKey($0)) == isNew
                         }
-                        .accessibilityLabel("\(task.title), 오늘로 이월")
-                        .accessibilityValue("원래 날짜 \(DayKey.date(from: task.plannedDayKey).map(DayKey.display) ?? task.plannedDayKey)")
-                        .accessibilityHint("원래 날짜의 미완료 작업을 오늘 할 일로 옮겨요")
-                        .listRowBackground(AppTheme.panel)
+                        if !group.isEmpty {
+                            Section(isNew ? "새로 들어온 작업" : "이전에 남은 작업") {
+                                ForEach(group) { task in carryoverRow(task) }
+                            }
+                        }
                     }
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let message {
+                    MobileNoticeBanner(
+                        message: isErrorMessage ? message : "오늘로 이월했어요",
+                        tone: isErrorMessage ? .error : .success
+                    )
+                        .accessibilityLabel(message)
+                        .accessibilityIdentifier("carryover-result-notice")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(AppTheme.background)
                 }
             }
             .navigationTitle("이월함")
@@ -98,6 +96,8 @@ struct MobileCarryoverSheet: View {
                 }
             }
         }
+        .task(id: session.snapshotRevision) { session.didDisplayInbox() }
+        .onDisappear { session.endPresentation() }
         .tint(AppTheme.accent)
         .presentationBackground(AppTheme.background)
         .alert(
@@ -126,6 +126,29 @@ struct MobileCarryoverSheet: View {
         .presentationDetents([.medium, .large])
     }
 
+    private func carryoverRow(_ task: TodoTask) -> some View {
+        Button {
+            moveToToday(task)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    Text(DayKey.date(from: task.plannedDayKey).map(DayKey.display) ?? task.plannedDayKey)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.right.circle")
+            }
+            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+        }
+        .accessibilityLabel("\(task.title), 오늘로 이월")
+        .accessibilityValue("원래 날짜 \(DayKey.date(from: task.plannedDayKey).map(DayKey.display) ?? task.plannedDayKey)")
+        .accessibilityHint("원래 날짜의 미완료 작업을 오늘 할 일로 옮겨요")
+        .listRowBackground(AppTheme.panel)
+    }
+
     private func requestCompleteAll() {
         let tasksToComplete = remainingTasks
         let pending = PendingMobileCarryoverCompletion(
@@ -144,15 +167,7 @@ struct MobileCarryoverSheet: View {
 
     private func completeAll(taskIDs: [UUID]) {
         do {
-            var tasksToComplete: [TodoTask] = []
-            for taskID in taskIDs {
-                if let task = try modelContext.fetch(
-                    BoundedQueryService.taskDescriptor(id: taskID)
-                ).first,
-                   task.status != TaskStatus.done.rawValue {
-                    tasksToComplete.append(task)
-                }
-            }
+            let tasksToComplete = try CarryoverInboxRules.currentTasks(withIDs: taskIDs, in: modelContext)
             guard !tasksToComplete.isEmpty else {
                 showError("완료할 작업이 변경되었습니다")
                 return
@@ -175,8 +190,13 @@ struct MobileCarryoverSheet: View {
     }
 
     private func moveAllToToday() {
-        let tasksToMove = remainingTasks
         do {
+            let tasksToMove = try CarryoverInboxRules.currentTasks(withIDs: remainingTasks.map(\.id), in: modelContext)
+            guard !tasksToMove.isEmpty else {
+                session.refresh()
+                showError("이월할 작업이 변경되었습니다")
+                return
+            }
             try PersistenceCommandService.perform(in: modelContext) {
                 let now = Date()
                 let todayKey = DayKey.key(for: now)
@@ -204,6 +224,11 @@ struct MobileCarryoverSheet: View {
 
     private func moveToToday(_ task: TodoTask) {
         do {
+            guard let task = try CarryoverInboxRules.currentTasks(withIDs: [task.id], in: modelContext).first else {
+                session.refresh()
+                showError("이월할 작업이 변경되었습니다")
+                return
+            }
             try PersistenceCommandService.perform(in: modelContext) {
                 let now = Date()
                 let nextOrder = try BoundedQueryService.nextOrder(

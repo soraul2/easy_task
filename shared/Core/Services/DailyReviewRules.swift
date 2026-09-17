@@ -22,6 +22,6 @@ public enum DailyReviewRules {
             !weather.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             !mood.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-            !imageFileNames.isEmpty
+            imageFileNames.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 }

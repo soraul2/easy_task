@@ -20,6 +20,14 @@ struct ArchiveView: View {
     @FocusState private var searchFocused: Bool
 
     var body: some View {
+        if state.pane == .reviews {
+            DesktopReviewDiscoveryView(state: state, onOpenBoardDate: onOpenBoardDate)
+        } else {
+            activityContent
+        }
+    }
+
+    @ViewBuilder private var activityContent: some View {
         let attachmentIndex = DiaryAttachmentIndex(
             attachments: state.querySession?.attachments ?? [],
             blocks: state.querySession?.blocks ?? []
@@ -33,6 +41,13 @@ struct ArchiveView: View {
                 .padding(.horizontal, 28)
                 .padding(.top, 24)
                 .padding(.bottom, 12)
+
+            ArchivePanePicker(selection: $state.pane)
+                .frame(maxWidth: 320)
+                .frame(maxWidth: 760, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 14)
 
             ArchiveSearchToolbar(
                 text: $state.filter.searchText,
@@ -132,7 +147,7 @@ struct ArchiveView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
             }
-            .scrollPosition(id: $state.scrollDayKey, anchor: .top)
+            .archiveRestoringScrollPosition(id: $state.scrollDayKey)
         }
         .task {
             isVisible = true
@@ -515,7 +530,7 @@ private struct ArchiveActivityOverview: View {
     }
 }
 
-private struct ArchiveSingleDaySheet: View {
+struct ArchiveSingleDaySheet: View {
     var date: Date
     var session: ArchiveQuerySession
     var onOpenBoardDate: (Date) -> Void

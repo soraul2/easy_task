@@ -243,6 +243,8 @@ struct AppRootView: View {
     private func seedDemoDataIfNeeded() throws {
 #if DEBUG
         if PlanBaseDesktopLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-discovery-fixtures") { return }
+        if PlanBaseDesktopLaunchEnvironment.isUITesting,
            ProcessInfo.processInfo.arguments.contains("--ui-testing-daily-activity-fixtures") {
             try DailyActivityPreviewFixtures.seed(in: modelContext)
             return

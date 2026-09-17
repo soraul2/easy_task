@@ -13,6 +13,7 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
         let requiresCompletionConfirmation: Bool
         let elapsedTimerStartedAt: Date
         let themeID: String?
+        let taskStatusRawValue: String?
         let focusSessionID: UUID?
         let focusRevision: Int?
         let focusPhaseRawValue: String?
@@ -29,6 +30,7 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
             case hasNextTask
             case requiresCompletionConfirmation
             case themeID
+            case taskStatusRawValue
             case focusSessionID
             case focusRevision
             case focusPhaseRawValue
@@ -51,6 +53,7 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
             requiresCompletionConfirmation: Bool,
             elapsedTimerStartedAt: Date,
             themeID: String? = nil,
+            taskStatusRawValue: String? = nil,
             focusSessionID: UUID? = nil,
             focusRevision: Int? = nil,
             focusPhaseRawValue: String? = nil,
@@ -67,6 +70,7 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
             self.requiresCompletionConfirmation = requiresCompletionConfirmation
             self.elapsedTimerStartedAt = elapsedTimerStartedAt
             self.themeID = themeID
+            self.taskStatusRawValue = taskStatusRawValue
             self.focusSessionID = focusSessionID
             self.focusRevision = focusRevision
             self.focusPhaseRawValue = focusPhaseRawValue
@@ -74,6 +78,8 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
             self.focusDeadline = focusDeadline
             self.focusRemainingSecondsAtPause = focusRemainingSecondsAtPause
         }
+
+        var isTodo: Bool { !isFocusSession && taskStatusRawValue == "todo" }
 
         var isFocusSession: Bool {
             focusSessionID != nil && focusRevision != nil
@@ -95,5 +101,12 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
 
     let activityID: UUID
     let dayKey: String
+    let createdAt: Date?
+
+    init(activityID: UUID, dayKey: String, createdAt: Date? = nil) {
+        self.activityID = activityID
+        self.dayKey = dayKey
+        self.createdAt = createdAt
+    }
 }
 #endif

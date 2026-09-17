@@ -22,6 +22,7 @@
 		A30000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift */; };
 		A30000000000000000000014 /* mobile/App/Features/Calendar/MobileCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* mobile/App/Features/Calendar/MobileCalendarView.swift */; };
 		A30000000000000000000015 /* mobile/App/Features/Archive/MobileArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* mobile/App/Features/Archive/MobileArchiveView.swift */; };
+		17FD7421A8824CC583F33B93 /* mobile/App/Features/Archive/MobileReviewDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B639B61D8B994311B090F293 /* mobile/App/Features/Archive/MobileReviewDiscoveryView.swift */; };
 		A30000000000000000000016 /* mobile/App/Features/Review/MobileReviewComposerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* mobile/App/Features/Review/MobileReviewComposerSheet.swift */; };
 		A30000000000000000000017 /* mobile/App/Infrastructure/TaskNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* mobile/App/Infrastructure/TaskNotificationScheduler.swift */; };
 		A30000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift */; };
@@ -65,7 +66,7 @@
 		AK3000000000000000000003 /* mobile/Widget/PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AK2000000000000000000002 /* mobile/Widget/PrivacyInfo.xcprivacy */; };
 		AI3000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */; };
 		AJ3000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */; };
-		AM3000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift */; };
+		AM3000000000000000000001 /* mobile/Tests/PlanBaseTaskLiveActivityStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskLiveActivityStateTests.swift */; };
 		B10000000000000000000003 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000001 /* PlanBaseCore */; };
 		B10000000000000000000004 /* PlanBaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000002 /* PlanBaseCore */; };
 		B30000000000000000000001 /* watch/App/PlanBaseWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* watch/App/PlanBaseWatchApp.swift */; };
@@ -96,6 +97,7 @@
 		DO3000000000000000000001 /* desktop/App/Features/Archive/DesktopDiaryWritingPromptPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DO2000000000000000000001 /* desktop/App/Features/Archive/DesktopDiaryWritingPromptPicker.swift */; };
 		DP3000000000000000000001 /* desktop/App/Features/Archive/DesktopDiaryAttachmentSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DP2000000000000000000001 /* desktop/App/Features/Archive/DesktopDiaryAttachmentSection.swift */; };
 		D30000000000000000000005 /* desktop/App/Features/Archive/ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000005 /* desktop/App/Features/Archive/ArchiveView.swift */; };
+		59BBC23C035545DA9C4E4238 /* desktop/App/Features/Archive/DesktopReviewDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5529791A315E4495B6298D3F /* desktop/App/Features/Archive/DesktopReviewDiscoveryView.swift */; };
 		D30000000000000000000006 /* desktop/App/Features/Board/BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000006 /* desktop/App/Features/Board/BoardView.swift */; };
 		D30000000000000000000007 /* desktop/App/Features/Calendar/CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000007 /* desktop/App/Features/Calendar/CalendarView.swift */; };
 		D30000000000000000000008 /* desktop/App/Features/Archive/DiaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000008 /* desktop/App/Features/Archive/DiaryView.swift */; };
@@ -235,6 +237,7 @@
 		A20000000000000000000013 /* mobile/App/Features/Board/MobileBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Board/MobileBoardView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000014 /* mobile/App/Features/Calendar/MobileCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Calendar/MobileCalendarView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000015 /* mobile/App/Features/Archive/MobileArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Archive/MobileArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		B639B61D8B994311B090F293 /* mobile/App/Features/Archive/MobileReviewDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Archive/MobileReviewDiscoveryView.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000016 /* mobile/App/Features/Review/MobileReviewComposerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Review/MobileReviewComposerSheet.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000017 /* mobile/App/Infrastructure/TaskNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/TaskNotificationScheduler.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000018 /* mobile/App/Features/Board/MobileBoardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Features/Board/MobileBoardComponents.swift; sourceTree = SOURCE_ROOT; };
@@ -276,7 +279,7 @@
 		AL2000000000000000000005 /* mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/PlanBaseTaskIntentRuntime.swift; sourceTree = SOURCE_ROOT; };
 		AI2000000000000000000001 /* mobile/App/Infrastructure/MobileBackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/MobileBackupService.swift; sourceTree = SOURCE_ROOT; };
 		AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/MobileBackupServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/PlanBaseTaskIntentActionGateTests.swift; sourceTree = SOURCE_ROOT; };
+		AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskLiveActivityStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/PlanBaseTaskLiveActivityStateTests.swift; sourceTree = SOURCE_ROOT; };
 		C10000000000000000000010 /* PlanBase.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PlanBase.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D20000000000000000000001 /* desktop/App/PlanBaseDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/PlanBaseDesktopApp.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000002 /* desktop/App/Services/BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Services/BackupService.swift; sourceTree = SOURCE_ROOT; };
@@ -291,6 +294,7 @@
 		DO2000000000000000000001 /* desktop/App/Features/Archive/DesktopDiaryWritingPromptPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Archive/DesktopDiaryWritingPromptPicker.swift; sourceTree = SOURCE_ROOT; };
 		DP2000000000000000000001 /* desktop/App/Features/Archive/DesktopDiaryAttachmentSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Archive/DesktopDiaryAttachmentSection.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000005 /* desktop/App/Features/Archive/ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Archive/ArchiveView.swift; sourceTree = SOURCE_ROOT; };
+		5529791A315E4495B6298D3F /* desktop/App/Features/Archive/DesktopReviewDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Archive/DesktopReviewDiscoveryView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000006 /* desktop/App/Features/Board/BoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Board/BoardView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000007 /* desktop/App/Features/Calendar/CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Calendar/CalendarView.swift; sourceTree = SOURCE_ROOT; };
 		D20000000000000000000008 /* desktop/App/Features/Archive/DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = desktop/App/Features/Archive/DiaryView.swift; sourceTree = SOURCE_ROOT; };
@@ -476,6 +480,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000015 /* mobile/App/Features/Archive/MobileArchiveView.swift */,
+				B639B61D8B994311B090F293 /* mobile/App/Features/Archive/MobileReviewDiscoveryView.swift */,
 				A20000000000000000000027 /* mobile/App/Features/Archive/MobileArchiveFilterSheet.swift */,
 				A20000000000000000000028 /* mobile/App/Features/Archive/MobileArchiveRecordCard.swift */,
 			);
@@ -553,7 +558,7 @@
 				AA2000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift */,
 				AC2000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift */,
 				AJ2000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift */,
-				AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift */,
+				AM2000000000000000000001 /* mobile/Tests/PlanBaseTaskLiveActivityStateTests.swift */,
 			);
 			name = Tests;
 			sourceTree = "<group>";
@@ -612,6 +617,7 @@
 			isa = PBXGroup;
 			children = (
 				D20000000000000000000005 /* desktop/App/Features/Archive/ArchiveView.swift */,
+				5529791A315E4495B6298D3F /* desktop/App/Features/Archive/DesktopReviewDiscoveryView.swift */,
 				DF2000000000000000000001 /* desktop/App/Features/Archive/ArchiveControls.swift */,
 				DF2000000000000000000002 /* desktop/App/Features/Archive/ArchiveDayGroupView.swift */,
 				D20000000000000000000008 /* desktop/App/Features/Archive/DiaryView.swift */,
@@ -1082,6 +1088,7 @@
 				A30000000000000000000025 /* mobile/App/Features/Templates/MobileTemplatePlacementSheet.swift in Sources */,
 				A30000000000000000000026 /* mobile/App/Features/Templates/MobileTemplateComponents.swift in Sources */,
 				A30000000000000000000015 /* mobile/App/Features/Archive/MobileArchiveView.swift in Sources */,
+				17FD7421A8824CC583F33B93 /* mobile/App/Features/Archive/MobileReviewDiscoveryView.swift in Sources */,
 				A30000000000000000000027 /* mobile/App/Features/Archive/MobileArchiveFilterSheet.swift in Sources */,
 				A30000000000000000000028 /* mobile/App/Features/Archive/MobileArchiveRecordCard.swift in Sources */,
 				A30000000000000000000016 /* mobile/App/Features/Review/MobileReviewComposerSheet.swift in Sources */,
@@ -1103,7 +1110,7 @@
 				AA3000000000000000000001 /* mobile/Tests/TaskNotificationSchedulerTests.swift in Sources */,
 				AC3000000000000000000001 /* mobile/Tests/PlanBaseWidgetSnapshotIntegrationTests.swift in Sources */,
 				AJ3000000000000000000001 /* mobile/Tests/MobileBackupServiceTests.swift in Sources */,
-				AM3000000000000000000001 /* mobile/Tests/PlanBaseTaskIntentActionGateTests.swift in Sources */,
+				AM3000000000000000000001 /* mobile/Tests/PlanBaseTaskLiveActivityStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1119,6 +1126,7 @@
 				DJ3000000000000000000001 /* desktop/App/DesktopThemePickerViews.swift in Sources */,
 				DK3000000000000000000001 /* desktop/App/FloatingTabBar.swift in Sources */,
 				D30000000000000000000005 /* desktop/App/Features/Archive/ArchiveView.swift in Sources */,
+				59BBC23C035545DA9C4E4238 /* desktop/App/Features/Archive/DesktopReviewDiscoveryView.swift in Sources */,
 				DF3000000000000000000001 /* desktop/App/Features/Archive/ArchiveControls.swift in Sources */,
 				DF3000000000000000000002 /* desktop/App/Features/Archive/ArchiveDayGroupView.swift in Sources */,
 				D30000000000000000000006 /* desktop/App/Features/Board/BoardView.swift in Sources */,
@@ -1214,7 +1222,7 @@
 				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/PlanBaseWidget.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1248,7 +1256,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1402,7 +1410,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1427,7 +1435,7 @@
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
@@ -1449,7 +1457,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1475,7 +1483,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1501,7 +1509,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1526,7 +1534,7 @@
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS-AppStore.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1547,7 +1555,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1572,7 +1580,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1599,7 +1607,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "watch/Configuration/PlanBase-watchOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "watch/Configuration/PlanBase-watchOS-Info.plist";
@@ -1629,7 +1637,7 @@
 				CODE_SIGN_ENTITLEMENTS = "watch/Configuration/PlanBase-watchOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1657,7 +1665,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = watch/Configuration/PlanBaseWatchWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "watch/Configuration/PlanBaseWatchWidget-Info.plist";
@@ -1687,7 +1695,7 @@
 				CODE_SIGN_ENTITLEMENTS = watch/Configuration/PlanBaseWatchWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 79;
+				CURRENT_PROJECT_VERSION = 80;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;

@@ -160,7 +160,7 @@ struct ArchiveDayGroupView: View {
 
 }
 
-private struct ArchiveReviewImagePreview: View {
+struct ArchiveReviewImagePreview: View {
     var attachments: [DiaryAttachment]
     var legacyFileNames: [String]
     @State private var selectedIndex = 0

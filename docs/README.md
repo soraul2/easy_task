@@ -16,6 +16,7 @@
 
 ## 진행 중이거나 출시 전 확인이 남은 계획
 
+- [이월함·회고 탐색 개선과 잠금 화면 작업 선택](plans/active/CARRYOVER_AND_REVIEW_DISCOVERY_PLAN.md): 구현·격리 화면 검증·최종 플랫폼 게이트 완료, 실기기 확인 범위는 [결과 문서](plans/active/CARRYOVER_AND_REVIEW_DISCOVERY_RESULTS.md)에 기록, [잠금 화면 동작 계약](plans/active/LOCK_SCREEN_TASK_SELECTION_FOLLOWUP.md), [Goal 실행 프롬프트](plans/active/CARRYOVER_AND_REVIEW_DISCOVERY_GOAL_PROMPT.md)
 - [iPhone Duo 적응형 인터페이스](plans/active/IPHONE_DUO_INTERFACE_PLAN.md): 일반 iPhone·iPad 적응형 구현·검증 완료, Duo 전용 도구와 실기기 검증 대기
 - [build 76 기준 전체 최적화](plans/active/OPTIMIZATION_BUILD_76.md): 구현·로컬 검증 완료, [결과와 실기기 인수](plans/active/OPTIMIZATION_BUILD_76_RESULTS.md)
 
@@ -60,4 +61,5 @@
 
 ## 배포 기록
 
+- [TestFlight 1.0 (80)](releases/TESTFLIGHT_BUILD_80.md): 2026-09-17 이월함·회고·잠금 화면 개선, iOS·macOS 업로드 성공
 - [TestFlight 1.0 (79)](releases/TESTFLIGHT_BUILD_79.md): 2026-09-16 iOS·macOS 업로드 성공과 검증 근거

@@ -8,6 +8,10 @@ struct BoardTaskList: View {
     var tasks: [TodoTask]
     var selectedStatus: TaskStatus
     var isEmbeddedInScrollView = false
+    var isBoardEmpty: Bool
+    var showsEmptyStateIcon: Bool
+    var emptyStateMinimumHeight: CGFloat
+    var onAddTask: () -> Void
     var onEdit: (TodoTask) -> Void
     var onStartFocus: (TodoTask) -> Void
     var onDelete: (TodoTask) -> Void
@@ -15,7 +19,6 @@ struct BoardTaskList: View {
     var onStatusChange: (TodoTask, TaskStatus) -> Void
     var progressText: ((TodoTask, Date) -> String?)? = nil
     var highlightedTaskID: UUID? = nil
-    @State private var expandedTaskID: UUID?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
@@ -40,25 +43,17 @@ struct BoardTaskList: View {
                 }
             }
         }
-        .onChange(of: selectedStatus) { _, status in
-            if status != .doing {
-                expandedTaskID = nil
-            }
-        }
-        .onChange(of: tasks.map(\.id)) { _, taskIDs in
-            if let expandedTaskID, !taskIDs.contains(expandedTaskID) {
-                self.expandedTaskID = nil
-            }
-        }
     }
 
     @ViewBuilder
     private func taskRows(at date: Date) -> some View {
         if tasks.isEmpty {
-            ContentUnavailableView(
-                selectedStatus.emptyStateTitle,
-                systemImage: selectedStatus.systemImage,
-                description: Text(selectedStatus.emptyStateDescription)
+            BoardEmptyStateView(
+                status: selectedStatus,
+                isBoardEmpty: isBoardEmpty,
+                showsIcon: showsEmptyStateIcon,
+                minimumHeight: emptyStateMinimumHeight,
+                onAddTask: onAddTask
             )
             .listRowBackground(Color.clear)
             .accessibilityIdentifier("board-empty-\(selectedStatus.rawValue)")
@@ -75,10 +70,6 @@ struct BoardTaskList: View {
             ForEach(tasks.filter { $0.modelContext != nil }) { task in
                 MobileTaskRow(
                     task: task,
-                    isChecklistExpanded: expandedTaskID == task.id,
-                    onChecklistExpansionChange: { shouldExpand in
-                        expandedTaskID = shouldExpand ? task.id : nil
-                    },
                     onEdit: { onEdit(task) },
                     onStartFocus: { onStartFocus(task) },
                     onDelete: { onDelete(task) },
@@ -206,8 +197,7 @@ private struct MobileTaskRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var task: MobileTaskCardContent
-    var isChecklistExpanded: Bool
-    var onChecklistExpansionChange: (Bool) -> Void
+    @State private var isChecklistExpanded = true
     var onEdit: () -> Void
     var onStartFocus: () -> Void
     var onDelete: () -> Void
@@ -219,8 +209,6 @@ private struct MobileTaskRow: View {
 
     init(
         task: TodoTask,
-        isChecklistExpanded: Bool,
-        onChecklistExpansionChange: @escaping (Bool) -> Void,
         onEdit: @escaping () -> Void,
         onStartFocus: @escaping () -> Void,
         onDelete: @escaping () -> Void,
@@ -229,8 +217,6 @@ private struct MobileTaskRow: View {
         progressText: String? = nil
     ) {
         self.task = MobileTaskCardContent(task)
-        self.isChecklistExpanded = isChecklistExpanded
-        self.onChecklistExpansionChange = onChecklistExpansionChange
         self.onEdit = onEdit
         self.onStartFocus = onStartFocus
         self.onDelete = onDelete
@@ -277,8 +263,7 @@ private struct MobileTaskRow: View {
     }
 
     private var hasSummary: Bool {
-        priority != nil || task.estimatedMinutes != nil || progressText != nil ||
-            (status != .doing && !checklistProgress.isEmpty)
+        priority != nil || task.estimatedMinutes != nil || progressText != nil
     }
 
     var body: some View {
@@ -312,7 +297,7 @@ private struct MobileTaskRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if status == .doing, !checklistProgress.isEmpty {
+            if !checklistProgress.isEmpty {
                 checklistSection
             }
 
@@ -360,16 +345,6 @@ private struct MobileTaskRow: View {
             MobileTaskMetadataLabel(title: progressText, systemImage: "clock.arrow.circlepath")
                 .accessibilityLabel("진행 상태로 둔 시간, \(progressText)")
                 .accessibilityHint("집중 타이머의 집중 시간과 별도로 기록해요")
-        }
-        if status != .doing, !checklistProgress.isEmpty {
-            MobileTaskMetadataLabel(
-                title: "\(checklistProgress.completedCount)/\(checklistProgress.totalCount)",
-                systemImage: "checklist"
-            )
-            .accessibilityElement(children: .ignore)
-            .accessibilityIdentifier("\(task.title)-checklist-progress")
-            .accessibilityLabel("체크리스트")
-            .accessibilityValue("\(checklistProgress.completedCount)개 완료, 전체 \(checklistProgress.totalCount)개")
         }
     }
 
@@ -455,7 +430,7 @@ private struct MobileTaskRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
                 withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-                    onChecklistExpansionChange(!isChecklistExpanded)
+                    isChecklistExpanded.toggle()
                 }
             } label: {
                 HStack(spacing: 8) {

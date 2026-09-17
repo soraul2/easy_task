@@ -81,7 +81,7 @@ struct MobileBoardView: View {
     @ScaledMetric(relativeTo: .body) private var minimumBoardColumnWidth = 280.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var selectedDayTaskRows: [TodoTask]
-    @Query private var carryoverTaskRows: [TodoTask]
+    @State private var carryoverSession: CarryoverInboxSession?
     @Query private var overlappingEventRows: [CalendarEvent]
     @Query private var templates: [TaskTemplate]
     @Query private var templateItems: [TaskTemplateItem]
@@ -127,9 +127,6 @@ struct MobileBoardView: View {
         _selectedDayTaskRows = Query(
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
         )
-        _carryoverTaskRows = Query(
-            BoundedQueryService.carryoverTasksDescriptor(before: DayKey.today)
-        )
         _overlappingEventRows = Query(
             BoundedQueryService.eventsDescriptor(
                 overlappingStartDayKey: dayKey,
@@ -150,7 +147,7 @@ struct MobileBoardView: View {
     }
 
     private var carryoverTasks: [TodoTask] {
-        TaskRules.carryoverTasks(carryoverTaskRows, before: DayKey.today)
+        carryoverSession?.tasks ?? []
     }
 
     var body: some View {
@@ -176,10 +173,13 @@ struct MobileBoardView: View {
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { presentedSheet = .carryover } label: {
-                        Image(systemName: "tray")
-                            .frame(minWidth: 44, minHeight: 44)
+                        HStack(spacing: 3) {
+                            Image(systemName: "tray")
+                            CarryoverCountBadge(session: carryoverSession)
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
                     }
-                    .accessibilityLabel("이월함")
+                    .accessibilityLabel(carryoverSession?.accessibilityLabel ?? "이월함, 불러오는 중")
                     .accessibilityIdentifier("carryover-button")
 
                     Button { presentedSheet = .review } label: {
@@ -190,16 +190,19 @@ struct MobileBoardView: View {
                     .accessibilityIdentifier("review-compose-button")
                 }
             }
+            .carryoverInboxSession($carryoverSession)
             .sheet(item: $presentedSheet, onDismiss: showPendingSheetNotice) { sheet in
                 Group {
                     switch sheet {
                     case .task(let task):
                         MobileTaskDetailSheet(task: task, onStartFocus: onStartFocus)
                     case .carryover:
-                        MobileCarryoverSheet(
-                            tasks: carryoverTasks,
-                            onApplied: { pendingSheetNotice = $0 }
-                        )
+                        if let carryoverSession {
+                            MobileCarryoverSheet(
+                                session: carryoverSession,
+                                onApplied: { pendingSheetNotice = $0 }
+                            )
+                        }
                     case .savedTasks:
                         SavedTaskLibrarySheet(
                             selectedDate: selectedDate,
@@ -334,6 +337,11 @@ struct MobileBoardView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         boardControls(tasks: tasks, showsColumns: showsColumns)
+                        if let carryoverSession {
+                            CarryoverArrivalBanner(session: carryoverSession) { presentedSheet = .carryover }
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, carryoverSession.bannerKeys.isEmpty ? 0 : 12)
+                        }
                         HStack(alignment: .top, spacing: 0) {
                             ForEach(TaskStatus.allCases) { status in
                                 // Keep each list's identity stable while reflowing.
@@ -349,7 +357,13 @@ struct MobileBoardView: View {
                                         .padding(.horizontal, 16)
                                         .accessibilityIdentifier("board-column-\(status.rawValue)")
                                     }
-                                    taskList(tasks: tasks, status: status, isEmbeddedInScrollView: true)
+                                    taskList(
+                                        tasks: tasks,
+                                        status: status,
+                                        showsColumns: showsColumns,
+                                        emptyStateMinimumHeight: showsColumns
+                                            ? 240 : min(360, max(260, geometry.size.height * 0.4))
+                                    )
                                 }
                                 .frame(maxWidth: showsColumns || selectedStatus == status ? .infinity : 0)
                                 .frame(height: showsColumns || selectedStatus == status ? nil : 0)
@@ -402,11 +416,20 @@ struct MobileBoardView: View {
         .allowsHitTesting(!showsColumns)
     }
 
-    private func taskList(tasks: [TodoTask], status: TaskStatus, isEmbeddedInScrollView: Bool) -> some View {
+    private func taskList(
+        tasks: [TodoTask],
+        status: TaskStatus,
+        showsColumns: Bool,
+        emptyStateMinimumHeight: CGFloat
+    ) -> some View {
         BoardTaskList(
             tasks: BoardQueryRules.tasks(tasks, matching: status),
             selectedStatus: status,
-            isEmbeddedInScrollView: isEmbeddedInScrollView,
+            isEmbeddedInScrollView: true,
+            isBoardEmpty: tasks.isEmpty,
+            showsEmptyStateIcon: !showsColumns,
+            emptyStateMinimumHeight: emptyStateMinimumHeight,
+            onAddTask: { quickAddFocusRequestID = UUID() },
             onEdit: { presentedSheet = .task($0) },
             onStartFocus: { onStartFocus($0.id) },
             onDelete: deleteTask,
@@ -585,6 +608,11 @@ struct MobileBoardView: View {
                 UISelectionFeedbackGenerator().selectionChanged()
             }
             showStatusNotice(task: task, status: status, undo: undo)
+            if status == .doing {
+                Swift.Task {
+                    await TaskLiveActivityCoordinator.shared.resumeAfterExplicitStart(taskID: task.id, context: modelContext)
+                }
+            }
         } catch {
             persistenceFailureMessage = "작업 상태를 변경하지 못했습니다. 다시 시도해 주세요."
         }
