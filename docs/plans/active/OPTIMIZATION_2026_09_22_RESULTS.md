@@ -184,7 +184,8 @@ Xcode의 `*-Simulated.xcent`에는 application identifier와 App Group만 있고
 
 저장 명령의 대기 편집 보존·save/rollback, Task 상태와 진행/완료 활동의 원자성,
 논리/물리 ID·superseded 수렴, 최신 대표 선택과 첨부 원본 검증을 그대로 둔다.
-커밋·push·PR·버전 증가·TestFlight 업로드·배포는 수행하지 않는다.
+최적화 Goal 자체에서는 커밋·push·PR·버전 증가·TestFlight 업로드·배포를 수행하지 않았다.
+이후 명시적으로 요청된 커밋·푸시와 빌드81 업로드는 별도 배포 기록에 연결한다.
 
 ## 외부 인수와 남은 한계
 

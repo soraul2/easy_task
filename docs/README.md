@@ -63,7 +63,7 @@
 
 ## 배포 기록
 
-- [TestFlight 1.0 (81)](releases/TESTFLIGHT_BUILD_81.md): 2026-09-22 최적화 및 안정성 수정 배포 준비
+- [TestFlight 1.0 (81)](releases/TESTFLIGHT_BUILD_81.md): 2026-09-22 최적화 및 안정성 수정, iOS·macOS 업로드 성공
 
 - [TestFlight 1.0 (80)](releases/TESTFLIGHT_BUILD_80.md): 2026-09-17 이월함·회고·잠금 화면 개선, iOS·macOS 업로드 성공
 - [TestFlight 1.0 (79)](releases/TESTFLIGHT_BUILD_79.md): 2026-09-16 iOS·macOS 업로드 성공과 검증 근거

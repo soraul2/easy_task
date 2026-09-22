@@ -1,8 +1,16 @@
 # TestFlight 1.0 (81)
 
-2026-09-22 사용자의 커밋·푸시·TestFlight 업로드 요청으로 최적화 결과의 배포를 준비했다.
-현재 상태: iOS·macOS 서명 archive 및 배포 패키지 검증 완료. 커밋·푸시 후 업로드를 진행한다.
-업로드 성공과 Apple 처리 시작은 아직 확인하지 않았다.
+2026-09-22 iOS·iPadOS·watchOS와 macOS의 App Store Connect 업로드를 완료했다.
+
+| 플랫폼 | 업로드 완료 (KST) | 근거 |
+|---|---|---|
+| iOS·iPadOS·watchOS | 2026-09-22 21:04:33.560 | `upload-ios.log`, 종료 코드0, `Upload succeeded` |
+| macOS | 2026-09-22 21:04:35.826 | `upload-macos.log`, 종료 코드0, `Upload succeeded` |
+
+두 플랫폼 모두 Apple 패키지 처리 시작을 확인했다. TestFlight 설치 가능 상태나 외부 테스트
+심사 완료를 확인한 것은 아니다. 코드와 빌드81 설정은 `509754b`로
+`codex/kanban-card-design` 브랜치에 커밋·푸시한 뒤 같은 archive를 업로드했다.
+업로드 결과와 검증 자료는 `.local/releases/build-81/`에 보존한다.
 
 ## 변경 내용
 
