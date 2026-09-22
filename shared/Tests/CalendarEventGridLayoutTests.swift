@@ -197,3 +197,87 @@ func calendarEventGridLayoutBreaksEqualTimestampDuplicatesByRenderID() throws {
     #expect(representatives.count == 1)
     #expect(representatives.first?.renderID == higherRenderID)
 }
+
+private func wrappingItem(_ title: String, _ start: String, _ end: String? = nil) -> CalendarEventGridLayoutItem {
+    CalendarEventGridLayoutItem(renderID: UUID(), eventID: UUID(), title: title,
+                                startDayKey: start, endDayKey: end ?? start)
+}
+
+@Test
+func calendarTwoLineTitlesUseSpareSpaceWithoutHidingEvents() throws {
+    let month = try #require(DayKey.date(from: "2026-09-01"))
+    let items = [wrappingItem("가 긴 제목", "2026-09-09"), wrappingItem("나 짧음", "2026-09-09")]
+    for capacity in 1...4 {
+        let baseline = CalendarEventGridLayout.make(items: items, dates: DayKey.monthGridDates(for: month),
+                                                    visibleMonth: month, maximumLanes: capacity)
+        let expanded = CalendarEventGridLayout.make(items: items, dates: DayKey.monthGridDates(for: month),
+                                                    visibleMonth: month, maximumLanes: capacity,
+                                                    expandedTitleRenderIDs: [items[0].renderID])
+        #expect(expanded.displayedEventIDsByDayKey == baseline.displayedEventIDsByDayKey)
+        #expect(expanded.hiddenEventCountByDayKey == baseline.hiddenEventCountByDayKey)
+        #expect(expanded.segments.first?.laneSpan == (capacity >= 3 ? 2 : 1))
+        if capacity >= 3 {
+            #expect(expanded.segments.last?.lane == 2)
+            #expect(expanded.segments.last?.laneSpan == 1)
+        }
+    }
+}
+
+@Test
+func calendarTwoLineTitlesKeepCrossWeekAndCrossMonthBarsSingleLine() throws {
+    let month = try #require(DayKey.date(from: "2026-09-01"))
+    let acrossWeek = wrappingItem("주 경계", "2026-09-05", "2026-09-06")
+    let acrossMonth = wrappingItem("월 경계", "2026-08-31", "2026-09-02")
+    let oneDay = wrappingItem("하루 일정", "2026-09-06")
+    let items = [acrossWeek, acrossMonth, oneDay]
+    let result = CalendarEventGridLayout.make(items: items, dates: DayKey.monthGridDates(for: month),
+                                             visibleMonth: month, maximumLanes: 4,
+                                             expandedTitleRenderIDs: Set(items.map(\.renderID)))
+    #expect(result.segments.filter { $0.eventID == acrossWeek.eventID }.allSatisfy { $0.span == 1 && $0.laneSpan == 1 })
+    #expect(result.segments.filter { $0.eventID == acrossMonth.eventID }.allSatisfy { $0.laneSpan == 1 })
+    #expect(result.segments.first { $0.eventID == oneDay.eventID }?.laneSpan == 2)
+}
+
+@Test
+func calendarTwoLineTitlesPreserveOverflowAndDefaultWidgetLayout() throws {
+    let month = try #require(DayKey.date(from: "2026-09-01"))
+    let item = wrappingItem("더 긴 제목", "2026-09-09")
+    let dates = DayKey.monthGridDates(for: month)
+    let defaultLayout = CalendarEventGridLayout.make(items: [item], dates: dates, visibleMonth: month, maximumLanes: 4)
+    #expect(defaultLayout.segments.first?.laneSpan == 1)
+    let overflow = CalendarEventGridLayout.make(items: [item], dates: dates, visibleMonth: month,
+                                               maximumLanes: 4, totalEventCountsByDayKey: ["2026-09-09": 3],
+                                               expandedTitleRenderIDs: [item.renderID])
+    #expect(overflow.segments.first?.laneSpan == 1)
+    #expect(overflow.hiddenEventCountByDayKey["2026-09-09"] == 2)
+}
+
+@Test
+func calendarTwoLineTitlesNeverOverlapOrChangeVisibleEvents() throws {
+    let month = try #require(DayKey.date(from: "2026-09-01"))
+    let dates = DayKey.monthGridDates(for: month)
+    let items = [wrappingItem("여러 날 A", "2026-09-07", "2026-09-10"),
+                 wrappingItem("여러 날 B", "2026-09-09", "2026-09-14")]
+        + (7...14).flatMap { day in
+            (0..<(day % 4 + 1)).map { wrappingItem("제목 \($0)", "2026-09-\(String(format: "%02d", day))") }
+        }
+    for capacity in 0...5 {
+        let baseline = CalendarEventGridLayout.make(items: items, dates: dates, visibleMonth: month, maximumLanes: capacity)
+        let expanded = CalendarEventGridLayout.make(items: items.reversed(), dates: dates, visibleMonth: month,
+                                                    maximumLanes: capacity, expandedTitleRenderIDs: Set(items.map(\.renderID)))
+        #expect(expanded.displayedEventIDsByDayKey == baseline.displayedEventIDsByDayKey)
+        #expect(expanded.hiddenEventCountByDayKey == baseline.hiddenEventCountByDayKey)
+        var occupied = Set<String>()
+        for segment in expanded.segments {
+            #expect(segment.lane + segment.laneSpan <= capacity)
+            for column in segment.startColumn..<(segment.startColumn + segment.span) {
+                for lane in segment.lane..<(segment.lane + segment.laneSpan) {
+                    #expect(occupied.insert("\(segment.weekIndex)/\(column)/\(lane)").inserted)
+                }
+            }
+        }
+        for original in baseline.segments where items.prefix(2).contains(where: { $0.renderID == original.renderID }) {
+            #expect(expanded.segments.first { $0.id == original.id } == original)
+        }
+    }
+}

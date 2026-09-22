@@ -42,6 +42,28 @@ public enum DiscoveryPreviewFixtures {
         let info = try DiaryAttachmentService.inspect(photo)
         context.insert(DiaryAttachment(reviewId: photoReview.id, order: 0, originalFileName: "discovery-preview.png",
             mimeType: info.mediaType.rawValue, byteCount: info.byteCount, sha256: info.sha256, data: photo))
+        if arguments.contains("--ui-testing-long-discovery") {
+            let reviews = try context.fetch(FetchDescriptor<DailyReview>())
+            if let review = reviews.first(where: { $0.dayKey == key(0) }) {
+                review.title = "긴 제목과 여러 사진이 있는 하루의 회고를 목록에서 살펴보고 전체 내용을 읽기"
+                review.content = String(repeating: "차분히 하루를 돌아보며 오늘의 생각과 내일의 계획을 기록했다. ", count: 16) + "마지막 문장까지 보존됩니다."
+                for index in 0..<3 {
+                    context.insert(DiaryAttachment(reviewId: review.id, order: Double(index),
+                        originalFileName: "long-preview-\(index).png", mimeType: info.mediaType.rawValue,
+                        byteCount: info.byteCount, sha256: info.sha256, data: photo))
+                }
+            }
+            for (name, count) in [("가장 긴 작업 묶음", 8), ("다음 작업 묶음", 2)] {
+                let template = TaskTemplate(name: name, isFavorite: true)
+                context.insert(template)
+                for index in 1...count {
+                    context.insert(TaskTemplateItem(templateId: template.id,
+                        title: "\(index)번째 작업의 긴 제목을 읽고 해야 할 일과 관련 자료를 차근차근 확인하기",
+                        note: "상세에서 확인할 작업 메모", checklistTitles: ["자료 확인", "검토 완료"],
+                        order: Double(index) * 100))
+                }
+            }
+        }
         context.insert(DailyReview(dayKey: key(-2), mood: "뿌듯함", content: ""))
         let legacy = DailyReview(dayKey: key(-3), content: "")
         context.insert(legacy)
@@ -50,6 +72,25 @@ public enum DiscoveryPreviewFixtures {
         context.insert(DailyReview(dayKey: key(-4), content: ""))
         for i in 10..<45 {
             context.insert(DailyReview(dayKey: key(-i), title: "오래된 회고 \(i)", content: "그날의 생각을 한 줄씩 남겼다."))
+        }
+        if arguments.contains("--ui-testing-calendar-wrapping") {
+            let month = DayKey.startOfMonth(for: today)
+            let fixtures: [(String, Int, Int)] = [
+                ("프로젝트 기획 검토", 9, 9),
+                ("산책", 10, 10),
+                ("Product planning review", 11, 11),
+                ("가족과 함께하는 주말 나들이 준비", 12, 12),
+                ("저녁 약속", 12, 12),
+                ("공백없는아주긴일정제목도두줄안에서확인하기", 16, 16),
+                ("여러 날에 걸친 프로젝트 일정", 17, 21),
+                ("다일 일정 아래의 하루 일정 확인", 18, 18)
+            ] + (0..<6).map { ("겹친 일정 \($0 + 1)", 23, 23) }
+            for (title, start, end) in fixtures {
+                if let event = CalendarEventRules.makeEvent(
+                    title: title, startAt: DayKey.addingDays(start - 1, to: month),
+                    endAt: DayKey.addingDays(end - 1, to: month)
+                ) { context.insert(event) }
+            }
         }
         let receipt = CarryoverInboxReceipt(seen: Set(old.map(CarryoverEntryKey.init)))
         PlanBaseLocalPreferences.current.set(try JSONEncoder().encode(receipt), forKey: "PlanBaseCarryoverInboxReceipt.v1")

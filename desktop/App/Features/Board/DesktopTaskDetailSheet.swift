@@ -28,6 +28,9 @@ struct TaskDetailSheet: View {
     @State private var persistenceFailureMessage: String?
     @State private var pendingTaskCompletion: PendingDesktopDetailCompletion?
     @FocusState private var isNewChecklistItemFocused: Bool
+    #if DEBUG
+    @State private var didInjectSaveFailure = false
+    #endif
 
     init(task: Task) {
         self.task = task
@@ -308,6 +311,9 @@ struct TaskDetailSheet: View {
                 ForEach($checklistDrafts) { $draft in
                     ChecklistDraftEditorRow(
                         draft: $draft,
+                        canMoveUp: checklistDrafts.first?.id != draft.id,
+                        canMoveDown: checklistDrafts.last?.id != draft.id,
+                        onMove: { offset in moveChecklistItem(draft.id, by: offset) },
                         onDelete: {
                             deleteChecklistItem(draft.id)
                         },
@@ -465,6 +471,16 @@ struct TaskDetailSheet: View {
                     in: modelContext,
                     now: now
                 )
+                #if DEBUG
+                // Exercise rollback and retained editor drafts in the isolated UI fixture.
+                let arguments = ProcessInfo.processInfo.arguments
+                if arguments.contains("--ui-testing"),
+                   arguments.contains("--ui-testing-task-detail-save-failure-once"),
+                   !didInjectSaveFailure {
+                    didInjectSaveFailure = true
+                    throw NSError(domain: "PlanBaseUITest.TaskDetailSave", code: 1)
+                }
+                #endif
             }
             dismiss()
         } catch {
@@ -558,6 +574,12 @@ struct TaskDetailSheet: View {
         return true
     }
 
+    private func moveChecklistItem(_ id: UUID, by offset: Int) {
+        guard let index = checklistDrafts.firstIndex(where: { $0.id == id }),
+              checklistDrafts.indices.contains(index + offset) else { return }
+        _ = moveChecklistItem(id, relativeTo: checklistDrafts[index + offset].id, placeAfter: offset > 0)
+    }
+
     private func renumberChecklistDrafts() {
         for index in checklistDrafts.indices {
             checklistDrafts[index].order = Double(index + 1) * 100
@@ -587,9 +609,13 @@ struct TaskDetailSheet: View {
 
 private struct ChecklistDraftEditorRow: View {
     @Binding var draft: ChecklistItemDraft
+    var canMoveUp: Bool
+    var canMoveDown: Bool
+    var onMove: (Int) -> Void
     var onDelete: () -> Void
     var onDrop: (UUID, Bool) -> Bool
     @State private var isDropTargeted = false
+    @FocusState private var isReorderFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -625,6 +651,20 @@ private struct ChecklistDraftEditorRow: View {
             .accessibilityLabel("\(draft.title) 체크리스트 항목 삭제")
             .help("체크리스트 항목 삭제")
 
+            Menu {
+                Button("위로 이동") { move(-1) }.disabled(!canMoveUp)
+                Button("아래로 이동") { move(1) }.disabled(!canMoveDown)
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .frame(width: PlanBaseControlMetrics.minimumTargetSize,
+                           height: PlanBaseControlMetrics.minimumTargetSize)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .focused($isReorderFocused)
+            .accessibilityLabel("\(draft.title) 순서 변경")
+            .help("순서 변경: 위로 이동 또는 아래로 이동")
+
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(AppTheme.secondaryText)
@@ -633,6 +673,7 @@ private struct ChecklistDraftEditorRow: View {
                 .contentShape(Rectangle())
                 .draggable(draft.id.uuidString)
                 .help("드래그해서 순서 변경")
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 10)
         .frame(minHeight: 42)
@@ -653,6 +694,15 @@ private struct ChecklistDraftEditorRow: View {
         } isTargeted: { isTargeted in
             isDropTargeted = isTargeted
         }
+        .accessibilityActions {
+            if canMoveUp { Button("위로 이동") { move(-1) } }
+            if canMoveDown { Button("아래로 이동") { move(1) } }
+        }
+    }
+
+    private func move(_ offset: Int) {
+        onMove(offset)
+        isReorderFocused = true
     }
 }
 

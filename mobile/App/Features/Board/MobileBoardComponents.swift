@@ -5,28 +5,37 @@ import SwiftData
 import SwiftUI
 
 struct MobileStatusNotice: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var message: String
     var tone: MobileNoticeTone = .success
+    var summary: String? = nil
+    var subject: String? = nil
     var destinationTitle: String? = nil
     var onShowDestination: () -> Void = {}
     var onUndo: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(message, systemImage: tone.symbol)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
-                .foregroundStyle(tone == .error ? Color.red : AppTheme.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(message)
-                .accessibilityIdentifier("board-status-notice")
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 0) { actions }
-            } else {
-                HStack(spacing: 16) { actions }
+            VStack(alignment: .leading, spacing: 2) {
+                Label(summary ?? message, systemImage: tone.symbol)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(summary == nil ? 3 : 2)
+                    .foregroundStyle(tone == .error ? Color.red : AppTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subject {
+                    Text(subject)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .lineLimit(1)
+                }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(message)
+            .accessibilityIdentifier("board-status-notice")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { actions }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 0) { actions }
+            }
+            .font(.callout)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -53,12 +62,13 @@ struct MobileStatusNotice: View {
         }
         if let onUndo {
             Button(action: onUndo) {
-                Text("완료 실행 취소")
+                Text("실행 취소")
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(AppTheme.accent)
+                .accessibilityLabel("완료 실행 취소")
                 .accessibilityIdentifier("board-completion-undo")
         }
     }

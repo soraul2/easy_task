@@ -48,7 +48,6 @@ public struct ReviewDiscoveryCard<Photos: View>: View {
     public var isDetail: Bool
     public var onOpen: () -> Void
     private var photos: Photos
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(record: ReviewDiscoveryRecord, isDetail: Bool = false,
                 onOpen: @escaping () -> Void = {}, @ViewBuilder photos: () -> Photos) {
@@ -78,7 +77,7 @@ public struct ReviewDiscoveryCard<Photos: View>: View {
                 Text(record.bodyText)
                     .font(.body)
                     .lineSpacing(4)
-                    .lineLimit(isDetail || dynamicTypeSize.isAccessibilitySize ? nil : 4)
+                    .lineLimit(isDetail ? nil : 4)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
@@ -86,6 +85,12 @@ public struct ReviewDiscoveryCard<Photos: View>: View {
                 photos
                 Label("사진 \(record.photoCount)장", systemImage: "photo")
                     .font(.caption).foregroundStyle(AppTheme.secondaryText)
+            }
+            if !isDetail {
+                Button("전체 읽기", action: onOpen)
+                    .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                    .accessibilityLabel("\(record.title) 전체 읽기")
+                    .accessibilityIdentifier("review-read-all-\(record.id)")
             }
             let metadata = [record.review.weather, record.review.mood].filter {
                 !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -106,7 +111,7 @@ public struct ReviewDiscoveryCard<Photos: View>: View {
             Text(DayKey.date(from: record.id).map(DayKey.display) ?? record.id)
                 .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
             Text(record.title).font(isDetail ? .title2.bold() : .headline)
-                .lineLimit(isDetail || dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .lineLimit(isDetail ? nil : 2)
         }
     }
 }

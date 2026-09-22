@@ -64,7 +64,7 @@ public struct TemplateLibraryView: View {
                             .font(.headline)
                             .accessibilityIdentifier("template-target-date")
                     } else {
-                        Label("루틴을 고른 뒤 날짜를 선택하세요", systemImage: "calendar")
+                        Label("템플릿을 고른 뒤 날짜를 선택하세요", systemImage: "calendar")
                             .font(.headline)
                     }
                     Text("자주 쓰는 작업 묶음을 한 번에 추가하세요.")
@@ -73,7 +73,7 @@ public struct TemplateLibraryView: View {
                         TemplateSearchField(text: $searchText)
                         TemplateScopePicker(scope: $scope)
                         if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("전체 루틴에서 검색합니다")
+                            Text("전체 템플릿에서 검색합니다")
                                 .font(.caption).foregroundStyle(AppTheme.secondaryText)
                         }
                     }
@@ -86,7 +86,7 @@ public struct TemplateLibraryView: View {
                 .listRowBackground(AppTheme.panel)
                 if templates.isEmpty {
                     Section {
-                        ContentUnavailableView("첫 루틴을 만들어 보세요", systemImage: "square.on.square",
+                        ContentUnavailableView("첫 템플릿을 만들어 보세요", systemImage: "square.on.square",
                             description: Text("아침 준비나 운동처럼 자주 하는 작업을 묶어 저장하세요."))
                         Button("직접 만들기", action: createEmpty)
                             .accessibilityIdentifier("template-create-empty")
@@ -97,19 +97,19 @@ public struct TemplateLibraryView: View {
                     }
                 } else if visible.isEmpty {
                     Section {
-                        ContentUnavailableView(searchText.isEmpty ? "즐겨찾기한 루틴이 없어요" : "검색 결과가 없어요",
+                        ContentUnavailableView(searchText.isEmpty ? "즐겨찾기한 템플릿이 없어요" : "검색 결과가 없어요",
                             systemImage: searchText.isEmpty ? "star" : "magnifyingglass",
                             description: Text("전체 목록을 보거나 다른 검색어로 찾아보세요."))
-                        Button("전체 루틴 보기") { searchText = ""; scope = .all }
+                        Button("전체 템플릿 보기") { searchText = ""; scope = .all }
                     }
                 } else {
-                    Section("저장한 루틴 \(visible.count)개") {
+                    Section("저장한 템플릿 \(visible.count)개") {
                         ForEach(visible) { template in
                             routineRow(template, items: groupedItems[template.id] ?? [], sourceTasks: sources)
                         }
                     }
                     Section {
-                        Text("작업 한 개짜리 루틴은 ‘저장한 작업’에서도 사용할 수 있어요. 같은 항목이므로 편집·삭제가 함께 반영됩니다.")
+                        Text("작업 한 개짜리 템플릿은 ‘저장한 작업’에서도 사용할 수 있어요. 같은 항목이므로 편집·삭제가 함께 반영됩니다.")
                             .font(.caption).foregroundStyle(AppTheme.secondaryText)
                     }
                 }
@@ -144,7 +144,7 @@ public struct TemplateLibraryView: View {
                 if let template = templates.first(where: { $0.id == id && $0.supersededAt == nil }) {
                     detail(template)
                 } else {
-                    ContentUnavailableView("루틴을 찾을 수 없어요", systemImage: "square.on.square")
+                    ContentUnavailableView("템플릿을 찾을 수 없어요", systemImage: "square.on.square")
                 }
             }
         }
@@ -179,13 +179,13 @@ public struct TemplateLibraryView: View {
         } message: { request in
             Text("\(selectedDate.map(DayKey.display) ?? "")에 같은 제목의 작업이 \(request.summary.duplicateCount)개 있어요. 기존 작업은 유지됩니다.")
         }
-        .alert("루틴을 삭제할까요?", isPresented: Binding(
+        .alert("템플릿을 삭제할까요?", isPresented: Binding(
             get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
         ), presenting: pendingDelete) { value in
             Button("삭제", role: .destructive) { delete(value.id) }
             Button("취소", role: .cancel) {}
         } message: { value in
-            Text("‘\(value.name)’ 루틴과 저장된 작업 \(value.drafts.count)개를 삭제합니다. 이미 보드에 추가된 작업은 유지됩니다." +
+            Text("‘\(value.name)’ 템플릿과 저장된 작업 \(value.drafts.count)개를 삭제합니다. 이미 보드에 추가된 작업은 유지됩니다." +
                  (value.drafts.count == 1 ? " ‘저장한 작업’ 목록에서도 삭제됩니다." : ""))
         }
         .alert("처리하지 못했어요", isPresented: Binding(
@@ -210,13 +210,15 @@ public struct TemplateLibraryView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             if template.isFavorite { Image(systemName: "star.fill").foregroundStyle(AppTheme.accent) }
-                            Text(template.name).font(.headline)
+                            Text(template.name).font(.headline).lineLimit(2)
                         }
                         Text("작업 \(drafts.count)개" + estimatedSummary(drafts))
                             .font(.caption).foregroundStyle(AppTheme.secondaryText)
                         Text(drafts.prefix(3).map(\.title).joined(separator: " · "))
                             .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                            .lineLimit(2)
+                        Text("작업 전체 보기")
+                            .font(.caption.weight(.semibold)).foregroundStyle(AppTheme.accent)
                     }
                 }
                 .accessibilityIdentifier("template-detail-\(template.name)")
@@ -257,6 +259,10 @@ public struct TemplateLibraryView: View {
             Section {
                 Text(template.name).font(.title2.bold())
                 Text("작업 \(drafts.count)개" + estimatedSummary(drafts)).foregroundStyle(AppTheme.secondaryText)
+                if drafts.count == 1 {
+                    Text("‘저장한 작업’과 같은 항목입니다. 편집·삭제가 두 목록에 함께 반영되며, 보드에 추가한 작업은 유지돼요.")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                }
                 if let selectedDate {
                     Label("\(DayKey.display(selectedDate))에 추가", systemImage: "calendar")
                 }
@@ -280,7 +286,7 @@ public struct TemplateLibraryView: View {
         }
         .scrollContentBackground(.hidden)
         .background(AppTheme.background)
-        .navigationTitle("루틴 상세")
+        .navigationTitle("템플릿 상세")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu { managementActions(template) } label: { Label("관리", systemImage: "ellipsis") }
@@ -303,7 +309,7 @@ public struct TemplateLibraryView: View {
     }
 
     @ViewBuilder private func managementActions(_ template: TaskTemplate) -> some View {
-        Button("루틴 편집", systemImage: "pencil") { openEditor(template.id) }
+        Button("템플릿 편집", systemImage: "pencil") { openEditor(template.id) }
         Button("복제", systemImage: "plus.square.on.square") { openEditor(template.id, copy: true) }
         Button(template.isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가", systemImage: "star") {
             do {
@@ -379,7 +385,7 @@ public struct TemplateLibraryView: View {
                 return TemplateService.applyTemplate(template, drafts: request.drafts,
                     selectedDates: [selectedDate], existingTasks: tasks, in: context, skipDuplicateTitles: skipDuplicates)
             }
-            guard count > 0 else { notice = "같은 제목의 작업이 모두 있어요. 다시 추가하려면 루틴의 추가 버튼을 누르세요."; return }
+            guard count > 0 else { notice = "같은 제목의 작업이 모두 있어요. 다시 추가하려면 템플릿의 추가 버튼을 누르세요."; return }
             onApplied("\(DayKey.display(selectedDate))에 ‘\(request.name)’ 작업 \(count)개를 추가했어요")
             dismiss()
         } catch { failure = error.localizedDescription }
@@ -390,7 +396,7 @@ public struct TemplateLibraryView: View {
             try TemplateEditingService.delete(id: id, in: context)
             pendingDelete = nil
             path.removeAll { $0 == id }
-            notice = "루틴을 삭제했어요"
+            notice = "템플릿을 삭제했어요"
         } catch { failure = error.localizedDescription }
     }
 }

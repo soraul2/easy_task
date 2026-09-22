@@ -339,7 +339,13 @@ struct CalendarView: View {
                 },
                 dates: monthDates,
                 visibleMonth: visibleMonth,
-                maximumLanes: maxEventLanes
+                maximumLanes: maxEventLanes,
+                expandedTitleRenderIDs: Set(activeEvents.filter {
+                    $0.startDayKey == $0.endDayKey
+                        && CalendarEventTitleMetrics.needsTwoLines(
+                            $0.title, width: max(cellWidth - 10, 32) - 12, fontSize: 11
+                        )
+                }.map(\.instanceID))
             )
 
             ZStack(alignment: .topLeading) {
@@ -381,7 +387,7 @@ struct CalendarView: View {
                             event: event,
                             isDisabled: isPlacementMode,
                             width: max(cellWidth * CGFloat(segment.span) - 10, 32),
-                            height: barHeight,
+                            height: barHeight + CGFloat(segment.laneSpan - 1) * laneHeight,
                             xOffset: cellWidth * CGFloat(segment.startColumn) + 5,
                             yOffset: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight,
                             onEdit: { event in

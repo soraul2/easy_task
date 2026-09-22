@@ -53,6 +53,7 @@ private struct MobileCalendarMonthQueryHost<Content: View>: View {
 }
 
 struct MobileCalendarView: View {
+    @ScaledMetric(relativeTo: .caption2) private var eventFontSize: CGFloat = 11
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var navigationDate: Date?
     var onOpenBoardDate: (Date) -> Void
@@ -228,8 +229,9 @@ struct MobileCalendarView: View {
             let eventTopInset = usesGraphicEventBars
                 ? min(max(cellHeight * 0.24, 40), 46)
                 : min(max(cellHeight * 0.24, 26), 34)
-            let laneHeight: CGFloat = usesGraphicEventBars ? 8 : 18
-            let barHeight: CGFloat = usesGraphicEventBars ? 6 : 17
+            let laneHeight: CGFloat = usesGraphicEventBars ? 8
+                : max(18, CalendarEventTitleMetrics.lineHeight(fontSize: eventFontSize) + 4)
+            let barHeight: CGFloat = usesGraphicEventBars ? 6 : laneHeight - 1
             let maxEventLanes = max(
                 1,
                 min(
@@ -255,71 +257,89 @@ struct MobileCalendarView: View {
                 },
                 dates: dates,
                 visibleMonth: visibleMonth,
-                maximumLanes: maxEventLanes
+                maximumLanes: maxEventLanes,
+                expandedTitleRenderIDs: usesGraphicEventBars ? [] : Set(activeEvents.filter {
+                    $0.startDayKey == $0.endDayKey
+                        && CalendarEventTitleMetrics.needsTwoLines(
+                            $0.title, width: cellWidth - 4, fontSize: eventFontSize
+                        )
+                }.map(\.instanceID))
             )
 
-            VStack(spacing: 0) {
-                CalendarWeekdayHeader()
-                    .frame(height: headerHeight)
+            ScrollView(.vertical) {
+                VStack(spacing: 0) {
+                    CalendarWeekdayHeader()
+                        .frame(height: headerHeight)
 
-                ZStack(alignment: .topLeading) {
-                    LazyVGrid(columns: columns, spacing: 0) {
-                        ForEach(Array(dates.enumerated()), id: \.element) { index, date in
-                            MobileMonthDayCell(
-                                date: date,
-                                visibleMonth: visibleMonth,
-                                isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
-                                isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
-                                events: isPlacementMode ? [] : eventsForDate(date, in: events),
-                                templatePlacements: isPlacementMode ? [] : placementsForDate(date, in: templatePlacements),
-                                hiddenEventCount: isPlacementMode
-                                    ? 0
-                                    : layout.hiddenEventCountByDayKey[DayKey.key(for: date)] ?? 0,
-                                specialDays: specialDayStore.days(on: date),
-                                showsTrailingDivider: (index + 1) % 7 != 0,
-                                showsBottomDivider: index < dates.count - 7
-                            )
-                            .frame(height: cellHeight)
-                            .onTapGesture {
-                                let day = DayKey.startOfDay(for: date)
-                                selectedDate = day
-                                if placementTemplate == nil {
-                                    compactColumn = .detail
-                                } else {
-                                    togglePlacementDate(day)
+                    ZStack(alignment: .topLeading) {
+                        LazyVGrid(columns: columns, spacing: 0) {
+                            ForEach(Array(dates.enumerated()), id: \.element) { index, date in
+                                MobileMonthDayCell(
+                                    date: date,
+                                    visibleMonth: visibleMonth,
+                                    isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
+                                    isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
+                                    events: isPlacementMode ? [] : eventsForDate(date, in: events),
+                                    templatePlacements: isPlacementMode ? [] : placementsForDate(date, in: templatePlacements),
+                                    hiddenEventCount: isPlacementMode
+                                        ? 0
+                                        : layout.hiddenEventCountByDayKey[DayKey.key(for: date)] ?? 0,
+                                    // The 40pt accessibility date badge and count fit side by side in wide cells.
+                                    showsInlineOverflowCount: !usesGraphicEventBars || cellWidth >= 72,
+                                    specialDays: specialDayStore.days(on: date),
+                                    showsTrailingDivider: (index + 1) % 7 != 0,
+                                    showsBottomDivider: index < dates.count - 7
+                                )
+                                .frame(height: cellHeight)
+                                .onTapGesture {
+                                    let day = DayKey.startOfDay(for: date)
+                                    selectedDate = day
+                                    if placementTemplate == nil {
+                                        compactColumn = .detail
+                                    } else {
+                                        togglePlacementDate(day)
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    ForEach(layout.segments) { segment in
-                        if let event = eventsByRenderID[segment.renderID] {
-                            MobileCalendarEventSpanBar(
-                                event: event,
-                                visibleDaySpan: segment.span,
-                                isDimmed: segment.isDimmed,
-                                usesGraphicStyle: usesGraphicEventBars
-                            )
-                            .frame(width: max(cellWidth * CGFloat(segment.span), 24), height: barHeight)
-                            .offset(
-                                x: cellWidth * CGFloat(segment.startColumn),
-                                y: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight
-                            )
-                            .allowsHitTesting(false)
+                        ForEach(layout.segments) { segment in
+                            if let event = eventsByRenderID[segment.renderID] {
+                                MobileCalendarEventSpanBar(
+                                    event: event,
+                                    visibleDaySpan: segment.span,
+                                    isDimmed: segment.isDimmed,
+                                    usesGraphicStyle: usesGraphicEventBars,
+                                    titleLineCount: segment.laneSpan,
+                                    fontSize: eventFontSize
+                                )
+                                .frame(width: max(cellWidth * CGFloat(segment.span), 24),
+                                       height: barHeight + CGFloat(segment.laneSpan - 1) * laneHeight)
+                                .offset(
+                                    x: cellWidth * CGFloat(segment.startColumn),
+                                    y: CGFloat(segment.weekIndex) * cellHeight + eventTopInset + CGFloat(segment.lane) * laneHeight
+                                )
+                                .allowsHitTesting(false)
+                            }
                         }
                     }
+                    .frame(height: gridHeight)
                 }
-                .frame(height: gridHeight)
+                .frame(height: headerHeight + gridHeight)
+                .clipShape(Rectangle())
+                .overlay {
+                    Rectangle().stroke(
+                        AppTheme.border.opacity(0.62),
+                        lineWidth: 0.5
+                    )
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .frame(height: headerHeight + gridHeight)
-            .clipShape(Rectangle())
-            .overlay {
-                Rectangle().stroke(
-                    AppTheme.border.opacity(0.62),
-                    lineWidth: 0.5
-                )
-            }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .contentMargins(.bottom, MobileLayout.bottomTabClearance, for: .scrollContent)
+            .accessibilityIdentifier("calendar-month-scroll")
+            .scrollDisabled(headerHeight + gridHeight <= proxy.size.height)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
         }
     }
 

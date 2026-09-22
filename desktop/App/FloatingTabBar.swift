@@ -10,9 +10,13 @@ struct FloatingTabBar: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Image(systemName: tab.symbol)
-                        .font(.system(size: 18, weight: .semibold))
-                        .frame(width: 54, height: 44)
+                    VStack(spacing: 3) {
+                        Image(systemName: tab.symbol)
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(tab.title)
+                            .font(.caption.weight(.medium))
+                    }
+                        .frame(width: 60, height: 48)
                         .background(tab == selectedTab ? AppTheme.selectedTab : Color.clear, in: Capsule())
                 }
                 .buttonStyle(.plain)

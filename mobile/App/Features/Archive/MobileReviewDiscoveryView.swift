@@ -9,6 +9,7 @@ struct MobileReviewDiscoveryView: View {
     var onShowTheme: () -> Void
     @Environment(\.modelContext) private var context
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showingFilter = false
     @State private var composeDay: ArchiveDaySelection?
@@ -27,6 +28,9 @@ struct MobileReviewDiscoveryView: View {
         MobileAdaptiveSplitView(compactColumn: $compactColumn, sidebarIdealWidth: 400) {
             ScrollView {
                 LazyVStack(spacing: 12) {
+                    if verticalSizeClass == .compact {
+                        ArchivePanePicker(selection: $state.pane)
+                    }
                     if state.reviewFilter.hasActiveCriteria {
                         HStack {
                             Text(state.reviewFilter.period.title).font(.caption)
@@ -60,17 +64,24 @@ struct MobileReviewDiscoveryView: View {
             .scrollDismissesKeyboard(.interactively)
             .background(AppTheme.background)
             .safeAreaInset(edge: .top, spacing: 0) {
-                ArchivePanePicker(selection: $state.pane)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(AppTheme.background)
+                if verticalSizeClass != .compact {
+                    ArchivePanePicker(selection: $state.pane)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(AppTheme.background)
+                }
             }
+            // Keep the drawer mode stable across rotation. Switching it can stall
+            // search activation at accessibility sizes with increased contrast.
             .searchable(text: $state.reviewFilter.searchText,
-                        placement: .navigationBarDrawer(displayMode: .always), prompt: "회고 제목, 본문, 날씨, 기분 검색")
+                        placement: .navigationBarDrawer(displayMode: .automatic),
+                        prompt: "회고 검색")
             .navigationTitle("기록")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { showingFilter = true } label: {
                         Image(systemName: state.reviewFilter.period == .all
                               ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")

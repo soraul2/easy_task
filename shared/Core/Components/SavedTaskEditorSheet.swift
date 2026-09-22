@@ -55,6 +55,8 @@ struct SavedTaskEditorSheet: View {
                         }
                     }
                     Toggle("즐겨찾기", isOn: $favorite)
+                } footer: {
+                    Text("작업 한 개짜리 템플릿과 같은 항목입니다. 편집·삭제가 두 목록에 함께 반영되며, 보드에 추가한 작업은 유지돼요.")
                 }
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {

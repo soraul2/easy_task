@@ -180,7 +180,8 @@ struct AppRootView: View {
     }
 
     private var bottomContentInset: CGFloat {
-        selectedTab == .calendar ? 0 : 92
+        // The calendar's final week needs the same clearance as the other tabs.
+        92
     }
 
     private func start() {

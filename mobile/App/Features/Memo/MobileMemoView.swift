@@ -43,14 +43,7 @@ struct MobileMemoView: View {
                         MobileThemeButton(action: onShowTheme, minimumHitSize: 44)
 
                         Menu {
-                            ForEach(MemoEditorMode.creationOrder) { mode in
-                                Button {
-                                    openMemo(nil, initialMode: mode)
-                                } label: {
-                                    Label(mode.creationTitle, systemImage: mode.systemImage)
-                                }
-                                .accessibilityIdentifier("memo-create-\(mode.rawValue)")
-                            }
+                            memoCreationActions
                         } label: {
                             Image(systemName: "square.and.pencil")
                                 .frame(width: 44, height: 44)
@@ -133,6 +126,18 @@ struct MobileMemoView: View {
 
 private extension MobileMemoView {
     @ViewBuilder
+    var memoCreationActions: some View {
+        ForEach(MemoEditorMode.creationOrder) { mode in
+            Button {
+                openMemo(nil, initialMode: mode)
+            } label: {
+                Label(mode.creationTitle, systemImage: mode.systemImage)
+            }
+            .accessibilityIdentifier("memo-create-\(mode.rawValue)")
+        }
+    }
+
+    @ViewBuilder
     var memoList: some View {
         let memos = querySession?.memos ?? []
         if querySession?.isLoading == true, memos.isEmpty {
@@ -165,10 +170,24 @@ private extension MobileMemoView {
                 }
             } description: {
                 Text(searchText.isEmpty
-                    ? "새 메모 버튼으로 메모를 추가하세요."
+                    ? "글, 체크리스트, 필기 중 선택해 시작하세요."
                     : "다른 검색어를 입력해 보세요.")
                     .foregroundStyle(AppTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+            } actions: {
+                if searchText.isEmpty {
+                    Menu {
+                        memoCreationActions
+                    } label: {
+                        Label("메모 만들기", systemImage: "plus")
+                    }
+                    .buttonStyle(PlanBaseButtonStyle(.primary))
+                    .accessibilityIdentifier("memo-empty-create")
+                } else {
+                    Button("검색어 지우기") { searchText = "" }
+                        .buttonStyle(PlanBaseButtonStyle(.secondary))
+                        .accessibilityIdentifier("memo-clear-search")
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.background)

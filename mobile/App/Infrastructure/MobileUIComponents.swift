@@ -122,6 +122,7 @@ struct MobileNoticeBanner: View {
             RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(message)
         .accessibilityValue(tone == .error ? "오류" : "")

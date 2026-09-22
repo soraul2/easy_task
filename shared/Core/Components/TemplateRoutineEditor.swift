@@ -59,7 +59,7 @@ struct TemplateRoutineEditor: View {
                         Button("다시 시도", action: save)
                             .accessibilityIdentifier("template-save-retry")
                         if request.original != nil && !request.adjustment {
-                            Button("새 루틴으로 저장") {
+                            Button("새 템플릿으로 저장") {
                                 saveAsCopy = true
                                 save()
                             }
@@ -69,13 +69,17 @@ struct TemplateRoutineEditor: View {
                 Section {
                     if request.adjustment {
                         Text(name).font(.headline)
-                        Text("이번에 추가할 작업만 조정합니다. 저장된 루틴은 그대로 유지돼요.")
+                        Text("이번에 추가할 작업만 조정합니다. 저장된 템플릿은 그대로 유지돼요.")
                             .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
                     } else {
-                        TextField("루틴 이름", text: $name)
+                        TextField("템플릿 이름", text: $name)
                             .focused($nameFocused)
                             .accessibilityIdentifier("template-draft-name")
                         Toggle("즐겨찾기", isOn: $favorite)
+                    }
+                } footer: {
+                    if request.original?.drafts.count == 1 && !request.adjustment {
+                        Text("‘저장한 작업’과 같은 항목입니다. 수정하면 두 목록에 함께 반영돼요.")
                     }
                 }
                 Section {
@@ -97,13 +101,13 @@ struct TemplateRoutineEditor: View {
                 } footer: {
                     Text(request.adjustment
                          ? "추가되는 작업과 체크리스트는 미완료 상태로 시작해요."
-                         : "수정한 루틴은 다음에 추가할 때부터 사용돼요. 이미 보드에 추가한 작업은 유지됩니다.")
+                         : "수정한 템플릿은 다음에 추가할 때부터 사용돼요. 이미 보드에 추가한 작업은 유지됩니다.")
                 }
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .foregroundStyle(AppTheme.primaryText)
-            .navigationTitle(request.adjustment ? "이번에만 조정" : request.original == nil ? "루틴 만들기" : "루틴 편집")
+            .navigationTitle(request.adjustment ? "이번에만 조정" : request.original == nil ? "템플릿 만들기" : "템플릿 편집")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .scrollDismissesKeyboard(.interactively)
@@ -168,7 +172,7 @@ struct TemplateRoutineEditor: View {
             #endif
             _ = try TemplateEditingService.save(original: saveAsCopy ? nil : request.original,
                 name: name, drafts: ordered, isFavorite: favorite, in: context)
-            onSaved("‘\(name.trimmingCharacters(in: .whitespacesAndNewlines))’ 루틴을 저장했어요")
+            onSaved("‘\(name.trimmingCharacters(in: .whitespacesAndNewlines))’ 템플릿을 저장했어요")
             dismiss()
         } catch {
             failure = error.localizedDescription + "\n작성한 이름과 작업은 그대로 유지됩니다."

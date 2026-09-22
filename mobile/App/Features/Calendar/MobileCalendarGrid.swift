@@ -199,6 +199,7 @@ struct MobileMonthDayCell: View {
     var events: [CalendarEvent]
     var templatePlacements: [TemplatePlacement]
     var hiddenEventCount: Int
+    var showsInlineOverflowCount: Bool
     var specialDays: [SpecialDay]
     var showsTrailingDivider: Bool
     var showsBottomDivider: Bool
@@ -263,6 +264,7 @@ struct MobileMonthDayCell: View {
                     .font(.caption2.weight(isToday ? .bold : .semibold))
                     .dynamicTypeSize(.xSmall ... .xxxLarge)
                     .foregroundStyle(dayForeground)
+                    .fixedSize()
                     .frame(width: dayBadgeSize, height: dayBadgeSize)
                     .background(dayBackground, in: Circle())
 
@@ -276,7 +278,9 @@ struct MobileMonthDayCell: View {
                         .padding(.top, 3)
                 }
                 Spacer(minLength: 0)
-                if isPlacementSelected {
+                if hiddenEventCount > 0, showsInlineOverflowCount, !isPlacementSelected {
+                    hiddenCountBadge
+                } else if isPlacementSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.accent)
@@ -325,25 +329,26 @@ struct MobileMonthDayCell: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if hiddenEventCount > 0 {
-                Text("+\(hiddenEventCount)")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(AppTheme.input, in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(AppTheme.border, lineWidth: 0.5)
-                    }
-                    .padding(3)
-                    .allowsHitTesting(false)
+            if hiddenEventCount > 0, !showsInlineOverflowCount {
+                hiddenCountBadge.padding(3)
             }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(.isButton)
+    }
+
+    private var hiddenCountBadge: some View {
+        Text("+\(hiddenEventCount)")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(AppTheme.primaryText)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(AppTheme.input, in: Capsule())
+            .overlay { Capsule().stroke(AppTheme.border, lineWidth: 0.5) }
+            .fixedSize()
+            .allowsHitTesting(false)
     }
 
     private func specialDayForeground(_ specialDay: SpecialDay) -> Color {
@@ -364,6 +369,8 @@ struct MobileCalendarEventSpanBar: View {
     var visibleDaySpan: Int
     var isDimmed: Bool
     var usesGraphicStyle: Bool
+    var titleLineCount: Int
+    var fontSize: CGFloat
 
     private var usesCompactTitle: Bool {
         visibleDaySpan == 1
@@ -378,10 +385,10 @@ struct MobileCalendarEventSpanBar: View {
                     )
             } else {
                 Text(event.title)
-                    .font(.caption2.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(usesCompactTitle ? 0.7 : 1)
-                    .allowsTightening(usesCompactTitle)
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .lineLimit(titleLineCount)
+                    .minimumScaleFactor(usesCompactTitle && titleLineCount == 1 ? 0.7 : 1)
+                    .allowsTightening(usesCompactTitle && titleLineCount == 1)
                     .truncationMode(.tail)
                     .foregroundStyle(
                         CalendarEventPalette.foreground(for: event.color, isDimmed: isDimmed)

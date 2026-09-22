@@ -32,6 +32,7 @@ public struct CalendarEventGridSegment: Equatable, Identifiable, Sendable {
     public let startColumn: Int
     public let span: Int
     public let lane: Int
+    public let laneSpan: Int
     public let isDimmed: Bool
 
     public var id: String {
@@ -45,7 +46,8 @@ public struct CalendarEventGridSegment: Equatable, Identifiable, Sendable {
         startColumn: Int,
         span: Int,
         lane: Int,
-        isDimmed: Bool
+        isDimmed: Bool,
+        laneSpan: Int = 1
     ) {
         self.renderID = renderID
         self.eventID = eventID
@@ -53,6 +55,7 @@ public struct CalendarEventGridSegment: Equatable, Identifiable, Sendable {
         self.startColumn = startColumn
         self.span = span
         self.lane = lane
+        self.laneSpan = laneSpan
         self.isDimmed = isDimmed
     }
 }
@@ -82,7 +85,8 @@ public enum CalendarEventGridLayout {
         dates: [Date],
         visibleMonth: Date,
         maximumLanes: Int,
-        totalEventCountsByDayKey: [String: Int] = [:]
+        totalEventCountsByDayKey: [String: Int] = [:],
+        expandedTitleRenderIDs: Set<UUID> = []
     ) -> CalendarEventGridLayoutResult {
         let maximumLanes = max(0, maximumLanes)
         let rowCount = dates.count / 7
@@ -179,6 +183,45 @@ public enum CalendarEventGridLayout {
             let hiddenCount = max(0, totalCount - displayedCount)
             if hiddenCount > 0 {
                 hiddenEventCountByDayKey[dayKey] = hiddenCount
+            }
+        }
+
+        // Keep the one-line layout's visible events and multi-day lanes. Expand only
+        // into spare space, so a more readable title never hides another event.
+        if maximumLanes > 1, !expandedTitleRenderIDs.isEmpty {
+            let singleDayIDs = Set(validItems.filter { $0.startDayKey == $0.endDayKey }.map(\.renderID))
+            let singleDayIndices = Dictionary(grouping: segments.indices.filter {
+                singleDayIDs.contains(segments[$0].renderID)
+            }) { segments[$0].weekIndex * 7 + segments[$0].startColumn }
+
+            for (dayOffset, indices) in singleDayIndices {
+                guard hiddenEventCountByDayKey[dayKeys[dayOffset]] == nil,
+                      indices.contains(where: { expandedTitleRenderIDs.contains(segments[$0].renderID) }) else {
+                    continue
+                }
+                let week = dayOffset / 7
+                let column = dayOffset % 7
+                let occupied = Set(segments.filter {
+                    $0.weekIndex == week && !singleDayIDs.contains($0.renderID)
+                        && $0.startColumn <= column && column < $0.startColumn + $0.span
+                }.map(\.lane))
+                var available = (0..<maximumLanes).filter { !occupied.contains($0) }
+                guard available.count > indices.count else { continue }
+                let orderedIndices = indices.sorted { segments[$0].lane < segments[$1].lane }
+                for (position, index) in orderedIndices.enumerated() {
+                    let segment = segments[index]
+                    let lane = available.removeFirst()
+                    let remaining = orderedIndices.count - position - 1
+                    let canExpand = expandedTitleRenderIDs.contains(segment.renderID)
+                        && available.first == lane + 1 && available.count > remaining
+                    if canExpand { available.removeFirst() }
+                    segments[index] = CalendarEventGridSegment(
+                        renderID: segment.renderID, eventID: segment.eventID,
+                        weekIndex: segment.weekIndex, startColumn: segment.startColumn,
+                        span: segment.span, lane: lane, isDimmed: segment.isDimmed,
+                        laneSpan: canExpand ? 2 : 1
+                    )
+                }
             }
         }
 

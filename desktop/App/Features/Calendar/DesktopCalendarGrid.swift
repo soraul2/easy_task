@@ -17,7 +17,7 @@ struct CalendarEventSegmentButton: View {
         Button {
             onEdit(event)
         } label: {
-            EventSpanBar(event: event, isDimmed: segment.isDimmed)
+            EventSpanBar(event: event, isDimmed: segment.isDimmed, titleLineCount: segment.laneSpan)
         }
         .buttonStyle(.plain)
         .allowsHitTesting(!isDisabled)
@@ -97,6 +97,21 @@ struct MonthDayCell: View {
                     }
 
                     Spacer()
+                    if hiddenEventCount > 0, !placementMode {
+                        Text("+\(hiddenEventCount)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(AppTheme.primaryText)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(AppTheme.input, in: Capsule())
+                            .overlay {
+                                Capsule()
+                                    .stroke(AppTheme.border, lineWidth: 1)
+                            }
+                            .fixedSize()
+                            .allowsHitTesting(false)
+                            .accessibilityLabel("숨겨진 일정 \(hiddenEventCount)개")
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -144,22 +159,6 @@ struct MonthDayCell: View {
                 .transition(.opacity)
             }
 
-            if hiddenEventCount > 0, !placementMode {
-                Text("+\(hiddenEventCount)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(AppTheme.input, in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    }
-                    .padding(7)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .allowsHitTesting(false)
-                    .accessibilityLabel("숨겨진 일정 \(hiddenEventCount)개")
-            }
         }
         .contentShape(Rectangle())
         .gesture(
@@ -227,15 +226,16 @@ struct MonthDayCell: View {
 struct EventSpanBar: View {
     var event: CalendarEvent
     var isDimmed: Bool
+    var titleLineCount: Int
 
     var body: some View {
         Text(event.title)
-            .font(.caption2.weight(.semibold))
+            .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(CalendarEventPalette.foreground(for: event.color, isDimmed: isDimmed))
-            .lineLimit(1)
+            .lineLimit(titleLineCount)
             .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .background(CalendarEventPalette.color(for: event.color, isDimmed: isDimmed), in: RoundedRectangle(cornerRadius: 3))
     }
 }

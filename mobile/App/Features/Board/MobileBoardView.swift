@@ -97,6 +97,8 @@ struct MobileBoardView: View {
 #endif
     @State private var persistenceFailureMessage: String?
     @State private var statusNotice: String?
+    @State private var statusNoticeSummary: String?
+    @State private var statusNoticeSubject: String?
     @State private var statusNoticeTone: MobileNoticeTone = .success
     @State private var statusNoticeToken = UUID()
     @State private var statusDestination: (taskID: UUID, status: TaskStatus)?
@@ -154,7 +156,7 @@ struct MobileBoardView: View {
         NavigationStack {
             boardLayout(tasks: tasks)
             .background(AppTheme.background.ignoresSafeArea())
-            .overlay(alignment: .bottom) {
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 statusNoticeOverlay
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: statusNotice)
@@ -306,6 +308,7 @@ struct MobileBoardView: View {
         if let statusNotice {
             MobileStatusNotice(
                 message: statusNotice, tone: statusNoticeTone,
+                summary: statusNoticeSummary, subject: statusNoticeSubject,
                 destinationTitle: statusDestinationTitle,
                 onShowDestination: showStatusDestination,
                 onUndo: completionUndoAction
@@ -625,6 +628,8 @@ struct MobileBoardView: View {
             ? status.transitionNotice
             : "\(title) · \(status.transitionNotice)"
         showBoardNotice(message, duration: undo == nil ? 8 : TaskCompletionUndoService.availabilityDuration)
+        statusNoticeSummary = status.transitionNotice
+        statusNoticeSubject = title.isEmpty ? nil : title
         statusDestination = (task.id, status)
         completionUndo = undo
     }
@@ -712,6 +717,8 @@ struct MobileBoardView: View {
     private func clearBoardNotice() {
         statusNoticeToken = UUID()
         statusNotice = nil
+        statusNoticeSummary = nil
+        statusNoticeSubject = nil
         statusDestination = nil
         completionUndo = nil
     }

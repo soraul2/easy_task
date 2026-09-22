@@ -4945,7 +4945,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls.buttons["전체보기"].isSelected)
         addReferenceScreenshot(named: "routine-library-first-entry")
         app.buttons["template-detail-아침 루틴"].tap()
-        XCTAssertTrue(app.navigationBars["루틴 상세"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["템플릿 상세"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["메일 확인"].exists)
         XCTAssertTrue(app.staticTexts["우선 작업 1개 정하기"].exists)
         addReferenceScreenshot(named: "routine-library-detail")
@@ -4974,7 +4974,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.launch()
         openRoutineLibrary(app)
         createRoutineDraft(app, name: "나의 루틴", task: "순서 첫 작업")
-        app.navigationBars["루틴 만들기"].buttons["취소"].tap()
+        app.navigationBars["템플릿 만들기"].buttons["취소"].tap()
         let discard = app.alerts["변경사항을 버릴까요?"]
         XCTAssertTrue(discard.waitForExistence(timeout: 5))
         discard.buttons["계속 작성"].tap()
@@ -4982,8 +4982,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.buttons["template-draft-save"].tap()
         XCTAssertTrue(app.buttons["template-apply-나의 루틴"].waitForExistence(timeout: 5))
         app.buttons["나의 루틴 관리"].tap()
-        app.buttons["루틴 편집"].tap()
-        XCTAssertTrue(app.navigationBars["루틴 편집"].waitForExistence(timeout: 5))
+        app.buttons["템플릿 편집"].tap()
+        XCTAssertTrue(app.navigationBars["템플릿 편집"].waitForExistence(timeout: 5))
         app.buttons["template-editor-add-task"].tap()
         let second = app.textFields.matching(identifier: "template-editor-task-title").element(boundBy: 1)
         XCTAssertTrue(scrollToHittable(second, in: app))
@@ -5045,10 +5045,10 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.buttons["template-draft-save"].tap()
         XCTAssertTrue(app.buttons["template-apply-복제 원본 복사본"].waitForExistence(timeout: 5))
         app.buttons["복제 원본 관리"].tap()
-        app.buttons["루틴 편집"].tap()
-        XCTAssertTrue(app.navigationBars["루틴 편집"].waitForExistence(timeout: 5))
+        app.buttons["템플릿 편집"].tap()
+        XCTAssertTrue(app.navigationBars["템플릿 편집"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields.matching(identifier: "template-editor-task-title").count, 1)
-        app.navigationBars["루틴 편집"].buttons["취소"].tap()
+        app.navigationBars["템플릿 편집"].buttons["취소"].tap()
         app.buttons["template-apply-복제 원본 복사본"].tap()
         XCTAssertTrue(app.buttons["template-library-button"].waitForExistence(timeout: 5))
         let copiedTask = app.buttons["복사본에만 추가 작업 편집"]
@@ -5223,7 +5223,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         openRoutineLibrary(app)
         app.buttons["아침 루틴 관리"].tap()
         app.buttons["삭제"].tap()
-        let confirmation = app.alerts["루틴을 삭제할까요?"]
+        let confirmation = app.alerts["템플릿을 삭제할까요?"]
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "routine-delete-confirmation")
         confirmation.buttons["삭제"].tap()
@@ -5884,6 +5884,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
             "--ui-testing-accessibility-text-size", "--ui-testing-theme=midnightBlue",
         ]
         app.launch()
+        app.terminate()
+        app.launch()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 15))
         app.tabBars.buttons["메모"].tap()
         let retry = app.buttons["memo-load-retry"]
@@ -6190,6 +6192,346 @@ final class PlanBaseLaunchUITests: XCTestCase {
         addReferenceScreenshot(named: "review-summary-AX5-reduced-motion")
         app.navigationBars["회고 작성"].buttons["취소"].tap()
         XCTAssertFalse(app.alerts["변경사항을 버릴까요?"].exists)
+    }
+
+    @MainActor
+    func testUXLargestTextLandscapeCanOpenReview() {
+        let app = launchDiscoveryApp(additionalArguments: ["--ui-testing-accessibility-text-size"])
+        tapRootDestination("기록", in: app)
+        app.buttons["archive-pane-picker"].tap()
+        app.buttons.matching(identifier: "회고").firstMatch.tap()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let open = app.buttons["review-read-all-\(localDayKey(Date()))"]
+        // AX can report a button behind the translucent navigation bar as hittable.
+        // Bring the explicit reading action completely between the two bars first.
+        for _ in 0..<12 {
+            let upper = app.navigationBars["기록"].frame.maxY + 8
+            let lower = app.tabBars.firstMatch.frame.minY - 8
+            if open.exists, open.isHittable,
+               open.frame.minY >= upper, open.frame.maxY <= lower { break }
+            let center = (upper + lower) / 2
+            let delta = open.exists ? max(-90, min(90, center - open.frame.midY)) : -90
+            let start = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: app.frame.width * 0.95, dy: center))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: delta)))
+        }
+        XCTAssertTrue(open.isHittable)
+        XCTAssertGreaterThanOrEqual(open.frame.minY, app.navigationBars["기록"].frame.maxY)
+        XCTAssertLessThanOrEqual(open.frame.maxY, app.tabBars.firstMatch.frame.minY)
+        addReferenceScreenshot(named: "ux-review-AX5-landscape-readable-list")
+        open.tap()
+        let navigation = app.navigationBars["회고"]
+        XCTAssertTrue(navigation.waitForExistence(timeout: 5))
+        XCTAssertTrue(navigation.buttons.firstMatch.isHittable)
+        addReferenceScreenshot(named: "ux-review-AX5-landscape-opened")
+        navigation.buttons.firstMatch.tap()
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.buttons["archive-pane-picker"].isHittable)
+        app.buttons["회고 기간 필터"].tap()
+        XCTAssertTrue(app.navigationBars["회고 필터"].waitForExistence(timeout: 5))
+        app.navigationBars["회고 필터"].buttons["완료"].tap()
+        let search = app.searchFields.firstMatch
+        for _ in 0..<8 {
+            if search.exists && search.isHittable { break }
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.55))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.88)))
+        }
+        XCTAssertTrue(search.isHittable)
+        search.tap()
+        search.typeText("작은 진전")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertEqual(search.value as? String, "작은 진전")
+        // Exercise input after rotation as well, then capture the settled UI.
+        search.typeText("을")
+        XCTAssertEqual(search.value as? String, "작은 진전을")
+        XCTAssertGreaterThan(app.frame.width, app.frame.height)
+        XCTAssertTrue(search.isHittable)
+        addReferenceScreenshot(named: "ux-review-AX5-landscape-search-preserved")
+    }
+
+    @MainActor
+    func testCalendarSingleDayWrappingAndLargeTextRoutes() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone else {
+            throw XCTSkip("iPhone 글자 크기·회전 검사")
+        }
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let month = Calendar.current.dateInterval(of: .month, for: Date())!.start
+        let day = Calendar.current.date(byAdding: .day, value: 8, to: month)!
+        for (name, options) in [("normal", [String]()),
+                                ("xxxLarge", ["--ui-testing-expanded-text-size"]),
+                                ("AX5", ["--ui-testing-accessibility-text-size"])] {
+            XCUIDevice.shared.orientation = .portrait
+            let app = launchDiscoveryApp(additionalArguments: options + ["--ui-testing-calendar-wrapping"])
+            tapRootDestination("캘린더", in: app)
+            XCTAssertTrue(app.staticTexts["calendar-month-title"].waitForExistence(timeout: 5))
+            if name == "normal" {
+                let long = app.staticTexts["프로젝트 기획 검토"]
+                let short = app.staticTexts["산책"]
+                XCTAssertTrue(long.waitForExistence(timeout: 5))
+                XCTAssertTrue(short.exists)
+                XCTAssertGreaterThan(long.frame.height, short.frame.height + 5)
+            }
+            addReferenceScreenshot(named: "calendar-wrap-\(name)-portrait")
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let rotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                app.windows.firstMatch.frame.width > app.windows.firstMatch.frame.height
+            }, object: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 5), .completed)
+            if name == "AX5" {
+                let end = Calendar.current.date(byAdding: DateComponents(month: 1, day: -1), to: month)!
+                let lastDay = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", koreanDayDisplay(end))).firstMatch
+                let monthScroll = app.scrollViews["calendar-month-scroll"]
+                XCTAssertTrue(monthScroll.waitForExistence(timeout: 5))
+                XCTAssertGreaterThan(monthScroll.frame.height, 0)
+                for _ in 0..<4 {
+                    if lastDay.exists, lastDay.isHittable,
+                       lastDay.frame.maxY < app.tabBars.firstMatch.frame.minY { break }
+                    // The scroll view extends behind the floating tab bar. Start
+                    // inside its visible body so the tab bar cannot consume the drag.
+                    let frame = monthScroll.frame
+                    let bottom = min(frame.maxY, app.tabBars.firstMatch.frame.minY) - 12
+                    let start = app.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: frame.midX, dy: bottom))
+                    start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: .zero)
+                        .withOffset(CGVector(dx: frame.midX, dy: frame.minY + 12)))
+                }
+                addReferenceScreenshot(named: "calendar-wrap-AX5-last-week-scrolled")
+                let hierarchy = XCTAttachment(string: app.debugDescription)
+                hierarchy.name = "calendar-wrap-AX5-last-week-hierarchy"
+                hierarchy.lifetime = .keepAlways
+                add(hierarchy)
+                XCTAssertTrue(lastDay.isHittable)
+                XCTAssertLessThan(lastDay.frame.maxY, app.tabBars.firstMatch.frame.minY)
+                lastDay.tap()
+                XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5))
+                app.navigationBars.buttons["닫기"].tap()
+            }
+            addReferenceScreenshot(named: "calendar-wrap-\(name)-landscape")
+            XCUIDevice.shared.orientation = .portrait
+            let date = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", koreanDayDisplay(day))).firstMatch
+            XCTAssertTrue(date.waitForExistence(timeout: 5))
+            date.tap()
+            XCTAssertTrue(app.buttons["프로젝트 기획 검토 일정 메뉴"].waitForExistence(timeout: 5))
+            addReferenceScreenshot(named: "calendar-wrap-\(name)-full-day-content")
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testCalendarWrappingInActualNarrowIPadWindow() throws {
+        let (app, settings, fullFrame) = try prepareAdaptiveWindowingApp(additionalArguments: [
+            "--ui-testing-discovery-fixtures", "--ui-testing-calendar-wrapping",
+            "--ui-testing-memo-store=\(UUID().uuidString)",
+        ])
+        tapRootDestination("캘린더", in: app)
+        XCTAssertTrue(app.staticTexts["calendar-month-title"].waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "calendar-wrap-ipad-wide")
+        tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
+        let long = app.staticTexts["프로젝트 기획 검토"]
+        let short = app.staticTexts["산책"]
+        XCTAssertTrue(long.waitForExistence(timeout: 5))
+        XCTAssertTrue(short.exists)
+        XCTAssertGreaterThan(long.frame.height, short.frame.height + 5)
+        XCTAssertLessThan(app.windows.firstMatch.frame.width, 600)
+        addReferenceScreenshot(named: "calendar-wrap-ipad-narrow")
+        let month = Calendar.current.dateInterval(of: .month, for: Date())!.start
+        let crowdedDay = Calendar.current.date(byAdding: .day, value: 22, to: month)!
+        let date = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", koreanDayDisplay(crowdedDay))).firstMatch
+        XCTAssertTrue(date.label.contains("일정 6개"))
+        date.tap()
+        let finalEvent = app.buttons["겹친 일정 6 일정 메뉴"]
+        XCTAssertTrue(scrollToHittable(finalEvent, in: app))
+        addReferenceScreenshot(named: "calendar-wrap-ipad-overflow-content")
+        fillAdaptiveWindow(in: app)
+        XCTAssertTrue(finalEvent.exists)
+    }
+
+    @MainActor
+    func testUXPassiveCalendarNoticeAllowsCoveredDay() {
+        let app = launchKanbanFlowApp()
+        tapRootDestination("캘린더", in: app)
+        app.buttons["일정 추가"].tap()
+        let title = app.textFields["event-title-field"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("안내 뒤 날짜 조작")
+        app.navigationBars["일정 추가"].buttons["추가"].tap()
+        let notice = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "일정을 추가했어요")).firstMatch
+        XCTAssertTrue(notice.waitForExistence(timeout: 5))
+        let frame = notice.frame
+        addReferenceScreenshot(named: "ux-calendar-notice-before-covered-tap")
+        XCTAssertTrue(notice.exists)
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+        let close = app.navigationBars.buttons["닫기"]
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "수동 행동이 없는 안내를 누르면 뒤쪽 날짜를 열 수 있어야 합니다")
+        addReferenceScreenshot(named: "ux-calendar-covered-day-opened")
+    }
+
+    @MainActor
+    func testUXLongListsRetainFullContentAndMeasureNavigation() {
+        let app = launchDiscoveryApp(additionalArguments: ["--ui-testing-accessibility-text-size", "--ui-testing-long-discovery"])
+        tapRootDestination("기록", in: app)
+        app.buttons["archive-pane-picker"].tap()
+        app.buttons.matching(identifier: "회고").firstMatch.tap()
+        let today = localDayKey(Date())
+        let yesterday = localDayKey(Calendar.current.date(byAdding: .day, value: -1, to: Date())!)
+        let open = app.buttons["review-open-\(today)"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "ux-long-review-list-start")
+        let next = app.buttons["review-open-\(yesterday)"]
+        let scroll = app.scrollViews.firstMatch
+        var reviewSwipes = 0
+        while !(next.exists && next.isHittable) && reviewSwipes < 35 {
+            scroll.swipeUp(velocity: .slow)
+            reviewSwipes += 1
+        }
+        XCTAssertTrue(next.isHittable)
+        addReferenceScreenshot(named: "ux-long-review-next-item")
+        let reviewMetric = XCTAttachment(string: "회고 다음 항목까지 느린 스와이프: \(reviewSwipes)")
+        reviewMetric.name = "ux-review-list-navigation-metrics"
+        reviewMetric.lifetime = .keepAlways
+        add(reviewMetric)
+        for _ in 0..<45 {
+            if open.exists && open.frame.minY >= app.windows.firstMatch.frame.height * 0.38 { break }
+            // The scroll view's AX frame includes the pinned search/pane area.
+            // Start inside visible content rather than swiping on those controls.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.57))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)))
+        }
+        XCTAssertTrue(open.exists)
+        open.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 40, dy: 24)).tap()
+        let fullBody = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "마지막 문장까지 보존됩니다.")).firstMatch
+        XCTAssertTrue(fullBody.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(fullBody.frame.height, 800)
+        let fullBodyHeight = fullBody.frame.height
+        let photos = app.staticTexts["사진 3장"]
+        XCTAssertTrue(scrollToHittable(photos, in: app, attempts: 35, velocity: .fast))
+        addReferenceScreenshot(named: "ux-long-review-full-reader-photos")
+        tapRootDestination("칸반", in: app)
+        openRoutineLibrary(app)
+        let first = app.buttons["template-detail-가장 긴 작업 묶음"]
+        XCTAssertTrue(scrollToHittable(first, in: app))
+        addReferenceScreenshot(named: "ux-long-template-list-start")
+        let second = app.buttons["template-detail-다음 작업 묶음"]
+        var templateSwipes = 0
+        while !(second.exists && second.isHittable) && templateSwipes < 20 {
+            app.swipeUp(velocity: .slow)
+            templateSwipes += 1
+        }
+        XCTAssertTrue(second.isHittable)
+        addReferenceScreenshot(named: "ux-long-template-next-item")
+        for _ in 0..<20 {
+            if first.isHittable { break }
+            app.swipeDown(velocity: .slow)
+        }
+        first.tap()
+        let last = app.staticTexts["8번째 작업의 긴 제목을 읽고 해야 할 일과 관련 자료를 차근차근 확인하기"]
+        XCTAssertTrue(scrollToHittable(last, in: app, attempts: 35, velocity: .fast))
+        addReferenceScreenshot(named: "ux-long-template-full-detail")
+        let result = XCTAttachment(string: "회고 다음 항목까지 느린 스와이프: \(reviewSwipes)\n템플릿 다음 항목까지 느린 스와이프: \(templateSwipes)\n전체 회고 본문 높이: \(fullBodyHeight)")
+        result.name = "ux-long-list-navigation-metrics"
+        result.lifetime = .keepAlways
+        add(result)
+    }
+
+    @MainActor
+    func testUXConsecutiveCompletionTargetsAndKeyboard() {
+        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-accessibility-text-size"])
+        let first = "첫 작업의 긴 제목과 완료 취소 대상 확인"
+        let second = "두 번째 작업"
+        addKanbanFlowTask(first, in: app)
+        addKanbanFlowTask(second, in: app)
+        for title in [first, second] {
+            let menu = app.buttons["\(title)-status-menu"]
+            XCTAssertTrue(scrollToHittable(menu, in: app.scrollViews["board-accessibility-scroll"]))
+            menu.tap()
+            app.buttons["완료"].tap()
+            let notice = app.descendants(matching: .any)["board-status-notice"].firstMatch
+            XCTAssertTrue(notice.waitForExistence(timeout: 5))
+            XCTAssertTrue(notice.label.contains(title))
+        }
+        let undo = app.buttons["board-completion-undo"]
+        XCTAssertTrue(undo.isHittable)
+        addReferenceScreenshot(named: "ux-consecutive-completion-latest-target")
+        undo.tap()
+        let secondMenu = app.buttons["\(second)-status-menu"]
+        XCTAssertTrue(secondMenu.waitForExistence(timeout: 5))
+        XCTAssertEqual(secondMenu.value as? String, "할 일")
+        secondMenu.tap()
+        app.buttons["완료"].tap()
+        let quick = app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(scrollToHittable(quick, in: app.scrollViews["board-accessibility-scroll"]))
+        quick.tap()
+        quick.typeText("안내 중 작성")
+        XCTAssertEqual(quick.value as? String, "안내 중 작성")
+        XCTAssertTrue(undo.isHittable)
+        addReferenceScreenshot(named: "ux-completion-notice-with-keyboard")
+        undo.tap()
+        XCTAssertEqual(quick.value as? String, "안내 중 작성")
+        tapRootDestination("메모", in: app)
+        tapRootDestination("칸반", in: app)
+        XCTAssertEqual(quick.value as? String, "안내 중 작성")
+    }
+
+    @MainActor
+    func testUXRecordHeadingsAcrossTextSizesAndRotation() {
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for (size, arguments) in [("default", [String]()),
+                                  ("expanded", ["--ui-testing-expanded-text-size"]),
+                                  ("AX5", ["--ui-testing-accessibility-text-size"])] {
+            XCUIDevice.shared.orientation = .portrait
+            let app = launchDiscoveryApp(additionalArguments: arguments)
+            tapRootDestination("기록", in: app)
+            for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+                XCUIDevice.shared.orientation = orientation
+                let navigation = app.navigationBars["기록"]
+                XCTAssertTrue(navigation.waitForExistence(timeout: 5))
+                XCTAssertTrue(app.buttons["기록 필터"].isHittable)
+                addReferenceScreenshot(named: "ux-record-activity-\(size)-\(orientation.rawValue)")
+                if size == "AX5" {
+                    app.buttons["archive-pane-picker"].tap()
+                    app.buttons.matching(identifier: "회고").firstMatch.tap()
+                } else {
+                    app.segmentedControls["archive-pane-picker"].buttons["회고"].tap()
+                }
+                let open = app.buttons["review-open-\(localDayKey(Date()))"]
+                XCTAssertTrue(open.waitForExistence(timeout: 5))
+                addReferenceScreenshot(named: "ux-record-review-\(size)-\(orientation.rawValue)")
+                if size == "AX5" {
+                    app.buttons["archive-pane-picker"].tap()
+                    app.buttons.matching(identifier: "활동 기록").firstMatch.tap()
+                } else {
+                    app.segmentedControls["archive-pane-picker"].buttons["활동 기록"].tap()
+                }
+            }
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testUXMemoEmptyCreationAndSearchRecovery() {
+        let app = launchKanbanFlowApp()
+        tapRootDestination("메모", in: app)
+        let create = app.buttons["memo-empty-create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "ux-memo-empty-create")
+        for type in ["text", "checklist", "drawing"] {
+            create.tap()
+            app.buttons["memo-create-\(type)"].tap()
+            XCTAssertTrue(app.buttons["memo-editor-back"].waitForExistence(timeout: 5))
+            app.buttons["memo-editor-back"].tap()
+            XCTAssertTrue(create.waitForExistence(timeout: 5))
+        }
+        let search = app.searchFields.firstMatch
+        search.tap()
+        search.typeText("없는 검색 결과")
+        let clear = app.buttons["memo-clear-search"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "ux-memo-search-recovery")
+        clear.tap()
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertNotEqual(search.value as? String, "없는 검색 결과")
     }
 
     @MainActor

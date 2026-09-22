@@ -273,6 +273,9 @@ private extension View {
 #if DEBUG
         if PlanBaseLaunchEnvironment.usesAccessibilityTextSizeFixture {
             dynamicTypeSize(.accessibility5)
+        } else if PlanBaseLaunchEnvironment.isUITesting,
+                  ProcessInfo.processInfo.arguments.contains("--ui-testing-expanded-text-size") {
+            dynamicTypeSize(.xxxLarge)
         } else {
             self
         }

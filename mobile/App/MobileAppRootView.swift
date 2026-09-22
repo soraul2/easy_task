@@ -89,8 +89,7 @@ struct MobileAppRootView: View {
             )
             .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
             .tabItem {
-                Image(systemName: MobileTab.board.symbol)
-                    .accessibilityLabel(MobileTab.board.title)
+                Label(MobileTab.board.title, systemImage: MobileTab.board.symbol)
             }
             .tag(MobileTab.board)
 
@@ -104,8 +103,7 @@ struct MobileAppRootView: View {
             )
             .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
             .tabItem {
-                Image(systemName: MobileTab.calendar.symbol)
-                    .accessibilityLabel(MobileTab.calendar.title)
+                Label(MobileTab.calendar.title, systemImage: MobileTab.calendar.symbol)
             }
             .tag(MobileTab.calendar)
 
@@ -119,16 +117,14 @@ struct MobileAppRootView: View {
             )
             .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
             .tabItem {
-                Image(systemName: MobileTab.archive.symbol)
-                    .accessibilityLabel(MobileTab.archive.title)
+                Label(MobileTab.archive.title, systemImage: MobileTab.archive.symbol)
             }
             .tag(MobileTab.archive)
 
             MobileMemoView(onShowTheme: { showingThemePicker = true })
                 .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
                 .tabItem {
-                    Image(systemName: MobileTab.memo.symbol)
-                        .accessibilityLabel(MobileTab.memo.title)
+                    Label(MobileTab.memo.title, systemImage: MobileTab.memo.symbol)
                 }
                 .tag(MobileTab.memo)
         }

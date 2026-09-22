@@ -23,6 +23,7 @@ struct MobileArchiveView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showingFilter = false
     @StateObject private var backupCoordinator = MobileBackupCoordinator()
@@ -49,6 +50,11 @@ struct MobileArchiveView: View {
 
         MobileAdaptiveSplitView(compactColumn: $compactColumn, sidebarIdealWidth: 400) {
             List {
+                if verticalSizeClass == .compact {
+                    ArchivePanePicker(selection: $state.pane)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
                 if let activitySession = state.activitySession {
                     MobileArchiveActivityOverview(
                         session: activitySession,
@@ -148,20 +154,22 @@ struct MobileArchiveView: View {
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .safeAreaInset(edge: .top, spacing: 0) {
-                ArchivePanePicker(selection: $state.pane)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(AppTheme.background)
+                if verticalSizeClass != .compact {
+                    ArchivePanePicker(selection: $state.pane)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(AppTheme.background)
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 Color.clear.frame(height: MobileLayout.bottomTabClearance)
             }
             .searchable(
                 text: $state.filter.searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "작업 제목, 메모, 회고 검색"
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "기록 검색"
             )
             .navigationTitle("기록")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {

@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct TemplateScopePicker: View {
     @Binding var scope: TemplateListScope
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(scope: Binding<TemplateListScope>) {
         _scope = scope
@@ -17,7 +18,10 @@ public struct TemplateScopePicker: View {
         .pickerStyle(.navigationLink)
 #else
         .planBaseAdaptiveSegmentedPicker()
+        .labelsHidden()
+        .accessibilityLabel("템플릿 보기")
+        .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
 #endif
-        .frame(width: 220)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : 220)
     }
 }
