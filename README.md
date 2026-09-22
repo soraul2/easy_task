@@ -10,13 +10,13 @@ CloudKit 컨테이너를 공유한다.
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 입력어의 Development 독립 저장소 왕복 8단계와
-Production 필드·인덱스 반영을 확인했다. 마지막 업로드본은 루틴·회고·백업 처리 최적화와
-위젯 테마·큰 글자 안내 터치 수정을 포함한 iOS·iPadOS·watchOS 및 macOS
-TestFlight build 81(V11)이다. 2026-09-22 두 플랫폼의 업로드 성공과 Apple 패키지
-처리 시작을 확인했다. [빌드81 배포 기록](docs/releases/TESTFLIGHT_BUILD_81.md)에
-변경과 검증 범위를, [전체 최적화 결과](docs/plans/active/OPTIMIZATION_2026_09_22_RESULTS.md)에
-같은 조건의 전후 측정과 남은 한계를 기록했다. 실제 TestFlight 설치와 빠른 입력어·FocusSession의
-실기기 쌍 인수는 별도로 확인한다.
+Production 필드·인덱스 반영을 확인했다. 마지막 업로드본은 캘린더 두 줄 제목과
+기록·메모·템플릿·탭·체크리스트 UI 개선을 포함한 iOS·iPadOS·watchOS 및 macOS
+TestFlight build 82(V11)이다. 2026-09-23 두 플랫폼의 업로드 성공과 Apple 패키지
+처리 시작을 확인했다. [빌드82 배포 기록](docs/releases/TESTFLIGHT_BUILD_82.md)에
+변경과 검증 범위를 기록했다. 실제 TestFlight 설치와 최종 캘린더의 Mac 화면,
+빠른 입력어·FocusSession의 실기기 쌍 인수는 별도로 확인한다.
+이전 성능 개선의 측정 조건과 한계는 [전체 최적화 결과](docs/plans/active/OPTIMIZATION_2026_09_22_RESULTS.md)에 있다.
 성능 변경의 측정 결과와 남은 100ms 초기 피드백 검증은
 [반응성 최적화 기록](docs/plans/active/RESPONSIVENESS_OPTIMIZATION.md)에 정리했다.
 

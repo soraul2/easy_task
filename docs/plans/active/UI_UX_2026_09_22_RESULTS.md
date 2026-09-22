@@ -136,3 +136,7 @@ Mac 도구 사용 중 AX 값 설정만으로 TextField 바인딩이 반영되지
 ## 별도 실기기 인수
 
 VoiceOver 실제 발화, Pencil 입력, Watch 햅틱, 잠금/Always-On 및 실제 CloudKit 왕복은 로컬 UI/빌드 결과로 통과 처리하지 않는다. 현재는 미검증이다.
+
+## 후속 배포
+
+2026-09-23 별도 배포 요청으로 변경사항을 `2462a3d`에 커밋·푸시하고 iOS·macOS TestFlight 1.0(82) 업로드를 완료했다. 위의 미커밋·미배포 표현은 구현·검증 당시 범위를 설명한다. Apple 처리 및 남은 확인 범위는 [빌드82 배포 기록](../../releases/TESTFLIGHT_BUILD_82.md)을 따른다.
