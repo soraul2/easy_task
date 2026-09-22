@@ -157,36 +157,51 @@ private struct ReviewDiscoveryConnection: ViewModifier {
     @Bindable var state: ArchiveScreenState
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isVisible = false
     func body(content: Content) -> some View {
         content
             .task {
+                isVisible = true
                 if state.reviewSession == nil {
                     state.reviewSession = ReviewDiscoverySession(context: context)
-                    state.reviewSession?.apply(state.reviewFilter)
-                } else { state.reviewSession?.refreshPreservingDepth() }
+                }
+                refreshForChange()
             }
             .onChange(of: state.reviewFilter) { old, new in
+                guard isVisible, scenePhase == .active else { return }
                 state.reviewSession?.apply(new, debounceSearch: old.searchText != new.searchText)
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { state.reviewSession?.refreshPreservingDepth() }
+                if phase == .active { refreshForChange() }
                 else { state.reviewSession?.cancel() }
             }
             .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { note in
                 guard PersistenceCommandService.affects(.reviews, in: note) else { return }
                 if let source = note.object as? ModelContext, source !== context { return }
-                state.reviewSession?.refreshPreservingDepth()
+                refreshForChange()
             }
-            .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
-                state.reviewSession?.refreshPreservingDepth()
+            .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { note in
+                state.reviewSession?.refreshForCloudKitEvent(
+                    CloudKitSyncService.summary(from: note),
+                    isVisible: isVisible, isSceneActive: scenePhase == .active
+                )
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
-                state.reviewSession?.refreshPreservingDepth()
+                refreshForChange()
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-                state.reviewSession?.refreshPreservingDepth()
+                refreshForChange()
             }
-            .onDisappear { state.reviewSession?.cancel() }
+            .onDisappear {
+                isVisible = false
+                state.reviewSession?.cancel()
+            }
+    }
+
+    private func refreshForChange() {
+        state.reviewSession?.refreshForChange(
+            isVisible: isVisible, isSceneActive: scenePhase == .active, filter: state.reviewFilter
+        )
     }
 }
 

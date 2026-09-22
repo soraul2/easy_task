@@ -46,12 +46,16 @@ public struct TemplateLibraryView: View {
 
     private var sourceTasks: [Task] {
         guard let selectedDate else { return [] }
+        let selectedDayKey = DayKey.key(for: selectedDate)
         return boardTasks.filter {
-            $0.supersededAt == nil && $0.archivedAt == nil && $0.plannedDayKey == DayKey.key(for: selectedDate)
+            $0.supersededAt == nil && $0.archivedAt == nil && $0.plannedDayKey == selectedDayKey
         }.sorted { $0.order < $1.order }
     }
 
     public var body: some View {
+        let visible = visibleTemplates
+        let sources = sourceTasks
+        let groupedItems = visible.isEmpty ? [:] : TemplateListRules.itemsByTemplate(in: items)
         NavigationStack(path: $path) {
             List {
                 Section {
@@ -86,12 +90,12 @@ public struct TemplateLibraryView: View {
                             description: Text("아침 준비나 운동처럼 자주 하는 작업을 묶어 저장하세요."))
                         Button("직접 만들기", action: createEmpty)
                             .accessibilityIdentifier("template-create-empty")
-                        if !sourceTasks.isEmpty {
+                        if !sources.isEmpty {
                             Button("현재 보드에서 만들기", action: createFromBoard)
                                 .accessibilityIdentifier("template-create-from-board")
                         }
                     }
-                } else if visibleTemplates.isEmpty {
+                } else if visible.isEmpty {
                     Section {
                         ContentUnavailableView(searchText.isEmpty ? "즐겨찾기한 루틴이 없어요" : "검색 결과가 없어요",
                             systemImage: searchText.isEmpty ? "star" : "magnifyingglass",
@@ -99,9 +103,9 @@ public struct TemplateLibraryView: View {
                         Button("전체 루틴 보기") { searchText = ""; scope = .all }
                     }
                 } else {
-                    Section("저장한 루틴 \(visibleTemplates.count)개") {
-                        ForEach(visibleTemplates) { template in
-                            routineRow(template)
+                    Section("저장한 루틴 \(visible.count)개") {
+                        ForEach(visible) { template in
+                            routineRow(template, items: groupedItems[template.id] ?? [], sourceTasks: sources)
                         }
                     }
                     Section {
@@ -131,7 +135,7 @@ public struct TemplateLibraryView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button("직접 만들기", action: createEmpty)
-                        if !sourceTasks.isEmpty { Button("현재 보드에서 만들기", action: createFromBoard) }
+                        if !sources.isEmpty { Button("현재 보드에서 만들기", action: createFromBoard) }
                     } label: { Label("만들기", systemImage: "plus") }
                     .accessibilityIdentifier("template-create-menu")
                 }
@@ -196,7 +200,9 @@ public struct TemplateLibraryView: View {
         #endif
     }
 
-    private func routineRow(_ template: TaskTemplate) -> some View {
+    private func routineRow(
+        _ template: TaskTemplate, items: [TaskTemplateItem], sourceTasks: [Task]
+    ) -> some View {
         let drafts = TemplateService.drafts(from: template, items: items)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {

@@ -34,6 +34,13 @@ public final class SavedTaskQuickEntryController {
         } catch { failure = error.localizedDescription }
     }
 
+    /// Only a completed import can introduce remote library changes. Local
+    /// template notifications and submission still resolve the latest contents.
+    public func refresh(after summary: CloudKitSyncEventSummary, in context: ModelContext) {
+        guard CloudKitSyncService.shouldReconcile(after: summary) else { return }
+        refresh(in: context)
+    }
+
     public func moveSelection(by offset: Int) -> Bool {
         guard isPresented else { return false }
         let values = suggestions

@@ -33,7 +33,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>80</string>
+	<string>81</string>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>com.soraul2.easytask</string>
 	<key>WKApplication</key>

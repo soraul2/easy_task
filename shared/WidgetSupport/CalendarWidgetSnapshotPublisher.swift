@@ -40,13 +40,42 @@ enum CalendarWidgetSnapshotPublicationService {
     private static var nextPublicationSequence: UInt64 = 0
 
     @discardableResult
+    static func refresh(
+        context: ModelContext,
+        themeID: @MainActor () -> String,
+        forceWrite: Bool,
+        delay: Duration? = nil,
+        directoryURL: URL? = nil,
+        waitForDelay: (Duration) async throws -> Void = {
+            try await Swift.Task.sleep(for: $0)
+        },
+        reloadTimelines: @MainActor () -> Void = reloadWidgetTimelines
+    ) async throws -> Bool {
+        if let delay {
+            try await waitForDelay(delay)
+        }
+        // An import refresh may wait while the user selects a newer theme.
+        // Read that preference when fetching the snapshot, after the delay.
+        let selectedThemeID = themeID()
+        return try await publish(
+            context: context,
+            themeID: selectedThemeID,
+            forceWrite: forceWrite,
+            forceTimelineReload: true,
+            directoryURL: directoryURL,
+            reloadTimelines: reloadTimelines
+        )
+    }
+
+    @discardableResult
     static func publish(
         context: ModelContext,
         themeID: String,
         forceWrite: Bool = false,
         forceTimelineReload: Bool = false,
         referenceDate: Date = Date(),
-        directoryURL: URL? = nil
+        directoryURL: URL? = nil,
+        reloadTimelines: @MainActor () -> Void = reloadWidgetTimelines
     ) async throws -> Bool {
 #if DEBUG
         // In-memory UI fixtures must never overwrite the user's shared widget snapshot.
@@ -100,15 +129,19 @@ enum CalendarWidgetSnapshotPublicationService {
         )
 
         if didWrite || forceTimelineReload {
-            WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
-            WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.plannerKind)
-#if os(iOS)
-            WidgetCenter.shared.reloadTimelines(
-                ofKind: CalendarWidgetConstants.lockScreenKind
-            )
-#endif
+            reloadTimelines()
         }
         return didWrite
+    }
+
+    private static func reloadWidgetTimelines() {
+        WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.kind)
+        WidgetCenter.shared.reloadTimelines(ofKind: CalendarWidgetConstants.plannerKind)
+#if os(iOS)
+        WidgetCenter.shared.reloadTimelines(
+            ofKind: CalendarWidgetConstants.lockScreenKind
+        )
+#endif
     }
 
     private static func mergedTasks(

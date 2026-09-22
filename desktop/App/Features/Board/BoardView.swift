@@ -64,8 +64,6 @@ struct BoardView: View {
     @Query private var selectedDayTaskRows: [Task]
     @State private var carryoverSession: CarryoverInboxSession?
     @Query private var overlappingEventRows: [CalendarEvent]
-    @Query private var templates: [TaskTemplate]
-    @Query private var templateItems: [TaskTemplateItem]
 
     @Binding var selectedDate: Date
     @State private var quickTitle = ""
@@ -478,8 +476,9 @@ struct BoardView: View {
             guard PersistenceCommandService.affects(.templates, in: notification) else { return }
             quickEntry.refresh(in: modelContext)
         }
-        .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
-            quickEntry.refresh(in: modelContext)
+        .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { notification in
+            guard let summary = CloudKitSyncService.summary(from: notification) else { return }
+            quickEntry.refresh(after: summary, in: modelContext)
         }
     }
 

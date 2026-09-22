@@ -53,6 +53,16 @@ public enum TemplateListRules {
             .sorted { $0.order < $1.order }
     }
 
+    /// A render-scoped index: keep physical candidates and their input order so
+    /// each row can apply the existing draft ordering without scanning all items.
+    public static func itemsByTemplate(in items: [TaskTemplateItem]) -> [UUID: [TaskTemplateItem]] {
+        var grouped: [UUID: [TaskTemplateItem]] = [:]
+        for item in items where item.supersededAt == nil {
+            grouped[item.templateId, default: []].append(item)
+        }
+        return grouped
+    }
+
     private static func sort(_ lhs: TaskTemplate, _ rhs: TaskTemplate) -> Bool {
         if lhs.isFavorite != rhs.isFavorite {
             return lhs.isFavorite && !rhs.isFavorite

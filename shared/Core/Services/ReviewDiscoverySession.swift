@@ -60,9 +60,12 @@ public enum ReviewDiscoveryRules {
                 }
             }
         let index = DiaryAttachmentIndex(attachments: attachments, blocks: blocks)
+        let blocksByReviewID = Dictionary(
+            grouping: blocks.filter { $0.supersededAt == nil }, by: \.reviewId
+        )
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return representatives.compactMap { review -> ReviewDiscoveryRecord? in
-            let activeBlocks = blocks.filter { $0.reviewId == review.id && $0.supersededAt == nil }
+            let activeBlocks = (blocksByReviewID[review.id] ?? [])
                 .sorted { $0.order < $1.order }
             let body = review.content.trimmingCharacters(in: .whitespacesAndNewlines)
             let blockText = activeBlocks.map(\.text).filter {
@@ -158,6 +161,22 @@ public final class ReviewDiscoverySession {
     public func refreshPreservingDepth() {
         load(pages: requestedFilter == appliedFilter ? max(1, loadedPageCount) : 1,
              appending: false, clearing: requestedFilter != appliedFilter)
+    }
+    public func refreshForChange(
+        isVisible: Bool, isSceneActive: Bool, filter: ReviewDiscoveryFilter? = nil
+    ) {
+        guard isVisible, isSceneActive else { return }
+        if let filter, filter != requestedFilter {
+            apply(filter)
+        } else {
+            refreshPreservingDepth()
+        }
+    }
+    public func refreshForCloudKitEvent(
+        _ summary: CloudKitSyncEventSummary?, isVisible: Bool, isSceneActive: Bool
+    ) {
+        guard let summary, CloudKitSyncService.shouldReconcile(after: summary) else { return }
+        refreshForChange(isVisible: isVisible, isSceneActive: isSceneActive)
     }
     public func loadNextPage() {
         guard !isLoading, hasMore else { return }

@@ -100,10 +100,10 @@ extension BackupPackageCodec {
     static func sameTemplateItem(
         _ dto: TaskTemplateItemDTO,
         _ item: TaskTemplateItem,
-        context: ModelContext
+        parents: BackupPackageParentLookup
     ) throws -> Bool {
         let expectedTemplateID = item.supersededAt == nil
-            ? try canonicalTemplateID(for: dto.templateId, context: context)
+            ? try parents.templateID(for: dto.templateId)
             : dto.templateId
         return item.seedKey == dto.seedKey &&
             item.templateId == expectedTemplateID &&
@@ -120,10 +120,10 @@ extension BackupPackageCodec {
     static func sameChecklistItem(
         _ dto: TaskChecklistItemDTO,
         _ item: TaskChecklistItem,
-        context: ModelContext
+        parents: BackupPackageParentLookup
     ) throws -> Bool {
         let expectedTaskID = item.supersededAt == nil
-            ? try canonicalTaskID(for: dto.taskId, context: context)
+            ? try parents.taskID(for: dto.taskId)
             : dto.taskId
         return item.taskId == expectedTaskID &&
             item.title == dto.title &&
@@ -136,10 +136,10 @@ extension BackupPackageCodec {
     static func samePlacement(
         _ dto: TemplatePlacementDTO,
         _ placement: TemplatePlacement,
-        context: ModelContext
+        parents: BackupPackageParentLookup
     ) throws -> Bool {
         let expectedTemplateID = placement.supersededAt == nil
-            ? try canonicalTemplateID(for: dto.sourceTemplateId, context: context)
+            ? try parents.templateID(for: dto.sourceTemplateId)
             : dto.sourceTemplateId
         return placement.sourceTemplateId == expectedTemplateID &&
             placement.templateName == dto.templateName &&
@@ -151,13 +151,13 @@ extension BackupPackageCodec {
         _ dto: TaskDTO,
         _ task: Task,
         sourceFormatVersion: Int?,
-        context: ModelContext
+        parents: BackupPackageParentLookup
     ) throws -> Bool {
         let expectedEventID = task.supersededAt == nil
-            ? try canonicalEventID(dto.eventId, context: context)
+            ? try parents.eventID(for: dto.eventId)
             : dto.eventId
         let expectedPlacementID = task.supersededAt == nil
-            ? try canonicalPlacementID(dto.templatePlacementId, context: context)
+            ? try parents.placementID(for: dto.templatePlacementId)
             : dto.templatePlacementId
         let reminderMatches = !sourceHasTaskReminderSemantics(sourceFormatVersion) ||
             task.reminderAt == TaskReminderRules.normalizedDate(dto.reminderAt)
@@ -205,10 +205,10 @@ extension BackupPackageCodec {
         _ dto: DiaryBlockDTO,
         _ block: DiaryBlock,
         preserveLegacyImages: Bool,
-        context: ModelContext
+        parents: BackupPackageParentLookup
     ) throws -> Bool {
         let canonicalReview = block.supersededAt == nil
-            ? try canonicalReview(for: dto.reviewId, context: context)
+            ? try parents.review(for: dto.reviewId)
             : nil
         let expectedReviewID = canonicalReview?.id ?? dto.reviewId
         let expectedDayKey = canonicalReview?.dayKey ?? dto.dayKey
@@ -227,10 +227,11 @@ extension BackupPackageCodec {
         data: Data,
         _ attachment: DiaryAttachment,
         allRecords: [BackupPackageAttachmentRecord],
-        context: ModelContext
+        context: ModelContext,
+        parents: BackupPackageParentLookup
     ) throws -> Bool {
         let canonicalReview = attachment.supersededAt == nil
-            ? try canonicalReview(for: record.reviewId, context: context)
+            ? try parents.review(for: record.reviewId)
             : nil
         let expectedReviewID = canonicalReview?.id ?? record.reviewId
         let reviewWasRewritten = expectedReviewID != record.reviewId
@@ -252,88 +253,6 @@ extension BackupPackageCodec {
             attachment.byteCount == record.byteCount &&
             attachment.sha256 == record.sha256 &&
             attachment.data == data
-    }
-
-    @MainActor
-    static func canonicalTemplateID(
-        for sourceID: UUID?,
-        context: ModelContext
-    ) throws -> UUID? {
-        guard let sourceID else { return nil }
-        let templates = try context.fetch(FetchDescriptor<TaskTemplate>())
-        if templates.contains(where: { $0.id == sourceID && $0.supersededAt == nil }) {
-            return sourceID
-        }
-        guard let source = templates.filter({ $0.id == sourceID }).max(by: {
-            mergeRecordPrecedes(
-                lhsUpdatedAt: $0.updatedAt,
-                lhsInstanceID: $0.instanceID,
-                rhsUpdatedAt: $1.updatedAt,
-                rhsInstanceID: $1.instanceID
-            )
-        }),
-              let seedKey = normalizedNaturalKey(source.seedKey) else {
-            return nil
-        }
-        return templates.first {
-            $0.supersededAt == nil && normalizedNaturalKey($0.seedKey) == seedKey
-        }?.id
-    }
-
-    @MainActor
-    static func canonicalTaskID(
-        for sourceID: UUID,
-        context: ModelContext
-    ) throws -> UUID? {
-        try context.fetch(FetchDescriptor<Task>()).first {
-            $0.id == sourceID && $0.supersededAt == nil
-        }?.id
-    }
-
-    @MainActor
-    static func canonicalReview(
-        for sourceID: UUID,
-        context: ModelContext
-    ) throws -> DailyReview? {
-        let reviews = try context.fetch(FetchDescriptor<DailyReview>())
-        if let active = reviews.first(where: {
-            $0.id == sourceID && $0.supersededAt == nil
-        }) {
-            return active
-        }
-        guard let source = reviews.filter({ $0.id == sourceID }).max(by: {
-            mergeRecordPrecedes(
-                lhsUpdatedAt: $0.updatedAt,
-                lhsInstanceID: $0.instanceID,
-                rhsUpdatedAt: $1.updatedAt,
-                rhsInstanceID: $1.instanceID
-            )
-        }) else { return nil }
-        return reviews.first {
-            $0.supersededAt == nil && $0.dayKey == source.dayKey
-        }
-    }
-
-    @MainActor
-    static func canonicalEventID(
-        _ sourceID: UUID?,
-        context: ModelContext
-    ) throws -> UUID? {
-        guard let sourceID else { return nil }
-        return try context.fetch(FetchDescriptor<CalendarEvent>()).first {
-            $0.id == sourceID && $0.supersededAt == nil
-        }?.id
-    }
-
-    @MainActor
-    static func canonicalPlacementID(
-        _ sourceID: UUID?,
-        context: ModelContext
-    ) throws -> UUID? {
-        guard let sourceID else { return nil }
-        return try context.fetch(FetchDescriptor<TemplatePlacement>()).first {
-            $0.id == sourceID && $0.supersededAt == nil
-        }?.id
     }
 
     @MainActor
@@ -376,14 +295,12 @@ extension BackupPackageCodec {
         context: ModelContext
     ) throws {
         let localAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        let parents = BackupPackageParentLookup(context: context)
         for (sourceReviewID, records) in Dictionary(
             grouping: contents.records.attachments,
             by: \.reviewId
         ) {
-            guard let canonicalReview = try canonicalReview(
-                for: sourceReviewID,
-                context: context
-            ) else {
+            guard let canonicalReview = try parents.review(for: sourceReviewID) else {
                 throw BackupPackageError.danglingReviewReference(sourceReviewID)
             }
             let orderedIncomingRecords = records

@@ -53,7 +53,10 @@ struct AppRootView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
 
     private var cloudKitEnabled: Bool {
-        PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
+#if DEBUG
+        if PlanBaseDesktopLaunchEnvironment.isUITesting { return false }
+#endif
+        return PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
     }
 
     private var preferredThemeColorScheme: ColorScheme {
@@ -380,17 +383,13 @@ struct AppRootView: View {
         forceWrite: Bool,
         delay: Duration? = nil
     ) {
-        let themeID = selectedThemeID
         Swift.Task { @MainActor in
             do {
-                if let delay {
-                    try await Swift.Task.sleep(for: delay)
-                }
-                _ = try await CalendarWidgetSnapshotPublicationService.publish(
+                _ = try await CalendarWidgetSnapshotPublicationService.refresh(
                     context: modelContext,
-                    themeID: themeID,
+                    themeID: { selectedThemeID },
                     forceWrite: forceWrite,
-                    forceTimelineReload: true
+                    delay: delay
                 )
             } catch {
                 print(

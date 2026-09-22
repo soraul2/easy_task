@@ -257,6 +257,7 @@ extension BackupPackageCodec {
             recordType: "TaskTemplateItem",
             instanceID: \.instanceID
         )
+        let parents = BackupPackageParentLookup(context: context)
         for dto in incoming {
             guard let instanceID = dto.instanceID,
                   let incomingUpdatedAt = dto.updatedAt else {
@@ -267,7 +268,7 @@ extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TaskTemplateItem", instanceID: instanceID)
                 }
                 if incomingUpdatedAt == current.updatedAt {
-                    guard try sameTemplateItem(dto, current, context: context) else {
+                    guard try sameTemplateItem(dto, current, parents: parents) else {
                         throw BackupPackageError.identityCorruption(recordType: "TaskTemplateItem", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -328,6 +329,7 @@ extension BackupPackageCodec {
             recordType: "TemplatePlacement",
             instanceID: \.instanceID
         )
+        let parents = BackupPackageParentLookup(context: context)
         for dto in incoming {
             guard let instanceID = dto.instanceID else {
                 throw BackupPackageError.invalidRecordMetadata(recordType: "TemplatePlacement", id: dto.id)
@@ -337,7 +339,7 @@ extension BackupPackageCodec {
                     throw BackupPackageError.identityCorruption(recordType: "TemplatePlacement", instanceID: instanceID)
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard try samePlacement(dto, current, context: context) else {
+                    guard try samePlacement(dto, current, parents: parents) else {
                         throw BackupPackageError.identityCorruption(recordType: "TemplatePlacement", instanceID: instanceID)
                     }
                     report.preservedLocalRecords += 1
@@ -384,6 +386,7 @@ extension BackupPackageCodec {
             recordType: "Task",
             instanceID: \.instanceID
         )
+        let parents = BackupPackageParentLookup(context: context)
         for dto in incoming {
             guard let instanceID = dto.instanceID else {
                 throw BackupPackageError.invalidRecordMetadata(recordType: "Task", id: dto.id)
@@ -397,7 +400,7 @@ extension BackupPackageCodec {
                         dto,
                         current,
                         sourceFormatVersion: sourceFormatVersion,
-                        context: context
+                        parents: parents
                     ) else {
                         throw BackupPackageError.identityCorruption(recordType: "Task", instanceID: instanceID)
                     }

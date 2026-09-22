@@ -34,6 +34,7 @@ struct MobileStatusNotice: View {
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 12))
         .overlay { RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1) }
         .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .allowsHitTesting(destinationTitle != nil || onUndo != nil)
         .onAppear { AccessibilityNotification.Announcement(message).post() }
         .onChange(of: message) { _, message in AccessibilityNotification.Announcement(message).post() }
     }

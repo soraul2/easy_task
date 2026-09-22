@@ -13,6 +13,7 @@ extension BackupPackageCodec {
             recordType: "TaskChecklistItem",
             instanceID: \.instanceID
         )
+        let parents = BackupPackageParentLookup(context: context)
         for dto in incoming {
             guard let instanceID = dto.instanceID else {
                 throw BackupPackageError.invalidRecordMetadata(
@@ -28,7 +29,7 @@ extension BackupPackageCodec {
                     )
                 }
                 if dto.updatedAt == current.updatedAt {
-                    guard try sameChecklistItem(dto, current, context: context) else {
+                    guard try sameChecklistItem(dto, current, parents: parents) else {
                         throw BackupPackageError.identityCorruption(
                             recordType: "TaskChecklistItem",
                             instanceID: instanceID
@@ -41,7 +42,7 @@ extension BackupPackageCodec {
                     report.preservedLocalRecords += 1
                     continue
                 }
-                current.taskId = try canonicalTaskID(for: dto.taskId, context: context) ?? dto.taskId
+                current.taskId = try parents.taskID(for: dto.taskId) ?? dto.taskId
                 current.title = dto.title
                 current.isCompleted = dto.isCompleted
                 current.order = dto.order
@@ -54,7 +55,7 @@ extension BackupPackageCodec {
                 let item = TaskChecklistItem(
                     id: dto.id,
                     instanceID: instanceID,
-                    taskId: try canonicalTaskID(for: dto.taskId, context: context) ?? dto.taskId,
+                    taskId: try parents.taskID(for: dto.taskId) ?? dto.taskId,
                     title: dto.title,
                     isCompleted: dto.isCompleted,
                     order: dto.order,
@@ -148,6 +149,7 @@ extension BackupPackageCodec {
             recordType: "DiaryBlock",
             instanceID: \.instanceID
         )
+        let parents = BackupPackageParentLookup(context: context)
         for dto in incoming {
             guard let instanceID = dto.instanceID else {
                 throw BackupPackageError.invalidRecordMetadata(recordType: "DiaryBlock", id: dto.id)
@@ -161,7 +163,7 @@ extension BackupPackageCodec {
                         dto,
                         current,
                         preserveLegacyImages: preserveLegacyImages,
-                        context: context
+                        parents: parents
                     ) else {
                         throw BackupPackageError.identityCorruption(recordType: "DiaryBlock", instanceID: instanceID)
                     }
@@ -541,6 +543,7 @@ extension BackupPackageCodec {
             recordType: "DiaryAttachment",
             instanceID: \.instanceID
         )
+        let parents = BackupPackageParentLookup(context: context)
         for record in contents.records.attachments {
             guard let data = contents.attachmentData[record.id] else {
                 throw BackupPackageError.missingAttachmentData(record.id)
@@ -558,7 +561,8 @@ extension BackupPackageCodec {
                         data: data,
                         current,
                         allRecords: contents.records.attachments,
-                        context: context
+                        context: context,
+                        parents: parents
                     ) else {
                         throw BackupPackageError.identityCorruption(
                             recordType: "DiaryAttachment",

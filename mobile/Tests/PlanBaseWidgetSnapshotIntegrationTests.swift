@@ -134,7 +134,8 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
             themeID: AppThemePreset.defaultID,
             forceWrite: true,
             referenceDate: referenceDate,
-            directoryURL: directoryURL
+            directoryURL: directoryURL,
+            reloadTimelines: {}
         )
         XCTAssertTrue(didWrite)
 
@@ -156,12 +157,199 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
             context: context,
             themeID: "roseLilac",
             referenceDate: referenceDate,
-            directoryURL: directoryURL
+            directoryURL: directoryURL,
+            reloadTimelines: {}
         )
         XCTAssertTrue(changedThemeDidWrite)
         XCTAssertEqual(
             try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID,
             "roseLilac"
         )
+    }
+
+    @MainActor
+    func testRepeatedPublicationSkipsUnchangedWritesAndHonorsForcedReload() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let fileURL = directoryURL.appendingPathComponent(
+            CalendarWidgetConstants.snapshotFileName
+        )
+        let referenceDate = try XCTUnwrap(DayKey.date(from: "2026-07-24"))
+        let container = try PlanBaseContainerFactory.makeInMemory()
+        let context = container.mainContext
+        var reloadCount = 0
+        var writeResults: [Bool] = []
+
+        writeResults.append(try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: AppThemePreset.defaultID,
+            forceWrite: true,
+            referenceDate: referenceDate,
+            directoryURL: directoryURL,
+            reloadTimelines: { reloadCount += 1 }
+        ))
+        let initialBytes = try Data(contentsOf: fileURL)
+        // A fixed old timestamp makes an accidental same-bytes rewrite observable.
+        try FileManager.default.setAttributes(
+            [.modificationDate: referenceDate],
+            ofItemAtPath: fileURL.path
+        )
+        let initialModificationDate = try FileManager.default.attributesOfItem(
+            atPath: fileURL.path
+        )[.modificationDate] as? Date
+        for _ in 0..<3 {
+            writeResults.append(try await CalendarWidgetSnapshotPublicationService.publish(
+                context: context,
+                themeID: AppThemePreset.defaultID,
+                referenceDate: referenceDate,
+                directoryURL: directoryURL,
+                reloadTimelines: { reloadCount += 1 }
+            ))
+        }
+        XCTAssertEqual(try Data(contentsOf: fileURL), initialBytes)
+        XCTAssertEqual(
+            try FileManager.default.attributesOfItem(atPath: fileURL.path)[.modificationDate] as? Date,
+            initialModificationDate
+        )
+        XCTAssertEqual(reloadCount, 1)
+
+        writeResults.append(try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: "roseLilac",
+            referenceDate: referenceDate,
+            directoryURL: directoryURL,
+            reloadTimelines: { reloadCount += 1 }
+        ))
+        let themedBytes = try Data(contentsOf: fileURL)
+        XCTAssertNotEqual(themedBytes, initialBytes)
+        XCTAssertEqual(reloadCount, 2)
+
+        let event = try XCTUnwrap(CalendarEventRules.makeEvent(
+            title: "변경된 위젯 일정",
+            startAt: referenceDate,
+            endAt: referenceDate,
+            now: referenceDate
+        ))
+        context.insert(event)
+        try context.save()
+        writeResults.append(try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: "roseLilac",
+            referenceDate: referenceDate,
+            directoryURL: directoryURL,
+            reloadTimelines: { reloadCount += 1 }
+        ))
+        let changedBytes = try Data(contentsOf: fileURL)
+        XCTAssertNotEqual(changedBytes, themedBytes)
+        let changedSnapshot = try XCTUnwrap(
+            CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)
+        )
+        XCTAssertEqual(changedSnapshot.generatedAt, referenceDate)
+        XCTAssertEqual(changedSnapshot.themeID, "roseLilac")
+        XCTAssertEqual(changedSnapshot.events.map(\.title), ["변경된 위젯 일정"])
+        XCTAssertEqual(reloadCount, 3)
+
+        let changedModificationDate = try FileManager.default.attributesOfItem(
+            atPath: fileURL.path
+        )[.modificationDate] as? Date
+        writeResults.append(try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: "roseLilac",
+            forceTimelineReload: true,
+            referenceDate: referenceDate,
+            directoryURL: directoryURL,
+            reloadTimelines: { reloadCount += 1 }
+        ))
+        XCTAssertEqual(try Data(contentsOf: fileURL), changedBytes)
+        XCTAssertEqual(
+            try FileManager.default.attributesOfItem(atPath: fileURL.path)[.modificationDate] as? Date,
+            changedModificationDate
+        )
+        XCTAssertEqual(reloadCount, 4)
+
+        writeResults.append(try await CalendarWidgetSnapshotPublicationService.publish(
+            context: context,
+            themeID: "roseLilac",
+            forceWrite: true,
+            referenceDate: referenceDate,
+            directoryURL: directoryURL,
+            reloadTimelines: { reloadCount += 1 }
+        ))
+        XCTAssertEqual(try Data(contentsOf: fileURL), changedBytes)
+        XCTAssertEqual(
+            try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.generatedAt,
+            referenceDate
+        )
+        XCTAssertEqual(writeResults, [true, false, false, false, true, true, false, true])
+        XCTAssertEqual(reloadCount, 5)
+    }
+
+    @MainActor
+    func testDelayedImportRefreshUsesThemeSelectedWhileWaiting() async throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let container = try PlanBaseContainerFactory.makeInMemory()
+        let gate = WidgetPublicationDelayGate()
+        var themeID = AppThemePreset.defaultID
+        let delayedPublication = Swift.Task { @MainActor in
+            try await CalendarWidgetSnapshotPublicationService.refresh(
+                context: container.mainContext,
+                themeID: { themeID },
+                forceWrite: true,
+                delay: .milliseconds(250),
+                directoryURL: directoryURL,
+                waitForDelay: { _ in await gate.suspend() },
+                reloadTimelines: {}
+            )
+        }
+
+        await gate.waitUntilSuspended()
+        themeID = "roseLilac"
+        _ = try await CalendarWidgetSnapshotPublicationService.publish(
+            context: container.mainContext,
+            themeID: themeID,
+            forceWrite: true,
+            directoryURL: directoryURL,
+            reloadTimelines: {}
+        )
+        XCTAssertEqual(
+            try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID,
+            "roseLilac"
+        )
+
+        await gate.resume()
+        _ = try await delayedPublication.value
+        XCTAssertEqual(
+            try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID,
+            "roseLilac",
+            "A delayed import must not overwrite a newer theme selection."
+        )
+    }
+}
+
+private actor WidgetPublicationDelayGate {
+    private var isSuspended = false
+    private var delayContinuation: CheckedContinuation<Void, Never>?
+    private var suspensionContinuation: CheckedContinuation<Void, Never>?
+
+    func suspend() async {
+        await withCheckedContinuation { continuation in
+            delayContinuation = continuation
+            isSuspended = true
+            suspensionContinuation?.resume()
+            suspensionContinuation = nil
+        }
+    }
+
+    func waitUntilSuspended() async {
+        guard !isSuspended else { return }
+        await withCheckedContinuation { suspensionContinuation = $0 }
+    }
+
+    func resume() {
+        delayContinuation?.resume()
+        delayContinuation = nil
     }
 }

@@ -60,7 +60,10 @@ struct MobileAppRootView: View {
     private var showsSyncWarningBanner = true
 
     private var cloudKitEnabled: Bool {
-        PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
+#if DEBUG
+        if PlanBaseLaunchEnvironment.isUITesting { return false }
+#endif
+        return PlanBaseContainerFactory.runtimeAppStoreMode.usesCloudKit
     }
 
     private var preferredThemeColorScheme: ColorScheme {
@@ -389,17 +392,13 @@ struct MobileAppRootView: View {
         forceWrite: Bool,
         delay: Duration? = nil
     ) {
-        let themeID = selectedThemeID
         Swift.Task { @MainActor in
             do {
-                if let delay {
-                    try await Swift.Task.sleep(for: delay)
-                }
-                _ = try await CalendarWidgetSnapshotPublicationService.publish(
+                _ = try await CalendarWidgetSnapshotPublicationService.refresh(
                     context: modelContext,
-                    themeID: themeID,
+                    themeID: { selectedThemeID },
                     forceWrite: forceWrite,
-                    forceTimelineReload: true
+                    delay: delay
                 )
             } catch {
                 print(

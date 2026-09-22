@@ -83,8 +83,6 @@ struct MobileBoardView: View {
     @Query private var selectedDayTaskRows: [TodoTask]
     @State private var carryoverSession: CarryoverInboxSession?
     @Query private var overlappingEventRows: [CalendarEvent]
-    @Query private var templates: [TaskTemplate]
-    @Query private var templateItems: [TaskTemplateItem]
 
     @State private var quickTitle = ""
     @State private var quickEntry = SavedTaskQuickEntryController()
@@ -286,8 +284,9 @@ struct MobileBoardView: View {
                 guard PersistenceCommandService.affects(.templates, in: notification) else { return }
                 quickEntry.refresh(in: modelContext)
             }
-            .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
-                quickEntry.refresh(in: modelContext)
+            .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { notification in
+                guard let summary = CloudKitSyncService.summary(from: notification) else { return }
+                quickEntry.refresh(after: summary, in: modelContext)
             }
             .onChange(of: actionRequest) { _, request in
                 handleActionRequest(request)

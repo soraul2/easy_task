@@ -6595,7 +6595,8 @@ final class PlanBaseResponsivenessTraceTests: XCTestCase {
             _ = XCTWaiter.wait(for: [attachWindow], timeout: delay)
         }
 
-        func phase(_ name: String, _ action: () -> Void) {
+        @MainActor
+        func phase(_ name: String, _ action: @MainActor () -> Void) {
             let start = Date().timeIntervalSince1970
             XCTContext.runActivity(named: name) { _ in action() }
             phases.append(["name": name, "startUnix": start, "endUnix": Date().timeIntervalSince1970])
