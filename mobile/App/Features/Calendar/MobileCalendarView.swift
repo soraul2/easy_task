@@ -28,27 +28,24 @@ private struct MobileCalendarQueryRange: Hashable {
 }
 
 private struct MobileCalendarMonthQueryHost<Content: View>: View {
-    @Query private var events: [CalendarEvent]
-    @Query private var templatePlacements: [TemplatePlacement]
-    private let content: ([CalendarEvent], [TemplatePlacement]) -> Content
-
-    init(
-        range: MobileCalendarQueryRange,
-        @ViewBuilder content: @escaping ([CalendarEvent], [TemplatePlacement]) -> Content
-    ) {
-        _events = Query(BoundedQueryService.eventsDescriptor(
-            overlappingStartDayKey: range.startDayKey,
-            endDayKey: range.endDayKey
-        ))
-        _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
-            from: range.startDayKey,
-            through: range.endDayKey
-        ))
-        self.content = content
-    }
+    @Environment(\.modelContext) private var modelContext
+    @State private var events: [CalendarEvent] = []
+    @State private var templatePlacements: [TemplatePlacement] = []
+    let range: MobileCalendarQueryRange
+    @ViewBuilder var content: ([CalendarEvent], [TemplatePlacement]) -> Content
 
     var body: some View {
-        content(events, templatePlacements)
+        content(events.filter { $0.modelContext != nil }, templatePlacements.filter { $0.modelContext != nil })
+            .refreshVisibleData(key: "\(range.startDayKey):\(range.endDayKey)", domains: [.calendar, .tasks, .templates]) {
+                let newEvents = try modelContext.fetch(BoundedQueryService.eventsDescriptor(
+                    overlappingStartDayKey: range.startDayKey, endDayKey: range.endDayKey
+                ))
+                let placements = try modelContext.fetch(BoundedQueryService.templatePlacementsDescriptor(
+                    from: range.startDayKey, through: range.endDayKey
+                ))
+                events = newEvents
+                templatePlacements = placements
+            }
     }
 }
 
@@ -60,8 +57,7 @@ struct MobileCalendarView: View {
     var onShowTheme: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.modelContext) private var modelContext
-    @Query private var templates: [TaskTemplate]
-    @Query private var templateItems: [TaskTemplateItem]
+    @State private var pendingTemplateItemCount = 0
 
     @State private var visibleMonth = DayKey.startOfMonth(for: Date())
     @State private var selectedDate = DayKey.startOfDay(for: Date())
@@ -90,7 +86,6 @@ struct MobileCalendarView: View {
         MobileCalendarMonthQueryHost(range: queryRange) { events, templatePlacements in
             calendarContent(events: events, templatePlacements: templatePlacements)
         }
-        .id(queryRange)
         .onAppear {
             consumeNavigationDateIfNeeded()
         }
@@ -197,7 +192,7 @@ struct MobileCalendarView: View {
                     deletePlacementTemplate(template)
                 }
             } message: { template in
-                Text("\"\(template.name)\" 템플릿과 저장된 작업 \(TemplateListRules.itemsForTemplate(template, in: templateItems).count)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.")
+                Text("\"\(template.name)\" 템플릿과 저장된 작업 \(pendingTemplateItemCount)개를 삭제합니다. 이미 보드에 추가된 작업은 삭제되지 않습니다.")
             }
         } detail: {
             MobileCalendarDayQueryHost(
@@ -362,7 +357,8 @@ struct MobileCalendarView: View {
         compactColumn = .sidebar
         placementTemplate = template
         placementDrafts = drafts
-        placementHasEditedDrafts = drafts != TemplateService.drafts(from: template, items: templateItems)
+        let storedDrafts = try? TemplateEditingService.snapshot(id: template.id, in: modelContext).drafts
+        placementHasEditedDrafts = storedDrafts == nil || drafts != storedDrafts
         placementDayKeys = []
         placementMessage = nil
     }
@@ -455,9 +451,22 @@ struct MobileCalendarView: View {
         }
     }
 
+    private func templateItems(for template: TaskTemplate) throws -> [TaskTemplateItem] {
+        let templateID = template.id
+        return try modelContext.fetch(FetchDescriptor<TaskTemplateItem>(
+            predicate: #Predicate { $0.templateId == templateID }
+        ))
+    }
+
     private func requestPlacementTemplateDeletion(_ template: TaskTemplate) {
-        pendingPlacementTemplateDeletion = template
-        showingPlacementTemplateDeleteConfirmation = true
+        do {
+            let items = try templateItems(for: template)
+            pendingTemplateItemCount = TemplateListRules.itemsForTemplate(template, in: items).count
+            pendingPlacementTemplateDeletion = template
+            showingPlacementTemplateDeleteConfirmation = true
+        } catch {
+            placementMessage = "템플릿을 불러오지 못했어요"
+        }
     }
 
     private func deletePlacementTemplate(_ template: TaskTemplate) {
@@ -466,7 +475,7 @@ struct MobileCalendarView: View {
             let deletedItemCount = try PersistenceCommandService.perform(in: modelContext) {
                 TemplateService.deleteTemplate(
                     template,
-                    items: templateItems,
+                    items: try templateItems(for: template),
                     in: modelContext
                 )
             }

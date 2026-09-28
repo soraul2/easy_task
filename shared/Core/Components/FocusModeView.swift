@@ -118,7 +118,7 @@ public struct FocusModeView: View {
                     ScrollView {
                         Group {
                             if let snapshot {
-                                timerView(snapshot, usesColumns: usesColumns)
+                                timerView(snapshot, usesColumns: usesColumns, availableSize: geometry.size)
                             } else if let completion {
                                 completionView(completion)
                             } else {
@@ -260,6 +260,7 @@ public struct FocusModeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 20))
                 .overlay { RoundedRectangle(cornerRadius: 20).stroke(AppTheme.border, lineWidth: 1) }
+                FocusTaskChecklistView(taskID: selectedTask.id)
             } else {
                 ContentUnavailableView("집중할 작업이 없어요", systemImage: "checkmark.circle",
                     description: Text("보드에서 할 일을 만든 뒤 다시 열어 주세요."))
@@ -444,55 +445,60 @@ public struct FocusModeView: View {
         return "\(status) · \(date)\(estimate)"
     }
 
-    private func timerView(_ active: FocusActiveSessionSnapshot, usesColumns: Bool) -> some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let remaining = FocusTimerRules.remainingSeconds(for: active, now: timeline.date)
-            let planned = active.phase == .focus ? active.plannedFocusSeconds : active.plannedBreakSeconds
-            let layout = usesColumns
-                ? AnyLayout(HStackLayout(alignment: .center, spacing: 28))
-                : AnyLayout(VStackLayout(spacing: 22))
-            layout {
-                VStack(spacing: 18) {
-                    VStack(spacing: 10) {
-                        Label(active.phase == .focus ? "집중하는 시간" : "쉬어가는 시간",
-                              systemImage: active.phase == .focus ? "scope" : "cup.and.saucer")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.accent)
-                        Text(active.taskTitleSnapshot).font(.title2.bold())
-                            .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                        Text("이번 \(active.phase == .focus ? "집중" : "휴식") \(planned / 60)분")
-                            .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                    }
+    private func timerView(_ active: FocusActiveSessionSnapshot, usesColumns: Bool, availableSize: CGSize) -> some View {
+        let contentWidth = max(1, min(availableSize.width - 40, usesColumns ? 920 : 540))
+        let columnWidth = usesColumns ? (contentWidth - 28) / 2 : contentWidth
+        let diameter = max(1, min(columnWidth - 12, usesColumns ? 360 : 320, max(160, availableSize.height * 0.4)))
+        let planned = active.phase == .focus ? active.plannedFocusSeconds : active.plannedBreakSeconds
+        let layout = usesColumns
+            ? AnyLayout(HStackLayout(alignment: .center, spacing: 28))
+            : AnyLayout(VStackLayout(spacing: 22))
+        return layout {
+            VStack(spacing: 18) {
+                VStack(spacing: 10) {
+                    Label(active.phase == .focus ? "집중하는 시간" : "쉬어가는 시간",
+                          systemImage: active.phase == .focus ? "scope" : "cup.and.saucer")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.accent)
+                    Text(active.taskTitleSnapshot).font(.title2.bold())
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    Text("이번 \(active.phase == .focus ? "집중" : "휴식") \(planned / 60)분")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                }
+                TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                    let remaining = FocusTimerRules.remainingSeconds(for: active, now: timeline.date)
                     FocusTimerDial(seconds: remaining,
                         progress: planned > 0 ? 1 - remaining / Double(planned) : 0,
-                        paused: active.runState == .paused, isBreak: active.phase == .breakTime)
+                        paused: active.runState == .paused, isBreak: active.phase == .breakTime,
+                        diameter: diameter)
+                        .onChange(of: remaining) { _, value in if value <= 0 { reconcile() } }
                 }
-                .frame(maxWidth: .infinity)
-                VStack(spacing: 18) {
-                    if active.runState == .running, let deadline = active.deadline {
-                        Text("\(deadline.formatted(.dateTime.hour().minute().locale(Locale(identifier: "ko_KR")))) 종료 예정")
-                            .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                    } else {
-                        Text("멈춘 시간은 집중 기록에 포함되지 않아요.")
-                            .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
-                    timerActions(active)
-                    if active.phase == .focus {
-                        Button { requestTaskCompletion(active) } label: {
-                            Label("작업도 완료하기", systemImage: "checkmark.circle")
-                                .frame(maxWidth: .infinity, minHeight: 28)
-                        }
-                        .buttonStyle(PlanBaseButtonStyle(.secondary))
-                        .accessibilityIdentifier("focus-complete-task")
-                    }
-                    Text("화면을 닫아도 타이머는 계속돼요.")
-                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
-                }
-                .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
-            .onChange(of: remaining) { _, value in if value <= 0 { reconcile() } }
+            VStack(spacing: 18) {
+                if active.runState == .running, let deadline = active.deadline {
+                    Text("\(deadline.formatted(.dateTime.hour().minute().locale(Locale(identifier: "ko_KR")))) 종료 예정")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                } else {
+                    Text("멈춘 시간은 집중 기록에 포함되지 않아요.")
+                        .font(.subheadline).foregroundStyle(AppTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                timerActions(active)
+                if active.phase == .focus {
+                    FocusTaskChecklistView(taskID: active.taskID)
+                    Button { requestTaskCompletion(active) } label: {
+                        Label("작업도 완료하기", systemImage: "checkmark.circle")
+                            .frame(maxWidth: .infinity, minHeight: 28)
+                    }
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    .accessibilityIdentifier("focus-complete-task")
+                }
+                Text("화면을 닫아도 타이머는 계속돼요.")
+                    .font(.caption).foregroundStyle(AppTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func timerActions(_ active: FocusActiveSessionSnapshot) -> some View {

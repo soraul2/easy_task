@@ -13,6 +13,7 @@ enum MobileLayout {
 /// One navigation hierarchy for both a list/detail pair and its collapsed form.
 /// Changing the available space never creates a second copy of an editor.
 struct MobileAdaptiveSplitView<Sidebar: View, Detail: View>: View {
+    @Environment(\.planBaseContentIsActive) private var isActive
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var minimumColumnWidth = 320.0
@@ -41,6 +42,7 @@ struct MobileAdaptiveSplitView<Sidebar: View, Detail: View>: View {
                     )
             } detail: {
                 detail()
+                    .environment(\.planBaseContentIsActive, isActive && (usesColumns || compactColumn == .detail))
             }
             .navigationSplitViewStyle(.balanced)
             .transformEnvironment(\.horizontalSizeClass) { sizeClass in

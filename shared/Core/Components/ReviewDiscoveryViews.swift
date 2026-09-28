@@ -162,11 +162,13 @@ private struct ReviewDiscoveryConnection: ViewModifier {
     @Bindable var state: ArchiveScreenState
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.planBaseContentIsActive) private var isActive
     @State private var isVisible = false
     func body(content: Content) -> some View {
         content
-            .task {
-                isVisible = true
+            .task(id: isActive) {
+                isVisible = isActive
+                guard isActive else { state.reviewSession?.cancel(); return }
                 if state.reviewSession == nil {
                     state.reviewSession = ReviewDiscoverySession(context: context)
                 }
@@ -188,7 +190,7 @@ private struct ReviewDiscoveryConnection: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { note in
                 state.reviewSession?.refreshForCloudKitEvent(
                     CloudKitSyncService.summary(from: note),
-                    isVisible: isVisible, isSceneActive: scenePhase == .active
+                    isVisible: isVisible && isActive, isSceneActive: scenePhase == .active
                 )
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
@@ -205,7 +207,7 @@ private struct ReviewDiscoveryConnection: ViewModifier {
 
     private func refreshForChange() {
         state.reviewSession?.refreshForChange(
-            isVisible: isVisible, isSceneActive: scenePhase == .active, filter: state.reviewFilter
+            isVisible: isVisible && isActive, isSceneActive: scenePhase == .active, filter: state.reviewFilter
         )
     }
 }

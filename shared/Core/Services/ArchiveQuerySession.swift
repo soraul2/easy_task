@@ -13,6 +13,9 @@ public final class ArchiveQuerySession {
     public private(set) var errorMessage: String?
     public private(set) var loadedPageCount = 0
 
+    @ObservationIgnored private let changes: PersistenceViewRevision
+    @ObservationIgnored private var loadedRevision: Int?
+    @ObservationIgnored private var loadedDayKey: String?
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let dailyService: DailyActivityQueryService
     @ObservationIgnored private var appliedFilter = ArchiveFilter()
@@ -28,6 +31,7 @@ public final class ArchiveQuerySession {
 #endif
 
     public init(context: ModelContext, dailyService: DailyActivityQueryService? = nil) {
+        self.changes = PersistenceViewRevision(context: context, domains: [.tasks, .reviews])
         self.context = context
         self.dailyService = dailyService ?? DailyActivityQueryService(context: context)
     }
@@ -66,6 +70,7 @@ public final class ArchiveQuerySession {
             loadDaily(pages: 1, appending: true)
             return
         }
+        if loadedPageCount == 0 { rememberRevision() }
         isLoading = true
         errorMessage = nil
 
@@ -86,6 +91,12 @@ public final class ArchiveQuerySession {
             errorMessage = "기록을 불러오지 못했습니다."
             hasMore = false
         }
+    }
+
+    public func refreshIfNeeded() {
+        guard loadedRevision != changes.value || loadedDayKey != DayKey.today
+                || requestedFilter != appliedFilter || errorMessage != nil else { return }
+        refreshPreservingDepth()
     }
 
     public func refreshPreservingDepth() {
@@ -127,6 +138,7 @@ public final class ArchiveQuerySession {
     }
 
     public func cancel() {
+        if isLoading { loadedRevision = nil }
         pendingSearch?.cancel()
         pendingLoad?.cancel()
         generation += 1
@@ -139,6 +151,11 @@ public final class ArchiveQuerySession {
 }
 
 private extension ArchiveQuerySession {
+    func rememberRevision() {
+        loadedRevision = changes.value
+        loadedDayKey = DayKey.today
+    }
+
     func resetAndLoad(_ filter: ArchiveFilter) {
         pendingLoad?.cancel()
         generation += 1
@@ -154,6 +171,7 @@ private extension ArchiveQuerySession {
         let requestGeneration = generation
         let filter = appliedFilter
         let before = appending ? nextBeforeDayKey : nil
+        if !appending || loadedPageCount == 0 { rememberRevision() }
         isLoading = true
         errorMessage = nil
         pendingLoad = Swift.Task { [weak self] in

@@ -19,6 +19,7 @@ struct MobileArchiveView: View {
     @State private var pendingReviewNotice: String?
     @State private var reviewNotice: String?
     @State private var isVisible = false
+    @Environment(\.planBaseContentIsActive) private var isActive
     @AppStorage("planbase.archiveShowsOverview") private var showsOverview = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
@@ -247,8 +248,13 @@ struct MobileArchiveView: View {
                     description: Text("목록에서 날짜를 선택해 하루의 작업과 회고를 확인하세요."))
             }
         }
-        .task {
-            isVisible = true
+        .task(id: isActive) {
+            isVisible = isActive
+            guard isActive else {
+                state.querySession?.cancel()
+                state.activitySession?.cancel()
+                return
+            }
             if state.querySession == nil {
                 state.querySession = ArchiveQuerySession(context: modelContext)
                 state.activitySession = ActivityOverviewSession(context: modelContext)
@@ -260,7 +266,7 @@ struct MobileArchiveView: View {
                     showsOverview = false
                 }
             } else {
-                state.querySession?.refreshPreservingDepth()
+                state.querySession?.refreshIfNeeded()
             }
             refreshOverview()
         }
@@ -295,17 +301,8 @@ struct MobileArchiveView: View {
         .onChange(of: horizontalSizeClass) { _, _ in
             refreshOverview()
         }
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: PersistenceCommandService.dataChangedNotification
-            )
-        ) { notification in
-            guard PersistenceCommandService.affects([.tasks, .reviews], in: notification) else { return }
-            guard isVisible, scenePhase == .active,
-                let sourceContext = notification.object as? ModelContext,
-                sourceContext === modelContext
-            else { return }
-            state.querySession?.refreshPreservingDepth()
+        .refreshVisibleData(key: "archive", domains: [.tasks, .reviews]) {
+            state.querySession?.refreshIfNeeded()
         }
         .sheet(item: $selectedTask) { selection in
             TaskRecordSheet(selection: selection)

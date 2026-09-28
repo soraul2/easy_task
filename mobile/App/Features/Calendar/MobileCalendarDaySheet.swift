@@ -4,40 +4,34 @@ import SwiftData
 import SwiftUI
 
 struct MobileCalendarDayQueryHost: View {
-    private let date: Date
-    @Query private var events: [CalendarEvent]
-    @Query private var templatePlacements: [TemplatePlacement]
-    private let onOpenBoard: () -> Void
-    private let onClose: (() -> Void)?
-    @Query private var tasks: [TodoTask]
-
-    init(
-        dayKey: String,
-        date: Date,
-        onOpenBoard: @escaping () -> Void,
-        onClose: (() -> Void)? = nil
-    ) {
-        self.date = date
-        self.onOpenBoard = onOpenBoard
-        self.onClose = onClose
-        _events = Query(BoundedQueryService.eventsDescriptor(
-            overlappingStartDayKey: dayKey, endDayKey: dayKey
-        ))
-        _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
-            from: dayKey, through: dayKey
-        ))
-        _tasks = Query(BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey))
-    }
+    @Environment(\.modelContext) private var modelContext
+    let dayKey: String
+    let date: Date
+    var onOpenBoard: () -> Void
+    var onClose: (() -> Void)? = nil
+    @State private var events: [CalendarEvent] = []
+    @State private var templatePlacements: [TemplatePlacement] = []
+    @State private var tasks: [TodoTask] = []
 
     var body: some View {
         MobileCalendarDaySheet(
-            date: date,
-            events: CalendarEventRules.events(on: date, in: events),
-            templatePlacements: TemplateService.placements(on: date, in: templatePlacements),
-            tasks: tasks,
-            onOpenBoard: onOpenBoard,
-            onClose: onClose
+            date: date, events: events.filter { $0.modelContext != nil },
+            templatePlacements: templatePlacements.filter { $0.modelContext != nil },
+            tasks: tasks.filter { $0.modelContext != nil }, onOpenBoard: onOpenBoard, onClose: onClose
         )
+        .refreshVisibleData(key: dayKey, domains: [.tasks, .calendar, .templates]) {
+            let eventRows = try modelContext.fetch(BoundedQueryService.eventsDescriptor(
+                overlappingStartDayKey: dayKey, endDayKey: dayKey
+            ))
+            let placements = try modelContext.fetch(BoundedQueryService.templatePlacementsDescriptor(
+                from: dayKey, through: dayKey
+            ))
+            let taskRows = try modelContext.fetch(BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey))
+            events = CalendarEventRules.events(on: date, in: eventRows)
+            templatePlacements = TemplateService.placements(on: date, in: placements)
+            // One projection per data/date change, reused throughout the detail.
+            tasks = BoardQueryRules.tasksForBoard(taskRows, selectedDayKey: dayKey)
+        }
     }
 }
 
@@ -63,13 +57,6 @@ private struct MobileCalendarDaySheet: View {
     @State private var dayNoticeTone: MobileNoticeTone = .success
     @State private var dayNoticeToken = UUID()
     @State private var pendingEditorNotice: String?
-
-    private var boardTasks: [TodoTask] {
-        BoardQueryRules.tasksForBoard(
-            tasks,
-            selectedDayKey: DayKey.key(for: date)
-        )
-    }
 
     var body: some View {
         NavigationStack {
@@ -117,7 +104,7 @@ private struct MobileCalendarDaySheet: View {
                 }
                 .listRowBackground(AppTheme.panel)
                 Section("작업") {
-                    ForEach(boardTasks.prefix(6)) { task in
+                    ForEach(tasks.prefix(6)) { task in
                         HStack {
                             Text(task.title)
                                 .lineLimit(2)
@@ -127,12 +114,12 @@ private struct MobileCalendarDaySheet: View {
                                 .foregroundStyle(AppTheme.secondaryText)
                         }
                     }
-                    if boardTasks.count > 6 {
-                        Text("외 \(boardTasks.count - 6)개 작업")
+                    if tasks.count > 6 {
+                        Text("외 \(tasks.count - 6)개 작업")
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText)
                     }
-                    if boardTasks.isEmpty {
+                    if tasks.isEmpty {
                         Text("작업 없음")
                             .foregroundStyle(AppTheme.secondaryText)
                     }

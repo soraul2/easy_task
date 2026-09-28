@@ -92,6 +92,7 @@ struct MobileAppRootView: View {
                 Label(MobileTab.board.title, systemImage: MobileTab.board.symbol)
             }
             .tag(MobileTab.board)
+            .environment(\.planBaseContentIsActive, selectedTab == .board)
 
             MobileCalendarView(
                 navigationDate: $calendarNavigationDate,
@@ -106,6 +107,7 @@ struct MobileAppRootView: View {
                 Label(MobileTab.calendar.title, systemImage: MobileTab.calendar.symbol)
             }
             .tag(MobileTab.calendar)
+            .environment(\.planBaseContentIsActive, selectedTab == .calendar)
 
             MobileArchiveView(
                 state: archiveState,
@@ -120,6 +122,7 @@ struct MobileAppRootView: View {
                 Label(MobileTab.archive.title, systemImage: MobileTab.archive.symbol)
             }
             .tag(MobileTab.archive)
+            .environment(\.planBaseContentIsActive, selectedTab == .archive)
 
             MobileMemoView(onShowTheme: { showingThemePicker = true })
                 .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) { focusLauncher }
@@ -127,6 +130,7 @@ struct MobileAppRootView: View {
                     Label(MobileTab.memo.title, systemImage: MobileTab.memo.symbol)
                 }
                 .tag(MobileTab.memo)
+                .environment(\.planBaseContentIsActive, selectedTab == .memo)
         }
         .tint(AppTheme.accent)
         #if DEBUG

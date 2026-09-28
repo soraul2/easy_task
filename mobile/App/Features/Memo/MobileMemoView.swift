@@ -81,30 +81,12 @@ struct MobileMemoView: View {
                 }
             }
         }
-        .task {
+        .refreshVisibleData(key: "memo", domains: .memos) {
             refreshQuery()
+            selection?.session.refreshFromStore()
         }
         .onChange(of: searchText) { _, newValue in
             querySession?.apply(query: newValue, debounce: true)
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: PersistenceCommandService.dataChangedNotification
-        )) { notification in
-            guard PersistenceCommandService.affects(.memos, in: notification) else { return }
-            guard let sourceContext = notification.object as? ModelContext,
-                  sourceContext === modelContext else { return }
-            querySession?.refresh()
-            selection?.session.refreshFromStore()
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: CloudKitSyncService.eventChangedNotification
-        )) { notification in
-            guard let summary = CloudKitSyncService.summary(from: notification),
-                  summary.kind == .import,
-                  summary.isCompleted,
-                  summary.succeeded else { return }
-            querySession?.refresh()
-            selection?.session.refreshFromStore()
         }
         .alert(
             "메모 삭제",

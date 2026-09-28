@@ -63,6 +63,7 @@
 
 ## 배포 기록
 
+- [TestFlight 1.0 (83)](releases/TESTFLIGHT_BUILD_83.md): 2026-09-28 탭 반응성·Focus 개선, iOS·macOS 업로드 성공(테스트·계측 생략)
 - [TestFlight 1.0 (82)](releases/TESTFLIGHT_BUILD_82.md): 2026-09-23 캘린더 두 줄 제목·UI 접근성 개선, iOS·macOS 업로드 성공
 - [TestFlight 1.0 (81)](releases/TESTFLIGHT_BUILD_81.md): 2026-09-22 최적화 및 안정성 수정, iOS·macOS 업로드 성공
 

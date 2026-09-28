@@ -5,51 +5,37 @@ import SwiftData
 @MainActor
 @Observable
 public final class ActivityOverviewSession {
-    public static let backwardPageDayCount = 90
+    public nonisolated static let backwardPageDayCount = 90
 
     public private(set) var overview = ActivityOverview()
     public private(set) var isLoading = false
     public private(set) var errorMessage: String?
 
     @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored private var changes: PersistenceViewRevision?
     @ObservationIgnored private var pendingCalculation: Swift.Task<Void, Never>?
     @ObservationIgnored private var midnightRefresh: Swift.Task<Void, Never>?
-    @ObservationIgnored private var dataObserver: ActivityNotificationObserver?
-    @ObservationIgnored private var timeZoneObserver: ActivityNotificationObserver?
+    @ObservationIgnored private var completedRequest: Request?
+    @ObservationIgnored private var pendingRequest: Request?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var isActive = false
     @ObservationIgnored private var requestedWeekCount = TaskActivityRules.compactWeekCount
     @ObservationIgnored private var requestedCalendar = DayKey.calendar
 
+    private struct Request: Equatable {
+        let revision: Int
+        let weekCount: Int
+        let dayKey: String
+        let calendar: Calendar
+        let pending: ActivityPendingChanges
+    }
+
     public init(context: ModelContext) {
         self.context = context
-        dataObserver = ActivityNotificationObserver(
-            NotificationCenter.default.addObserver(
-            forName: PersistenceCommandService.dataChangedNotification,
-            object: context,
-            queue: nil
-        ) { [weak self] notification in
-                guard PersistenceCommandService.affects(.tasks, in: notification) else { return }
-            Swift.Task { @MainActor [weak self] in
-                guard self?.isActive == true else { return }
-                self?.refresh()
-            }
-        })
-        timeZoneObserver = ActivityNotificationObserver(
-            NotificationCenter.default.addObserver(
-            forName: NSNotification.Name.NSSystemTimeZoneDidChange,
-            object: nil,
-            queue: nil
-        ) { [weak self] _ in
-            Swift.Task { @MainActor [weak self] in
-                guard self?.isActive == true else { return }
-                self?.apply(
-                    weekCount: self?.requestedWeekCount ?? TaskActivityRules.compactWeekCount,
-                    referenceDate: Date(),
-                    calendar: DayKey.calendar
-                )
-            }
-        })
+        changes = PersistenceViewRevision(context: context, domains: .tasks) { [weak self] in
+            guard let self, self.isActive else { return }
+            self.apply(weekCount: self.requestedWeekCount, calendar: DayKey.calendar)
+        }
     }
 
     deinit {
@@ -65,37 +51,60 @@ public final class ActivityOverviewSession {
         isActive = true
         requestedWeekCount = max(1, weekCount)
         requestedCalendar = calendar
+        let request = Request(
+            revision: changes?.value ?? 0, weekCount: requestedWeekCount,
+            dayKey: DayKey.key(for: referenceDate, calendar: calendar), calendar: calendar,
+            pending: ActivityPendingChanges(context: context)
+        )
+        if completedRequest == request {
+            generation += 1
+            pendingCalculation?.cancel()
+            pendingCalculation = nil
+            pendingRequest = nil
+            isLoading = false
+            errorMessage = nil
+            // A width/day/data change invalidates this cache; tab reentry does not.
+            scheduleMidnightRefresh(calendar: calendar)
+            return
+        }
+        guard pendingRequest != request else { return }
         generation += 1
         let requestGeneration = generation
         pendingCalculation?.cancel()
+        pendingRequest = request
         isLoading = true
         errorMessage = nil
+        let container = context.container
 
         pendingCalculation = Swift.Task { [weak self] in
             await Swift.Task.yield()
-            guard !Swift.Task.isCancelled, let self else { return }
-            do {
-                let result = try loadOverview(
-                    weekCount: requestedWeekCount,
-                    referenceDate: referenceDate,
-                    calendar: calendar,
-                    isCancelled: { Swift.Task<Never, Never>.isCancelled }
+            guard !Swift.Task.isCancelled else { return }
+            let calculation = Swift.Task.detached(priority: .userInitiated) {
+                let reader = ActivityOverviewReader(modelContainer: container)
+                return try await reader.loadOverview(
+                    weekCount: request.weekCount, referenceDate: referenceDate,
+                    calendar: calendar, pending: request.pending
                 )
-                guard !Swift.Task.isCancelled, generation == requestGeneration else {
-                    return
+            }
+            do {
+                let result = try await withTaskCancellationHandler {
+                    try await calculation.value
+                } onCancel: {
+                    calculation.cancel()
                 }
+                guard !Swift.Task.isCancelled, let self, generation == requestGeneration else { return }
                 overview = result
+                completedRequest = request
+                pendingRequest = nil
                 isLoading = false
                 pendingCalculation = nil
                 scheduleMidnightRefresh(calendar: calendar)
             } catch is CancellationError {
-                // A newer width, date, or lifecycle request owns the visible result.
+                // The current generation owns the visible result.
             } catch {
-                guard !Swift.Task.isCancelled, generation == requestGeneration else {
-                    return
-                }
-                overview = ActivityOverview()
+                guard !Swift.Task.isCancelled, let self, generation == requestGeneration else { return }
                 errorMessage = "활동 기록을 불러오지 못했습니다."
+                pendingRequest = nil
                 isLoading = false
                 pendingCalculation = nil
             }
@@ -104,155 +113,21 @@ public final class ActivityOverviewSession {
 
     public func refresh(referenceDate: Date = Date()) {
         guard isActive else { return }
-        apply(
-            weekCount: requestedWeekCount,
-            referenceDate: referenceDate,
-            calendar: requestedCalendar
-        )
+        completedRequest = nil
+        apply(weekCount: requestedWeekCount, referenceDate: referenceDate, calendar: requestedCalendar)
     }
 
-    public func retry() {
-        refresh()
-    }
+    public func retry() { refresh() }
 
     public func cancel() {
         isActive = false
         generation += 1
         pendingCalculation?.cancel()
         pendingCalculation = nil
+        pendingRequest = nil
         midnightRefresh?.cancel()
         midnightRefresh = nil
         isLoading = false
-    }
-}
-
-private final class ActivityNotificationObserver: @unchecked Sendable {
-    private let token: any NSObjectProtocol
-
-    init(_ token: any NSObjectProtocol) {
-        self.token = token
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(token)
-    }
-}
-
-private extension ActivityOverviewSession {
-    func loadOverview(
-        weekCount: Int,
-        referenceDate: Date,
-        calendar: Calendar,
-        isCancelled: () -> Bool
-    ) throws -> ActivityOverview {
-        let range = TaskActivityRules.heatmapRange(
-            weekCount: weekCount,
-            referenceDate: referenceDate,
-            calendar: calendar
-        )
-        let bestStreakStart = TaskActivityRules.dayKey(
-            byAddingDays: -(TaskActivityRules.bestStreakDayCount - 1),
-            to: range.todayDayKey,
-            calendar: calendar
-        ) ?? range.startDayKey
-        var loadedLowerBound = min(range.startDayKey, bestStreakStart)
-        var snapshots = try BoundedQueryService.taskActivitySnapshots(
-            from: loadedLowerBound,
-            through: range.todayDayKey,
-            in: context,
-            isCancelled: isCancelled
-        )
-        var activeDayKeys = Set(snapshots.map(\.activityDayKey))
-        let yesterday = TaskActivityRules.dayKey(
-            byAddingDays: -1,
-            to: range.todayDayKey,
-            calendar: calendar
-        )
-        let currentAnchor: String?
-        if activeDayKeys.contains(range.todayDayKey) {
-            currentAnchor = range.todayDayKey
-        } else if let yesterday, activeDayKeys.contains(yesterday) {
-            currentAnchor = yesterday
-        } else {
-            currentAnchor = nil
-        }
-
-        if let currentAnchor,
-           hasActivityEveryDay(
-            from: loadedLowerBound,
-            through: currentAnchor,
-            activeDayKeys: activeDayKeys,
-            calendar: calendar
-           ) {
-            while true {
-                if isCancelled() { throw CancellationError() }
-                guard let pageEnd = TaskActivityRules.dayKey(
-                    byAddingDays: -1,
-                    to: loadedLowerBound,
-                    calendar: calendar
-                ),
-                      let pageStart = TaskActivityRules.dayKey(
-                        byAddingDays: -(Self.backwardPageDayCount - 1),
-                        to: pageEnd,
-                        calendar: calendar
-                      ) else {
-                    break
-                }
-                let page = try BoundedQueryService.taskActivitySnapshots(
-                    from: pageStart,
-                    through: pageEnd,
-                    in: context,
-                    isCancelled: isCancelled
-                )
-                snapshots.append(contentsOf: page)
-                activeDayKeys.formUnion(page.map(\.activityDayKey))
-                loadedLowerBound = pageStart
-                guard hasActivityEveryDay(
-                    from: pageStart,
-                    through: pageEnd,
-                    activeDayKeys: activeDayKeys,
-                    calendar: calendar
-                ) else {
-                    break
-                }
-            }
-        }
-
-        let hasEarlierActivity = snapshots.isEmpty
-            ? try BoundedQueryService.hasTaskActivity(
-                before: loadedLowerBound,
-                in: context
-            )
-            : false
-        return TaskActivityRules.overview(
-            from: snapshots,
-            weekCount: weekCount,
-            referenceDate: referenceDate,
-            calendar: calendar,
-            hasEarlierActivity: hasEarlierActivity
-        )
-    }
-
-    func hasActivityEveryDay(
-        from lowerBound: String,
-        through upperBound: String,
-        activeDayKeys: Set<String>,
-        calendar: Calendar
-    ) -> Bool {
-        guard lowerBound <= upperBound else { return true }
-        var cursor = lowerBound
-        while cursor <= upperBound {
-            guard activeDayKeys.contains(cursor) else { return false }
-            guard let next = TaskActivityRules.dayKey(
-                byAddingDays: 1,
-                to: cursor,
-                calendar: calendar
-            ) else {
-                return false
-            }
-            cursor = next
-        }
-        return true
     }
 
     func scheduleMidnightRefresh(calendar: Calendar) {

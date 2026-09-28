@@ -1,3 +1,4 @@
+import Combine
 import PlanBaseCore
 import SwiftData
 import SwiftUI
@@ -158,66 +159,10 @@ enum CalendarWidgetSnapshotPublicationService {
 struct CalendarWidgetSnapshotPublisher: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var observedEvents: [CalendarEvent]
-    @Query private var observedPlannedTasks: [PlanBaseCore.Task]
-    @Query private var observedCompletedTasks: [PlanBaseCore.Task]
     @AppStorage(AppTheme.storageKey) private var selectedThemeID = AppThemePreset.defaultID
     @State private var publicationTask: Swift.Task<Void, Never>?
     @State private var needsPublication = false
     @State private var hasCompletedInitialPublication = false
-
-    init(referenceDate: Date = Date()) {
-        let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
-        let lockScreenCoverage = LockScreenWidgetRules.coverageDayKeys(for: referenceDate)
-        _observedEvents = Query(BoundedQueryService.eventsDescriptor(
-            overlappingStartDayKey: coverage.startDayKey,
-            endDayKey: coverage.endDayKey
-        ))
-        _observedPlannedTasks = Query(BoundedQueryService.widgetPlannedTasksDescriptor(
-            from: lockScreenCoverage.startDayKey,
-            through: lockScreenCoverage.endDayKey
-        ))
-        _observedCompletedTasks = Query(BoundedQueryService.widgetCompletedTasksDescriptor(
-            from: lockScreenCoverage.startDayKey,
-            through: lockScreenCoverage.endDayKey
-        ))
-    }
-
-    private var eventFingerprint: String {
-        observedEvents.map { event in
-            [
-                event.instanceID.uuidString,
-                event.id.uuidString,
-                event.title,
-                event.startDayKey,
-                event.endDayKey,
-                event.color ?? "",
-                String(event.updatedAt.timeIntervalSinceReferenceDate),
-                String(event.supersededAt?.timeIntervalSinceReferenceDate ?? 0)
-            ].joined(separator: "|")
-        }
-        .sorted()
-        .joined(separator: ";")
-    }
-
-    private var taskFingerprint: String {
-        (observedPlannedTasks + observedCompletedTasks).map { task in
-            [
-                task.instanceID.uuidString,
-                task.id.uuidString,
-                task.title,
-                task.status,
-                task.plannedDayKey,
-                task.completedDayKey ?? "",
-                String(task.order),
-                String(task.updatedAt.timeIntervalSinceReferenceDate),
-                String(task.archivedAt?.timeIntervalSinceReferenceDate ?? 0),
-                String(task.supersededAt?.timeIntervalSinceReferenceDate ?? 0)
-            ].joined(separator: "|")
-        }
-        .sorted()
-        .joined(separator: ";")
-    }
 
     var body: some View {
         Color.clear
@@ -232,16 +177,23 @@ struct CalendarWidgetSnapshotPublisher: View {
             .onChange(of: selectedThemeID) {
                 requestPublication()
             }
-            .onChange(of: eventFingerprint) {
-                requestPublication()
-            }
-            .onChange(of: taskFingerprint) {
-                requestPublication()
-            }
             .onReceive(NotificationCenter.default.publisher(
                 for: PersistenceCommandService.dataChangedNotification
             )) { notification in
-                guard PersistenceCommandService.affects([.tasks, .calendar], in: notification) else { return }
+                guard let source = notification.object as? ModelContext, source === modelContext,
+                      PersistenceCommandService.affects([.tasks, .calendar], in: notification) else { return }
+                requestPublication()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave, object: modelContext)) { notification in
+                guard let source = notification.object as? ModelContext, source === modelContext,
+                      PersistenceViewRevision.affects([.tasks, .calendar], inSaveNotification: notification) else { return }
+                requestPublication()
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: CloudKitSyncService.eventChangedNotification
+            )) { notification in
+                guard let event = CloudKitSyncService.summary(from: notification),
+                      event.kind == .import, event.isCompleted, event.succeeded else { return }
                 requestPublication()
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in

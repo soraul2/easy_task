@@ -48,6 +48,7 @@ struct FocusTimerDial: View {
     let progress: Double
     let paused: Bool
     let isBreak: Bool
+    let diameter: CGFloat
 
     private var clock: String {
         let value = max(0, Int(seconds.rounded(.up)))
@@ -56,7 +57,7 @@ struct FocusTimerDial: View {
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if dynamicTypeSize.isAccessibilitySize || diameter < 220 {
                 digits
                     .padding(.vertical, 24)
                     .frame(maxWidth: .infinity)
@@ -70,7 +71,7 @@ struct FocusTimerDial: View {
                         .animation(reduceMotion || paused ? nil : .linear(duration: 1), value: progress)
                     digits.padding(24)
                 }
-                .frame(width: 248, height: 248)
+                .frame(width: diameter, height: diameter)
                 .padding(6)
             }
         }
@@ -86,7 +87,7 @@ struct FocusTimerDial: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(AppTheme.secondaryText)
             Text(clock)
-                .font(dynamicTypeSize.isAccessibilitySize ? .largeTitle.bold() : .system(size: 52, weight: .bold, design: .rounded))
+                .font(dynamicTypeSize.isAccessibilitySize ? .largeTitle.bold() : .system(size: min(72, diameter * 0.21), weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)

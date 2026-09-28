@@ -112,29 +112,17 @@ private struct CarryoverInboxConnection: ViewModifier {
     @Binding var session: CarryoverInboxSession?
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.planBaseContentIsActive) private var isActive
     private let clock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     func body(content: Content) -> some View {
         content
-            .onAppear {
+            .refreshVisibleData(key: "carryover", domains: .tasks) {
                 if session == nil { session = CarryoverInboxSession(context: context) }
                 session?.refresh()
             }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active { session?.refresh() }
-            }
             .onReceive(clock) { _ in
-                if scenePhase == .active, session?.todayKey != DayKey.today { session?.refresh() }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in session?.refresh() }
-            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in session?.refresh() }
-            .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { note in
-                guard PersistenceCommandService.affects(.tasks, in: note) else { return }
-                if let source = note.object as? ModelContext, source !== context { return }
-                session?.refresh()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { _ in
-                session?.refresh()
+                if isActive, scenePhase == .active, session?.todayKey != DayKey.today { session?.refresh() }
             }
     }
 }

@@ -76,13 +76,15 @@ struct MobileBoardView: View {
     let onStartFocus: (UUID) -> Void
     let onShowTheme: () -> Void
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.planBaseContentIsActive) private var isActive
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ScaledMetric(relativeTo: .body) private var minimumBoardColumnWidth = 280.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Query private var selectedDayTaskRows: [TodoTask]
+    @State private var selectedDayTaskRows: [TodoTask] = []
+    @State private var boardTasks: [TodoTask] = []
+    @State private var dayEvents: [CalendarEvent] = []
     @State private var carryoverSession: CarryoverInboxSession?
-    @Query private var overlappingEventRows: [CalendarEvent]
 
     @State private var quickTitle = ""
     @State private var quickEntry = SavedTaskQuickEntryController()
@@ -122,28 +124,17 @@ struct MobileBoardView: View {
         _actionRequest = actionRequest
         self.onStartFocus = onStartFocus
         self.onShowTheme = onShowTheme
-
-        let dayKey = DayKey.key(for: selectedDate.wrappedValue)
-        _selectedDayTaskRows = Query(
-            BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
-        )
-        _overlappingEventRows = Query(
-            BoundedQueryService.eventsDescriptor(
-                overlappingStartDayKey: dayKey,
-                endDayKey: dayKey
-            )
-        )
     }
 
-    private var boardTasks: [TodoTask] {
-        return BoardQueryRules.tasksForBoard(
-            selectedDayTaskRows.filter { $0.modelContext != nil },
-            selectedDayKey: selectedDayKey
-        )
-    }
-
-    private var dayEvents: [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: selectedDayKey, in: overlappingEventRows)
+    private func refreshBoard() throws {
+        let rows = try modelContext.fetch(BoundedQueryService.boardTasksDescriptor(selectedDayKey: selectedDayKey))
+        let events = try modelContext.fetch(BoundedQueryService.eventsDescriptor(
+            overlappingStartDayKey: selectedDayKey, endDayKey: selectedDayKey
+        ))
+        selectedDayTaskRows = rows
+        boardTasks = BoardQueryRules.tasksForBoard(rows, selectedDayKey: selectedDayKey)
+        dayEvents = CalendarEventRules.events(onDayKey: selectedDayKey, in: events)
+        progressSession?.refresh(debounce: true)
     }
 
     private var carryoverTasks: [TodoTask] {
@@ -151,7 +142,7 @@ struct MobileBoardView: View {
     }
 
     var body: some View {
-        let tasks = boardTasks
+        let tasks = boardTasks.filter { $0.modelContext != nil }
         let displayedTaskIDs = Set(tasks.map(\.id))
         NavigationStack {
             boardLayout(tasks: tasks)
@@ -190,6 +181,7 @@ struct MobileBoardView: View {
                     .accessibilityIdentifier("review-compose-button")
                 }
             }
+            .refreshVisibleData(key: selectedDayKey, domains: [.tasks, .calendar], refresh: refreshBoard)
             .carryoverInboxSession($carryoverSession)
             .sheet(item: $presentedSheet, onDismiss: showPendingSheetNotice) { sheet in
                 Group {
@@ -272,22 +264,25 @@ struct MobileBoardView: View {
             .modifier(MobileLibrarySaveFailureAlertModifier(pendingSave: $pendingLibrarySave) { pending in
                 saveToLibrary(taskID: pending.taskID, title: pending.title)
             })
-            .task {
+            .task(id: isActive) {
+                guard isActive else { progressSession?.cancel(); return }
+                quickEntry.refresh(in: modelContext)
                 if progressSession == nil {
                     progressSession = TaskProgressEventQuerySession(context: modelContext)
                 }
                 progressSession?.apply(taskIDs: displayedTaskIDs)
             }
             .onChange(of: displayedTaskIDs) { _, taskIDs in
+                guard isActive else { return }
                 progressSession?.apply(taskIDs: taskIDs)
             }
             .onChange(of: quickTitle) { _, value in quickEntry.update(value, in: modelContext) }
             .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { notification in
-                guard PersistenceCommandService.affects(.templates, in: notification) else { return }
+                guard isActive, PersistenceCommandService.affects(.templates, in: notification) else { return }
                 quickEntry.refresh(in: modelContext)
             }
             .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { notification in
-                guard let summary = CloudKitSyncService.summary(from: notification) else { return }
+                guard isActive, let summary = CloudKitSyncService.summary(from: notification) else { return }
                 quickEntry.refresh(after: summary, in: modelContext)
             }
             .onChange(of: actionRequest) { _, request in
@@ -397,7 +392,7 @@ struct MobileBoardView: View {
             isTodayBoard: isTodayBoard,
             selectedDayKey: selectedDayKey
         )
-        BoardEventStrip(events: dayEvents)
+        BoardEventStrip(events: dayEvents.filter { $0.modelContext != nil })
         BoardQuickAdd(
             title: $quickTitle,
             focusRequestID: quickAddFocusRequestID,
