@@ -95,6 +95,14 @@ enum PlanBaseLaunchEnvironment {
 #endif
     }
 
+    static var usesLiveTimerAudit: Bool {
+#if DEBUG
+        isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-live-timer-audit")
+#else
+        false
+#endif
+    }
+
     static var usesLiveActivityTwoDoingFixture: Bool {
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains(

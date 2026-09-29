@@ -123,15 +123,30 @@ final class TaskLiveActivityCoordinator {
         }
         for activity in activities where activity.id != matching?.id { await end(activity) }
         if let matching {
-            if matching.content.state != state { await Self.updateActivity(id: matching.id, content: content) }
+            if matching.content.state != state {
+                await Self.updateActivity(id: matching.id, content: content)
+            } else {
+#if DEBUG
+                TaskLiveActivityTimerAudit.record("unchanged", id: matching.id, state: state)
+#endif
+            }
             return
         }
         guard canRequest, ActivityAuthorizationInfo().areActivitiesEnabled,
               lifetimeStore.permitsStarting(dayKey: dayKey, activityIsMissing: true, explicitStart: request.explicitStart) else { return }
         do {
+            var attributeID = UUID()
+#if DEBUG
+            if PlanBaseLaunchEnvironment.usesLiveTimerAudit {
+                attributeID = PlanBaseTaskActivityAttributes.timerAuditActivityID
+            }
+#endif
             let activity = try Activity.request(
-                attributes: PlanBaseTaskActivityAttributes(activityID: UUID(), dayKey: dayKey, createdAt: request.now),
+                attributes: PlanBaseTaskActivityAttributes(activityID: attributeID, dayKey: dayKey, createdAt: request.now),
                 content: content, pushType: nil)
+#if DEBUG
+            TaskLiveActivityTimerAudit.record("request", id: activity.id, state: state)
+#endif
             lifetimeStore.recordStarted(id: activity.id, dayKey: dayKey, at: request.now)
             observe(activity)
         } catch {
@@ -178,6 +193,9 @@ final class TaskLiveActivityCoordinator {
     }
 
     private func end(_ activity: Activity<PlanBaseTaskActivityAttributes>) async {
+#if DEBUG
+        TaskLiveActivityTimerAudit.record("end", id: activity.id, state: activity.content.state)
+#endif
         lifetimeStore.recordAppEnding(id: activity.id)
         observers.removeValue(forKey: activity.id)?.cancel()
         await Self.endActivity(id: activity.id)
@@ -187,6 +205,9 @@ final class TaskLiveActivityCoordinator {
         id: String, content: ActivityContent<PlanBaseTaskActivityAttributes.ContentState>
     ) async {
         guard let activity = Activity<PlanBaseTaskActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
+#if DEBUG
+        await TaskLiveActivityTimerAudit.record("update", id: id, state: content.state)
+#endif
         await activity.update(content)
     }
 
@@ -201,6 +222,46 @@ final class TaskLiveActivityCoordinator {
 }
 #if DEBUG
 import SwiftUI
+
+@MainActor
+private enum TaskLiveActivityTimerAudit {
+    static func record(_ event: String, id: String, state: PlanBaseTaskActivityAttributes.ContentState) {
+        guard PlanBaseLaunchEnvironment.usesLiveTimerAudit else { return }
+        var entry: [String: Any] = [
+            "event": event, "at": Date().timeIntervalSince1970, "activityID": id,
+            "taskID": state.taskID.uuidString, "session": state.taskSessionID,
+            "kind": state.isFocusSession ? "focus" : "task",
+        ]
+        let start = state.elapsedTimerStartedAt.timeIntervalSince1970
+        entry["start"] = start.isFinite ? start : nil
+        entry["revision"] = state.focusRevision
+        entry["runState"] = state.focusRunStateRawValue
+        entry["phase"] = state.focusPhaseRawValue
+        if let deadline = state.focusDeadline?.timeIntervalSince1970, deadline.isFinite {
+            entry["deadline"] = deadline
+        }
+        if let remaining = state.focusRemainingSecondsAtPause, remaining.isFinite {
+            entry["pausedSeconds"] = remaining
+        }
+        if case .invalid(let reason) = state.timerPresentation {
+            entry["invalidReason"] = reason.rawValue
+        }
+        guard var data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]) else { return }
+        data.append(0x0A)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("planbase-live-timer-audit.jsonl")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+        do {
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } catch {
+            print("Live timer audit write failed: \(error)")
+        }
+    }
+}
 
 struct TaskLiveActivityAuditView: View {
     @State private var summary = ""

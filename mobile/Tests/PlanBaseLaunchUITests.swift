@@ -1208,6 +1208,156 @@ final class PlanBaseLaunchUITests: XCTestCase {
         addReferenceScreenshot(named: "adaptive-focus-restored")
     }
 
+    @MainActor
+    func testAuditTaskLiveTimerContinuity() throws {
+        try auditLiveTimerContinuity(mode: "task")
+    }
+
+    @MainActor
+    func testAuditFocusLiveTimerContinuity() throws {
+        try auditLiveTimerContinuity(mode: "focus")
+    }
+
+    @MainActor
+    func testAuditBreakLiveTimerContinuityAndDeadline() throws {
+        try auditLiveTimerContinuity(mode: "break")
+    }
+
+    @MainActor
+    func testAuditLiveTimerMinimalLayout() throws {
+        try requireWidgetAudit()
+#if !targetEnvironment(simulator)
+        throw XCTSkip("최소 표시 감사는 격리된 시뮬레이터에서 실행합니다")
+#else
+        guard let controlID = ProcessInfo.processInfo.environment["PLANBASE_TIMER_CONTROL_APP"] else {
+            throw XCTSkip("두 Live Activity의 최소 표시에는 별도 번들의 메모리 비교 앱이 필요합니다")
+        }
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-live-timer-audit",
+                               "--ui-testing-live-card-audit", "--ui-testing-live-timer-elapsed=36000"]
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["live-card-audit"].waitForExistence(timeout: 15))
+        let control = XCUIApplication(bundleIdentifier: controlID)
+        control.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-live-timer-audit",
+                                   "--ui-testing-live-card-audit", "--ui-testing-live-timer-mode=focus"]
+        control.launch()
+        XCTAssertTrue(control.staticTexts["live-card-audit"].waitForExistence(timeout: 15))
+        XCUIDevice.shared.press(.home)
+        let home = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        XCTAssertTrue(home.staticTexts["진행 시간"].waitForExistence(timeout: 30))
+        XCTAssertTrue(home.staticTexts["집중 남은 시간"].waitForExistence(timeout: 30))
+        let started = Date()
+        for offset in [0.0, 10, 30, 60] {
+            let wait = started.addingTimeInterval(offset).timeIntervalSinceNow
+            if wait > 0 { Thread.sleep(forTimeInterval: wait) }
+            let attachment = XCTAttachment(string: "Captured at \(Date().timeIntervalSince1970)\n\(home.debugDescription)")
+            attachment.name = "minimal-\(Int(offset))s-hierarchy"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            addReferenceScreenshot(named: "minimal-\(Int(offset))s")
+        }
+#endif
+    }
+
+    @MainActor
+    func testAuditLiveTimerLongDurationLayouts() throws {
+        try requireWidgetAudit()
+#if !targetEnvironment(simulator)
+        throw XCTSkip("메모리 타이머 감사는 격리된 시뮬레이터에서 실행합니다")
+#else
+        let app = XCUIApplication()
+        let home = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for elapsed in [3580, 35980] {
+            app.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-live-timer-audit",
+                                   "--ui-testing-live-card-audit", "--ui-testing-live-timer-elapsed=\(elapsed)"]
+            app.terminate()
+            app.launch()
+            XCTAssertTrue(app.staticTexts["live-card-audit"].waitForExistence(timeout: 15))
+            XCUIDevice.shared.press(.home)
+            addReferenceScreenshot(named: "long-timer-\(elapsed)-before-boundary")
+            Thread.sleep(forTimeInterval: 25)
+            addReferenceScreenshot(named: "long-timer-\(elapsed)-after-boundary")
+            home.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.2)
+            addReferenceScreenshot(named: "long-timer-\(elapsed)-expanded")
+            XCUIDevice.shared.press(.home)
+            // iPhone Home stays portrait; an independent foreground app exercises
+            // iOS 27's landscape island while PlanBase remains in the background.
+            let browser = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+            browser.activate()
+            XCUIDevice.shared.orientation = .landscapeLeft
+            Thread.sleep(forTimeInterval: 2)
+            addReferenceScreenshot(named: "long-timer-\(elapsed)-landscape-requested")
+            XCUIDevice.shared.orientation = .portrait
+        }
+#endif
+    }
+
+    /// Opt-in visual evidence, not an assertion that SpringBoard refreshes every second.
+    /// Record the simulator continuously alongside this test and inspect multiple frames.
+    @MainActor
+    private func auditLiveTimerContinuity(mode: String) throws {
+        try requireWidgetAudit()
+#if !targetEnvironment(simulator)
+        throw XCTSkip("메모리 타이머 감사는 격리된 시뮬레이터에서 실행합니다")
+#else
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board",
+                               "--ui-testing-live-timer-audit", "--ui-testing-live-card-audit",
+                               "--ui-testing-live-timer-mode=\(mode)"]
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["live-card-audit"].waitForExistence(timeout: 15))
+        let home = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        XCUIDevice.shared.press(.home)
+        let timerLabel = mode == "task" ? "진행 시간" : (mode == "focus" ? "집중 남은 시간" : "휴식 남은 시간")
+        XCTAssertTrue(home.staticTexts[timerLabel].waitForExistence(timeout: 30))
+        func observe(_ surface: String, offsets: [Double] = [0, 10, 30, 60]) {
+            let started = Date()
+            for offset in offsets {
+                let wait = started.addingTimeInterval(offset).timeIntervalSinceNow
+                if wait > 0 { Thread.sleep(forTimeInterval: wait) }
+                let attachment = XCTAttachment(string: "Captured at \(Date().timeIntervalSince1970)\n\(home.debugDescription)")
+                attachment.name = "\(mode)-\(surface)-\(Int(offset))s-hierarchy"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                addReferenceScreenshot(named: "\(mode)-\(surface)-\(Int(offset))s")
+            }
+        }
+        observe("compact")
+        home.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01))
+            .press(forDuration: 0.1, thenDragTo: home.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
+        let allow = home.buttons.matching(NSPredicate(format: "label IN %@", ["허용", "항상 허용", "Allow", "Always Allow"])).firstMatch
+        if allow.waitForExistence(timeout: 2) { allow.tap() }
+        observe("lock-screen")
+        if mode == "focus" {
+            func clockSeconds(_ value: String) -> Int? {
+                let parts = value.split(separator: ":").compactMap { Int($0) }
+                guard parts.count >= 2 else { return nil }
+                return parts.reduce(0) { $0 * 60 + $1 }
+            }
+            let beforePause = try XCTUnwrap(clockSeconds(try XCTUnwrap(home.staticTexts["집중 남은 시간"].value as? String)))
+            let pause = home.buttons["집중 일시정지"]
+            XCTAssertTrue(pause.waitForExistence(timeout: 10))
+            pause.tap()
+            XCTAssertTrue(home.buttons["다시 집중"].waitForExistence(timeout: 10))
+            let pausedTimer = home.staticTexts["일시정지된 집중 남은 시간"]
+            let pausedValue = try XCTUnwrap(pausedTimer.value as? String)
+            let pausedSeconds = try XCTUnwrap(clockSeconds(pausedValue))
+            XCTAssertLessThanOrEqual(abs(beforePause - pausedSeconds), 5, "일시정지는 저장된 남은 시간을 표시해야 합니다")
+            observe("paused", offsets: [0, 10, 30])
+            XCTAssertEqual(pausedTimer.value as? String, pausedValue)
+            home.buttons["다시 집중"].tap()
+            XCTAssertTrue(pause.waitForExistence(timeout: 10))
+            observe("resumed")
+        } else if mode == "break" {
+            observe("deadline", offsets: [0, 60, 75])
+        }
+        XCUIDevice.shared.press(.home)
+#endif
+    }
+
     private func requireWidgetAudit() throws {
         guard ProcessInfo.processInfo.environment["PLANBASE_WIDGET_UI_AUDIT"] == "1" else {
             throw XCTSkip("위젯 감사는 준비된 시뮬레이터에서 명시적으로 실행합니다")

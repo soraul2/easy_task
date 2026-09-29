@@ -4,6 +4,9 @@ import Foundation
 import PlanBaseCore
 import SwiftUI
 import WidgetKit
+#if DEBUG
+import OSLog
+#endif
 
 private extension PlanBaseTaskActivityAttributes.ContentState {
     var isBreakTime: Bool {
@@ -114,6 +117,26 @@ private struct TaskLiveActivityCompactTitle: View {
     }
 }
 
+private extension TaskActivityTimerPresentation {
+    var timerText: Text {
+        switch self {
+        case .elapsed(let startedAt):
+            return Text(startedAt, style: .timer)
+        case .countdown(let interval):
+            return Text(timerInterval: interval, countsDown: true, showsHours: false)
+        case .paused(let remainingSeconds):
+            // A stored duration is static. A past date interval can clamp to zero in
+            // WidgetKit even with pauseTime, so use Foundation's duration formatting.
+            return Text(Duration.seconds(remainingSeconds.rounded(.up)),
+                        format: .time(pattern: .minuteSecond))
+        case .invalid:
+            return Text("—")
+        case .todo:
+            return Text("할 일")
+        }
+    }
+}
+
 private struct TaskLiveActivityTimeText: View {
     enum Style {
         case compact
@@ -125,7 +148,9 @@ private struct TaskLiveActivityTimeText: View {
             case .compact:
                 return .caption2.weight(.semibold)
             case .minimal:
-                return .caption2.weight(.bold)
+                // iOS 27 also uses minimal content in the narrow landscape island.
+                // Date-based Text needs room for the complete HH:MM:SS value.
+                return .system(size: 7, weight: .bold)
             case .expanded:
                 return .headline
             }
@@ -155,64 +180,49 @@ private struct TaskLiveActivityTimeText: View {
     let state: PlanBaseTaskActivityAttributes.ContentState
     let style: Style
 
-    @ViewBuilder
     var body: some View {
-        if state.isTodo {
+        timerContent
+            .id(state.timerIdentity)
+#if DEBUG
+            .onAppear {
+                if case .invalid(let reason) = state.timerPresentation {
+                    Logger(subsystem: "com.soraul2.easytask", category: "LiveTimer")
+                        .error("Invalid timer payload: \(reason.rawValue, privacy: .public), revision: \(state.focusRevision ?? -1)")
+                }
+            }
+#endif
+    }
+
+    @ViewBuilder
+    private var timerContent: some View {
+        if case .todo = state.timerPresentation {
             if style == .minimal {
-                Image(systemName: "circle").font(style.font).accessibilityLabel("할 일")
+                Image(systemName: "circle").font(.caption2.weight(.bold)).accessibilityLabel("할 일")
             } else {
                 Text("할 일").font(style.font).foregroundStyle(.secondary)
             }
-        } else if state.isFocusSession {
-            if !state.isFocusPaused, let deadline = state.focusDeadline {
-                Text(
-                    timerInterval: Date.now...max(Date.now, deadline),
-                    pauseTime: nil,
-                    countsDown: true,
-                    showsHours: false
-                )
+        } else {
+            timerText
                 .font(style.font.monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(style.minimumScaleFactor)
+                .multilineTextAlignment(.trailing)
                 .frame(width: style.timeWidth, alignment: .trailing)
-                .accessibilityLabel("\(state.focusPhaseTitle) 남은 시간")
-                .accessibilityValue(Text(timerInterval: Date.now...max(Date.now, deadline), countsDown: true, showsHours: false))
-            } else {
-                Text(Self.durationText(state.focusRemainingSecondsAtPause ?? 0))
-                    .font(style.font.monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(style.minimumScaleFactor)
-                    .frame(width: style.timeWidth, alignment: .trailing)
-                    .accessibilityLabel("일시정지된 \(state.focusPhaseTitle) 남은 시간")
-                    .accessibilityValue(Self.durationText(state.focusRemainingSecondsAtPause ?? 0))
-            }
-        } else {
-            TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                Text(Self.elapsedText(startedAt: state.elapsedTimerStartedAt, now: timeline.date))
-                    .font(style.font.monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(style.minimumScaleFactor)
-                    .frame(width: style.timeWidth, alignment: .trailing)
-                    .accessibilityLabel("진행 시간")
-                    .accessibilityValue(Self.elapsedText(startedAt: state.elapsedTimerStartedAt, now: timeline.date))
-            }
+                .accessibilityLabel(timerLabel)
+                .accessibilityValue(timerText)
         }
     }
 
-    private static func durationText(_ interval: TimeInterval) -> String {
-        let seconds = max(0, Int(interval.rounded(.up)))
-        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
-    }
+    private var timerText: Text { state.timerPresentation.timerText }
 
-    private static func elapsedText(startedAt: Date, now: Date) -> String {
-        let totalSeconds = max(0, Int(now.timeIntervalSince(startedAt)))
-        let hours = totalSeconds / 3_600
-        let minutes = (totalSeconds % 3_600) / 60
-        let seconds = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    private var timerLabel: String {
+        switch state.timerPresentation {
+        case .countdown: return "\(state.focusPhaseTitle) 남은 시간"
+        case .paused: return "일시정지된 \(state.focusPhaseTitle) 남은 시간"
+        case .elapsed: return "진행 시간"
+        case .invalid: return "시간 확인 필요"
+        case .todo: return "할 일"
         }
-        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
 
@@ -273,6 +283,16 @@ private struct TaskLiveActivityLockScreen: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+#if DEBUG
+                if context.attributes.activityID == PlanBaseTaskActivityAttributes.timerAuditActivityID {
+                    HStack {
+                        Text("Native control")
+                        context.state.timerPresentation.timerText
+                    }
+                    .font(.caption.monospacedDigit())
+                    .accessibilityIdentifier("live-timer-native-control")
+                }
+#endif
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

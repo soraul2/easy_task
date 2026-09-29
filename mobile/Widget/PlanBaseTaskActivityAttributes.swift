@@ -2,7 +2,33 @@
 import ActivityKit
 import Foundation
 
+/// Derived presentation only: never encoded into the ActivityKit payload or persisted.
+enum TaskActivityTimerPresentation: Hashable, Sendable {
+    case todo
+    case elapsed(startedAt: Date)
+    case countdown(interval: ClosedRange<Date>)
+    case paused(remainingSeconds: TimeInterval)
+    case invalid(Reason)
+
+    enum Reason: String, Hashable, Sendable {
+        case invalidStart, incompleteFocus, invalidFocusState, invalidDeadline, invalidRemainingTime
+    }
+}
+
+struct TaskActivityTimerIdentity: Hashable {
+    let taskSessionID: String
+    let taskID: UUID
+    let focusSessionID: UUID?
+    let focusRevision: Int?
+    let presentation: TaskActivityTimerPresentation
+}
+
 struct PlanBaseTaskActivityAttributes: ActivityAttributes {
+#if DEBUG
+    // A test-only attribute marker lets the extension show a native control
+    // beside the real timer without adding fields to the production payload.
+    static let timerAuditActivityID = UUID(uuidString: "27A00000-0000-4000-8000-000000000001")!
+#endif
     struct ContentState: Codable, Hashable, Sendable {
         let taskSessionID: String
         let taskID: UUID
@@ -87,6 +113,46 @@ struct PlanBaseTaskActivityAttributes: ActivityAttributes {
 
         var isFocusPaused: Bool {
             focusRunStateRawValue == "paused"
+        }
+
+        var timerPresentation: TaskActivityTimerPresentation {
+            // Partially decoded Focus metadata must not silently become an ordinary stopwatch.
+            let hasFocusMetadata = focusSessionID != nil || focusRevision != nil
+                || focusPhaseRawValue != nil || focusRunStateRawValue != nil
+                || focusDeadline != nil || focusRemainingSecondsAtPause != nil
+            if !hasFocusMetadata, isTodo { return .todo }
+            guard elapsedTimerStartedAt.timeIntervalSinceReferenceDate.isFinite else {
+                return .invalid(.invalidStart)
+            }
+            guard hasFocusMetadata else { return .elapsed(startedAt: elapsedTimerStartedAt) }
+            guard focusSessionID != nil, let focusRevision, focusRevision > 0,
+                  focusPhaseRawValue == "focus" || focusPhaseRawValue == "breakTime" else {
+                return .invalid(.incompleteFocus)
+            }
+            switch focusRunStateRawValue {
+            case "running":
+                guard let focusDeadline, focusDeadline.timeIntervalSinceReferenceDate.isFinite,
+                      focusDeadline >= elapsedTimerStartedAt,
+                      focusRemainingSecondsAtPause == nil else {
+                    return .invalid(.invalidDeadline)
+                }
+                // The native countdown clamps at the upper bound, even after the deadline.
+                return .countdown(interval: elapsedTimerStartedAt...focusDeadline)
+            case "paused":
+                guard focusDeadline == nil, let remaining = focusRemainingSecondsAtPause,
+                      remaining.isFinite, remaining >= 0, remaining < Double(Int64.max) else {
+                    return .invalid(.invalidRemainingTime)
+                }
+                return .paused(remainingSeconds: remaining)
+            default:
+                return .invalid(.invalidFocusState)
+            }
+        }
+
+        var timerIdentity: TaskActivityTimerIdentity {
+            TaskActivityTimerIdentity(taskSessionID: taskSessionID, taskID: taskID,
+                                      focusSessionID: focusSessionID, focusRevision: focusRevision,
+                                      presentation: timerPresentation)
         }
 
         var progressValue: Double {

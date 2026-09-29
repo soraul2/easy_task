@@ -456,7 +456,8 @@ struct MobileAppRootView: View {
     private func seedLiveActivityDurationFixtureIfNeeded() throws {
 #if DEBUG
         guard PlanBaseLaunchEnvironment.usesLiveActivityDurationFixture
-                || PlanBaseLaunchEnvironment.usesLiveActivityTwoDoingFixture else { return }
+                || PlanBaseLaunchEnvironment.usesLiveActivityTwoDoingFixture
+                || PlanBaseLaunchEnvironment.usesLiveTimerAudit else { return }
         let fixtureTitle = "Live Activity 7시간 숫자 타이머 검증"
         let existing = try modelContext.fetch(FetchDescriptor<TodoTask>())
         guard !existing.contains(where: { $0.title == fixtureTitle }) else { return }
@@ -474,12 +475,26 @@ struct MobileAppRootView: View {
             order: 200
         )
         modelContext.insert(nextTask)
+        let arguments = ProcessInfo.processInfo.arguments
+        let auditElapsed = arguments.first { $0.hasPrefix("--ui-testing-live-timer-elapsed=") }
+            .flatMap { Double($0.split(separator: "=").last ?? "") }
+        let elapsed = PlanBaseLaunchEnvironment.usesLiveTimerAudit
+            ? min(360_000, max(0, auditElapsed?.isFinite == true ? auditElapsed! : 120)) : 26_494
         try TaskLifecycleService.applyStatus(
             .doing,
             to: task,
             in: modelContext,
-            now: now.addingTimeInterval(-26_494)
+            now: now.addingTimeInterval(-elapsed)
         )
+        if PlanBaseLaunchEnvironment.usesLiveTimerAudit {
+            if arguments.contains("--ui-testing-live-timer-mode=focus") {
+                _ = try FocusSessionService.beginFocus(taskID: task.id, focusSeconds: 300,
+                                                       now: now, in: modelContext)
+            } else if arguments.contains("--ui-testing-live-timer-mode=break") {
+                _ = try FocusSessionService.beginBreak(taskID: task.id, taskTitle: task.title,
+                                                       breakSeconds: 180, now: now)
+            }
+        }
         if PlanBaseLaunchEnvironment.usesLiveActivityTwoDoingFixture {
             try TaskLifecycleService.applyStatus(
                 .doing,
