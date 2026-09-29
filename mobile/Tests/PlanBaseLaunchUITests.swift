@@ -4540,7 +4540,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let app = launchEventHistoryFixtureApp()
         tapRootDestination("캘린더", in: app)
 
-        let addEventButton = app.buttons["일정 추가"]
+        let addEventButton = app.buttons["일정 추가"].firstMatch
         XCTAssertTrue(addEventButton.waitForExistence(timeout: 10))
         addEventButton.tap()
         XCTAssertTrue(app.navigationBars["일정 추가"].waitForExistence(timeout: 5))
@@ -4553,10 +4553,11 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertEqual(recommendations.count, 5)
         recommendations.firstMatch.tap()
         XCTAssertTrue(
-            app.staticTexts["이전 일정의 기간·색상·메모를 적용했어요"]
+            app.staticTexts["event-recommendation-feedback"]
                 .waitForExistence(timeout: 5)
         )
-        XCTAssertEqual(titleField.value as? String, "공")
+        XCTAssertEqual(titleField.value as? String, "공장 최신 중복")
+        XCTAssertEqual(recommendationButtons(in: app).count, 0)
         app.navigationBars["일정 추가"].buttons["취소"].tap()
         let discard = app.alerts["변경사항을 버릴까요?"]
         XCTAssertTrue(discard.waitForExistence(timeout: 5))
@@ -4596,6 +4597,189 @@ final class PlanBaseLaunchUITests: XCTestCase {
             app.buttons.matching(identifier: "공장 출하 일정 메뉴").count,
             originalCount + 1, "복제는 원본을 유지하고 새 일정을 추가해야 합니다")
         addReferenceScreenshot(named: "calendar-duplicate-visible-feedback")
+    }
+
+    @MainActor
+    func testCalendarRecommendationProtectsMemoUndoContainsSearchAndPersists() {
+        runCalendarRecommendationReuseFlow()
+    }
+
+    @MainActor
+    func testCalendarRecommendationLargeTextReuseFlow() {
+        runCalendarRecommendationReuseFlow(additionalArguments: [
+            "--ui-testing-accessibility-text-size", "--ui-testing-theme=charcoalRose"
+        ])
+    }
+
+    @MainActor
+    private func runCalendarRecommendationReuseFlow(additionalArguments: [String] = []) {
+        let app = launchEventHistoryFixtureApp(additionalArguments: additionalArguments)
+        tapRootDestination("캘린더", in: app)
+        app.buttons["일정 추가"].firstMatch.tap()
+        let navigation = app.navigationBars["일정 추가"]
+        XCTAssertTrue(navigation.waitForExistence(timeout: 5))
+        let title = app.textFields["event-title-field"]
+        let note = app.textFields["event-note-field"]
+        XCTAssertTrue(scrollToHittable(note, in: app))
+        note.tap()
+        note.typeText("직접 작성한 메모")
+        app.buttons["event-editor-keyboard-dismiss"].tap()
+        XCTAssertTrue(scrollToFullyVisible(title, in: app, below: navigation))
+        title.tap()
+        title.typeText("정기")
+        let candidate = recommendationButtons(in: app).firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5))
+        XCTAssertTrue(candidate.label.contains("공장 정기 점검"))
+        XCTAssertTrue(candidate.label.contains("정기 점검 메모"))
+        XCTAssertGreaterThanOrEqual(candidate.frame.height, 44)
+        if additionalArguments.contains("--ui-testing-accessibility-text-size") {
+            app.buttons["event-editor-keyboard-dismiss"].tap()
+        }
+        XCTAssertTrue(scrollToFullyVisible(candidate, in: app, below: navigation))
+        addReferenceScreenshot(named: "calendar-recommendation-contains-and-preview")
+        // Exercise the right-hand padding rather than only the text glyphs.
+        candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
+        let feedback = app.staticTexts["event-recommendation-feedback"]
+        XCTAssertTrue(feedback.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "공장 정기 점검")
+        XCTAssertTrue(feedback.label.contains("작성한 메모는 유지"))
+        XCTAssertEqual(recommendationButtons(in: app).count, 0)
+        let replace = app.buttons["event-recommendation-replace-note"]
+        XCTAssertTrue(replace.waitForExistence(timeout: 3))
+        XCTAssertTrue(scrollToFullyVisible(replace, in: app, below: navigation))
+        replace.tap()
+        let undo = app.buttons["event-recommendation-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 3))
+        XCTAssertTrue(scrollToFullyVisible(undo, in: app, below: navigation))
+        addReferenceScreenshot(named: "calendar-recommendation-applied-and-undo")
+        undo.tap()
+        XCTAssertEqual(title.value as? String, "정기")
+        if app.buttons["event-editor-keyboard-dismiss"].exists {
+            app.buttons["event-editor-keyboard-dismiss"].tap()
+        }
+        XCTAssertTrue(scrollToHittable(note, in: app))
+        XCTAssertEqual(note.value as? String, "직접 작성한 메모")
+        XCTAssertTrue(scrollToFullyVisible(title, in: app, below: navigation))
+        title.tap()
+        title.typeText(XCUIKeyboardKey.delete.rawValue + "기")
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5))
+        if additionalArguments.contains("--ui-testing-accessibility-text-size") {
+            app.buttons["event-editor-keyboard-dismiss"].tap()
+        }
+        XCTAssertTrue(scrollToFullyVisible(candidate, in: app, below: navigation))
+        candidate.tap()
+        XCTAssertTrue(replace.waitForExistence(timeout: 3))
+        XCTAssertTrue(scrollToFullyVisible(replace, in: app, below: navigation))
+        replace.tap()
+        if app.buttons["event-editor-keyboard-dismiss"].exists {
+            app.buttons["event-editor-keyboard-dismiss"].tap()
+        }
+        XCTAssertTrue(scrollToHittable(note, in: app))
+        XCTAssertEqual(note.value as? String, "정기 점검 메모")
+        note.tap()
+        note.typeText(" · 추가 입력")
+        let editedNote = (note.value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(editedNote?.contains("추가 입력") == true)
+        XCTAssertFalse(undo.exists)
+        app.buttons["event-editor-keyboard-dismiss"].tap()
+        // Give this saved copy an unambiguous title for reopening.
+        XCTAssertTrue(scrollToFullyVisible(title, in: app, below: navigation))
+        title.tap()
+        title.typeText(" 재사용 확인")
+        let savedTitle = (title.value as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertTrue(savedTitle.contains("재사용 확인"))
+        navigation.buttons["추가"].tap()
+        XCTAssertTrue(navigation.waitForNonExistence(timeout: 8))
+        let today = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label BEGINSWITH %@ AND label CONTAINS %@", koreanDayDisplay(Date()), "일정"
+        )).firstMatch
+        XCTAssertTrue(today.waitForExistence(timeout: 8))
+        today.tap()
+        let row = app.staticTexts[savedTitle].firstMatch
+        XCTAssertTrue(scrollToHittable(row, in: app))
+        let savedCell = app.cells.containing(.staticText, identifier: savedTitle).firstMatch
+        savedCell.buttons["일정 편집"].tap()
+        let editor = app.navigationBars["일정 편집"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, savedTitle)
+        XCTAssertTrue(scrollToHittable(note, in: app))
+        XCTAssertEqual(note.value as? String, editedNote)
+        addReferenceScreenshot(named: "calendar-recommendation-saved-reopened")
+    }
+
+    @MainActor
+    func testCalendarRecommendationsApplyInEditAndDuplicateEditors() {
+        for isDuplicate in [false, true] {
+            let app = launchEventHistoryFixtureApp()
+            tapRootDestination("캘린더", in: app)
+            let today = app.descendants(matching: .any).matching(NSPredicate(
+                format: "label BEGINSWITH %@ AND label CONTAINS %@", koreanDayDisplay(Date()), "일정"
+            )).firstMatch
+            XCTAssertTrue(today.waitForExistence(timeout: 10))
+            today.tap()
+            let source = app.cells.containing(.staticText, identifier: "공장").firstMatch
+            XCTAssertTrue(source.waitForExistence(timeout: 5))
+            let originalCount = app.buttons.matching(identifier: "공장 일정 메뉴").count
+            if isDuplicate {
+                source.buttons["공장 일정 메뉴"].tap()
+                app.buttons["일정 복제"].tap()
+            } else {
+                source.buttons["일정 편집"].tap()
+            }
+            let navigation = app.navigationBars[isDuplicate ? "일정 복제" : "일정 편집"]
+            XCTAssertTrue(navigation.waitForExistence(timeout: 5))
+            let title = app.textFields["event-title-field"]
+            let candidate = recommendationButtons(in: app).matching(NSPredicate(
+                format: "label CONTAINS %@", "공장 정기 점검"
+            )).firstMatch
+            let form = app.collectionViews.containing(.textField, identifier: "event-title-field").firstMatch
+            XCTAssertTrue(scrollToHittable(candidate, in: form))
+            candidate.tap()
+            XCTAssertEqual(title.value as? String, "공장 정기 점검")
+            XCTAssertTrue(app.staticTexts["event-recommendation-feedback"].label.contains("작성한 메모는 유지"))
+            XCTAssertTrue(scrollToFullyVisible(title, in: app, below: navigation))
+            title.tap()
+            title.typeText(isDuplicate ? " 복제 추천 확인" : " 편집 추천 확인")
+            let savedTitle = (title.value as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            navigation.buttons[isDuplicate ? "추가" : "저장"].tap()
+            XCTAssertTrue(navigation.waitForNonExistence(timeout: 8))
+            XCTAssertEqual(app.buttons.matching(identifier: "공장 일정 메뉴").count,
+                           originalCount - (isDuplicate ? 0 : 1))
+            let savedCell = app.cells.containing(.staticText, identifier: savedTitle).firstMatch
+            XCTAssertTrue(scrollToHittable(savedCell, in: app.collectionViews["calendar-day-detail"]))
+            savedCell.buttons["일정 편집"].tap()
+            XCTAssertTrue(app.navigationBars["일정 편집"].waitForExistence(timeout: 5))
+            XCTAssertEqual(title.value as? String, savedTitle)
+            let note = app.textFields["event-note-field"]
+            XCTAssertTrue(scrollToHittable(note, in: app))
+            XCTAssertEqual(note.value as? String, "설비 점검 메모")
+            addReferenceScreenshot(named: isDuplicate ? "calendar-recommendation-duplicate-reopened" : "calendar-recommendation-edit-reopened")
+        }
+    }
+
+    @MainActor
+    func testCalendarRecommendationFailureRetriesWithoutLosingDraft() {
+        let app = launchEventHistoryFixtureApp(additionalArguments: [
+            "--ui-testing-event-recommendation-failure-once"
+        ])
+        tapRootDestination("캘린더", in: app)
+        app.buttons["일정 추가"].firstMatch.tap()
+        let title = app.textFields["event-title-field"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("정기")
+        XCTAssertTrue(app.staticTexts["event-recommendation-error"].waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "정기")
+        XCTAssertEqual(recommendationButtons(in: app).count, 0)
+        addReferenceScreenshot(named: "calendar-recommendation-query-failure")
+        app.buttons["event-recommendation-retry"].tap()
+        let candidate = recommendationButtons(in: app).firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "정기")
+        candidate.tap()
+        XCTAssertEqual(title.value as? String, "공장 정기 점검")
+        XCTAssertFalse(app.staticTexts["event-recommendation-error"].exists)
+        addReferenceScreenshot(named: "calendar-recommendation-query-recovered")
     }
 
     @MainActor
@@ -6630,6 +6814,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         additionalArguments: [String] = []
     ) -> XCUIApplication {
         let app = XCUIApplication()
+        app.terminate()
         app.launchArguments = [
             "--ui-testing",
             "--ui-testing-event-history-fixtures",
@@ -6759,11 +6944,33 @@ final class PlanBaseLaunchUITests: XCTestCase {
         for _ in 0..<12 {
             if element.exists {
                 let upperEdge = navigationBar.frame.maxY + 8
-                let lowerEdge = app.windows.firstMatch.frame.maxY - 48
+                var lowerEdge = app.windows.firstMatch.frame.maxY - 48
+                if app.keyboards.firstMatch.exists {
+                    lowerEdge = min(lowerEdge, app.keyboards.firstMatch.frame.minY - 8)
+                    let keyboardDismiss = app.buttons["event-editor-keyboard-dismiss"].firstMatch
+                    if keyboardDismiss.exists {
+                        lowerEdge = min(lowerEdge, keyboardDismiss.frame.minY - 8)
+                    }
+                }
                 if element.isHittable, element.frame.minY >= upperEdge, element.frame.maxY <= lowerEdge {
                     return true
                 }
-                if element.frame.minY < upperEdge { app.swipeDown(velocity: .slow) } else { app.swipeUp(velocity: .slow) }
+                if app.keyboards.firstMatch.exists {
+                    // A full-window swipe starts on the keyboard on small phones.
+                    // Drag only inside the visible form above its keyboard toolbar.
+                    let origin = app.coordinate(withNormalizedOffset: .zero)
+                    let top = origin.withOffset(CGVector(dx: app.frame.width / 2, dy: upperEdge + 24))
+                    let bottom = origin.withOffset(CGVector(dx: app.frame.width / 2, dy: lowerEdge - 24))
+                    if element.frame.minY < upperEdge {
+                        top.press(forDuration: 0.05, thenDragTo: bottom)
+                    } else {
+                        bottom.press(forDuration: 0.05, thenDragTo: top)
+                    }
+                } else if element.frame.minY < upperEdge {
+                    app.swipeDown(velocity: .slow)
+                } else {
+                    app.swipeUp(velocity: .slow)
+                }
             } else {
                 app.swipeDown(velocity: .slow)
             }

@@ -54,7 +54,6 @@ struct MobileEventEditorSheet: View {
     @State private var showingDeleteConfirmation = false
     @State private var linkedTaskCount = 0
     @State private var recommendationSession: CalendarEventRecommendationSession?
-    @State private var recommendationFeedback: String?
     @FocusState private var focusedField: MobileEventEditorField?
 
     private var isEditing: Bool {
@@ -125,39 +124,21 @@ struct MobileEventEditorSheet: View {
                                 .foregroundStyle(AppTheme.secondaryText)
                                 .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
                         }
-                        TextField("큰 일정 또는 작업 맥락", text: $title)
+                        TextField("큰 일정 또는 작업 맥락", text: recommendationTitleBinding)
                             .focused($focusedField, equals: .title)
                             .accessibilityIdentifier("event-title-field")
-                        if let recommendations = recommendationSession?.recommendations,
-                           !recommendations.isEmpty {
-                            ForEach(recommendations) { recommendation in
-                                Button {
-                                    applyRecommendation(recommendation)
-                                } label: {
-                                    Text(recommendation.summary)
-                                        .font(.subheadline)
-                                        .foregroundStyle(AppTheme.primaryText)
-                                        .multilineTextAlignment(.leading)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.vertical, 4)
+                            .id("event-editor-title")
+                        if let session = recommendationSession, session.isPresented || session.feedback != nil {
+                            CalendarEventRecommendationContent(
+                                session: session,
+                                onApply: applyRecommendation,
+                                onReplaceNote: {
+                                    if let draft = session.replacePreservedNote(in: currentDraft) { setDraft(draft) }
+                                },
+                                onUndo: {
+                                    if let draft = session.undo(in: currentDraft) { setDraft(draft) }
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier(
-                                    "event-recommendation-\(recommendation.instanceID.uuidString)"
-                                )
-                                .accessibilityLabel(
-                                    "최근 일정 적용. \(recommendation.summary)"
-                                )
-                                .accessibilityHint(
-                                    "현재 시작일은 유지하고 기간, 색상, 메모를 적용합니다"
-                                )
-                            }
-                        }
-                        if let recommendationFeedback {
-                            Text(recommendationFeedback)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .accessibilityLabel(recommendationFeedback)
+                            )
                         }
                     }
                     .listRowBackground(AppTheme.panel)
@@ -239,6 +220,9 @@ struct MobileEventEditorSheet: View {
                         Text("삭제한 일정은 되돌릴 수 없습니다.")
                     }
                 }
+                .onChange(of: recommendationSession?.state) { _, state in
+                    if state == .applied { scrollProxy.scrollTo("event-editor-title", anchor: .top) }
+                }
                 .onChange(of: saveFailureMessage) { _, newValue in
                     guard newValue != nil else { return }
                     Swift.Task { @MainActor in
@@ -289,13 +273,17 @@ struct MobileEventEditorSheet: View {
                 excludingEventID: excludedRecommendationEventID
             )
         }
-        .onChange(of: title) {
-            recommendationFeedback = nil
-            recommendationSession?.update(
-                title: title,
-                excludingEventID: excludedRecommendationEventID
-            )
+        .onChange(of: currentDraft) {
+            recommendationSession?.invalidateApplication(ifEdited: currentDraft)
         }
+    }
+
+    private var recommendationTitleBinding: Binding<String> {
+        Binding(get: { title }, set: { value in
+            guard title != value else { return }
+            title = value
+            recommendationSession?.update(title: value, excludingEventID: excludedRecommendationEventID)
+        })
     }
 
     private var currentDraft: CalendarEventReuseDraft {
@@ -411,28 +399,19 @@ struct MobileEventEditorSheet: View {
         }
     }
 
-    private func applyRecommendation(
-        _ recommendation: CalendarEventRecommendation
-    ) {
-        let current = CalendarEventReuseDraft(
-            title: title,
-            startAt: startDate,
-            endAt: endDate,
-            note: note,
-            color: color,
-            sourceEventID: excludedRecommendationEventID
-        )
-        let applied = CalendarEventReuseRules.applying(
-            recommendation,
-            to: current
-        )
-        startDate = applied.startAt
-        endDate = applied.endAt
-        note = applied.note ?? ""
-        color = applied.color ?? CalendarEventPalette.defaultColor
-        recommendationFeedback = "이전 일정의 기간·색상·메모를 적용했어요"
-        recommendationSession?.dismissRecommendations()
+    private func applyRecommendation(_ recommendation: CalendarEventRecommendation) {
+        guard let draft = recommendationSession?.apply(id: recommendation.id, to: currentDraft) else { return }
+        setDraft(draft)
     }
+
+    private func setDraft(_ draft: CalendarEventReuseDraft) {
+        title = draft.title
+        startDate = draft.startAt
+        endDate = draft.endAt
+        note = draft.note ?? ""
+        color = draft.color ?? CalendarEventPalette.defaultColor
+    }
+
 }
 
 #if DEBUG

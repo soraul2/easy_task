@@ -24,6 +24,16 @@ public struct CalendarEventReuseDraft: Equatable, Sendable {
         self.sourceEventID = sourceEventID
     }
 
+    /// Compare the values the editor displays, without treating nil/default storage
+    /// representations or source metadata as an additional user edit.
+    public func hasSameEditorValues(as other: Self) -> Bool {
+        title == other.title &&
+            DayKey.startOfDay(for: startAt) == DayKey.startOfDay(for: other.startAt) &&
+            DayKey.startOfDay(for: endAt) == DayKey.startOfDay(for: other.endAt) &&
+            (note ?? "") == (other.note ?? "") &&
+            CalendarEventReuseRules.effectiveColor(color) == CalendarEventReuseRules.effectiveColor(other.color)
+    }
+
     public var includedDayCount: Int {
         CalendarEventReuseRules.includedDayCount(
             from: startAt,
@@ -61,12 +71,48 @@ public struct CalendarEventRecommendation: Equatable, Identifiable, Sendable {
 
     public var id: UUID { instanceID }
 
+    public var details: String {
+        let colorTitle = CalendarEventColor(rawValue: CalendarEventReuseRules.effectiveColor(color))!.title
+        return "\(includedDayCount)일 · \(colorTitle)"
+    }
+
     public var summary: String {
-        let colorTitle = CalendarEventColor(
-            rawValue: color ?? CalendarEventPalette.defaultColor
-        )?.title ?? CalendarEventColor.blue.title
-        let noteTitle = note == nil ? "메모 없음" : "메모 있음"
-        return "\(title) · \(includedDayCount)일 · \(colorTitle) · \(noteTitle)"
+        "\(title) · \(details) · \(note == nil ? "메모 없음" : "메모 있음")"
+    }
+}
+
+/// A local, one-step receipt. It never mutates the source event or persistent data.
+public struct CalendarEventRecommendationApplication: Equatable, Sendable {
+    public let before: CalendarEventReuseDraft
+    public private(set) var after: CalendarEventReuseDraft
+    public let recommendation: CalendarEventRecommendation
+    public private(set) var preservedExistingNote: Bool
+
+    public init(recommendation: CalendarEventRecommendation, draft: CalendarEventReuseDraft) {
+        self.recommendation = recommendation
+        before = draft
+        after = CalendarEventReuseRules.applying(recommendation, to: draft)
+        preservedExistingNote = CalendarEventReuseRules.normalizedOptionalText(draft.note) != nil &&
+            CalendarEventReuseRules.normalizedOptionalText(draft.note) !=
+            CalendarEventReuseRules.normalizedOptionalText(recommendation.note)
+    }
+
+    public var canUndo: Bool { !before.hasSameEditorValues(as: after) }
+    public var canReplaceNote: Bool {
+        preservedExistingNote && CalendarEventReuseRules.normalizedOptionalText(recommendation.note) != nil
+    }
+
+    public var feedback: String {
+        let message = canUndo ? "‘\(recommendation.title)’을 입력했어요" : "이미 같은 내용이 입력되어 있어요"
+        return preservedExistingNote ? message + ". 작성한 메모는 유지했어요" : message
+    }
+
+    public func replacingNote() -> Self {
+        guard canReplaceNote else { return self }
+        var result = self
+        result.after.note = CalendarEventReuseRules.normalizedOptionalText(recommendation.note)
+        result.preservedExistingNote = false
+        return result
     }
 }
 
@@ -148,22 +194,24 @@ public enum CalendarEventReuseRules {
         let normalizedQuery = normalizedTitle(title)
         guard !normalizedQuery.isEmpty, limit > 0 else { return [] }
 
+        func matchRank(_ event: CalendarEvent) -> Int? {
+            let candidate = normalizedTitle(event.title)
+            if candidate == normalizedQuery { return 0 }
+            if candidate.hasPrefix(normalizedQuery) { return 1 }
+            if normalizedQuery.count >= 2 && candidate.contains(normalizedQuery) { return 2 }
+            return nil
+        }
         let representatives = activeRepresentatives(events)
             .filter { $0.id != excludingEventID }
-            .filter {
-                normalizedTitle($0.title).hasPrefix(normalizedQuery)
-            }
+            .compactMap { event in matchRank(event).map { (event: event, rank: $0) } }
             .sorted { lhs, rhs in
-                let lhsIsExact = normalizedTitle(lhs.title) == normalizedQuery
-                let rhsIsExact = normalizedTitle(rhs.title) == normalizedQuery
-                if lhsIsExact != rhsIsExact {
-                    return lhsIsExact
+                if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
+                if lhs.event.updatedAt != rhs.event.updatedAt {
+                    return lhs.event.updatedAt > rhs.event.updatedAt
                 }
-                if lhs.updatedAt != rhs.updatedAt {
-                    return lhs.updatedAt > rhs.updatedAt
-                }
-                return lhs.instanceID.uuidString > rhs.instanceID.uuidString
+                return lhs.event.instanceID.uuidString > rhs.event.instanceID.uuidString
             }
+            .map(\.event)
 
         var seenSettings: Set<RecommendationSettingsKey> = []
         var result: [CalendarEventRecommendation] = []
@@ -177,7 +225,7 @@ public enum CalendarEventReuseRules {
                 title: normalizedTitle(event.title),
                 includedDayCount: dayCount,
                 note: normalizedNote,
-                color: normalizedColor(event.color)
+                color: effectiveColor(event.color)
             )
             guard seenSettings.insert(key).inserted else { continue }
             result.append(CalendarEventRecommendation(
@@ -186,7 +234,7 @@ public enum CalendarEventReuseRules {
                 title: event.title,
                 includedDayCount: dayCount,
                 note: normalizedNote,
-                color: normalizedColor(event.color),
+                color: effectiveColor(event.color),
                 updatedAt: event.updatedAt
             ))
             if result.count == limit {
@@ -202,14 +250,16 @@ public enum CalendarEventReuseRules {
     ) -> CalendarEventReuseDraft {
         let normalizedStart = DayKey.startOfDay(for: draft.startAt)
         return CalendarEventReuseDraft(
-            title: draft.title,
+            title: recommendation.title,
             startAt: normalizedStart,
             endAt: DayKey.addingDays(
-                recommendation.includedDayCount - 1,
+                max(1, recommendation.includedDayCount) - 1,
                 to: normalizedStart
             ),
-            note: recommendation.note,
-            color: recommendation.color,
+            note: normalizedOptionalText(draft.note) == nil
+                ? (normalizedOptionalText(recommendation.note) ?? draft.note)
+                : draft.note,
+            color: effectiveColor(recommendation.color),
             sourceEventID: draft.sourceEventID
         )
     }
@@ -232,17 +282,13 @@ public enum CalendarEventReuseRules {
         return Array(representatives.values)
     }
 
-    private static func normalizedOptionalText(_ value: String?) -> String? {
+    static func normalizedOptionalText(_ value: String?) -> String? {
         let value = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return value.isEmpty ? nil : value
     }
 
-    private static func normalizedColor(_ value: String?) -> String? {
-        guard let value,
-              let color = CalendarEventColor(rawValue: value) else {
-            return nil
-        }
-        return color.rawValue
+    static func effectiveColor(_ value: String?) -> String {
+        CalendarEventColor(rawValue: value ?? "")?.rawValue ?? CalendarEventPalette.defaultColor
     }
 
     private struct RecommendationSettingsKey: Hashable {

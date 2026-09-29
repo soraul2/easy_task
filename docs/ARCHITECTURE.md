@@ -25,6 +25,7 @@ watch/
   Configuration/            # Watch 앱·위젯 Info.plist와 entitlements
 shared/
   Core/                     # 공통 모델, 서비스, 공유 SwiftUI 조각과 테마
+  PlanBaseCore/             # EasyTaskCore의 공개 re-export 계층
   Resources/                # 양 플랫폼 공용 에셋과 마이그레이션 리소스
   WidgetSupport/            # 양 앱 target이 공유하는 snapshot publisher
   Tests/                    # 공통 로직 단위 테스트
@@ -32,6 +33,7 @@ docs/                       # 운영 문서와 plans 아래 작업 기록
 scripts/                    # 빌드와 CloudKit 검증 스크립트
 .local/
   backups/                  # Git에서 제외되는 로컬 저장소 안전 백업
+  releases/                 # Git에서 제외되는 배포 소스 사본·패키지·검증 증거
 ```
 
 ## 공통 코어
@@ -42,7 +44,7 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 코어에 두지 않는다. 배포된 SwiftData 모델의 모듈 정체성을 유지하기 위해
 `PlanBaseCore`가 `EasyTaskCore`를 다시 노출한다.
 
-- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `TaskTemplateItem`, `TemplatePlacement`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`
+- SwiftData 모델: `Task`, `TaskChecklistItem`, `CalendarEvent`, `TaskTemplate`, `TaskTemplateItem`, `TemplatePlacement`, `DailyReview`, `DiaryBlock`, `DiaryAttachment`, `Memo`, `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`, `FocusSession`
 - 저장소 구성: 동결된 `EasyTaskSchemaV1`~`V10`, 현재 `EasyTaskSchemaV11`, `EasyTaskMigrationPlan`, `PlanBaseContainerFactory`
 - 데이터 무결성: `DataIntegrityService`
 - 저장 명령 경계: `PersistenceCommandService`의 명시적 save/rollback
@@ -50,6 +52,9 @@ scripts/                    # 빌드와 CloudKit 검증 스크립트
 - 날짜/보드 규칙: `DayKey`, `TaskRules`, `TaskLifecycleService`, `TaskProgressEventRules`
 - 제한 조회: `BoundedQueryService`, 날짜 범위 descriptor와 action-time 관계 fetch
 - 기록 조회: `ArchiveQueryRules`, `ArchiveFilter`, `ArchiveQuerySession`
+- 활동 통계: `ActivityOverviewSession`, 별도 ModelContext의 `ActivityOverviewReader`
+- 화면 갱신: `PersistenceViewRevision`, `VisibleDataRefresh`, `planBaseContentIsActive`
+- 집중 모드: `FocusSessionService`, `FocusActiveSessionStore`, 공용 `FocusModeView`·`FocusTaskChecklistView`
 - 메모: `MemoRules`, `MemoService`, `MemoContentService`, `MemoQuerySession`, `MemoEditorSession`
 - 템플릿 규칙: `TemplateService`, `TemplateListRules`
 - 캘린더 이벤트 계산: `CalendarEventTimeline`
@@ -91,8 +96,8 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 - 플래너 위젯은 중형에서 오늘 Task 최대 2개와 미니 월간 달력을 간결하게 보여 주고, 대형·초대형에서는 월간 캘린더와 오늘 Task 최대 6개를 좌우로 보여 준다. 대형 캘린더는 색상 막대, 충분한 폭의 초대형은 일정 제목을 사용한다.
 - macOS 앱은 같은 extension을 네이티브 바탕화면·알림 센터 위젯으로 embed한다.
 - iPhone 잠금 화면의 `accessoryInline`, `accessoryCircular`, `accessoryRectangular`는 오늘 남은 Task와 완료·일정 요약을 제공하며 macOS 빌드에서는 등록·컴파일하지 않는다.
-- iPhone Live Activity는 오늘 대표 `doing` Task의 제목·누적 진행 시간·완료 수치와
-  완료/다음 intent를 제공한다. 상태 변경은 앱 프로세스의 기존 컨테이너와
+- iPhone Live Activity는 오늘 미완료 Task의 제목·상태·완료 수치를 제공한다. `todo`에는
+  시작/다음, `doing`에는 누적 진행 시간과 완료/다음 intent를 제공한다. 상태 변경은 앱 프로세스의 기존 컨테이너와
   `TaskLifecycleService`를 사용하고, 연속 입력은 action gate로 보호한다.
 - 위젯은 SwiftData나 CloudKit을 직접 열지 않고 `group.com.soraul2.easytask`의 JSON 스냅샷만 읽는다.
 - 스냅샷 v5에는 선택 테마, 캘린더 범위, 오늘부터 8일간의 최소 Task/Event 요약과
@@ -192,7 +197,7 @@ controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명�
 12. `Task.reminderAt`이 알림 원본이자 설정 기록이고 iPhone의 pending notification은 재생성 가능한 로컬 캐시다.
     미완료 미래 알림만 예약한다. 완료 전환은 값을 보존하되 미래 알림일 때 확인창을 표시하고,
     저장 성공 직후 신규·레거시 식별자의 pending/delivered 요청을 제거한다. 재개 시 미래 값만 다시 예약한다.
-13. 보드와 캘린더는 선택 날짜 또는 월별 5/6주 그리드 범위(최대 42일)만 live query하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다.
+13. 보드와 캘린더는 선택 날짜 또는 월별 5/6주 그리드 범위(최대 42일)만 조회하고, 기록은 완전한 날짜 그룹 30개, 메모는 40개씩 조회한다. iOS 보드·캘린더는 조회 결과를 보관하고 관련 데이터·날짜 변경 시 활성 화면에서 갱신한다.
 14. iPhone과 macOS 앱은 이벤트 변경·앱 활성화·CloudKit import 뒤 캘린더 snapshot을,
     Watch 앱은 당일 최소 snapshot을 각 기기의 App Group에 갱신하고 WidgetKit 타임라인을 다시 요청한다.
 
@@ -214,6 +219,45 @@ controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명�
 - 편집 세션은 갱신 알림과 저장 직전에 수정하지 않은 종류의 최신 내용을 읽어 합친다. 로컬 초안은 유지하고 다른 종류의 동기화 내용을 오래된 스냅샷으로 덮어쓰지 않는다. 같은 종류의 동시 편집은 기존 저장·수렴 정책을 따른다.
 - 동기화로 물리 레코드가 바뀌면 논리 ID의 활성 후보를 기존 `DataIntegrityService` 순서로 선택해 편집 세션을 최신 대표에 연결한다. 고정만 저장하는 경우에도 적용하며, 이미 supersede된 원본은 수정하지 않는다. 활성 레코드가 사라지면 자동 복원하지 않고 초안을 유지한 채 저장 실패를 알린다.
 - 메모 목록은 페이지에 속한 ID의 체크리스트와 필기 갱신 시각으로 `MemoListSummary`를 만든다. 필기 원본은 보이는 행에서만 최대 240px 미리보기로 변환한다. macOS는 기존 필기 미리보기·지우기 범위를 유지하고 새 필기는 iPhone·iPad에서 작성하도록 안내한다.
+
+## 화면 갱신과 반응성
+
+iOS 루트는 선택한 탭에 `planBaseContentIsActive`를 전달한다. 좁은 캘린더의 월간·상세 전환도
+같은 활성 상태를 사용한다. 탭마다 화면 계층을 유지해 편집 세션·검색·선택 날짜·스크롤 상태를 보관한다.
+
+- `PersistenceViewRevision`은 해당 ModelContext의 명령 저장·직접 저장·자동 저장과 성공한
+  CloudKit import, 날짜·시간대 변경을 관찰한다. 필요한 데이터 영역의 변경만 revision에 기록하고,
+  저장 알림의 모델 정보를 알 수 없을 때는 누락을 막기 위해 전체 영역을 갱신 대상으로 처리한다.
+- `refreshVisibleData`는 비활성 화면에서 revision을 기록하되 조회를 미룬다. 활성 화면·앱 전경에서
+  날짜 등의 요청 키, revision, 전경 복귀 여부를 확인해 갱신한다. 일반 bounded fetch는 UI의
+  ModelContext에서 실행하므로 모든 화면 조회가 백그라운드로 옮겨진 것은 아니다.
+- 보드·캘린더·날짜 상세는 범위 조회 결과를 보관한다. 캘린더 상세의 작업 정렬 결과는 표시별로
+  반복 계산하지 않는다. 템플릿 관계는 필요한 시점에 해당 ID로 조회한다.
+- `ActivityOverviewSession`은 별도 실행 영역에서 생성한 `ActivityOverviewReader`의
+  `@ModelActor`·ModelContext로 활동 통계를 조회·집계한다. UI context의 저장 대기 변경은 값과
+  식별자로 전달하고 SwiftData 모델 객체를 실행 영역 사이에 넘기지 않는다. 데이터 revision,
+  날짜·달력·표시 주 수·대기 변경이 같으면 결과를 재사용하며 취소된 요청의 결과는 적용하지 않는다.
+- `ArchiveQuerySession.refreshIfNeeded`는 변경 없는 재진입에서 결과와 페이지 깊이를 재사용한다.
+  메모는 기존 `MemoEditorSession`의 초안 보존·외부 변경 병합 규칙을 유지한다.
+- `CalendarWidgetSnapshotPublisher`는 화면 재계산마다 모델 비교 문자열을 만들지 않는다.
+  작업·일정 저장, 성공한 import, 테마·날짜·시간대 변경, 앱 활성화로 발행을 요청한다.
+  기존 150ms 요청 병합과 순차 쓰기 보호를 유지하며, 비활성 앱의 저장·import 알림도 처리한다.
+
+이 정책은 화면 조회·집계·위젯 발행 비용을 줄이는 구조다. CloudKit의 네트워크 동기화 주기나
+import 후 무결성 수렴 규칙을 바꾸지 않는다. 구현 범위와 미실행 검증은
+[2026-09-28 결과](plans/active/TAB_RESPONSIVENESS_AND_FOCUS_2026_09_28_RESULTS.md)를 따른다.
+
+## Focus 화면
+
+iPhone·iPad·Mac의 공용 `FocusModeView`는 사용 가능한 폭·높이에 따라 타이머 크기를 정한다.
+접근성 글꼴 또는 지름 220pt 미만에서는 원형 대신 텍스트를 표시하고, 초 단위 `TimelineView`는
+타이머 부분에만 적용한다. 활성 타이머는 기기 로컬 snapshot, 종료 구간은 `FocusSession`이라는
+기존 저장 의미를 유지한다.
+
+준비·집중 화면의 `FocusTaskChecklistView`는 선택 작업에 연결된 항목만 조회한다. 동기화 중
+같은 논리 ID가 여럿이면 기존 최신 `(updatedAt, instanceID)` 기준으로 대표를 표시하며,
+체크 변경은 `PersistenceCommandService.perform`으로 저장하고 실패 시 rollback·오류를 표시한다.
+전체 체크 완료가 Task를 자동 완료시키지는 않는다. Watch는 별도 `WatchFocusView`를 사용한다.
 
 ## 무결성 규칙
 
@@ -284,7 +328,7 @@ controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명�
 - iOS는 현재 보드에서 작업을 편집·제외해 템플릿으로 저장하고 검색, 즐겨찾기, 적용, 삭제할 수 있다.
 - 기본 내보내기는 이미지 원본, Task 알림·체크리스트·복합 메모·진행 이벤트·집중 기록·빠른 입력어를 포함한 백업 V10이며 패키지 V2~V10과 JSON V1~V2는 가져오기 호환 경로로 유지한다.
 - Board는 선택일·이월·겹침 이벤트 쿼리를 분리하고 다음 순서를 데이터베이스 최대값으로 계산한다.
-- Calendar는 표시 월의 적응형 5/6주 범위(최대 42일) 이벤트·배치만 관찰하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
+- Calendar는 표시 월의 적응형 5/6주 범위(최대 42일) 이벤트·배치만 조회하며 관계 삭제는 이벤트/배치 ID로 필요한 작업만 조회한다.
 - 기록 검색은 300ms debounce를 적용하고 행 수가 아닌 완전한 날짜 30개 단위로 페이지를 추가한다.
 - 메모 검색은 기록과 분리하고 제목·텍스트·체크리스트 항목을 대상으로 40개씩 조회한다. 세 편집 모드는 600ms debounce로 함께 저장하며 화면 이탈·백그라운드 전환 시 즉시 flush한다. iPhone·iPad는 PencilKit 필기를 편집하고 macOS는 필기를 미리보기로 표시한다.
 - 회고 작성은 선택 날짜의 회고와 선택 회고 ID의 블록·첨부만 조회한다.
@@ -296,17 +340,16 @@ controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명�
 
 ## 현재 배포 상태와 다음 단계
 
-2026-09-08 최적화의 기준은 사용자 지정 TestFlight `1.0(76)`, `EasyTaskSchemaV11`,
-백업 package V10이다. 작업 시작 소스는 build 76 소스 해시 목록과 일치했다.
-이번 최적화는 배포와 별개이며 변경·검증 상태는
-[`build 76 최적화 결과`](plans/active/OPTIMIZATION_BUILD_76_RESULTS.md)에 기록한다.
-실제 복합 메모와 Watch CloudKit 양방향 수렴은 별도의 출시 인수 게이트다.
+최신 배포 버전·확인 범위는 [문서 지도](README.md)와 해당 배포 기록을 따른다.
+현재 소스는 V11·백업 package V10을 사용한다. 최근 탭 반응성·Focus 개선은 빌드·업로드까지
+확인했으며 기능·성능 실측을 생략했다. 과거 최적화의 측정값을 이 변경의 결과로 사용하지 않는다.
+실제 복합 메모·빠른 입력어·FocusSession·Watch CloudKit 양방향 수렴은 별도의 출시 인수 게이트다.
 그 밖의 운영 게이트는 active 계획에 기록된 실제 기기별
 위젯 갤러리·접근성·저휘도 표현, 오프라인 충돌·재설치·iCloud 재로그인 같은 명시적
 수동 인수 시나리오다.
 
-데이터 스키마, 백업, 이미지, CloudKit 동기화 작업의 순서와 Git 운영 규칙은
-[`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)를 따른다.
+데이터 스키마, 백업, 이미지, CloudKit 동기화의 최초 전환 순서와 당시 Git 운영 기록은
+[`DATA_FOUNDATION_PLAN.md`](DATA_FOUNDATION_PLAN.md)에 보존한다.
 개발 컨테이너 발급과 검증 절차는 [`CLOUDKIT_SYNC.md`](CLOUDKIT_SYNC.md)를 따른다.
 Task 1회성 알림의 V4 스키마, iOS 예약 수명주기와 검증 순서는
 [`Task 알림 완료 기록`](plans/completed/TASK_REMINDER_PLAN.md)을 따른다.

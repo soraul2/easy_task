@@ -18,6 +18,8 @@
 
 ## 빌드·패키지 확인 범위
 
+구현별 코드 위치와 남은 확인은 [탭 반응성·Focus 결과](../plans/active/TAB_RESPONSIVENESS_AND_FOCUS_2026_09_28_RESULTS.md)를 따른다.
+
 - 구현 단계 iOS·macOS·watchOS Debug 빌드 통과. 이번 배포의 iOS(내장 Watch 포함)·macOS Release archive와 App Store Connect용 export도 종료 코드 0.
 - 앱·위젯 6개 모두 1.0(83), 기존 bundle ID·App Group·CloudKit·key-value store 유지. 서명과 export의 Production 권한 확인. macOS는 Intel·Apple Silicon을 모두 포함한다.
 - 컴파일 소스 iOS 213개·macOS 205개가 고정 사본과 작업 폴더에 일치한다. 배포 실행 파일 6개의 UUID가 archive와 일치하며 DEBUG fixture 심볼·검사 전용 문자열이 없다.
@@ -26,6 +28,6 @@
 
 ## 소스와 증거
 
-배포 당시 기준 HEAD는 `392af1494f2d3da1dc8b94ab43e22eb19a2a8d6f`다. 여기에 이번 개선 파일과 빌드83 설정을 포함한 작업 폴더 사본을 `.local/releases/build-83/source/`에 고정해 archive를 생성했다. 업로드는 커밋 전에 완료했으며, 이 문서를 추가한 후속 커밋에 실제 배포한 앱 소스와 빌드83 설정을 함께 기록한다. 커밋 전 변경된 앱 소스·설정 24개의 해시가 배포 사본과 일치함을 확인했다.
+배포 당시 기준 HEAD는 `392af1494f2d3da1dc8b94ab43e22eb19a2a8d6f`다. 여기에 이번 개선 파일과 빌드83 설정을 포함한 작업 폴더 사본을 `.local/releases/build-83/source/`에 고정해 archive를 생성했다. 업로드는 커밋 전에 완료했으며, 실제 배포한 앱 소스·빌드83 설정과 최초 배포 기록은 후속 커밋 `c6e3d1d7fbda812358de4ed630d541415f65c9e6`에 기록하고 `origin/codex/kanban-card-design`으로 push했다. 커밋 전 변경된 앱 소스·설정 24개의 해시가 배포 사본과 일치함을 확인했다.
 
 Git에서 제외된 `.local/releases/build-83/`에 소스 418개의 해시, 변경 patch, archive, 배포 패키지, 서명·컴파일 소스·실행 파일 확인 결과, 업로드 로그와 `upload-results.json`, `release-status.json`을 보존했다. 테스트 안내 문구는 `testflight-notes-ko.txt`에 보관했으며 App Store Connect의 안내 필드에는 입력하지 않았다.

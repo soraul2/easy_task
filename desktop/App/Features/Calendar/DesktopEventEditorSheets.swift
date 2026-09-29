@@ -48,8 +48,6 @@ struct AddEventSheet: View {
     @State private var initialDraft: CalendarEventReuseDraft?
     @State private var showsDiscardConfirmation = false
     @State private var recommendationSession: CalendarEventRecommendationSession?
-    @State private var selectedRecommendationIndex: Int?
-    @State private var recommendationFeedback: String?
 
     private var currentDraft: CalendarEventReuseDraft {
         CalendarEventReuseDraft(title: title, startAt: startDate, endAt: endDate, note: note, color: color)
@@ -70,55 +68,71 @@ struct AddEventSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                Text(isDuplicate ? "일정 복제" : "일정 추가")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            Text(isDuplicate ? "일정 복제" : "일정 추가")
+                                .font(.title2.weight(.bold))
+                                .foregroundStyle(AppTheme.primaryText)
 
-                Spacer()
+                            Spacer()
 
-                Label(DayKey.display(startDate), systemImage: "calendar")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(AppTheme.input, in: Capsule())
-                    .accessibilityLabel("시작일 \(DayKey.display(startDate))")
-            }
+                            Label(DayKey.display(startDate), systemImage: "calendar")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(AppTheme.input, in: Capsule())
+                                .accessibilityLabel("시작일 \(DayKey.display(startDate))")
+                        }
 
-            if isDuplicate {
-                Label("복제한 일정", systemImage: "doc.on.doc")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
-            }
+                        if isDuplicate {
+                            Label("복제한 일정", systemImage: "doc.on.doc")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
+                        }
 
-            DesktopEventTitleEditor(
-                title: $title,
-                recommendations: recommendationSession?.recommendations ?? [],
-                selectedIndex: $selectedRecommendationIndex,
-                feedback: recommendationFeedback,
-                onSelect: applyRecommendation,
-                onDismiss: {
-                    recommendationSession?.dismissRecommendations()
-                    selectedRecommendationIndex = nil
+                        DesktopEventTitleEditor(
+                            title: recommendationTitleBinding,
+                            session: recommendationSession,
+                            onSelect: applyRecommendation,
+                            onReplaceNote: {
+                                if let draft = recommendationSession?.replacePreservedNote(in: currentDraft) { setDraft(draft) }
+                            },
+                            onUndo: {
+                                if let draft = recommendationSession?.undo(in: currentDraft) { setDraft(draft) }
+                            }
+                        )
+
+                        EventDateRangeEditor(startDate: $startDate, endDate: $endDate)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("일정 색상")
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.primaryText)
+                            EventColorSelector(selection: $color)
+                        }
+
+                        EventNoteEditor(text: $note)
+
+                        if let message {
+                            DesktopEventSaveFailureView(message: message, retry: attemptAdd)
+                        }
+
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(2)
                 }
-            )
-
-            EventDateRangeEditor(startDate: $startDate, endDate: $endDate)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("일정 색상")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-                EventColorSelector(selection: $color)
+                .onChange(of: recommendationSession?.selectedID) { _, id in
+                    if let id { proxy.scrollTo(id, anchor: .center) }
+                }
+                .onChange(of: recommendationSession?.state) { _, state in
+                    if state == .applied { proxy.scrollTo("event-editor-title", anchor: .top) }
+                }
             }
-
-            EventNoteEditor(text: $note)
-
-            if let message {
-                DesktopEventSaveFailureView(message: message, retry: attemptAdd)
-            }
+            .frame(maxHeight: 560)
 
             HStack {
                 Spacer()
@@ -154,14 +168,17 @@ struct AddEventSheet: View {
                 excludingEventID: excludingEventID
             )
         }
-        .onChange(of: title) {
-            recommendationFeedback = nil
-            selectedRecommendationIndex = nil
-            recommendationSession?.update(
-                title: title,
-                excludingEventID: excludingEventID
-            )
+        .onChange(of: currentDraft) {
+            recommendationSession?.invalidateApplication(ifEdited: currentDraft)
         }
+    }
+
+    private var recommendationTitleBinding: Binding<String> {
+        Binding(get: { title }, set: { value in
+            guard title != value else { return }
+            title = value
+            recommendationSession?.update(title: value, excludingEventID: excludingEventID)
+        })
     }
 
     private func attemptAdd() {
@@ -173,28 +190,19 @@ struct AddEventSheet: View {
         }
     }
 
-    private func applyRecommendation(
-        _ recommendation: CalendarEventRecommendation
-    ) {
-        let applied = CalendarEventReuseRules.applying(
-            recommendation,
-            to: CalendarEventReuseDraft(
-                title: title,
-                startAt: startDate,
-                endAt: endDate,
-                note: note,
-                color: color,
-                sourceEventID: excludingEventID
-            )
-        )
-        startDate = applied.startAt
-        endDate = applied.endAt
-        note = applied.note ?? ""
-        color = applied.color ?? CalendarEventPalette.defaultColor
-        recommendationFeedback = "이전 일정의 기간·색상·메모를 적용했어요"
-        selectedRecommendationIndex = nil
-        recommendationSession?.dismissRecommendations()
+    private func applyRecommendation(_ recommendation: CalendarEventRecommendation) {
+        guard let draft = recommendationSession?.apply(id: recommendation.id, to: currentDraft) else { return }
+        setDraft(draft)
     }
+
+    private func setDraft(_ draft: CalendarEventReuseDraft) {
+        title = draft.title
+        startDate = draft.startAt
+        endDate = draft.endAt
+        note = draft.note ?? ""
+        color = draft.color ?? CalendarEventPalette.defaultColor
+    }
+
 }
 
 struct EventEditorSheet: View {
@@ -215,8 +223,6 @@ struct EventEditorSheet: View {
     @State private var message: String?
     @State private var canRetrySave = false
     @State private var recommendationSession: CalendarEventRecommendationSession?
-    @State private var selectedRecommendationIndex: Int?
-    @State private var recommendationFeedback: String?
 
     init(
         event: CalendarEvent,
@@ -251,54 +257,70 @@ struct EventEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                Text("일정 편집")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            Text("일정 편집")
+                                .font(.title2.weight(.bold))
+                                .foregroundStyle(AppTheme.primaryText)
 
-                Spacer()
+                            Spacer()
 
-                Label(DayKey.display(draftStartDate), systemImage: "calendar")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(AppTheme.input, in: Capsule())
-                    .accessibilityLabel("시작일 \(DayKey.display(draftStartDate))")
-            }
+                            Label(DayKey.display(draftStartDate), systemImage: "calendar")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(AppTheme.input, in: Capsule())
+                                .accessibilityLabel("시작일 \(DayKey.display(draftStartDate))")
+                        }
 
-            DesktopEventTitleEditor(
-                title: $draftTitle,
-                recommendations: recommendationSession?.recommendations ?? [],
-                selectedIndex: $selectedRecommendationIndex,
-                feedback: recommendationFeedback,
-                onSelect: applyRecommendation,
-                onDismiss: {
-                    recommendationSession?.dismissRecommendations()
-                    selectedRecommendationIndex = nil
+                        DesktopEventTitleEditor(
+                            title: recommendationTitleBinding,
+                            session: recommendationSession,
+                            onSelect: applyRecommendation,
+                            onReplaceNote: {
+                                if let draft = recommendationSession?.replacePreservedNote(in: currentDraft) { setDraft(draft) }
+                            },
+                            onUndo: {
+                                if let draft = recommendationSession?.undo(in: currentDraft) { setDraft(draft) }
+                            }
+                        )
+
+                        EventDateRangeEditor(startDate: $draftStartDate, endDate: $draftEndDate)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("일정 색상")
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.primaryText)
+                            EventColorSelector(selection: $draftColor)
+                        }
+
+                        EventNoteEditor(text: $draftNote)
+
+                        if let message {
+                            if canRetrySave {
+                                DesktopEventSaveFailureView(message: message, retry: save)
+                            } else {
+                                Label(message, systemImage: "exclamationmark.circle")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.red)
+                            }
+                        }
+
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(2)
                 }
-            )
-
-            EventDateRangeEditor(startDate: $draftStartDate, endDate: $draftEndDate)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("일정 색상")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-                EventColorSelector(selection: $draftColor)
-            }
-
-            EventNoteEditor(text: $draftNote)
-
-            if let message {
-                if canRetrySave {
-                    DesktopEventSaveFailureView(message: message, retry: save)
-                } else {
-                    Label(message, systemImage: "exclamationmark.circle")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
+                .onChange(of: recommendationSession?.selectedID) { _, id in
+                    if let id { proxy.scrollTo(id, anchor: .center) }
+                }
+                .onChange(of: recommendationSession?.state) { _, state in
+                    if state == .applied { proxy.scrollTo("event-editor-title", anchor: .top) }
                 }
             }
+            .frame(maxHeight: 560)
 
             HStack {
                 Button(role: .destructive, action: requestDeletion) {
@@ -352,14 +374,17 @@ struct EventEditorSheet: View {
                 excludingEventID: event.id
             )
         }
-        .onChange(of: draftTitle) {
-            recommendationFeedback = nil
-            selectedRecommendationIndex = nil
-            recommendationSession?.update(
-                title: draftTitle,
-                excludingEventID: event.id
-            )
+        .onChange(of: currentDraft) {
+            recommendationSession?.invalidateApplication(ifEdited: currentDraft)
         }
+    }
+
+    private var recommendationTitleBinding: Binding<String> {
+        Binding(get: { draftTitle }, set: { value in
+            guard draftTitle != value else { return }
+            draftTitle = value
+            recommendationSession?.update(title: value, excludingEventID: event.id)
+        })
     }
 
     private func requestDeletion() {
@@ -397,41 +422,30 @@ struct EventEditorSheet: View {
         }
     }
 
-    private func applyRecommendation(
-        _ recommendation: CalendarEventRecommendation
-    ) {
-        let applied = CalendarEventReuseRules.applying(
-            recommendation,
-            to: CalendarEventReuseDraft(
-                title: draftTitle,
-                startAt: draftStartDate,
-                endAt: draftEndDate,
-                note: draftNote,
-                color: draftColor,
-                sourceEventID: event.id
-            )
-        )
-        draftStartDate = applied.startAt
-        draftEndDate = applied.endAt
-        draftNote = applied.note ?? ""
-        draftColor = applied.color ?? CalendarEventPalette.defaultColor
-        recommendationFeedback = "이전 일정의 기간·색상·메모를 적용했어요"
-        selectedRecommendationIndex = nil
-        recommendationSession?.dismissRecommendations()
+    private func applyRecommendation(_ recommendation: CalendarEventRecommendation) {
+        guard let draft = recommendationSession?.apply(id: recommendation.id, to: currentDraft) else { return }
+        setDraft(draft)
+    }
+
+    private func setDraft(_ draft: CalendarEventReuseDraft) {
+        draftTitle = draft.title
+        draftStartDate = draft.startAt
+        draftEndDate = draft.endAt
+        draftNote = draft.note ?? ""
+        draftColor = draft.color ?? CalendarEventPalette.defaultColor
     }
 }
 
 private struct DesktopEventTitleEditor: View {
     @Binding var title: String
-    var recommendations: [CalendarEventRecommendation]
-    @Binding var selectedIndex: Int?
-    var feedback: String?
+    var session: CalendarEventRecommendationSession?
     var onSelect: (CalendarEventRecommendation) -> Void
-    var onDismiss: () -> Void
+    var onReplaceNote: () -> Void
+    var onUndo: () -> Void
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
             TextField("일정 제목", text: $title)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
@@ -439,105 +453,35 @@ private struct DesktopEventTitleEditor: View {
                 .padding(10)
                 .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1)
                 }
+                .accessibilityIdentifier("event-title-field")
+                .id("event-editor-title")
                 .focused($isTitleFocused)
                 .background {
                     DesktopEventTitleKeyMonitor(
                         isEnabled: isTitleFocused,
-                        onMove: moveSelection,
-                        onSubmit: selectCurrentRecommendation,
+                        onMove: { session?.moveSelection(by: $0) ?? false },
+                        onSubmit: {
+                            guard let recommendation = session?.selectedRecommendation else { return false }
+                            onSelect(recommendation)
+                            return true
+                        },
                         onCancel: {
-                            guard !recommendations.isEmpty else { return false }
-                            onDismiss()
+                            guard session?.isPresented == true else { return false }
+                            session?.dismissRecommendations()
                             return true
                         }
                     )
                     .frame(width: 0, height: 0)
                 }
-
-            if !recommendations.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(
-                        Array(recommendations.enumerated()),
-                        id: \.element.id
-                    ) { index, recommendation in
-                        if index > 0 {
-                            Divider()
-                        }
-                        Button {
-                            selectedIndex = index
-                            onSelect(recommendation)
-                        } label: {
-                            Text(recommendation.summary)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.primaryText)
-                                .lineLimit(2)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(
-                                    selectedIndex == index
-                                        ? AppTheme.selectedTab
-                                        : Color.clear
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            "최근 일정 적용. \(recommendation.summary)"
-                        )
-                        .accessibilityHint(
-                            "현재 시작일은 유지하고 기간, 색상, 메모를 적용합니다"
-                        )
-                    }
-                }
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
-                .padding(.top, 6)
-            }
-
-            if let feedback {
-                Text(feedback)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.secondaryText)
-                    .padding(.top, 6)
-                    .accessibilityLabel(feedback)
+            if let session {
+                CalendarEventRecommendationContent(
+                    session: session, onApply: onSelect,
+                    onReplaceNote: onReplaceNote, onUndo: onUndo
+                )
             }
         }
-        .onChange(of: recommendations) {
-            guard let selectedIndex else { return }
-            if recommendations.isEmpty {
-                self.selectedIndex = nil
-            } else if selectedIndex >= recommendations.count {
-                self.selectedIndex = recommendations.count - 1
-            }
-        }
-    }
-
-    private func moveSelection(by offset: Int) -> Bool {
-        guard !recommendations.isEmpty else { return false }
-        if let selectedIndex {
-            self.selectedIndex = min(
-                max(selectedIndex + offset, 0),
-                recommendations.count - 1
-            )
-        } else {
-            selectedIndex = offset > 0 ? 0 : recommendations.count - 1
-        }
-        return true
-    }
-
-    private func selectCurrentRecommendation() -> Bool {
-        guard let selectedIndex,
-              recommendations.indices.contains(selectedIndex) else {
-            return false
-        }
-        onSelect(recommendations[selectedIndex])
-        return true
     }
 }
 
@@ -552,8 +496,10 @@ private struct DesktopEventTitleKeyMonitor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.hostView = view
         context.coordinator.startMonitoring()
-        return NSView(frame: .zero)
+        return view
     }
 
     func updateNSView(_ view: NSView, context: Context) {
@@ -571,6 +517,7 @@ private struct DesktopEventTitleKeyMonitor: NSViewRepresentable {
     final class Coordinator {
         var parent: DesktopEventTitleKeyMonitor
         private var keyMonitor: Any?
+        weak var hostView: NSView?
 
         init(parent: DesktopEventTitleKeyMonitor) {
             self.parent = parent
@@ -581,7 +528,14 @@ private struct DesktopEventTitleKeyMonitor: NSViewRepresentable {
             keyMonitor = NSEvent.addLocalMonitorForEvents(
                 matching: .keyDown
             ) { [weak self] event in
-                guard let self, self.parent.isEnabled else {
+                guard let self, self.parent.isEnabled,
+                      let window = self.hostView?.window,
+                      event.window === window, NSApp.keyWindow === window,
+                      let editor = window.firstResponder as? NSTextView,
+                      editor.isFieldEditor, !editor.hasMarkedText(),
+                      let field = editor.delegate as? NSTextField,
+                      field.currentEditor() === editor,
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else {
                     return event
                 }
 

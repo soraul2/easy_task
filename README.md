@@ -9,25 +9,23 @@ CloudKit 컨테이너를 공유한다.
 보드에서 `/`로 후보를 찾거나 `/운동`처럼 지정한 입력어로 작업을 바로 추가할 수 있다.
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
-CloudKit Production은 V11까지 배포됐다. 입력어의 Development 독립 저장소 왕복 8단계와
-Production 필드·인덱스 반영을 확인했다. 마지막 업로드본은 탭 반응성·위젯 갱신·기록 통계와
-Focus 타이머·체크리스트 개선을 포함한 iOS·iPadOS·watchOS 및 macOS TestFlight build 83(V11)이다.
-2026-09-28 두 플랫폼의 업로드 성공과 Apple 패키지 처리 시작을 확인했다.
-[빌드83 배포 기록](docs/releases/TESTFLIGHT_BUILD_83.md)에 변경과 확인 범위를 기록했다.
-이번 변경의 테스트·실기기 계측은 사용자 요청으로 생략했다. 실제 TestFlight 설치와 Focus 화면,
-최종 캘린더의 Mac 화면, 빠른 입력어·FocusSession의 실기기 쌍 인수는 별도로 확인한다.
-이전 성능 개선의 측정 조건과 한계는 [전체 최적화 결과](docs/plans/active/OPTIMIZATION_2026_09_22_RESULTS.md)에 있다.
-성능 변경의 측정 결과와 남은 100ms 초기 피드백 검증은
-[반응성 최적화 기록](docs/plans/active/RESPONSIVENESS_OPTIMIZATION.md)에 정리했다.
+CloudKit Production은 V11까지 배포됐다. 최신 업로드는
+[TestFlight 1.0 (84)](docs/releases/TESTFLIGHT_BUILD_84.md)이며, 2026-09-29 iOS·iPadOS·watchOS와
+macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다. 캘린더 최근 일정 추천의 제목 입력,
+메모 보호·되돌리기와 검색·조작 개선을 포함한다. 공통 테스트·플랫폼 회귀와 격리 UI 검증을
+수행했으며, TestFlight 설치 가능 상태와 실기기 동작은 미확인이다.
+최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
 ## 시작하기
 
+Swift 6 / Swift tools 6.3을 사용하며 최소 지원은 iOS 18, macOS 26, watchOS 11이다.
 Xcode에서 `PlanBase.xcodeproj`를 열고 목적에 맞는 scheme을 선택한다.
 
 - `PlanBase-iOS`: iPhone·iPad universal 앱과 캘린더·플래너·잠금 화면 위젯, Live Activity
 - `PlanBase-macOS`: macOS 데스크톱 앱과 네이티브 캘린더·플래너 위젯
 - `PlanBase-watchOS`: 오늘 작업·일정, 빠른 추가·상태 변경, 독립 Focus와 Watch 컴플리케이션
-- `PlanBaseCore`: 공통 모델과 서비스의 공개 패키지 제품
+
+공통 모델과 서비스는 로컬 Swift Package의 `PlanBaseCore` 제품으로 공유한다.
 
 ## 구조
 
@@ -38,7 +36,7 @@ watch/       독립 실행형 watchOS 앱, 컴플리케이션 확장과 설정
 shared/      공통 코어, 위젯 발행 지원, 리소스, 단위 테스트
 docs/        운영 문서와 진행 중·완료된 설계 기록
 scripts/     빌드 및 CloudKit 검증 도구
-.local/      Git에 포함되지 않는 로컬 백업
+.local/      Git에 포함되지 않는 백업·진단·배포 증거
 ```
 
 ## 검증
@@ -50,6 +48,9 @@ swift test
 
 전체 플랫폼 검증과 iOS archive에는 현재 Xcode SDK와 일치하는 watchOS Simulator
 runtime이 필요하다. Xcode의 Settings > Components에서 설치한다.
+
+위 명령은 개발용 검증 안내다. 빌드별 실제 실행 여부와 결과는 배포 기록을 따른다.
+`.local/backups/`는 안전 백업 영역이므로 명시적인 요청 없이 정리하거나 덮어쓰지 않는다.
 
 문서 전체 분류는 [문서 지도](docs/README.md), 자세한 구조와 데이터 규칙은
 [아키텍처 문서](docs/ARCHITECTURE.md), CloudKit 운영 절차는

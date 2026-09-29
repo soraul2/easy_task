@@ -327,10 +327,10 @@ func calendarEventRecommendationsLimitExcludeAndApplyOnlyReusableSettings() thro
 
     #expect(recommendations.count == CalendarEventReuseRules.recommendationLimit)
     #expect(!recommendations.contains { $0.eventID == events[6].id })
-    #expect(applied.title == currentDraft.title)
+    #expect(applied.title == recommendations[0].title)
     #expect(applied.startAt == currentDraft.startAt)
     #expect(applied.includedDayCount == recommendations[0].includedDayCount)
-    #expect(applied.note == recommendations[0].note)
+    #expect(applied.note == currentDraft.note)
     #expect(applied.color == recommendations[0].color)
     #expect(applied.sourceEventID == currentDraft.sourceEventID)
     #expect(CalendarEventReuseRules.recommendations(

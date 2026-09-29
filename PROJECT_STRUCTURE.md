@@ -5,9 +5,8 @@ iOS Live Activity를 하나의 저장소에서 관리하며, 공통 모델과 �
 Package로 공유한다.
 
 현재 소스 기준은 `EasyTaskSchemaV11`, 위젯 snapshot v5, 백업 package V10, 앱 버전 `1.0`이다.
-마지막 업로드본은 V11 기준의 iOS·iPadOS·watchOS 및 macOS build 69이다.
-V11 빠른 입력어의 Development 독립 저장소 왕복과 Production 필드 배포를 확인했다.
-설치 가능 상태와 실제 기기 쌍의 동기화 인수는 별도 확인 대상이다.
+배포 버전과 실제 확인 범위는 [문서 지도의 현재 상태](docs/README.md#현재-상태)와
+[배포 기록](docs/README.md#배포기반-전환-이력)을 따른다. V11 Production 배포와 실기기 인수 완료는 구분한다.
 
 ## 디렉터리 구성
 
@@ -40,7 +39,9 @@ PlanBase/
 │   └── Configuration/            # watchOS 앱·위젯 plist와 entitlements
 ├── docs/                         # 아키텍처·운영·기능 계획 문서
 ├── scripts/                      # 빌드·아카이브·CloudKit 검증 스크립트
-└── .local/backups/               # Git 비추적 로컬 안전 백업
+└── .local/                       # Git 비추적 로컬 자료
+    ├── backups/                 # 안전 백업: 임의 정리·덮어쓰기 금지
+    └── releases/                # 배포 소스 사본·archive·서명·업로드 근거
 ```
 
 ## 의존 방향
@@ -69,6 +70,10 @@ desktop/App · mobile/App · mobile/Widget · watch/App · watch/Widget
 | [`watch/Widget/PlanBaseWatchWidget.swift`](watch/Widget/PlanBaseWatchWidget.swift) | Watch 컴플리케이션 확장 시작점 |
 | [`shared/PlanBaseCore/Exports.swift`](shared/PlanBaseCore/Exports.swift) | 공통 코어의 공개 API |
 | [`shared/Core/Persistence/PlanBaseCompatibility.swift`](shared/Core/Persistence/PlanBaseCompatibility.swift) | 배포 호환 식별자 기준 |
+| [`shared/Core/Services/PersistenceViewRevision.swift`](shared/Core/Services/PersistenceViewRevision.swift) | 저장·동기화·날짜 변경의 화면 갱신 revision |
+| [`shared/Core/Components/VisibleDataRefresh.swift`](shared/Core/Components/VisibleDataRefresh.swift) | 화면 상태를 보존하면서 활성 화면의 데이터 갱신 |
+| [`shared/Core/Services/ActivityOverviewReader.swift`](shared/Core/Services/ActivityOverviewReader.swift) | 별도 ModelContext의 활동 통계 조회·집계 |
+| [`shared/Core/Components/FocusTaskChecklistView.swift`](shared/Core/Components/FocusTaskChecklistView.swift) | iPhone·iPad·Mac Focus의 작업 체크리스트 |
 | [`scripts/verify-platform-builds.sh`](scripts/verify-platform-builds.sh) | 패키지 테스트와 iOS·macOS·watchOS 전체 빌드 검증 |
 
 ## 파일 추가 시 주의

@@ -194,6 +194,7 @@ PlanBase/
 - `TaskCompletionActivity`는 실제 완료 활동의 근거이며 활동 무결성·레거시 backfill 규칙을
   우회해 Task 수를 직접 합산하지 않는다.
 - 기록, 보드, 캘린더, 메모는 전체 테이블을 계속 관찰하지 않고 bounded query/session을 사용한다.
+- iOS 비활성 탭은 `PersistenceViewRevision`으로 변경을 기록하고 `refreshVisibleData`로 활성화 시 조회한다. 편집·스크롤 상태를 가진 화면 계층은 유지한다. 활동 통계는 `ActivityOverviewReader`의 별도 ModelContext에서 집계한다.
 - 첨부 이미지는 MIME, 크기, 실제 decode, SHA-256 검증을 거친다. 목록에서는 원본을 바로 decode하지 않는다.
 - 백업 package 병합은 파괴적 교체가 아니라 동일한 무결성 규칙으로 수렴하는 병합이다.
 
@@ -206,12 +207,12 @@ PlanBase/
 | 템플릿 | `TemplateService`, `TemplateListRules`, 공용 `Template*` components | `DesktopTemplatePlacementSheet`, 보드 sheet | `MobileTemplateLibrarySheet`, `MobileTemplatePlacementSheet`, `MobileTemplateComponents` | 현재 표시 없음 |
 | 저장한 작업·빠른 입력어 | `SavedTaskLibraryService`, `SavedTaskShortcutRules`, `SavedTaskQuickEntryController`, 공용 `SavedTask*` components | `BoardView` | `MobileBoardView`, `BoardQuickAdd` | 현재 입력어 UI 없음 |
 | 캘린더 | `CalendarEventRules`, `CalendarEventTimeline`, `DayKey` | `CalendarView`, `DesktopCalendarGrid`, `DesktopEventEditorSheets` | `MobileCalendarView`, `MobileCalendarGrid`, `MobileCalendarDaySheet`, `MobileEventEditorSheet` | `WatchTodayView` 당일 일정 요약 |
-| 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `DailyReview*`, `TaskActivity*`, `TaskHistoryStatistics*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` | 현재 표시 없음 |
+| 기록·회고 | `ArchiveQueryRules`, `ArchiveQuerySession`, `ActivityOverviewSession`, `ActivityOverviewReader`, `DailyReview*`, `TaskActivity*`, `TaskHistoryStatistics*`, `DiaryAttachmentService` | `ArchiveView`, `DiaryView`, `DiaryImageStore` | `MobileArchiveView`, `MobileArchiveRecordCard`, `MobileReviewComposer*` | 현재 표시 없음 |
 | 메모 | `MemoRules`, `MemoService`, `MemoContentService`, `MemoQuerySession`, `MemoEditorSession` | `MemoView`의 텍스트·체크리스트 편집과 필기 미리보기 | `MobileMemoView`의 텍스트·PencilKit 필기·체크리스트 편집 | 현재 표시 없음 |
 | 백업 | `BackupCodec`, `BackupPackageCodec`, `BackupPackageMerge`, `DataIntegrityService` | `BackupService`와 파일 패널 | `MobileBackupService`와 문서 picker | 현재 파일 UI 없음 |
 | CloudKit | `PlanBaseContainerFactory`, `CloudKitSyncService`, `CloudKitConvergenceProbe*` | 앱 루트 sync UI/diagnostic args | 앱 루트 sync UI/diagnostic args | `WatchRootView` import 후 재수렴 |
 | 작업 알림·진행 | `TaskReminderRules`, `TaskLifecycleService`, `TaskProgressEvent*` | 로컬 알림·Live Activity 스케줄러 없음 | `TaskNotificationScheduler`, `TaskLiveActivityCoordinator`, app delegate/intent route store | `WatchTodayView` 상태 전환·미래 알림 확인 |
-| 집중 모드 | `FocusTimerRules`, `FocusSessionService`, `FocusSessionQueryService`, `FocusActiveSessionStore` | 플로팅 `FocusModeView`, 로컬 종료 알림 | 보드·상세 진입, 전체 화면 `FocusModeView`, 알림·Live Activity | `WatchFocusView`, 로컬 알림·햅틱, Focus 우선 컴플리케이션 |
+| 집중 모드 | `FocusTimerRules`, `FocusSessionService`, `FocusSessionQueryService`, `FocusActiveSessionStore`, 공용 `FocusModeView`·`FocusTaskChecklistView` | 플로팅 Focus 화면, 로컬 종료 알림 | 보드·상세 진입, 전체 화면 Focus, 알림·Live Activity | `WatchFocusView`, 로컬 알림·햅틱, Focus 우선 컴플리케이션 |
 | 위젯 | `CalendarWidgetSnapshot`, `WatchWidgetSnapshot`, `PlannerWidgetRules`, `LockScreenWidgetRules`, `PlanBaseDeepLink` | `AppRootView` 발행·deep link, `PlanBaseCalendarWidget`, `PlanBasePlannerWidget` | `CalendarWidgetSnapshotPublisher`, 앱 루트 발행·deep link, 캘린더·플래너·잠금 화면 위젯과 `PlanBaseTaskLiveActivity` | `WatchWidgetSnapshotPublicationService`, `PlanBaseWatchWidget` |
 | 테마 | `AppTheme`, `CalendarEventPalette` | 앱 루트 theme selector | 앱 루트/mobile theme UI 및 위젯 snapshot | 시스템 tint 중심의 작은 화면 UI |
 
@@ -276,9 +277,9 @@ PLANBASE_XCODE_DEVICE_ID=<xcode-udid> \
 ## 10. 상세 문서 안내
 
 - [`README.md`](README.md): 프로젝트 요약, 시작법, 기본 검증
-- [`docs/README.md`](docs/README.md): 운영 문서와 진행/완료 계획 분류
+- [`docs/README.md`](docs/README.md): 최신 배포·확인 범위, 운영 문서와 주제별 진행/완료 기록
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): 런타임, 데이터 무결성, 백업, 이미지, 플랫폼 경계의 상세 설명
-- [`docs/DATA_FOUNDATION_PLAN.md`](docs/DATA_FOUNDATION_PLAN.md): 데이터 안전 작업 순서와 Git 운영 규칙
+- [`docs/DATA_FOUNDATION_PLAN.md`](docs/DATA_FOUNDATION_PLAN.md): 최초 데이터 안전 전환 순서와 당시 Git 운영 기록
 - [`docs/CLOUDKIT_SYNC.md`](docs/CLOUDKIT_SYNC.md): entitlement, schema 배포, 실기기 수렴 검증
 - [`docs/WATCHOS.md`](docs/WATCHOS.md): Watch 앱·컴플리케이션 구조와 출시 검증
 - [`docs/STRUCTURE_CLEANUP_CHECKLIST.md`](docs/STRUCTURE_CLEANUP_CHECKLIST.md): 디렉터리·파일 정리 순서와 검증 상태

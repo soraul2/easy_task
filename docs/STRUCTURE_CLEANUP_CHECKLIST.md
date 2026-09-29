@@ -2,7 +2,7 @@
 
 기준일: 2026-07-24
 
-문서 상태: 완료 당시 구조 정리 스냅샷이다. 2026-09-01 현재 V8 구조와 이후 분리 결과는
+문서 상태: 완료 당시 구조 정리 스냅샷이다. 현재 구조와 이후 분리 결과는
 [`AGENTS.md`](../AGENTS.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
 [`접근성·문구·문서·파일 구조 개선 완료 기록`](plans/completed/ACCESSIBILITY_AND_MAINTAINABILITY_PLAN.md)을
 기준으로 한다. 아래 V1~V6 표기와 테스트 개수는 당시 검증 기록으로 보존한다.

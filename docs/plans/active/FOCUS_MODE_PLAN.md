@@ -1,5 +1,10 @@
 # PlanBase Focus 모드·집중 타이머 구현 계획
 
+후속 상태: 현재 앱은 V11·백업 package V10을 사용한다. 타이머의 화면 크기 대응과
+iPhone·iPad·Mac 체크리스트는 [2026-09-28 개선 결과](TAB_RESPONSIVENESS_AND_FOCUS_2026_09_28_RESULTS.md)에
+기록했고 [build 83](../../releases/TESTFLIGHT_BUILD_83.md)으로 업로드했다. 해당 변경의 테스트·계측은 생략했다.
+아래 V10·build 65·회귀 결과는 최초 Focus 구현 당시 기록이며 남은 실기기 인수는 계속 유지한다.
+
 기준일: 2026-09-03
 최종 검토: 2026-09-03, V10/backup package V9/Live Activity/Watch/알림 액션 구현 및 회귀 검증 완료
 상태: Phase 0~7·9, V10 Production, Focus 진입점과 종료 알림 TestFlight build 65 완료 — 실기기 인수 대기

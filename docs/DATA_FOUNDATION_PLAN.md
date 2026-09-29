@@ -9,7 +9,9 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 ## 문서 상태와 현재 기준점
 
 이 문서는 2026-07의 데이터 기반 전환 순서와 당시 브랜치·태그를 보존하는 운영 기록이다.
-현재 구현 판단은 아래 최신 상태와 [`ARCHITECTURE.md`](ARCHITECTURE.md)를 우선한다.
+현재 구현은 [`ARCHITECTURE.md`](ARCHITECTURE.md), 최신 업로드·확인 범위는
+[문서 지도](README.md)를 우선한다. 아래 단계·브랜치·태그·측정값은 당시 기록이며,
+새 작업의 실행 지시나 최신 빌드의 검증 결과가 아니다.
 
 ### 최초 계획 기준점
 
@@ -18,14 +20,14 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 기준 태그: `v1.0.0-local-mvp`
 - 기준 커밋: `7e6c92a`
 - 검증 결과: 공통 테스트 31개 통과, iOS Simulator Debug 빌드 통과
-- 현재 저장 방식: 기기별 로컬 SwiftData
+- 최초 계획 당시 저장 방식: 기기별 로컬 SwiftData
 
 `v1.0.0-local-mvp`는 데이터 기반 작업 중 문제가 생겼을 때 돌아갈 수 있는
 복구 지점이다.
 
-## 현재 진행 상태 (2026-09-08)
+## 2026-09-08 기준 진행 기록
 
-- 현재 소스의 영속 스키마는 `EasyTaskSchemaV11`이고 V1~V10은 동결되어 있다. V10은
+- 당시 소스의 영속 스키마는 `EasyTaskSchemaV11`이고 V1~V10은 동결되어 있다. V10은
   종료된 Focus 구간 기록 모델, V11은 `TaskTemplate.quickEntryAlias`를 포함한다.
 - private CloudKit Production에는 V11까지 배포됐다. 빠른 입력어는 Development의 독립 저장소
   왕복 8단계를 통과했다. 입력어·FocusSession의 실기기 쌍 인수는 별도로 남는다.
@@ -317,7 +319,7 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ### Phase 8. 릴리스 안정화
 
-상태: 앱 버전 1.0(build 76) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
+2026-09-08 기록: 앱 버전 1.0(build 76) TestFlight 업로드 완료, 실제 기기 운영 인수 계속
 
 - Debug/Release 양쪽 플랫폼 빌드와 UI smoke test를 통과한다.
 - iOS와 macOS launch UI smoke test 타겟을 추가해 앱 시작을 검증한다.
@@ -328,9 +330,9 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 - 동기화 베타 태그: `v1.2.0-sync.beta.1`
 - 운영 동기화 태그: `v1.2.0`
 
-위 브랜치·태그 이름은 최초 계획안이다. 실제 현재 배포 기준은 `MARKETING_VERSION = 1.0`,
-`CURRENT_PROJECT_VERSION = 76`이며, 마지막 App Store Connect 업로드도 build 76이다. 태그는
-저장소의 실제 릴리스 절차에서 별도로 확정한다.
+위 브랜치·태그 이름은 최초 계획안이다. 2026-09-08 당시 배포 기준은 `MARKETING_VERSION = 1.0`,
+`CURRENT_PROJECT_VERSION = 76`이었다. 이후 배포는 [문서 지도](README.md)의 릴리스 목록을 따른다.
+태그는 저장소의 실제 릴리스 절차에서 별도로 확정한다.
 
 2026-09-01 검증 결과:
 
@@ -426,6 +428,8 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 
 ## 멀티에이전트 작업 분배
 
+아래는 최초 데이터 기반 전환을 위해 작성한 작업 분배안이다. 이후 작업의 구성은 해당 요청과 범위에 맞춰 정한다.
+
 에이전트는 독립 worktree와 단일 책임 브랜치를 사용한다.
 
 | 작업 | 소유 범위 | 병렬 실행 조건 |
@@ -445,6 +449,10 @@ macOS와 iPhone 앱을 CloudKit으로 연결하기 전에 데이터 스키마, �
 테스트, 데이터 호환성을 검토한 뒤 통합 브랜치에 `--no-ff`로 병합한다.
 
 ## Git 운영 규칙
+
+`feature/data-foundation`을 출발점으로 삼는 규칙과 아래 명령 목록은 최초 전환 당시 기준이다.
+`main` 직접 커밋·force push 금지와 작은 변경 단위 원칙을 유지하며, 현재 브랜치 구성과 검증은
+작업 요청·범위 및 `AGENTS.md`의 경계를 따른다.
 
 1. `main` 직접 커밋과 force push를 금지한다.
 2. 모든 브랜치는 최신 `feature/data-foundation`에서 시작한다.

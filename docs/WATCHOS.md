@@ -66,11 +66,12 @@ swift test --filter WatchWidgetSnapshotTests
 
 TestFlight 업로드와 실제 기기 인수 상태는 다음과 같다.
 
-2026-09-08 칸반 입력→진행→완료 흐름 개선을 포함한 iOS 묶음의 Watch 앱과
-컴플리케이션을 버전 1.0(76)으로 검증해 App Store Connect에 업로드했다. Apple 패키지 처리
-시작까지 확인했으며 실제 Watch 설치와 기기 간 CloudKit 수렴은 아래 인수 항목으로 유지한다.
+2026-09-29 [TestFlight 1.0 (84)](releases/TESTFLIGHT_BUILD_84.md)의 iOS 묶음에 Watch 앱과
+컴플리케이션을 포함해 업로드했다. Apple 패키지 처리 시작까지 확인했으며 실제 Watch 설치와
+기기 간 CloudKit 수렴은 아래 인수 항목으로 유지한다. 이 빌드는 공통 테스트와 전체 플랫폼
+게이트를 통과했으며, Watch 실기기 계측은 수행하지 않았다.
 
-- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 `CURRENT_PROJECT_VERSION`을 76으로 통일
+- [x] iOS 앱, Watch 앱, iOS·Watch 위젯의 프로젝트 설정과 Info.plist 빌드 번호를 84로 통일
 - [x] Apple Developer의 Watch 앱·위젯 App ID와 iCloud, CloudKit, App Group 권한 확인
 - [x] Release archive의 iOS 앱 아래 `Watch/PlanBaseWatch.app`과 Watch 앱의 `PlugIns` 확인
 - [x] `WKApplication`, companion ID, 네 번들의 배포 서명과 App Store Connect 업로드 확인
@@ -80,5 +81,7 @@ TestFlight 업로드와 실제 기기 인수 상태는 다음과 같다.
 - [ ] 네 가지 컴플리케이션 family의 갤러리, 저휘도 화면, 긴 제목과 큰 글자 확인
 - [ ] 미래 알림 작업 완료 후 iPhone의 로컬 알림 캐시 정리 확인
 
-현재 자동 검증은 Focus를 포함한 snapshot 규칙·저장소, SDK 컴파일과 archive 서명·구조를 다룬다.
-실제 기기 CloudKit 수렴은 별도 출시 인수 게이트다.
+기존 자동 테스트는 Focus를 포함한 snapshot 규칙·저장소를 다룬다. build 84에서는 공통
+패키지 Debug/Release 회귀와 플랫폼 빌드·Release archive의 서명과 구조·업로드를 확인했다.
+실제 기기 CloudKit 수렴은 별도 출시 인수 게이트다. 공용 Focus 화면에 추가한 체크리스트는
+iPhone·iPad·Mac 대상이며, Watch의 전용 Focus 화면에는 포함하지 않는다.
