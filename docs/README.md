@@ -5,19 +5,19 @@
 
 ## 현재 상태
 
-기준일: 2026-09-29
+기준일: 2026-10-02
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
-| 최신 업로드 | [TestFlight 1.0 (85)](releases/TESTFLIGHT_BUILD_85.md), iOS·iPadOS·watchOS 및 macOS |
+| 최신 업로드 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md), iOS·iPadOS·watchOS 및 macOS |
 | 배포 확인 | 두 플랫폼 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
-| 최근 변경 | [Dynamic Island 시스템 타이머·Focus 상태·최소/가로 표시 개선](plans/active/DYNAMIC_ISLAND_TASK_TIMER_ANALYSIS_2026_09_29.md#구현-결과) |
-| build 85 확인 | Debug 511·Release 507 공통 테스트, 전체 플랫폼 게이트, 모바일 상태 12개씩·격리 화면 연속 관찰, Release archive·배포 서명·패키지 확인 |
-| 남은 확인 | iOS 27 타이머·Focus 실기기, VoiceOver·저전력·Always-On·최소 글꼴 가독성, TestFlight 설치와 기존 IME·작은 화면·탭 반응성 인수 |
+| 최근 변경 | [보드의 저장한 작업 `/` 안내와 접근성 힌트](releases/TESTFLIGHT_BUILD_86.md#포함한-변경) |
+| build 86 확인 | Debug 511·Release 507 공통 테스트, 전체 플랫폼 게이트, Release archive·Production 서명·배포 패키지 확인 |
+| 남은 확인 | 새 안내의 실기기·VoiceOver, iOS 27 타이머·Focus 실기기, 저전력·Always-On·최소 글꼴 가독성, TestFlight 설치와 기존 IME·작은 화면·탭 반응성 인수 |
 
 업로드 성공, 기능 검증 완료, 성능 개선 확인은 서로 다른 상태다. 이전 빌드의 테스트 통과나
-측정값으로 build 85의 체감 성능·실기기 동작을 보증하지 않는다.
+측정값으로 build 86의 체감 성능·실기기 동작을 보증하지 않는다.
 
 ## 운영 문서
 
@@ -98,6 +98,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
+| [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md) | 2026-10-02 저장한 작업 `/` 빠른 입력 안내 |
 | [TestFlight 1.0 (85)](releases/TESTFLIGHT_BUILD_85.md) | 2026-09-29 Dynamic Island 타이머·Focus 상태·장시간 표시 개선 |
 | [TestFlight 1.0 (84)](releases/TESTFLIGHT_BUILD_84.md) | 2026-09-29 캘린더 최근 일정 추천 사용성·검색 개선 |
 | [TestFlight 1.0 (83)](releases/TESTFLIGHT_BUILD_83.md) | 2026-09-28 탭 반응성·Focus, 테스트·계측 생략 |

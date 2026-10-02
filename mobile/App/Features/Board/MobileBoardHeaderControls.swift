@@ -245,6 +245,7 @@ struct BoardQuickAdd: View {
         .onKeyPress(.upArrow) { quickEntry.moveSelection(by: -1) ? .handled : .ignored }
         .onKeyPress(.escape) { quickEntry.dismiss() ? .handled : .ignored }
         .accessibilityLabel("해당 날짜에 할 일 입력")
+        .accessibilityHint("/를 입력하면 저장한 작업을 찾아 추가할 수 있어요.")
     }
 
     private func submit() {

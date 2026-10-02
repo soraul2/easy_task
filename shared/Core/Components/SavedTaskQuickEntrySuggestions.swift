@@ -71,6 +71,13 @@ public struct SavedTaskQuickEntrySuggestions: View {
             .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border, lineWidth: 1) }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("quick-entry-suggestions")
+        } else if controller.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text("/를 입력하면 저장한 작업을 찾아 추가할 수 있어요.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
         }
     }
 

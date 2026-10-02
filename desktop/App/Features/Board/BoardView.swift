@@ -443,6 +443,7 @@ struct BoardView: View {
                     .onKeyPress(.downArrow) { quickEntry.moveSelection(by: 1) ? .handled : .ignored }
                     .onKeyPress(.upArrow) { quickEntry.moveSelection(by: -1) ? .handled : .ignored }
                     .onKeyPress(.escape) { quickEntry.dismiss() ? .handled : .ignored }
+                    .accessibilityHint("/를 입력하면 저장한 작업을 찾아 추가할 수 있어요.")
                 Button {
                     addQuickTask()
                 } label: {
