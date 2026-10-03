@@ -136,21 +136,21 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
         activeFocus: FocusActiveSessionSnapshot? = nil
     ) -> WatchWidgetSnapshot {
         let dayKey = DayKey.key(for: referenceDate)
-        let summary = LockScreenWidgetRules.makeDaySummaries(
+        let summary = LockScreenWidgetRules.makeTodaySummary(
             tasks: tasks,
             events: events,
             referenceDate: referenceDate
-        ).first
+        )
 
         return WatchWidgetSnapshot(
             generatedAt: referenceDate,
             dayKey: dayKey,
-            todoCount: summary?.todoCount ?? 0,
-            doingCount: summary?.doingCount ?? 0,
-            doneCount: summary?.doneCount ?? 0,
-            eventCount: summary?.eventCount ?? 0,
-            focusTitle: summary?.focusTitle,
-            focusKind: summary?.focusKind,
+            todoCount: summary.todoCount,
+            doingCount: summary.doingCount,
+            doneCount: summary.doneCount,
+            eventCount: summary.eventCount,
+            focusTitle: summary.focusTitle,
+            focusKind: summary.focusKind,
             activeFocus: activeFocus
         )
     }

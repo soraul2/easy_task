@@ -201,6 +201,16 @@ extension DataIntegrityService {
         }
 
         for attachment in attachments where isActive(attachment) {
+            // Normalize scalars first, as before. Only this attachment's actual
+            // successful metadata survives locally through reference validation.
+            // No image bytes are retained in a cache or across attachments/calls.
+            report.normalizedFields += normalizeDiaryAttachmentScalars(attachment)
+            let metadata = try? DiaryAttachmentService.inspect(attachment.data)
+            if let metadata {
+                report.normalizedFields += normalizeDiaryAttachmentMetadata(
+                    attachment, metadata: metadata
+                )
+            }
             if let canonicalID = rewrites[attachment.reviewId],
                canonicalID != attachment.reviewId {
                 attachment.reviewId = canonicalID
@@ -208,7 +218,7 @@ extension DataIntegrityService {
             }
 
             guard activeReviewIDs.contains(attachment.reviewId),
-                  (try? DiaryAttachmentService.inspect(attachment.data)) != nil else {
+                  metadata != nil else {
                 supersede(attachment, report: &report)
                 continue
             }

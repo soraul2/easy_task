@@ -8,6 +8,7 @@ struct PlanBaseWidgetBundle: WidgetBundle {
         PlanBasePlannerWidget()
 #if os(iOS)
         PlanBaseLockScreenWidget()
+        PlanBaseCalendarLockScreenWidget()
         PlanBaseTaskLiveActivity()
 #endif
     }

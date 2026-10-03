@@ -95,7 +95,8 @@ public final class ArchiveQuerySession {
 
     public func refreshIfNeeded() {
         guard loadedRevision != changes.value || loadedDayKey != DayKey.today
-                || requestedFilter != appliedFilter || errorMessage != nil else { return }
+                || requestedFilter != appliedFilter || errorMessage != nil
+                || (appliedFilter.contentMode == .dailyActivity && context.hasChanges) else { return }
         refreshPreservingDepth()
     }
 
@@ -107,7 +108,6 @@ public final class ArchiveQuerySession {
         }
         let pagesToReload = max(loadedPageCount, 1)
         if appliedFilter.contentMode == .dailyActivity {
-            dailyService.invalidate()
             loadDaily(pages: pagesToReload, appending: false)
             return
         }
@@ -169,9 +169,12 @@ private extension ArchiveQuerySession {
         pendingLoad?.cancel()
         generation += 1
         let requestGeneration = generation
+        let requestRevision = changes.value
+        let requestDayKey = DayKey.today
         let filter = appliedFilter
-        let before = appending ? nextBeforeDayKey : nil
-        if !appending || loadedPageCount == 0 { rememberRevision() }
+        let canAppend = appending && loadedRevision == requestRevision && loadedDayKey == requestDayKey
+        let before = canAppend ? nextBeforeDayKey : nil
+        let pagesToRead = appending && !canAppend ? max(loadedPageCount + 1, 1) : pages
         isLoading = true
         errorMessage = nil
         pendingLoad = Swift.Task { [weak self] in
@@ -185,7 +188,7 @@ private extension ArchiveQuerySession {
 #endif
                 var result: [ArchiveQueryPage] = []
                 var cursor = before
-                for _ in 0..<pages {
+                for _ in 0..<pagesToRead {
                     let page = try await dailyService.page(filter: filter, beforeDayKey: cursor)
                     try Swift.Task.checkCancellation()
                     result.append(page)
@@ -193,21 +196,32 @@ private extension ArchiveQuerySession {
                     if !page.hasMore { break }
                 }
                 guard requestGeneration == generation else { return }
-                if !appending { clearResults() }
+                guard requestRevision == changes.value, requestDayKey == DayKey.today
+                else { throw DailyActivityReadInvalidated.changed }
+                if !canAppend { clearResults() }
                 for page in result {
                     append(page)
                     nextBeforeDayKey = page.nextBeforeDayKey
                     hasMore = page.hasMore
                     if !page.records.isEmpty { loadedPageCount += 1 }
                 }
+                // A dirty overlay must be reread after rollback even without a save notification.
+                loadedRevision = context.hasChanges ? nil : requestRevision
+                loadedDayKey = requestDayKey
                 isLoading = false
+                pendingLoad = nil
             } catch is CancellationError {
-                // The current generation owns loading and visible results.
+                guard requestGeneration == generation else { return }
+                loadedRevision = nil
+                isLoading = false
+                pendingLoad = nil
             } catch {
                 guard requestGeneration == generation else { return }
+                loadedRevision = nil
                 errorMessage = "하루 기록을 불러오지 못했습니다. 다시 시도해 주세요."
                 if records.isEmpty { hasMore = false }
                 isLoading = false
+                pendingLoad = nil
             }
         }
     }

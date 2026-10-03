@@ -63,7 +63,7 @@ struct BoardView: View {
     @Environment(\.openWindow) private var openWindow
     @Query private var selectedDayTaskRows: [Task]
     @State private var carryoverSession: CarryoverInboxSession?
-    @Query private var overlappingEventRows: [CalendarEvent]
+    @State private var overlappingEventRows: [CalendarEvent] = []
 
     @Binding var selectedDate: Date
     @State private var quickTitle = ""
@@ -90,16 +90,11 @@ struct BoardView: View {
         _selectedDayTaskRows = Query(
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
         )
-        _overlappingEventRows = Query(
-            BoundedQueryService.eventsDescriptor(
-                overlappingStartDayKey: dayKey,
-                endDayKey: dayKey
-            )
-        )
     }
 
     private var boardEvents: [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: selectedDayKey, in: overlappingEventRows)
+        CalendarEventRules.events(onDayKey: selectedDayKey,
+            in: overlappingEventRows.filter { $0.modelContext != nil })
     }
 
     private var boardTasks: [Task] {
@@ -149,6 +144,11 @@ struct BoardView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 28)
             }
+        }
+        .refreshVisibleData(key: selectedDayKey, domains: .calendar) {
+            overlappingEventRows = try BoundedQueryService.events(
+                overlappingStartDayKey: selectedDayKey, endDayKey: selectedDayKey,
+                in: modelContext)
         }
         .carryoverInboxSession($carryoverSession)
         .sheet(item: $presentedSheet) { sheet in

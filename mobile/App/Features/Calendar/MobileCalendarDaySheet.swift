@@ -20,9 +20,8 @@ struct MobileCalendarDayQueryHost: View {
             tasks: tasks.filter { $0.modelContext != nil }, onOpenBoard: onOpenBoard, onClose: onClose
         )
         .refreshVisibleData(key: dayKey, domains: [.tasks, .calendar, .templates]) {
-            let eventRows = try modelContext.fetch(BoundedQueryService.eventsDescriptor(
-                overlappingStartDayKey: dayKey, endDayKey: dayKey
-            ))
+            let eventRows = try BoundedQueryService.events(
+                overlappingStartDayKey: dayKey, endDayKey: dayKey, in: modelContext)
             let placements = try modelContext.fetch(BoundedQueryService.templatePlacementsDescriptor(
                 from: dayKey, through: dayKey
             ))

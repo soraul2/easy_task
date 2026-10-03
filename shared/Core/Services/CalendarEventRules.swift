@@ -98,9 +98,37 @@ public enum CalendarEventRules {
     }
 
     public static func events(onDayKey dayKey: String, in events: [CalendarEvent]) -> [CalendarEvent] {
-        sorted(events.filter {
-            $0.supersededAt == nil && $0.startDayKey <= dayKey && dayKey <= $0.endDayKey
+        sorted(activeRepresentatives(in: events).filter {
+            $0.startDayKey <= dayKey && dayKey <= $0.endDayKey
         })
+    }
+
+    /// Select before filtering dates so a moved latest version cannot revive an
+    /// older interval. Callers must supply all active versions of candidate IDs.
+    public static func activeRepresentatives(in events: [CalendarEvent]) -> [CalendarEvent] {
+        var representatives: [UUID: CalendarEvent] = [:]
+        var logicalIDs: [UUID] = []
+        for event in events where event.supersededAt == nil {
+            guard let current = representatives[event.id] else {
+                representatives[event.id] = event
+                logicalIDs.append(event.id)
+                continue
+            }
+            if event.updatedAt > current.updatedAt ||
+                (event.updatedAt == current.updatedAt &&
+                    event.instanceID.uuidString > current.instanceID.uuidString) {
+                representatives[event.id] = event
+            }
+        }
+        return logicalIDs.compactMap { representatives[$0] }
+    }
+
+    // Shared snapshot content checks. Call only after representative selection;
+    // each snapshot keeps its existing range/order/coverage policy separately.
+    static func hasSnapshotDisplayContent(_ event: CalendarEvent) -> Bool {
+        !event.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && DayKey.date(from: event.startDayKey) != nil
+            && DayKey.date(from: event.endDayKey) != nil
     }
 
     public static func events(
@@ -110,8 +138,18 @@ public enum CalendarEventRules {
     ) -> [CalendarEvent] {
         let startDayKey = DayKey.key(for: DayKey.startOfDay(for: min(startDate, endDate)))
         let endDayKey = DayKey.key(for: DayKey.startOfDay(for: max(startDate, endDate)))
-        return sorted(events.filter {
-            $0.supersededAt == nil && $0.startDayKey <= endDayKey && $0.endDayKey >= startDayKey
+        return Self.events(overlappingStartDayKey: startDayKey, endDayKey: endDayKey, in: events)
+    }
+
+    public static func events(
+        overlappingStartDayKey startDayKey: String,
+        endDayKey: String,
+        in events: [CalendarEvent]
+    ) -> [CalendarEvent] {
+        let lowerBound = min(startDayKey, endDayKey)
+        let upperBound = max(startDayKey, endDayKey)
+        return sorted(activeRepresentatives(in: events).filter {
+            $0.startDayKey <= upperBound && $0.endDayKey >= lowerBound
         })
     }
 

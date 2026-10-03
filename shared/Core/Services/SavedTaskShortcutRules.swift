@@ -34,9 +34,29 @@ public enum SavedTaskShortcutRules {
     public static func aliasKey(_ value: String?) -> String? { try? normalizedAlias(value) }
 
     public static func suggestions(_ entries: [SavedTaskEntry], input: String) -> [SavedTaskEntry] {
+        suggestions(entries, input: input, aliasForEntry: { aliasKey($0.quickEntryAlias) })
+    }
+
+    /// Library entries are value snapshots with one representative per logical ID.
+    /// Public rules still normalize each entry independently, including duplicate IDs.
+    static func aliasKeys(in entries: [SavedTaskEntry]) -> [UUID: String] {
+        entries.reduce(into: [:]) { keys, entry in
+            keys[entry.id] = aliasKey(entry.quickEntryAlias)
+        }
+    }
+
+    static func suggestions(
+        _ entries: [SavedTaskEntry], input: String, preparedAliasKeys: [UUID: String]
+    ) -> [SavedTaskEntry] {
+        suggestions(entries, input: input, aliasForEntry: { preparedAliasKeys[$0.id] })
+    }
+
+    private static func suggestions(
+        _ entries: [SavedTaskEntry], input: String, aliasForEntry: (SavedTaskEntry) -> String?
+    ) -> [SavedTaskEntry] {
         guard let query = query(in: input) else { return [] }
         let candidates: [(entry: SavedTaskEntry, isExact: Bool)] = entries.compactMap { entry in
-            let alias = query.isEmpty ? nil : aliasKey(entry.quickEntryAlias)
+            let alias = query.isEmpty ? nil : aliasForEntry(entry)
             guard query.isEmpty || alias?.contains(query) == true ||
                 entry.draft.title.localizedStandardContains(query) else { return nil }
             return (entry, !query.isEmpty && alias == query)

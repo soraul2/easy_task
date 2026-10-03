@@ -14,7 +14,7 @@ private struct PendingWatchCompletion: Identifiable {
 struct WatchTodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var taskRows: [PlanBaseCore.Task]
-    @Query private var eventRows: [CalendarEvent]
+    @State private var eventRows: [CalendarEvent] = []
 
     let dayKey: String
     let startupIssue: String?
@@ -31,12 +31,6 @@ struct WatchTodayView: View {
         _taskRows = Query(
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
         )
-        _eventRows = Query(
-            BoundedQueryService.eventsDescriptor(
-                overlappingStartDayKey: dayKey,
-                endDayKey: dayKey
-            )
-        )
     }
 
     private var tasks: [PlanBaseCore.Task] {
@@ -52,14 +46,14 @@ struct WatchTodayView: View {
     }
 
     private var events: [CalendarEvent] {
-        CalendarEventRules.events(onDayKey: dayKey, in: eventRows)
+        CalendarEventRules.events(onDayKey: dayKey, in: eventRows.filter { $0.modelContext != nil })
     }
 
     private var contentFingerprint: String {
         let taskValues = taskRows.map {
             "\($0.instanceID)|\($0.status)|\($0.updatedAt.timeIntervalSinceReferenceDate)"
         }
-        let eventValues = eventRows.map {
+        let eventValues = eventRows.filter { $0.modelContext != nil }.map {
             "\($0.instanceID)|\($0.updatedAt.timeIntervalSinceReferenceDate)"
         }
         return (taskValues + eventValues).sorted().joined(separator: ";")
@@ -99,9 +93,15 @@ struct WatchTodayView: View {
         }
         .navigationTitle("오늘")
         .refreshable {
+            do {
+                try refreshEvents()
+            } catch {
+                showNotice("일정을 불러오지 못했어요", isError: true)
+            }
             reloadActiveFocus()
             publishWidget(forceWrite: true)
         }
+        .refreshVisibleData(key: dayKey, domains: .calendar, refresh: refreshEvents)
         .task(id: contentFingerprint) {
             reloadActiveFocus()
             publishWidget(forceWrite: false)
@@ -310,6 +310,13 @@ struct WatchTodayView: View {
         } catch {
             showNotice("상태를 바꾸지 못했어요", isError: true)
         }
+    }
+
+    @MainActor
+    private func refreshEvents() throws {
+        // Assign only after the complete candidate-version query succeeds.
+        eventRows = try BoundedQueryService.events(
+            overlappingStartDayKey: dayKey, endDayKey: dayKey, in: modelContext)
     }
 
     private func publishWidget(forceWrite: Bool) {

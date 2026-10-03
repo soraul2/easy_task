@@ -640,8 +640,13 @@ final class PlanBaseLaunchUITests: XCTestCase {
         addTeardownBlock {
             await MainActor.run {
                 app.activate()
-                let hideKeyboard = app.keyboards.buttons["키보드 가리기"]
-                if hideKeyboard.isHittable { hideKeyboard.tap() }
+                let memoDismiss = app.buttons["memo-text-keyboard-dismiss"].firstMatch
+                if memoDismiss.exists && memoDismiss.isHittable {
+                    memoDismiss.tap()
+                } else {
+                    let nativeHide = app.keyboards.buttons["키보드 가리기"]
+                    if nativeHide.exists && nativeHide.isHittable { nativeHide.tap() }
+                }
                 settings.terminate()
                 if window.frame.width < originalFrame.width - 100 {
                     window.coordinate(withNormalizedOffset: .zero)
@@ -662,8 +667,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         // The software keyboard covers iPadOS's bottom-corner resize handle.
         // Dismiss it deliberately; the separate column-change tests keep the
         // keyboard open and verify uninterrupted typing without tapping again.
-        app.keyboards.buttons["키보드 가리기"].tap()
-        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        XCTAssertTrue(dismissAdaptiveKeyboard(in: app))
         let editorWindow = app.windows.containing(.textView, identifier: "메모 내용").firstMatch
         let hierarchy = XCTAttachment(string: app.debugDescription)
         hierarchy.name = "adaptive-real-window-before-resize"
@@ -688,26 +692,15 @@ final class PlanBaseLaunchUITests: XCTestCase {
         frames.lifetime = .keepAlways
         add(frames)
         addReferenceScreenshot(named: "adaptive-memo-real-narrow-window")
-        app.keyboards.buttons["키보드 가리기"].tap()
-        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        XCTAssertTrue(dismissAdaptiveKeyboard(in: app))
         editorWindow.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: 42, dy: 54)).press(forDuration: 1)
         let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let tile = system.buttons["좌우"].firstMatch
         XCTAssertTrue(tile.waitForExistence(timeout: 5))
         tile.tap()
-        // Tiling a lone foreground window leaves the other half empty. Bring
-        // Settings into this workspace from the Dock, rather than assuming
-        // a previously launched background app is already beside PlanBase.
-        let screenOrigin = system.coordinate(withNormalizedOffset: .zero)
-        screenOrigin.withOffset(CGVector(dx: originalFrame.midX, dy: originalFrame.maxY - 2))
-            .press(forDuration: 0.1, thenDragTo: screenOrigin.withOffset(CGVector(
-                dx: originalFrame.midX, dy: originalFrame.maxY - 100)))
-        let settingsIcon = system.icons["설정"].firstMatch
-        XCTAssertTrue(settingsIcon.waitForExistence(timeout: 5))
-        settingsIcon.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 0.5, thenDragTo: screenOrigin.withOffset(CGVector(
-            dx: originalFrame.width * 0.75, dy: originalFrame.midY)))
+        // The native preset arranges the two already-open apps. Verify that
+        // result directly; a further bottom-edge drag can enter App Switcher.
         addReferenceScreenshot(named: "adaptive-tiling-arrangement")
         let arrangement = XCTAttachment(string: "PlanBase: \(editorWindow.frame)\nSettings: \(settings.debugDescription)\nSystem: \(system.debugDescription)")
         arrangement.name = "adaptive-tiling-arrangement"
@@ -724,8 +717,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [sideBySide], timeout: 10), .completed)
         XCTAssertEqual(editor.value as? String, content)
         addReferenceScreenshot(named: "adaptive-memo-side-by-side")
-        // Dock dragging activates Settings. Return to PlanBase before tapping
-        // the editor to bring back the keyboard we deliberately dismissed.
+        // Return to PlanBase before bringing back the dismissed keyboard.
         app.activate()
         // The element's default activation point can place the cursor at the
         // start. Tap below the two existing lines to explicitly append instead.
@@ -878,8 +870,13 @@ final class PlanBaseLaunchUITests: XCTestCase {
         addTeardownBlock {
             await MainActor.run {
                 app.activate()
-                let hide = app.keyboards.buttons["키보드 가리기"]
-                if hide.isHittable { hide.tap() }
+                let memoDismiss = app.buttons["memo-text-keyboard-dismiss"].firstMatch
+                if memoDismiss.exists && memoDismiss.isHittable {
+                    memoDismiss.tap()
+                } else {
+                    let nativeHide = app.keyboards.buttons["키보드 가리기"]
+                    if nativeHide.exists && nativeHide.isHittable { nativeHide.tap() }
+                }
                 settings.terminate()
                 let window = app.windows.firstMatch
                 if window.frame.width < 800 {
@@ -898,8 +895,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
     @MainActor
     private func fillAdaptiveWindow(in app: XCUIApplication) {
         app.activate()
-        let hide = app.keyboards.buttons["키보드 가리기"]
-        if hide.isHittable { hide.tap() }
+        XCTAssertTrue(dismissAdaptiveKeyboard(in: app))
         let window = app.windows.firstMatch
         guard window.frame.width < 800 else { return }
         window.coordinate(withNormalizedOffset: .zero)
@@ -915,9 +911,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
 
     @MainActor
     private func tileAdaptiveApp(_ app: XCUIApplication, beside settings: XCUIApplication, fullFrame: CGRect) {
-        let hide = app.keyboards.buttons["키보드 가리기"]
-        if hide.isHittable { hide.tap() }
-        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        XCTAssertGreaterThan(fullFrame.width, 800)
+        XCTAssertTrue(dismissAdaptiveKeyboard(in: app))
         let window = app.windows.firstMatch
         // A full-screen iPad window hides the traffic-light controls. Expose
         // them through the actual resize handle before opening their menu.
@@ -936,15 +931,11 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let tile = system.buttons["좌우"].firstMatch
         XCTAssertTrue(tile.waitForExistence(timeout: 5))
         tile.tap()
-        let origin = system.coordinate(withNormalizedOffset: .zero)
-        origin.withOffset(CGVector(dx: fullFrame.midX, dy: fullFrame.maxY - 2))
-            .press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(
-                dx: fullFrame.midX, dy: fullFrame.maxY - 100)))
-        let settingsIcon = system.icons["설정"].firstMatch
-        XCTAssertTrue(settingsIcon.waitForExistence(timeout: 5))
-        settingsIcon.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 0.5, thenDragTo: origin.withOffset(CGVector(
-                dx: fullFrame.width * 0.75, dy: fullFrame.midY)))
+        addReferenceScreenshot(named: "adaptive-native-preset-arrangement")
+        let arrangement = XCTAttachment(string: "PlanBase: \(window.frame)\nSettings: \(settings.debugDescription)\nSystem: \(system.debugDescription)")
+        arrangement.name = "adaptive-native-preset-arrangement"
+        arrangement.lifetime = .keepAlways
+        add(arrangement)
         let sideBySide = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             let a = window.frame
             let b = settings.windows.firstMatch.frame
@@ -954,6 +945,18 @@ final class PlanBaseLaunchUITests: XCTestCase {
         }, object: window)
         XCTAssertEqual(XCTWaiter.wait(for: [sideBySide], timeout: 10), .completed)
         app.activate()
+    }
+
+    @MainActor
+    private func dismissAdaptiveKeyboard(in app: XCUIApplication) -> Bool {
+        let memoDismiss = app.buttons["memo-text-keyboard-dismiss"].firstMatch
+        if memoDismiss.exists && memoDismiss.isHittable {
+            memoDismiss.tap()
+        } else {
+            let nativeHide = app.keyboards.buttons["키보드 가리기"]
+            if nativeHide.exists && nativeHide.isHittable { nativeHide.tap() }
+        }
+        return waitForKeyboardHidden(in: app)
     }
 
     @MainActor
@@ -999,6 +1002,32 @@ final class PlanBaseLaunchUITests: XCTestCase {
         row.tap()
         XCTAssertEqual(editor.value as? String, "크기가 바뀌어도 남는 메모\n초안 보존 확인")
         addReferenceScreenshot(named: "adaptive-memo-restored")
+    }
+
+    @MainActor
+    func testCalendarTodayDeepLinkReturnsFromBackgroundToCurrentDay() throws {
+        let app = launchKanbanFlowApp()
+        let previousDate = try XCTUnwrap(Calendar.current.date(byAdding: .month, value: -1, to: Date()))
+        // Public URL routing, independent of WidgetKit gallery/reload setup.
+        // This is the wire URL emitted by PlanBaseDeepLink.calendarTodayURL().
+        let previousURL = try XCTUnwrap(URL(string: "planbase://calendar?date=\(localDayKey(previousDate))"))
+        let todayURL = try XCTUnwrap(URL(string: "planbase://calendar?scope=today"))
+        app.open(previousURL)
+        XCTAssertTrue(app.navigationBars[koreanDayDisplay(previousDate)].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["calendar-day-detail"].firstMatch.exists)
+
+        tapRootDestination("메모", in: app)
+        XCTAssertTrue(app.buttons["새 메모"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        app.open(todayURL)
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
+        let today = Date()
+        let detail = app.descendants(matching: .any)["calendar-day-detail"].firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars[koreanDayDisplay(today)].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.navigationBars[koreanDayDisplay(previousDate)].exists)
+        XCTAssertTrue(app.buttons["일정 추가"].firstMatch.isHittable)
+        addReferenceScreenshot(named: "calendar-today-public-link-from-background")
     }
 
     @MainActor
@@ -3048,6 +3077,142 @@ final class PlanBaseLaunchUITests: XCTestCase {
         row.tap()
         XCTAssertEqual(editor.value as? String, revisedContent)
         addReferenceScreenshot(named: "memo-tab-and-background-return")
+    }
+
+    @MainActor
+    func testMemoCooperativeQueryChangesAndTabReturnKeepUnsavedDraft() throws {
+        let app = XCUIApplication()
+        // Existing opt-in fixture: 200 long-body memos in the dedicated local
+        // ResponsivenessFixtures store, never the normal store or CloudKit.
+        // No load-failure flag is set: the actual cooperative UI query is used.
+        app.launchArguments = ["--ui-testing", "--ui-testing-performance",
+                               "--ui-testing-memo-save-failure-twice", "--ui-testing-theme=appleSystem"]
+        if ProcessInfo.processInfo.environment["PLANBASE_GOAL_MEMO_RETRY_AX5"] == "1" {
+            app.launchArguments.append("--ui-testing-accessibility-text-size")
+        }
+        app.launch()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.textFields["해당 날짜에 할 일 입력"].waitForExistence(timeout: 90))
+        tapRootDestination("메모", in: app)
+        let search = app.searchFields.firstMatch
+        for _ in 0..<2 where !search.exists { app.swipeDown() }
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        let finalQuery = "성능 메모 199"
+        let expectedRow = app.buttons[finalQuery]
+        let otherRow = app.buttons["성능 메모 198"]
+        search.tap()
+        search.typeText(finalQuery)
+        XCTAssertTrue(expectedRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(otherRow.waitForNonExistence(timeout: 10))
+
+        func replaceQuery(_ text: String) {
+            search.tap()
+            let current = search.value as? String ?? ""
+            if !current.isEmpty {
+                search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+            }
+            if !text.isEmpty { search.typeText(text) }
+        }
+        // A/B/A without waiting for the intermediate query. Leaving the tab
+        // also exercises the production cancellation/return refresh boundary.
+        // UI transport timing cannot prove an in-flight cancellation or latency;
+        // deterministic cooperative cancellation is covered by the Core gate tests.
+        replaceQuery("zz")
+        replaceQuery(finalQuery)
+        // Search presentation hides the iPhone tab bar while the keyboard is
+        // active. Submit without clearing the query before tapping the menu.
+        search.typeText("\n")
+        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        XCTAssertEqual(search.value as? String, finalQuery)
+        tapRootDestination("캘린더", in: app)
+        XCTAssertTrue(app.staticTexts["calendar-month-title"].waitForExistence(timeout: 10))
+        tapRootDestination("메모", in: app)
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        let returnedQuery = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (search.value as? String) == finalQuery && expectedRow.exists && !otherRow.exists &&
+                !app.staticTexts["검색 결과 없음"].exists && !app.buttons["memo-load-retry"].exists
+        }, object: search)
+        XCTAssertEqual(XCTWaiter.wait(for: [returnedQuery], timeout: 10), .completed)
+        XCTAssertEqual(app.buttons.matching(identifier: finalQuery).count, 1)
+        addReferenceScreenshot(named: "memo-cooperative-final-query-after-tab-return")
+
+        // Use a new uniquely named draft; never modify a seeded performance row.
+        replaceQuery("")
+        search.typeText("\n")
+        let cancelSearch = app.navigationBars["메모"].buttons
+            .matching(NSPredicate(format: "label IN %@", ["취소", "닫기"])).firstMatch
+        XCTAssertTrue(cancelSearch.waitForExistence(timeout: 5))
+        cancelSearch.tap()
+        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        createMemo(in: app)
+        let editor = app.textViews["메모 내용"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        let title = "검색 복귀 초안 \(UUID().uuidString.prefix(8))"
+        let content = title + "\n빠른 검색과 탭 이탈 뒤에도 남아야 합니다."
+        editor.tap()
+        editor.typeText(content)
+        let retry = app.buttons["memo-save-retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 10))
+        XCTAssertEqual(editor.value as? String, content)
+        let saveState = app.descendants(matching: .any)["memo-save-state"].firstMatch
+        XCTAssertTrue(saveState.label.contains("저장 실패"))
+
+        let keyboardDismiss = app.buttons["memo-text-keyboard-dismiss"]
+        XCTAssertTrue(keyboardDismiss.waitForExistence(timeout: 5))
+        XCTAssertTrue(keyboardDismiss.isHittable)
+        addReferenceScreenshot(named: "memo-failed-draft-keyboard-dismiss-action")
+        keyboardDismiss.tap()
+        XCTAssertTrue(waitForKeyboardHidden(in: app))
+        XCTAssertEqual(editor.value as? String, content)
+        XCTAssertTrue(retry.exists)
+        tapRootDestination("캘린더", in: app)
+        XCTAssertTrue(app.staticTexts["calendar-month-title"].waitForExistence(timeout: 10))
+        tapRootDestination("메모", in: app)
+        XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        XCTAssertEqual(editor.value as? String, content)
+        XCTAssertTrue(retry.waitForExistence(timeout: 5))
+        XCTAssertTrue(saveState.label.contains("저장 실패"))
+        addReferenceScreenshot(named: "memo-unsaved-draft-after-query-and-tab-return")
+
+        XCTAssertEqual(app.buttons.matching(identifier: "memo-save-retry").count, 1)
+        XCTAssertTrue(retry.isHittable)
+        let retryFrameBeforeTap = retry.frame
+        XCTAssertFalse(retryFrameBeforeTap.isEmpty)
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(retryFrameBeforeTap))
+        if keyboardDismiss.exists {
+            XCTAssertFalse(retryFrameBeforeTap.intersects(keyboardDismiss.frame))
+        }
+        let memoNavigationTitle = app.navigationBars.staticTexts[title].firstMatch
+        XCTAssertTrue(memoNavigationTitle.waitForExistence(timeout: 5))
+        XCTAssertFalse(memoNavigationTitle.frame.isEmpty)
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(memoNavigationTitle.frame))
+
+        // Tab disappearance may consume the second failure. Otherwise the first
+        // retry does; both valid paths must preserve the draft until save succeeds.
+        for _ in 0..<2 where retry.exists {
+            retry.tap()
+            if retry.waitForNonExistence(timeout: 2) { break }
+        }
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "저장됨"),
+                                              object: saveState)
+        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 10), .completed)
+        XCTAssertEqual(editor.value as? String, content)
+        app.buttons["memo-editor-back"].tap()
+        let row = app.buttons[title]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(identifier: title).count, 1)
+        row.tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertEqual(editor.value as? String, content)
+
+        // Remove only the uniquely created synthetic draft, preserving the
+        // prepared 200-memo fixture for later tests on this dedicated simulator.
+        app.buttons["메모 삭제"].tap()
+        let confirmation = app.alerts["메모 삭제"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        confirmation.buttons["삭제"].tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 10))
     }
 
     @MainActor
@@ -6181,6 +6346,17 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let row = app.buttons["필기·그림"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "memo-typed-drawing-thumbnail")
+        let kanbanTab = app.tabBars.buttons["칸반"].firstMatch
+        let drawingPalette = app.otherElements["Drawing-Palette"].firstMatch
+        let drawingPaletteDisappeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: drawingPalette)
+        XCTAssertEqual(XCTWaiter.wait(for: [drawingPaletteDisappeared], timeout: 5), .completed)
+        XCTAssertTrue(kanbanTab.exists)
+        XCTAssertTrue(kanbanTab.isHittable)
+        kanbanTab.tap()
+        XCTAssertTrue(app.textFields["해당 날짜에 할 일 입력"].waitForExistence(timeout: 5))
+        tapRootDestination("메모", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
         tapRootDestination("메모", in: app)
@@ -6662,6 +6838,20 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["calendar-month-title"].waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "calendar-wrap-ipad-wide")
         tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
+        let headerTitle = app.staticTexts["calendar-month-title"]
+        let previousMonthButton = app.buttons["이전 달"].firstMatch
+        let nextMonthButton = app.buttons["다음 달"].firstMatch
+        let calendarWindowControls = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["window-controls:com.soraul2.easytask"].firstMatch
+        XCTAssertTrue(calendarWindowControls.waitForExistence(timeout: 5))
+        let calendarHeaderWindowFrame = app.windows.firstMatch.frame
+        for element in [calendarWindowControls, headerTitle, previousMonthButton, nextMonthButton] {
+            XCTAssertTrue(element.exists)
+            XCTAssertFalse(element.frame.isEmpty)
+            XCTAssertTrue(calendarHeaderWindowFrame.contains(element.frame))
+        }
+        for element in [headerTitle, previousMonthButton, nextMonthButton] {
+            XCTAssertFalse(element.frame.intersects(calendarWindowControls.frame))
+        }
         let long = app.staticTexts["프로젝트 기획 검토"]
         let short = app.staticTexts["산책"]
         XCTAssertTrue(long.waitForExistence(timeout: 5))
@@ -7210,6 +7400,201 @@ final class PlanBaseResponsivenessTests: XCTestCase {
             app.launch()
             XCTAssertTrue(app.textFields["해당 날짜에 할 일 입력"].waitForExistence(timeout: 30))
             app.terminate()
+        }
+    }
+
+    @MainActor
+    func testPreparedStoreInitialContentLoad() {
+        let fixture = launchContentReadyFixture()
+        let app = fixture.app
+        app.terminate()
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+        // Keep the launch signpost and the longer XCTest content-ready interval
+        // separate. Neither interval is a physical cold boot or input latency.
+        measure(metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true), XCTClockMetric()], options: options) {
+            assertContentMeasurementDay(fixture)
+            startMeasuring()
+            app.launch()
+            waitForFixtureContent("칸반", in: app)
+            stopMeasuring()
+            assertContentMeasurementDay(fixture)
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testFirstCalendarNavigationContentReady() {
+        measureFirstNavigationContentReady("캘린더")
+    }
+
+    @MainActor
+    func testFirstArchiveNavigationContentReady() {
+        measureFirstNavigationContentReady("기록")
+    }
+
+    @MainActor
+    func testFirstMemoNavigationContentReady() {
+        measureFirstNavigationContentReady("메모")
+    }
+
+    @MainActor
+    func testRepeatedTabNavigationContentReady() {
+        let fixture = launchContentReadyFixture()
+        let app = fixture.app
+        for name in ["캘린더", "기록", "메모", "칸반"] {
+            tapFixtureDestination(name, in: app)
+            waitForFixtureContent(name, in: app)
+        }
+        let options = XCTMeasureOptions()
+        options.iterationCount = 10
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+        measure(metrics: navigationMetrics(application: app), options: options) {
+            assertContentMeasurementDay(fixture)
+            startMeasuring()
+            for name in ["캘린더", "기록", "메모", "칸반"] {
+                tapFixtureDestination(name, in: app)
+                waitForFixtureContent(name, in: app)
+            }
+            stopMeasuring()
+            assertContentMeasurementDay(fixture)
+        }
+    }
+
+    @MainActor
+    private func measureFirstNavigationContentReady(_ name: String) {
+        let fixture = launchContentReadyFixture()
+        let app = fixture.app
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+        measure(metrics: navigationMetrics(application: app), options: options) {
+            // Every sample gets a new app process. Preparing/opening the local
+            // fixture and loading the board are outside the tab measurement.
+            app.terminate()
+            app.launch()
+            waitForFixtureContent("칸반", in: app)
+            assertContentMeasurementDay(fixture)
+            startMeasuring()
+            tapFixtureDestination(name, in: app)
+            waitForFixtureContent(name, in: app)
+            stopMeasuring()
+            assertContentMeasurementDay(fixture)
+            app.terminate()
+        }
+    }
+
+    private typealias ContentReadyFixture = (
+        app: XCUIApplication, localMidnight: Date, timeZoneIdentifier: String
+    )
+
+    @MainActor
+    private func launchContentReadyFixture() -> ContentReadyFixture {
+        let localMidnight = Calendar.current.startOfDay(for: Date())
+        let timeZoneIdentifier = TimeZone.current.identifier
+        let app = launchFixture()
+        // The first Xcode prelaunch may omit arguments. Reopen explicitly during
+        // preparation, then require the real performance Task on today's board.
+        app.terminate()
+        app.launchArguments = [
+            "--ui-testing", "--ui-testing-performance", "--ui-testing-theme=appleSystem",
+            "--ui-testing-expanded-text-size", "--ui-testing-archive-collapsed",
+        ]
+        app.launch()
+        let fixture = (app: app, localMidnight: localMidnight, timeZoneIdentifier: timeZoneIdentifier)
+        let diagnostic = XCTAttachment(string: """
+            Content-ready UI measurement prerequisites
+            launchArguments: \(app.launchArguments)
+            textSize: xxxLarge (non-accessibility; fixed by the existing public fixture)
+            archiveOverview: collapsed (fixed by the existing public fixture)
+            localMidnightUnix: \(localMidnight.timeIntervalSince1970)
+            timeZoneIdentifier: \(timeZoneIdentifier)
+            store: isolated ResponsivenessFixtures/v1.store, prepared/reopened by the existing app hook
+            testStoreAccess: no direct file/store reads or writes
+            expectedCurrentDayTask: 성능 작업 0000 작업 편집
+            """)
+        diagnostic.name = "menu-content-ready-measurement-prerequisites"
+        diagnostic.lifetime = .keepAlways
+        add(diagnostic)
+        assertContentMeasurementDay(fixture)
+        waitForFixtureContent("칸반", in: app)
+        assertContentMeasurementDay(fixture)
+        return fixture
+    }
+
+    @MainActor
+    private func assertContentMeasurementDay(_ fixture: ContentReadyFixture) {
+        XCTAssertEqual(
+            TimeZone.current.identifier, fixture.timeZoneIdentifier,
+            "Fixture time zone changed. Do not use these samples for a paired comparison."
+        )
+        XCTAssertEqual(
+            Calendar.current.startOfDay(for: Date()), fixture.localMidnight,
+            "The measurement crossed local midnight. The prepared fixture is date-bound; do not compare these samples."
+        )
+    }
+
+    @MainActor
+    private func navigationMetrics(application app: XCUIApplication) -> [any XCTMetric] {
+        var metrics: [any XCTMetric] = [
+            XCTClockMetric(), XCTCPUMetric(application: app), XCTMemoryMetric(application: app),
+        ]
+        if #available(iOS 26.0, *) { metrics.append(XCTHitchMetric(application: app)) }
+        return metrics
+    }
+
+    @MainActor
+    private func tapFixtureDestination(_ name: String, in app: XCUIApplication) {
+        let tabButton = app.tabBars.buttons[name].firstMatch
+        if tabButton.exists {
+            XCTAssertTrue(tabButton.isHittable, "The root tab must be exposed in this measurement window.")
+            tabButton.tap()
+        } else {
+            // iPad can expose the same destination in an adaptive sidebar.
+            let adaptiveButton = app.buttons[name].firstMatch
+            XCTAssertTrue(adaptiveButton.waitForExistence(timeout: 10))
+            XCTAssertTrue(adaptiveButton.isHittable, "Expose the adaptive root destination before measuring.")
+            adaptiveButton.tap()
+        }
+    }
+
+    @MainActor
+    private func waitForFixtureContent(_ name: String, in app: XCUIApplication) {
+        let content: XCUIElement
+        switch name {
+        case "캘린더":
+            content = app.staticTexts.matching(
+                NSPredicate(format: "label BEGINSWITH %@", "성능 일정 ")
+            ).firstMatch
+        case "기록":
+            content = app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "archive-open-day-")
+            ).firstMatch
+        case "메모":
+            content = app.buttons.matching(
+                NSPredicate(format: "label BEGINSWITH %@", "성능 메모 ")
+            ).firstMatch
+        default:
+            let input = app.textFields["해당 날짜에 할 일 입력"]
+            XCTAssertTrue(input.waitForExistence(timeout: 30))
+            XCTAssertTrue(input.isEnabled)
+            content = app.buttons["성능 작업 0000 작업 편집"]
+        }
+        let contentLoaded = content.waitForExistence(timeout: 30)
+        let failureMessage = name == "칸반"
+            ? "The isolated prepared fixture must show Task 0000 on today's board. A stale fixture date, omitted launch arguments, incomplete fixture, or UI load failure requires diagnosis; refuse this measurement rather than using an empty/demo board."
+            : "\(name) fixture content must load"
+        XCTAssertTrue(contentLoaded, failureMessage)
+        if name == "기록" {
+            // A skeleton or selected tab alone is insufficient. The prepared
+            // fixture must also publish its completion activity overview.
+            let loadedOverview = app.buttons.matching(
+                NSPredicate(format: "identifier == %@ AND label CONTAINS %@",
+                            "archive-overview-disclosure", "일 연속")
+            ).firstMatch
+            XCTAssertTrue(loadedOverview.waitForExistence(timeout: 30))
+            XCTAssertEqual(loadedOverview.value as? String, "접힘", "Keep the Archive render workload fixed.")
         }
     }
 

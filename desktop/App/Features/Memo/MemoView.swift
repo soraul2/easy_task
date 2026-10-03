@@ -35,10 +35,15 @@ struct MemoView: View {
             querySession?.apply(query: newValue, debounce: true)
         }
         .onChange(of: scenePhase) { _, newValue in
-            guard newValue != .active else { return }
+            if newValue == .active {
+                querySession?.refresh()
+                return
+            }
+            querySession?.cancel()
             editorSession?.flush()
         }
         .onDisappear {
+            querySession?.cancel()
             // Release saved snapshots so returning to this tab reads current data.
             // Only a failed draft stays owned by the root until it can be saved.
             if let editorSession,
@@ -590,8 +595,11 @@ private extension MemoView {
     }
 
     func startQueryIfNeeded() {
-        guard querySession == nil else { return }
-        let session = MemoQuerySession(context: modelContext)
+        if let querySession {
+            querySession.refresh()
+            return
+        }
+        let session = MemoQuerySession(context: modelContext, cooperative: true)
         querySession = session
         session.apply(query: searchText, debounce: false)
     }

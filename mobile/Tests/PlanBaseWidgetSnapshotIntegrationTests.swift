@@ -327,6 +327,211 @@ final class PlanBaseWidgetSnapshotIntegrationTests: XCTestCase {
             "A delayed import must not overwrite a newer theme selection."
         )
     }
+
+    @MainActor
+    func testCalendarPublicationDoesNotReviveTodayWhenLatestVersionMovedOutsideCoverage() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let older = try goalWidgetCalendarEvent(physicalID: 101, updatedSeconds: 0)
+        let latest = try goalWidgetCalendarEvent(
+            physicalID: 102, dayKey: "2027-03-02", title: "범위 밖 최신 일정", updatedSeconds: 1
+        )
+        let snapshot = try await publishGoalCalendarSnapshot(events: [older, latest], at: date)
+
+        XCTAssertTrue(snapshot.events.isEmpty)
+        XCTAssertEqual(snapshot.totalEventCount(onDayKey: "2026-10-02"), 0)
+        XCTAssertEqual(snapshot.lockScreenSummary(onDayKey: "2026-10-02")?.eventCount, 0)
+        let today = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date)
+        XCTAssertEqual(today.availability, .available)
+        XCTAssertEqual(today.totalCount, 0)
+        XCTAssertTrue(today.previews.isEmpty)
+        XCTAssertEqual(today.accessibilityText, "오늘 일정 없음")
+    }
+
+    @MainActor
+    func testCalendarPublicationKeepsLatestNextMonthInsteadOfOlderToday() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let nextMonth = try XCTUnwrap(DayKey.date(from: "2026-11-04"))
+        let older = try goalWidgetCalendarEvent(physicalID: 101, updatedSeconds: 0)
+        let latest = try goalWidgetCalendarEvent(
+            physicalID: 102, dayKey: "2026-11-04", title: "다음 달 최신 일정", updatedSeconds: 1
+        )
+        let snapshot = try await publishGoalCalendarSnapshot(events: [latest, older], at: date)
+
+        XCTAssertEqual(snapshot.events.map(\.renderID), [goalWidgetCalendarID(102)])
+        XCTAssertEqual(CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date).totalCount, 0)
+        let future = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: nextMonth)
+        XCTAssertEqual(future.availability, .available)
+        XCTAssertEqual(future.totalCount, 1)
+        XCTAssertEqual(future.previews.map(\.title), ["다음 달 최신 일정"])
+        XCTAssertEqual(future.previews.first?.periodText, "종일")
+        // The new calendar configuration works beyond the task summary horizon.
+        XCTAssertNil(snapshot.lockScreenSummary(onDayKey: "2026-11-04"))
+    }
+
+    @MainActor
+    func testCalendarPublicationBlankLatestTitleDoesNotRestoreOlderToday() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let older = try goalWidgetCalendarEvent(physicalID: 101, updatedSeconds: 0)
+        let latest = try goalWidgetCalendarEvent(physicalID: 102, title: " \n\t ", updatedSeconds: 1)
+        let snapshot = try await publishGoalCalendarSnapshot(events: [older, latest], at: date)
+
+        XCTAssertTrue(snapshot.events.isEmpty)
+        XCTAssertEqual(snapshot.eventCountsByDayKey["2026-10-02"] ?? 0, 0)
+        let today = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date)
+        XCTAssertEqual(today.availability, .available)
+        XCTAssertEqual(today.totalCount, 0)
+        XCTAssertTrue(today.previews.isEmpty)
+    }
+
+    @MainActor
+    func testCalendarPublicationSupersededLatestLeavesActiveOlderRepresentative() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let older = try goalWidgetCalendarEvent(physicalID: 101, title: "남아 있는 활성 일정", updatedSeconds: 0)
+        let latest = try goalWidgetCalendarEvent(
+            physicalID: 102, dayKey: "2027-03-02", title: "대체된 최신 행", updatedSeconds: 1,
+            superseded: true
+        )
+        let snapshot = try await publishGoalCalendarSnapshot(events: [latest, older], at: date)
+
+        XCTAssertEqual(snapshot.events.map(\.renderID), [goalWidgetCalendarID(101)])
+        let today = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date)
+        XCTAssertEqual(today.availability, .available)
+        XCTAssertEqual(today.totalCount, 1)
+        XCTAssertEqual(today.previews.map(\.title), ["남아 있는 활성 일정"])
+    }
+
+    @MainActor
+    func testCalendarPublicationTimestampTieUsesPhysicalIDBeforeDateOrTitleVisibility() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let tomorrow = try XCTUnwrap(DayKey.date(from: "2026-10-03"))
+        // Reverse insertion order with independent in-memory containers each time.
+        // A newer physical ID must win even when it no longer matches today's date.
+        for reversed in [false, true] {
+            let older = try goalWidgetCalendarEvent(physicalID: 101, title: "동률 이전 일정", updatedSeconds: 1)
+            let latest = try goalWidgetCalendarEvent(
+                physicalID: 102, dayKey: "2026-10-03", title: "동률 최신 일정", updatedSeconds: 1
+            )
+            let events = reversed ? [latest, older] : [older, latest]
+            let snapshot = try await publishGoalCalendarSnapshot(events: events, at: date)
+            XCTAssertEqual(snapshot.events.map(\.renderID), [goalWidgetCalendarID(102)])
+            XCTAssertEqual(CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date).totalCount, 0)
+            XCTAssertEqual(CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: tomorrow).previews.map(\.title), ["동률 최신 일정"])
+        }
+        let older = try goalWidgetCalendarEvent(physicalID: 101, title: "동률 유효 이전 제목", updatedSeconds: 1)
+        let latest = try goalWidgetCalendarEvent(physicalID: 102, title: " ", updatedSeconds: 1)
+        let blankSnapshot = try await publishGoalCalendarSnapshot(events: [latest, older], at: date)
+        XCTAssertTrue(blankSnapshot.events.isEmpty)
+        XCTAssertEqual(CalendarLockScreenWidgetRules.presentation(snapshot: blankSnapshot, at: date).totalCount, 0)
+    }
+
+    @MainActor
+    func testCalendarPublicationFeedsTwoTitlesFullCountAndRedactedAccessibility() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let older = try goalWidgetCalendarEvent(physicalID: 101, title: "삭제되지 않은 이전 제목", updatedSeconds: 0)
+        let latest = try goalWidgetCalendarEvent(physicalID: 102, title: "A 최신 비밀 일정", updatedSeconds: 1)
+        let second = try goalWidgetCalendarEvent(logicalID: 2, physicalID: 201, title: "B 상담", updatedSeconds: 0)
+        let third = try goalWidgetCalendarEvent(logicalID: 3, physicalID: 301, title: "C 개인 일정", updatedSeconds: 0)
+        let snapshot = try await publishGoalCalendarSnapshot(events: [older, third, latest, second], at: date)
+
+        XCTAssertEqual(snapshot.events.map(\.renderID), [goalWidgetCalendarID(102), goalWidgetCalendarID(201), goalWidgetCalendarID(301)])
+        XCTAssertEqual(snapshot.eventCountsByDayKey["2026-10-02"], 3)
+        let visible = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date)
+        XCTAssertEqual(visible.totalCount, 3)
+        XCTAssertEqual(visible.previews.map(\.title), ["A 최신 비밀 일정", "B 상담"])
+        XCTAssertEqual(visible.remainingCount, 1)
+        let hidden = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date, redactingDetails: true)
+        XCTAssertEqual(hidden.totalCount, 3)
+        XCTAssertTrue(hidden.previews.isEmpty)
+        XCTAssertEqual(hidden.inlineText, "일정 3개")
+        XCTAssertEqual(hidden.accessibilityText, "오늘 일정 3개")
+    }
+
+    @MainActor
+    func testCalendarPublicationKnownEmptyIsDistinctFromExpiredOrUnreadableSnapshot() async throws {
+        let date = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+        let snapshot = try await publishGoalCalendarSnapshot(events: [], at: date)
+        let confirmed = CalendarLockScreenWidgetRules.presentation(snapshot: snapshot, at: date)
+        XCTAssertEqual(confirmed.availability, .available)
+        XCTAssertEqual(confirmed.totalCount, 0)
+
+        let expiredDate = try XCTUnwrap(DayKey.date(from: snapshot.coveredEndDayKey))
+        let expired = CalendarLockScreenWidgetRules.presentation(
+            snapshot: snapshot, at: DayKey.addingDays(1, to: expiredDate)
+        )
+        XCTAssertEqual(expired.availability, .needsRefresh)
+        XCTAssertNil(expired.totalCount)
+        XCTAssertEqual(expired.inlineText, "앱을 열어 갱신")
+        for state in [CalendarLockScreenAvailability.needsRefresh, .requiresAppUpdate] {
+            let unreadable = CalendarLockScreenWidgetRules.presentation(
+                snapshot: snapshot, at: date, availability: state
+            )
+            XCTAssertEqual(unreadable.availability, state)
+            XCTAssertNil(unreadable.totalCount)
+            XCTAssertTrue(unreadable.previews.isEmpty)
+        }
+        let missing = CalendarLockScreenWidgetRules.presentation(snapshot: nil, at: date)
+        XCTAssertNil(missing.totalCount)
+        XCTAssertEqual(missing.availability, .needsRefresh)
+    }
+}
+
+@MainActor
+private func goalWidgetCalendarEvent(
+    logicalID: Int = 1,
+    physicalID: Int,
+    dayKey: String = "2026-10-02",
+    title: String = "이전 오늘 일정",
+    updatedSeconds: TimeInterval,
+    superseded: Bool = false
+) throws -> CalendarEvent {
+    let referenceDate = try XCTUnwrap(DayKey.date(from: "2026-10-02"))
+    let eventDate = try XCTUnwrap(DayKey.date(from: dayKey))
+    return CalendarEvent(
+        id: goalWidgetCalendarID(logicalID),
+        instanceID: goalWidgetCalendarID(physicalID),
+        title: title,
+        startAt: eventDate,
+        endAt: eventDate,
+        createdAt: referenceDate,
+        updatedAt: referenceDate.addingTimeInterval(updatedSeconds),
+        supersededAt: superseded ? referenceDate.addingTimeInterval(2) : nil
+    )
+}
+
+private func goalWidgetCalendarID(_ value: Int) -> UUID {
+    UUID(uuidString: String(format: "00000000-0000-0000-0000-%012llx", Int64(value)))!
+}
+
+@MainActor
+private func publishGoalCalendarSnapshot(
+    events: [CalendarEvent],
+    at referenceDate: Date,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async throws -> CalendarWidgetSnapshot {
+    let directoryURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("goal-widget-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directoryURL) }
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    for event in events { container.mainContext.insert(event) }
+    try container.mainContext.save()
+    var publicationReloadCallbackCount = 0
+    let didWrite = try await CalendarWidgetSnapshotPublicationService.publish(
+        context: container.mainContext,
+        themeID: AppThemePreset.defaultID,
+        forceWrite: true,
+        referenceDate: referenceDate,
+        directoryURL: directoryURL,
+        reloadTimelines: { publicationReloadCallbackCount += 1 }
+    )
+    XCTAssertTrue(didWrite, file: file, line: line)
+    // This proves only publication callback invocation, not a WidgetKit refresh.
+    XCTAssertEqual(publicationReloadCallbackCount, 1, file: file, line: line)
+    return try XCTUnwrap(
+        CalendarWidgetSnapshotStore.read(directoryURL: directoryURL),
+        file: file,
+        line: line
+    )
 }
 
 private actor WidgetPublicationDelayGate {

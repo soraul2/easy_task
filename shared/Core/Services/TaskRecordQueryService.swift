@@ -144,23 +144,26 @@ enum TaskRecordQueryService {
     ) async throws -> [Model] {
         let pending = context.insertedModelsArray + context.changedModelsArray + context.deletedModelsArray
         let pendingIDs = Set(pending.map(\.persistentModelID))
-        let deletedIDs = Set(context.deletedModelsArray.map(\.persistentModelID))
         var descriptor = source
-        descriptor.includePendingChanges = false
         descriptor.fetchLimit = 256
         var rows: [Model] = []
         var offset = 0
         while true {
             try Swift.Task.checkCancellation()
             descriptor.fetchOffset = offset
-            let batch = try context.fetch(descriptor)
-            rows += batch.filter { !pendingIDs.contains($0.persistentModelID) }
-            if batch.count < 256 { break }
-            offset += batch.count
+            let page = try SavedModelPageReader.read(descriptor, in: context, excluding: pendingIDs)
+            rows += page.rows
+            if page.fetchedCount < 256 { break }
+            offset += page.fetchedCount
             await Swift.Task.yield()
         }
+        // A yield can add, move, supersede or delete a row after the first
+        // pending snapshot. Evaluate the current objects and scope at return.
+        let currentPending = context.insertedModelsArray + context.changedModelsArray
+        let deletedIDs = Set(context.deletedModelsArray.map(\.persistentModelID))
         var seen = Set<PersistentIdentifier>()
-        rows += try pending.compactMap { $0 as? Model }.filter {
+        rows += currentPending.compactMap { $0 as? Model }
+        rows = try rows.filter {
             guard !deletedIDs.contains($0.persistentModelID), seen.insert($0.persistentModelID).inserted
             else { return false }
             return try source.predicate?.evaluate($0) ?? true

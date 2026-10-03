@@ -148,6 +148,37 @@ public enum LockScreenWidgetRules {
         events: [CalendarEvent],
         referenceDate: Date = Date()
     ) -> [LockScreenWidgetDaySummary] {
+        let inputs = preparedSummaryInputs(
+            tasks: tasks, events: events, referenceDate: referenceDate
+        )
+        return (0..<coverageDayCount).map { offset in
+            let dayKey = DayKey.key(for: DayKey.addingDays(offset, to: inputs.startDate))
+            return summary(dayKey: dayKey, tasks: inputs.tasks, events: inputs.events)
+        }
+    }
+
+    @MainActor
+    static func makeTodaySummary(
+        tasks: [Task],
+        events: [CalendarEvent],
+        referenceDate: Date = Date()
+    ) -> LockScreenWidgetDaySummary {
+        let inputs = preparedSummaryInputs(
+            tasks: tasks, events: events, referenceDate: referenceDate
+        )
+        return summary(
+            dayKey: DayKey.key(for: inputs.startDate),
+            tasks: inputs.tasks,
+            events: inputs.events
+        )
+    }
+
+    @MainActor
+    private static func preparedSummaryInputs(
+        tasks: [Task],
+        events: [CalendarEvent],
+        referenceDate: Date
+    ) -> (startDate: Date, tasks: [Task], events: [CalendarEvent]) {
         let startDate = DayKey.startOfDay(for: referenceDate)
         let endDate = DayKey.addingDays(coverageDayCount - 1, to: startDate)
         let startDayKey = DayKey.key(for: startDate)
@@ -159,22 +190,15 @@ public enum LockScreenWidgetRules {
                     && TaskStatus(rawValue: $0.status) != nil
             }
         )
-        let activeEvents = representativeEvents(
-            from: events.filter {
-                $0.supersededAt == nil
-                    && !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && DayKey.date(from: $0.startDayKey) != nil
-                    && DayKey.date(from: $0.endDayKey) != nil
+        let activeEvents = CalendarEventRules.activeRepresentatives(in: events)
+            .filter {
+                CalendarEventRules.hasSnapshotDisplayContent($0)
                     && $0.startDayKey <= $0.endDayKey
                     && $0.startDayKey <= endDayKey
                     && $0.endDayKey >= startDayKey
             }
-        )
 
-        return (0..<coverageDayCount).map { offset in
-            let dayKey = DayKey.key(for: DayKey.addingDays(offset, to: startDate))
-            return summary(dayKey: dayKey, tasks: activeTasks, events: activeEvents)
-        }
+        return (startDate, activeTasks, activeEvents)
     }
 
     @MainActor
@@ -222,18 +246,6 @@ public enum LockScreenWidgetRules {
     @MainActor
     private static func representativeTasks(from tasks: [Task]) -> [Task] {
         Dictionary(grouping: tasks, by: \.id).values.compactMap { candidates in
-            candidates.max { lhs, rhs in
-                if lhs.updatedAt != rhs.updatedAt {
-                    return lhs.updatedAt < rhs.updatedAt
-                }
-                return lhs.instanceID.uuidString < rhs.instanceID.uuidString
-            }
-        }
-    }
-
-    @MainActor
-    private static func representativeEvents(from events: [CalendarEvent]) -> [CalendarEvent] {
-        Dictionary(grouping: events, by: \.id).values.compactMap { candidates in
             candidates.max { lhs, rhs in
                 if lhs.updatedAt != rhs.updatedAt {
                     return lhs.updatedAt < rhs.updatedAt

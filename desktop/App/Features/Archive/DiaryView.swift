@@ -43,7 +43,7 @@ struct DiaryView: View {
     @State private var loadedDayKey: String?
     @State private var loadFailure: String?
     @State private var initialSnapshot: DiaryComposerSnapshot?
-    @State private var isTaskSummaryExpanded = true
+    @State private var isTaskSummaryExpanded = false
     @State private var pendingDate: Date?
     @State private var showsDateChangeConfirmation = false
     @FocusState private var focusedField: DesktopReviewField?
@@ -185,10 +185,10 @@ struct DiaryView: View {
                         Button("다시 시도", action: loadSelectedReview)
                             .buttonStyle(PlanBaseButtonStyle())
                     } else {
-                    taskSummarySection
-                    titleSection
-                    contentSection
-                    imageSection
+                        titleSection
+                        contentSection
+                        taskSummarySection
+                        imageSection
                     }
                 }
                 .frame(maxWidth: composerMaxWidth)
@@ -450,7 +450,7 @@ struct DiaryView: View {
             )
         } ?? []
         selectedImageIndex = 0
-        isTaskSummaryExpanded = true
+        isTaskSummaryExpanded = false
         message = nil
         messageIsError = false
         isSaving = false

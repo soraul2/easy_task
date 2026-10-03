@@ -10,26 +10,40 @@ public final class SavedTaskQuickEntryController {
     public private(set) var highlightedID: UUID?
     public private(set) var failure: String?
 
-    public init() {}
+    @ObservationIgnored private(set) var preparedAliasKeys: [UUID: String] = [:]
+    @ObservationIgnored private let loadLibrary: @MainActor (ModelContext) throws -> [SavedTaskEntry]
+    @ObservationIgnored private var localeObserver: SavedTaskLocaleObserver?
 
-    public var suggestions: [SavedTaskEntry] { SavedTaskShortcutRules.suggestions(entries, input: input) }
+    public init() {
+        loadLibrary = { try SavedTaskLibraryService.load(in: $0) }
+        observeLocaleChanges()
+    }
+
+    init(loadLibrary: @escaping @MainActor (ModelContext) throws -> [SavedTaskEntry]) {
+        self.loadLibrary = loadLibrary
+        observeLocaleChanges()
+    }
+
+    public private(set) var suggestions: [SavedTaskEntry] = []
 
     public func update(_ text: String, in context: ModelContext) {
         let wasCommand = SavedTaskShortcutRules.query(in: input) != nil
         let changed = input != text
         input = text
         guard SavedTaskShortcutRules.query(in: text) != nil else {
-            isPresented = false; highlightedID = nil; failure = nil; entries = []
+            isPresented = false; highlightedID = nil; failure = nil; entries = []; suggestions = []
+            preparedAliasKeys = [:]
             return
         }
         if changed { highlightedID = nil; failure = nil; isPresented = true }
         if !wasCommand { refresh(in: context) }
+        else if changed { updateSuggestions() }
     }
 
     public func refresh(in context: ModelContext) {
         guard SavedTaskShortcutRules.query(in: input) != nil else { return }
         do {
-            entries = try SavedTaskLibraryService.load(in: context)
+            try reloadLibrary(in: context)
             if !suggestions.contains(where: { $0.id == highlightedID }) { highlightedID = nil }
         } catch { failure = error.localizedDescription }
     }
@@ -62,7 +76,7 @@ public final class SavedTaskQuickEntryController {
     public func add(input text: String, selectedID: UUID? = nil, on date: Date, in context: ModelContext) -> Task? {
         update(text, in: context)
         do {
-            entries = try SavedTaskLibraryService.load(in: context)
+            try reloadLibrary(in: context)
             let id: UUID
             if let selected = selectedID ?? highlightedID {
                 guard suggestions.contains(where: { $0.id == selected }) else { throw SavedTaskLibraryService.Failure.unavailable }
@@ -79,4 +93,34 @@ public final class SavedTaskQuickEntryController {
             return nil
         }
     }
+
+    private func updateSuggestions() {
+        suggestions = SavedTaskShortcutRules.suggestions(entries, input: input, preparedAliasKeys: preparedAliasKeys)
+    }
+
+    private func reloadLibrary(in context: ModelContext) throws {
+        let values = try loadLibrary(context)
+        let keys = SavedTaskShortcutRules.aliasKeys(in: values)
+        entries = values
+        preparedAliasKeys = keys
+        updateSuggestions()
+    }
+
+    private func observeLocaleChanges() {
+        localeObserver = SavedTaskLocaleObserver(NotificationCenter.default.addObserver(
+            forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            Swift.Task { @MainActor [weak self] in
+                guard let self else { return }
+                updateSuggestions()
+                if !suggestions.contains(where: { $0.id == highlightedID }) { highlightedID = nil }
+            }
+        })
+    }
+}
+
+private final class SavedTaskLocaleObserver: @unchecked Sendable {
+    private let token: any NSObjectProtocol
+    init(_ token: any NSObjectProtocol) { self.token = token }
+    deinit { NotificationCenter.default.removeObserver(token) }
 }

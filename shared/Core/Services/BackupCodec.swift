@@ -8,13 +8,24 @@ public enum BackupCodec {
     @MainActor
     public static func makePayload(context: ModelContext) throws -> BackupPayload {
         _ = try DataIntegrityService.reconcile(context: context)
+        return try makePayloadAfterReconciliation(context: context)
+    }
+
+    /// Internal export entry. The caller must reconcile this same context first,
+    /// without suspension or mutation before constructing the payload.
+    @MainActor
+    static func makePayloadAfterReconciliation(context: ModelContext) throws -> BackupPayload {
         let tasks = try context.fetch(FetchDescriptor<Task>()).filter { $0.supersededAt == nil }
+        var tasksByPlacementID: [UUID: [Task]] = [:]
+        for task in tasks {
+            guard let placementID = task.templatePlacementId else { continue }
+            tasksByPlacementID[placementID, default: []].append(task)
+        }
         let placements = try context.fetch(FetchDescriptor<TemplatePlacement>())
             .filter { $0.supersededAt == nil }
             .map { placement in
             var dto = TemplatePlacementDTO(placement: placement)
-            dto.taskIds = tasks
-                .filter { $0.templatePlacementId == placement.id }
+            dto.taskIds = (tasksByPlacementID[placement.id] ?? [])
                 .sorted {
                     if $0.order != $1.order { return $0.order < $1.order }
                     return $0.id.uuidString < $1.id.uuidString

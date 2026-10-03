@@ -408,6 +408,253 @@ struct PlanBaseLockScreenWidget: Widget {
     }
 }
 
+struct PlanBaseCalendarLockScreenEntry: TimelineEntry {
+    let date: Date
+    let snapshot: CalendarWidgetSnapshot?
+    let snapshotState: PlanBaseWidgetSnapshotAvailability
+
+    private var availability: CalendarLockScreenAvailability {
+        switch snapshotState {
+        case .available: .available
+        case .unsupportedNewerSchema: .requiresAppUpdate
+        case .missing, .corrupt, .staleCoverage: .needsRefresh
+        }
+    }
+
+    func presentation(redactingDetails: Bool = false) -> CalendarLockScreenPresentation {
+        CalendarLockScreenWidgetRules.presentation(
+            snapshot: snapshot,
+            at: date,
+            availability: availability,
+            redactingDetails: redactingDetails
+        )
+    }
+
+    func timeline() -> (entries: [CalendarLockScreenTimelineEntry], refreshDate: Date) {
+        CalendarLockScreenWidgetRules.timeline(
+            snapshot: snapshot,
+            startingAt: date,
+            availability: availability
+        )
+    }
+}
+
+struct PlanBaseCalendarLockScreenProvider: TimelineProvider {
+    func placeholder(in context: Context) -> PlanBaseCalendarLockScreenEntry {
+        previewEntry(at: Date())
+    }
+
+    func getSnapshot(
+        in context: Context,
+        completion: @escaping (PlanBaseCalendarLockScreenEntry) -> Void
+    ) {
+        let date = Date()
+        completion(context.isPreview ? previewEntry(at: date) : loadEntry(at: date))
+    }
+
+    func getTimeline(
+        in context: Context,
+        completion: @escaping (Timeline<PlanBaseCalendarLockScreenEntry>) -> Void
+    ) {
+        let now = Date()
+        let entry = loadEntry(at: now)
+        let schedule = entry.timeline()
+        let entries = schedule.entries.map {
+            PlanBaseCalendarLockScreenEntry(
+                date: $0.date,
+                snapshot: entry.snapshot,
+                snapshotState: entry.snapshotState == .available &&
+                    $0.availability == .needsRefresh
+                    ? .staleCoverage : entry.snapshotState
+            )
+        }
+        completion(Timeline(
+            entries: entries,
+            policy: .after(schedule.refreshDate)
+        ))
+    }
+
+    private func loadEntry(at date: Date) -> PlanBaseCalendarLockScreenEntry {
+        let snapshot: CalendarWidgetSnapshot?
+        let state: PlanBaseWidgetSnapshotAvailability
+        do {
+            snapshot = try CalendarWidgetSnapshotStore.read()
+            state = snapshot == nil ? .missing : .available
+        } catch CalendarWidgetSnapshotStore.StoreError.unsupportedSchemaVersion {
+            snapshot = nil
+            state = .unsupportedNewerSchema
+        } catch {
+            snapshot = nil
+            state = .corrupt
+        }
+        return PlanBaseCalendarLockScreenEntry(
+            date: date,
+            snapshot: snapshot,
+            snapshotState: state
+        )
+    }
+
+    private func previewEntry(at date: Date) -> PlanBaseCalendarLockScreenEntry {
+        PlanBaseCalendarLockScreenEntry(
+            date: date,
+            snapshot: .calendarLockScreenPreview(at: date),
+            snapshotState: .available
+        )
+    }
+}
+
+struct PlanBaseCalendarLockScreenWidgetView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.redactionReasons) private var redactionReasons
+    let entry: PlanBaseCalendarLockScreenEntry
+
+    private var presentation: CalendarLockScreenPresentation {
+        // The same redacted value drives both visible text and accessibility.
+        entry.presentation(redactingDetails: redactionReasons.contains(.privacy))
+    }
+
+    private var theme: CalendarWidgetTheme {
+        CalendarWidgetTheme(
+            themeID: entry.snapshot?.themeID,
+            colorScheme: colorScheme,
+            renderingMode: renderingMode
+        )
+    }
+
+    var body: some View {
+        if let url = PlanBaseDeepLink.calendarTodayURL() {
+            Link(destination: url) {
+                Group {
+                    switch family {
+                    case .accessoryCircular: circularContent
+                    case .accessoryRectangular: rectangularContent
+                    default: inlineContent
+                    }
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(presentation.accessibilityText)
+            .foregroundStyle(theme.primaryText)
+            .tint(theme.accent)
+            .containerBackground(for: .widget) { Color.clear }
+        }
+    }
+
+    private var inlineContent: some View {
+        Label {
+            Text(presentation.inlineText)
+                .privacySensitive(!presentation.previews.isEmpty)
+                .lineLimit(1)
+        } icon: {
+            Image(systemName: "calendar")
+        }
+    }
+
+    private var circularContent: some View {
+        ZStack {
+            AccessoryWidgetBackground()
+            VStack(spacing: 1) {
+                Image(systemName: presentation.availability == .available
+                      ? "calendar" : "arrow.clockwise")
+                    .font(.system(size: 12, weight: .semibold))
+                    .widgetAccentable()
+                if let count = presentation.totalCount {
+                    Text(count, format: .number)
+                        .font(.system(size: 21, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                } else {
+                    Text(presentation.availability == .requiresAppUpdate ? "업데이트" : "갱신")
+                        .font(.system(size: 9, weight: .semibold))
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var rectangularContent: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Label(presentation.countText, systemImage: "calendar")
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if presentation.remainingCount > 0 && !presentation.previews.isEmpty {
+                    Text("+\(presentation.remainingCount)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .monospacedDigit()
+                }
+            }
+            ForEach(presentation.previews) { event in
+                HStack(spacing: 4) {
+                    Text(event.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Text(event.periodText)
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                }
+                .privacySensitive()
+            }
+            if presentation.totalCount.map({ $0 > 0 }) == true &&
+                presentation.previews.isEmpty {
+                Text("앱에서 확인")
+                    .font(.system(size: 12))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private extension CalendarWidgetSnapshot {
+    static func calendarLockScreenPreview(at date: Date) -> CalendarWidgetSnapshot {
+        let dayKey = DayKey.key(for: date)
+        return CalendarWidgetSnapshot(
+            generatedAt: date,
+            eventCountsByDayKey: [dayKey: 3],
+            events: [
+                CalendarWidgetEventSnapshot(
+                    id: UUID(),
+                    title: "프로젝트 일정",
+                    startDayKey: DayKey.key(for: DayKey.addingDays(-1, to: date)),
+                    endDayKey: DayKey.key(for: DayKey.addingDays(1, to: date)),
+                    colorID: CalendarEventPalette.defaultColor
+                ),
+                CalendarWidgetEventSnapshot(
+                    id: UUID(),
+                    title: "팀 미팅",
+                    startDayKey: dayKey,
+                    endDayKey: dayKey,
+                    colorID: CalendarEventPalette.defaultColor
+                )
+            ]
+        )
+    }
+}
+
+struct PlanBaseCalendarLockScreenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: CalendarWidgetConstants.calendarLockScreenKind,
+            provider: PlanBaseCalendarLockScreenProvider()
+        ) { entry in
+            PlanBaseCalendarLockScreenWidgetView(entry: entry)
+        }
+        .configurationDisplayName("PlanBase 오늘 일정")
+        .description("오늘 캘린더 일정과 기간, 전체 일정 수를 확인합니다.")
+        .supportedFamilies([
+            .accessoryInline,
+            .accessoryCircular,
+            .accessoryRectangular
+        ])
+    }
+}
+
 #if DEBUG
 private struct PlanBaseLockScreenWidgetPreviews: PreviewProvider {
     static var previews: some View {
@@ -429,6 +676,47 @@ private struct PlanBaseLockScreenWidgetPreviews: PreviewProvider {
         snapshot: .lockScreenPreview,
         snapshotState: .available
     )
+}
+
+private struct PlanBaseCalendarLockScreenWidgetPreviews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            PlanBaseCalendarLockScreenWidgetView(entry: entry)
+                .previewContext(WidgetPreviewContext(family: .accessoryInline))
+                .previewDisplayName("일정 한 줄")
+            PlanBaseCalendarLockScreenWidgetView(entry: entry)
+                .previewContext(WidgetPreviewContext(family: .accessoryCircular))
+                .previewDisplayName("일정 수")
+            PlanBaseCalendarLockScreenWidgetView(entry: entry)
+                .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
+                .previewDisplayName("일정 제목과 기간")
+            PlanBaseCalendarLockScreenWidgetView(entry: entry)
+                .redacted(reason: .privacy)
+                .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
+                .previewDisplayName("일정 비공개")
+            PlanBaseCalendarLockScreenWidgetView(entry: emptyEntry)
+                .previewContext(WidgetPreviewContext(family: .accessoryRectangular))
+                .previewDisplayName("일정 없음")
+        }
+    }
+
+    private static var entry: PlanBaseCalendarLockScreenEntry {
+        let date = Date()
+        return PlanBaseCalendarLockScreenEntry(
+            date: date,
+            snapshot: .calendarLockScreenPreview(at: date),
+            snapshotState: .available
+        )
+    }
+
+    private static var emptyEntry: PlanBaseCalendarLockScreenEntry {
+        let date = Date()
+        return PlanBaseCalendarLockScreenEntry(
+            date: date,
+            snapshot: CalendarWidgetSnapshot(generatedAt: date, events: []),
+            snapshotState: .available
+        )
+    }
 }
 #endif
 #endif

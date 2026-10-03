@@ -46,12 +46,10 @@ public enum TaskProgressEventIntegrityService {
             ])
             descriptor.fetchOffset = offset
             descriptor.fetchLimit = resolvedPageSize
-            descriptor.includePendingChanges = false
-            let batch = try context.fetch(descriptor)
+            let page = try SavedModelPageReader.read(
+                descriptor, in: context, excluding: pendingIdentifiers)
 
-            for event in batch where
-                event.supersededAt == nil &&
-                !pendingIdentifiers.contains(event.persistentModelID) {
+            for event in page.rows where event.supersededAt == nil {
                 if isCancelled() { throw CancellationError() }
                 guard try normalize(event, in: context, report: &report) else { continue }
                 if pendingID == event.id {
@@ -63,8 +61,8 @@ public enum TaskProgressEventIntegrityService {
                 }
             }
 
-            guard batch.count == resolvedPageSize else { break }
-            offset += batch.count
+            guard page.fetchedCount == resolvedPageSize else { break }
+            offset += page.fetchedCount
         }
         reconcileGroup(pendingGroup, report: &report)
         try reconcilePendingGroups(

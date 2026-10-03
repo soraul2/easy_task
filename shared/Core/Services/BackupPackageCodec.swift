@@ -20,19 +20,19 @@ public enum BackupPackageCodec {
     ) throws -> BackupPackageContents {
         _ = try DataIntegrityService.reconcile(context: context)
         try validateFinalAttachmentCounts(context: context)
-        var payload = try BackupCodec.makePayload(context: context)
+        // Keep the former makePayload reconciliation at the same post-count
+        // boundary until single-pass convergence is proven for every repair.
+        _ = try DataIntegrityService.reconcile(context: context)
+        var payload = try BackupCodec.makePayloadAfterReconciliation(context: context)
         payload.exportedAt = exportedAt
 
         let reviews = try context.fetch(FetchDescriptor<DailyReview>())
             .filter { $0.supersededAt == nil }
         let blocks = try context.fetch(FetchDescriptor<DiaryBlock>())
         let allAttachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        let attachmentIndex = DiaryAttachmentIndex(attachments: allAttachments, blocks: blocks)
         let unresolvedLegacyCount = reviews.reduce(0) { count, review in
-            count + DiaryAttachmentService.unresolvedLegacyImageFileNames(
-                for: review,
-                blocks: blocks,
-                attachments: allAttachments
-            ).count
+            count + attachmentIndex.unresolvedLegacyImageFileNames(for: review).count
         }
         guard unresolvedLegacyCount == 0 else {
             throw BackupPackageError.unresolvedLegacyAttachments(unresolvedLegacyCount)
@@ -50,7 +50,7 @@ public enum BackupPackageCodec {
         }
         try BackupCodec.validate(payload)
 
-        let attachments = try context.fetch(FetchDescriptor<DiaryAttachment>())
+        let attachments = allAttachments
             .filter { $0.supersededAt == nil }
             .sorted {
                 if $0.reviewId != $1.reviewId {

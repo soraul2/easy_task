@@ -128,9 +128,8 @@ struct MobileBoardView: View {
 
     private func refreshBoard() throws {
         let rows = try modelContext.fetch(BoundedQueryService.boardTasksDescriptor(selectedDayKey: selectedDayKey))
-        let events = try modelContext.fetch(BoundedQueryService.eventsDescriptor(
-            overlappingStartDayKey: selectedDayKey, endDayKey: selectedDayKey
-        ))
+        let events = try BoundedQueryService.events(
+            overlappingStartDayKey: selectedDayKey, endDayKey: selectedDayKey, in: modelContext)
         selectedDayTaskRows = rows
         boardTasks = BoardQueryRules.tasksForBoard(rows, selectedDayKey: selectedDayKey)
         dayEvents = CalendarEventRules.events(onDayKey: selectedDayKey, in: events)

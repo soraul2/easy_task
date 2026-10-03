@@ -20,6 +20,12 @@ public final class MemoQuerySession {
     @ObservationIgnored private var retryRefresh = false
     @ObservationIgnored private var nextCursor: MemoQueryCursor?
     @ObservationIgnored private var pendingSearch: Swift.Task<Void, Never>?
+    @ObservationIgnored private var pendingLoad: Swift.Task<Void, Never>?
+    @ObservationIgnored private var cooperativeLoader: MemoCooperativePageLoader?
+    @ObservationIgnored private var readValidity: MemoReadValidity?
+    @ObservationIgnored private var publishedVersion: MemoReadVersion?
+    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var pendingDepth = 0
 
     public init(context: ModelContext, loadPage: PageLoader? = nil) {
         self.context = context
@@ -28,13 +34,34 @@ public final class MemoQuerySession {
         }
     }
 
+    /// Explicit UI opt-in. The existing initializer and PageLoader remain synchronous.
+    public convenience init(context: ModelContext, cooperative: Bool) {
+        self.init(context: context)
+        if cooperative {
+            cooperativeLoader = { context, query, cursor, checkpoint in
+                try await MemoService.cooperativePage(in: context, query: query, cursor: cursor,
+                                                      checkpoint: checkpoint)
+            }
+            readValidity = MemoReadValidity(context: context)
+        }
+    }
+
+    convenience init(context: ModelContext, cooperativeLoader: @escaping MemoCooperativePageLoader,
+                     additionalRevision: @escaping @MainActor () -> Int = { 0 }) {
+        self.init(context: context)
+        self.cooperativeLoader = cooperativeLoader
+        readValidity = MemoReadValidity(context: context, additionalRevision: additionalRevision)
+    }
+
     deinit {
         pendingSearch?.cancel()
+        pendingLoad?.cancel()
     }
 
     public func apply(query: String, debounce: Bool) {
         requestedQuery = query
         pendingSearch?.cancel()
+        if cooperativeLoader != nil { cancelRead() }
         guard debounce else {
             resetAndLoad(query: query)
             return
@@ -53,6 +80,14 @@ public final class MemoQuerySession {
 
     public func loadNextPage() {
         guard !isLoading, memos.isEmpty || hasMore else { return }
+        if cooperativeLoader != nil {
+            guard query == requestedQuery else {
+                resetAndLoad(query: requestedQuery)
+                return
+            }
+            startCooperativeRead(appending: true, depth: max(loadedPageCount + 1, 1))
+            return
+        }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -76,6 +111,10 @@ public final class MemoQuerySession {
         pendingSearch?.cancel()
         guard query == requestedQuery else {
             resetAndLoad(query: requestedQuery)
+            return
+        }
+        if cooperativeLoader != nil {
+            startCooperativeRead(appending: false, depth: max(max(loadedPageCount, pendingDepth), 1))
             return
         }
         // Keep the published rows until every requested page has loaded.
@@ -119,12 +158,23 @@ public final class MemoQuerySession {
         hasMore = true
         loadNextPage()
     }
+
+    /// Retains published rows and refresh depth; editor drafts are owned separately.
+    public func cancel() {
+        pendingSearch?.cancel()
+        cancelRead()
+    }
+
+    var readPosition: (depth: Int, cursor: MemoQueryCursor?) { (loadedPageCount, nextCursor) }
 }
 
 private extension MemoQuerySession {
     func resetAndLoad(query: String) {
+        if cooperativeLoader != nil { cancelRead() }
         self.query = query
         loadedPageCount = 0
+        pendingDepth = 0
+        publishedVersion = nil
         retryRefresh = false
         memos = []
         summaries = [:]
@@ -132,5 +182,69 @@ private extension MemoQuerySession {
         hasMore = true
         errorMessage = nil
         loadNextPage()
+    }
+
+    func cancelRead() {
+        pendingLoad?.cancel()
+        pendingLoad = nil
+        generation &+= 1
+        isLoading = false
+    }
+
+    func startCooperativeRead(appending: Bool, depth: Int) {
+        guard let loader = cooperativeLoader, let validity = readValidity else { return }
+        cancelRead()
+        let requestGeneration = generation
+        let requestQuery = query
+        let context = context
+        let targetDepth = max(depth, 1)
+        let published: MemoCooperativeReadResult?
+        if appending, let version = publishedVersion {
+            published = MemoCooperativeReadResult(memos: memos, summaries: summaries,
+                nextCursor: nextCursor, hasMore: hasMore, depth: loadedPageCount, version: version)
+        } else { published = nil }
+        pendingDepth = targetDepth
+        isLoading = true
+        errorMessage = nil
+        // No strong session reference spans an await; dropping the session cancels this task.
+        pendingLoad = Swift.Task { [weak self] in
+            do {
+                let result = try await MemoCooperativeRead.run(context: context, query: requestQuery,
+                    targetDepth: targetDepth, appendTo: published, validity: validity, loader: loader)
+                self?.finishCooperativeRead(result, generation: requestGeneration)
+            } catch is CancellationError {
+                // Only the current generation can publish rows, errors or loading state.
+            } catch {
+                self?.failCooperativeRead(generation: requestGeneration, appending: appending)
+            }
+        }
+    }
+
+    func finishCooperativeRead(_ result: MemoCooperativeReadResult, generation requestGeneration: Int) {
+        guard requestGeneration == generation else { return }
+        guard readValidity?.capture() == result.version else {
+            startCooperativeRead(appending: false, depth: max(result.depth, pendingDepth))
+            return
+        }
+        memos = result.memos
+        summaries = result.summaries
+        nextCursor = result.nextCursor
+        hasMore = result.hasMore
+        loadedPageCount = result.depth
+        publishedVersion = result.version
+        pendingDepth = 0
+        errorMessage = nil
+        retryRefresh = false
+        isLoading = false
+        pendingLoad = nil
+    }
+
+    func failCooperativeRead(generation requestGeneration: Int, appending: Bool) {
+        guard requestGeneration == generation else { return }
+        errorMessage = "메모를 불러오지 못했습니다."
+        retryRefresh = !appending
+        if appending { hasMore = false }
+        isLoading = false
+        pendingLoad = nil
     }
 }

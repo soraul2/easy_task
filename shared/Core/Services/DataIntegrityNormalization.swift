@@ -184,6 +184,15 @@ extension DataIntegrityService {
 
     @MainActor
     static func normalizeDiaryAttachment(_ attachment: DiaryAttachment) -> Int {
+        var changes = normalizeDiaryAttachmentScalars(attachment)
+        if let metadata = try? DiaryAttachmentService.inspect(attachment.data) {
+            changes += normalizeDiaryAttachmentMetadata(attachment, metadata: metadata)
+        }
+        return changes
+    }
+
+    @MainActor
+    static func normalizeDiaryAttachmentScalars(_ attachment: DiaryAttachment) -> Int {
         var changes = normalizeTimestamps(attachment)
         if !attachment.order.isFinite {
             changes += assign(attachment, \.order, 0)
@@ -192,11 +201,17 @@ extension DataIntegrityService {
             attachment, \.originalFileName,
             normalizedOptionalText(attachment.originalFileName).map { String($0.prefix(255)) }
         )
-        if let metadata = try? DiaryAttachmentService.inspect(attachment.data) {
-            changes += assign(attachment, \.mimeType, metadata.mediaType.rawValue)
-            changes += assign(attachment, \.byteCount, metadata.byteCount)
-            changes += assign(attachment, \.sha256, metadata.sha256)
-        }
+        return changes
+    }
+
+    @MainActor
+    static func normalizeDiaryAttachmentMetadata(
+        _ attachment: DiaryAttachment,
+        metadata: DiaryAttachmentMetadata
+    ) -> Int {
+        var changes = assign(attachment, \.mimeType, metadata.mediaType.rawValue)
+        changes += assign(attachment, \.byteCount, metadata.byteCount)
+        changes += assign(attachment, \.sha256, metadata.sha256)
         return changes
     }
 

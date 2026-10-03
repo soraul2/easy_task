@@ -15,11 +15,10 @@ enum WatchWidgetSnapshotPublicationService {
         let tasks = try context.fetch(
             BoundedQueryService.boardTasksDescriptor(selectedDayKey: dayKey)
         )
-        let events = try context.fetch(
-            BoundedQueryService.eventsDescriptor(
-                overlappingStartDayKey: dayKey,
-                endDayKey: dayKey
-            )
+        let events = try BoundedQueryService.events(
+            overlappingStartDayKey: dayKey,
+            endDayKey: dayKey,
+            in: context
         )
         let snapshot = WatchWidgetSnapshot.make(
             tasks: tasks,

@@ -15,18 +15,17 @@ struct DesktopCalendarQueryRange: Hashable {
 }
 
 struct DesktopCalendarMonthQueryHost<Content: View>: View {
-    @Query private var events: [CalendarEvent]
+    @Environment(\.modelContext) private var modelContext
+    @State private var events: [CalendarEvent] = []
     @Query private var templatePlacements: [TemplatePlacement]
+    private let range: DesktopCalendarQueryRange
     private let content: ([CalendarEvent], [TemplatePlacement]) -> Content
 
     init(
         range: DesktopCalendarQueryRange,
         @ViewBuilder content: @escaping ([CalendarEvent], [TemplatePlacement]) -> Content
     ) {
-        _events = Query(BoundedQueryService.eventsDescriptor(
-            overlappingStartDayKey: range.startDayKey,
-            endDayKey: range.endDayKey
-        ))
+        self.range = range
         _templatePlacements = Query(BoundedQueryService.templatePlacementsDescriptor(
             from: range.startDayKey,
             through: range.endDayKey
@@ -35,6 +34,11 @@ struct DesktopCalendarMonthQueryHost<Content: View>: View {
     }
 
     var body: some View {
-        content(events, templatePlacements)
+        content(events.filter { $0.modelContext != nil }, templatePlacements)
+            .refreshVisibleData(key: "\(range.startDayKey):\(range.endDayKey)", domains: .calendar) {
+                events = try BoundedQueryService.events(
+                    overlappingStartDayKey: range.startDayKey, endDayKey: range.endDayKey,
+                    in: modelContext)
+            }
     }
 }

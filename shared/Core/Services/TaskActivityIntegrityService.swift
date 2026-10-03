@@ -56,12 +56,10 @@ public enum TaskActivityIntegrityService {
             ])
             descriptor.fetchOffset = offset
             descriptor.fetchLimit = resolvedPageSize
-            descriptor.includePendingChanges = false
-            let batch = try context.fetch(descriptor)
+            let page = try SavedModelPageReader.read(
+                descriptor, in: context, excluding: pendingIdentifiers)
 
-            for activity in batch where
-                activity.supersededAt == nil &&
-                !pendingIdentifiers.contains(activity.persistentModelID) {
+            for activity in page.rows where activity.supersededAt == nil {
                 if isCancelled() { throw CancellationError() }
                 guard let key = normalize(
                     activity,
@@ -82,8 +80,8 @@ public enum TaskActivityIntegrityService {
                 }
             }
 
-            guard batch.count == resolvedPageSize else { break }
-            offset += batch.count
+            guard page.fetchedCount == resolvedPageSize else { break }
+            offset += page.fetchedCount
         }
         try reconcileNaturalAndCrossDayGroup(
             pendingGroup,

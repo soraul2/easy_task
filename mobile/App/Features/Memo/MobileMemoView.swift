@@ -20,6 +20,8 @@ private final class MobileMemoRoute: Identifiable {
 }
 
 struct MobileMemoView: View {
+    @Environment(\.planBaseContentIsActive) private var contentIsActive
+    @Environment(\.scenePhase) private var scenePhase
     var onShowTheme: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -84,6 +86,13 @@ struct MobileMemoView: View {
         .refreshVisibleData(key: "memo", domains: .memos) {
             refreshQuery()
             selection?.session.refreshFromStore()
+        }
+        .onDisappear { querySession?.cancel() }
+        .onChange(of: contentIsActive) { _, active in
+            if active && scenePhase == .active { querySession?.refresh() } else { querySession?.cancel() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && contentIsActive { querySession?.refresh() } else { querySession?.cancel() }
         }
         .onChange(of: searchText) { _, newValue in
             querySession?.apply(query: newValue, debounce: true)
@@ -314,10 +323,10 @@ private extension MobileMemoView {
                     return try MemoService.page(in: context, query: query, cursor: cursor)
                 }
             } else {
-                querySession = MemoQuerySession(context: modelContext)
+                querySession = MemoQuerySession(context: modelContext, cooperative: true)
             }
             #else
-            querySession = MemoQuerySession(context: modelContext)
+            querySession = MemoQuerySession(context: modelContext, cooperative: true)
             #endif
         }
         // Search changes are applied by onChange. Refresh preserves loaded pages
@@ -464,13 +473,6 @@ private struct MobileMemoEditorView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("memo-save-state")
                 Spacer()
-                if case .failed = editorSession.saveState {
-                    Button("다시 시도") {
-                        editorSession.flush()
-                    }
-                    .buttonStyle(PlanBaseButtonStyle(.secondary))
-                    .accessibilityIdentifier("memo-save-retry")
-                }
             }
             .foregroundStyle(saveStateColor(editorSession.saveState))
             .frame(minHeight: 38)
@@ -497,6 +499,19 @@ private struct MobileMemoEditorView: View {
                     Label("메모", systemImage: "chevron.backward")
                 }
                 .accessibilityIdentifier("memo-editor-back")
+            }
+            if case .failed = editorSession.saveState {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        editorSession.flush()
+                    } label: {
+                        Label("다시 시도", systemImage: "arrow.clockwise")
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("다시 시도")
+                    .accessibilityIdentifier("memo-save-retry")
+                }
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if editorSession.canChooseType {
@@ -533,6 +548,14 @@ private struct MobileMemoEditorView: View {
                 }
                 .disabled(editorSession.memo == nil || editorSession.loadErrorMessage != nil)
                 .accessibilityLabel("메모 삭제")
+            }
+            ToolbarItemGroup(placement: .keyboard) {
+                if editorSession.preferredMode == .text {
+                    Spacer()
+                    Button("완료") { editorFocused = false }
+                        .accessibilityLabel("키보드 닫기")
+                        .accessibilityIdentifier("memo-text-keyboard-dismiss")
+                }
             }
         }
         .alert("메모 삭제", isPresented: $showingDeleteConfirmation) {
@@ -771,9 +794,14 @@ private struct MobileMemoDrawingCanvas: UIViewRepresentable {
             canvas.drawing = drawing
         }
 
-        context.coordinator.toolPicker.addObserver(canvas)
-        DispatchQueue.main.async {
-            context.coordinator.toolPicker.setVisible(true, forFirstResponder: canvas)
+        let coordinator = context.coordinator
+        coordinator.activeCanvas = canvas
+        coordinator.toolPicker.addObserver(canvas)
+        DispatchQueue.main.async { [weak canvas, weak coordinator] in
+            // A removed or replaced canvas must not reveal its picker later.
+            guard let canvas, let coordinator,
+                  coordinator.activeCanvas === canvas else { return }
+            coordinator.toolPicker.setVisible(true, forFirstResponder: canvas)
             canvas.becomeFirstResponder()
         }
         return canvas
@@ -792,8 +820,18 @@ private struct MobileMemoDrawingCanvas: UIViewRepresentable {
         }
     }
 
+    static func dismantleUIView(_ canvas: PKCanvasView, coordinator: Coordinator) {
+        // Invalidate queued presentation before removing UIKit associations.
+        if coordinator.activeCanvas === canvas { coordinator.activeCanvas = nil }
+        coordinator.toolPicker.setVisible(false, forFirstResponder: canvas)
+        coordinator.toolPicker.removeObserver(canvas)
+        canvas.resignFirstResponder()
+    }
+
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         let toolPicker = PKToolPicker()
+        // This lifetime guards picker presentation, not delayed drawing updates.
+        weak var activeCanvas: PKCanvasView?
         var onDrawingChanged: (Data) -> Void
 
         init(onDrawingChanged: @escaping (Data) -> Void) {

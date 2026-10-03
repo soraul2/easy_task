@@ -87,11 +87,10 @@ enum CalendarWidgetSnapshotPublicationService {
         nextPublicationSequence += 1
         let publicationSequence = nextPublicationSequence
         let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
-        let events = try context.fetch(
-            BoundedQueryService.eventsDescriptor(
-                overlappingStartDayKey: coverage.startDayKey,
-                endDayKey: coverage.endDayKey
-            )
+        let events = try BoundedQueryService.events(
+            overlappingStartDayKey: coverage.startDayKey,
+            endDayKey: coverage.endDayKey,
+            in: context
         )
         let tasks: [PlanBaseCore.Task]?
         do {
@@ -141,6 +140,9 @@ enum CalendarWidgetSnapshotPublicationService {
 #if os(iOS)
         WidgetCenter.shared.reloadTimelines(
             ofKind: CalendarWidgetConstants.lockScreenKind
+        )
+        WidgetCenter.shared.reloadTimelines(
+            ofKind: CalendarWidgetConstants.calendarLockScreenKind
         )
 #endif
     }

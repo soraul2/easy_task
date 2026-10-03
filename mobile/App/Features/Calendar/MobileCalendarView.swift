@@ -37,9 +37,9 @@ private struct MobileCalendarMonthQueryHost<Content: View>: View {
     var body: some View {
         content(events.filter { $0.modelContext != nil }, templatePlacements.filter { $0.modelContext != nil })
             .refreshVisibleData(key: "\(range.startDayKey):\(range.endDayKey)", domains: [.calendar, .tasks, .templates]) {
-                let newEvents = try modelContext.fetch(BoundedQueryService.eventsDescriptor(
-                    overlappingStartDayKey: range.startDayKey, endDayKey: range.endDayKey
-                ))
+                let newEvents = try BoundedQueryService.events(
+                    overlappingStartDayKey: range.startDayKey, endDayKey: range.endDayKey,
+                    in: modelContext)
                 let placements = try modelContext.fetch(BoundedQueryService.templatePlacementsDescriptor(
                     from: range.startDayKey, through: range.endDayKey
                 ))
@@ -213,6 +213,11 @@ struct MobileCalendarView: View {
             let dates = DayKey.adaptiveMonthGridDates(for: visibleMonth)
             let rowCount = max(1, dates.count / 7)
             let isPlacementMode = placementTemplate != nil
+            let cellCounts = CalendarMonthCountProjection.make(
+                dates: dates,
+                events: isPlacementMode ? [] : events,
+                templatePlacements: isPlacementMode ? [] : templatePlacements
+            )
             let usesGraphicEventBars = dynamicTypeSize.isAccessibilitySize
             let headerHeight: CGFloat = usesGraphicEventBars ? 38 : 28
             let gridHeight = max(
@@ -269,16 +274,17 @@ struct MobileCalendarView: View {
                     ZStack(alignment: .topLeading) {
                         LazyVGrid(columns: columns, spacing: 0) {
                             ForEach(Array(dates.enumerated()), id: \.element) { index, date in
+                                let dayKey = DayKey.key(for: date)
                                 MobileMonthDayCell(
                                     date: date,
                                     visibleMonth: visibleMonth,
-                                    isSelected: DayKey.key(for: date) == DayKey.key(for: selectedDate),
-                                    isPlacementSelected: placementDayKeys.contains(DayKey.key(for: date)),
-                                    events: isPlacementMode ? [] : eventsForDate(date, in: events),
-                                    templatePlacements: isPlacementMode ? [] : placementsForDate(date, in: templatePlacements),
+                                    isSelected: dayKey == DayKey.key(for: selectedDate),
+                                    isPlacementSelected: placementDayKeys.contains(dayKey),
+                                    eventCount: cellCounts.eventCount(onDayKey: dayKey),
+                                    templatePlacementCount: cellCounts.placementCount(onDayKey: dayKey),
                                     hiddenEventCount: isPlacementMode
                                         ? 0
-                                        : layout.hiddenEventCountByDayKey[DayKey.key(for: date)] ?? 0,
+                                        : layout.hiddenEventCountByDayKey[dayKey] ?? 0,
                                     // The 40pt accessibility date badge and count fit side by side in wide cells.
                                     showsInlineOverflowCount: !usesGraphicEventBars || cellWidth >= 72,
                                     specialDays: specialDayStore.days(on: date),
@@ -336,17 +342,6 @@ struct MobileCalendarView: View {
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
         }
-    }
-
-    private func eventsForDate(_ date: Date, in events: [CalendarEvent]) -> [CalendarEvent] {
-        CalendarEventRules.events(on: date, in: events)
-    }
-
-    private func placementsForDate(
-        _ date: Date,
-        in templatePlacements: [TemplatePlacement]
-    ) -> [TemplatePlacement] {
-        TemplateService.placements(on: date, in: templatePlacements)
     }
 
     private var validPlacementDrafts: [TemplateTaskDraft] {

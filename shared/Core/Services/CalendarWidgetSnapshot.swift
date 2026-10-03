@@ -71,6 +71,10 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     public let lockScreenCoveredEndDayKey: String?
     public let lockScreenDaySummaries: [LockScreenWidgetDaySummary]?
     public let plannerTaskPreviewsByDayKey: [String: [PlannerWidgetTaskPreview]]?
+    // Decoding provenance only: never changes the published JSON format.
+    // Legacy readers can keep fallback values while a V5 calendar reader can
+    // distinguish complete full-count metadata from a capped-preview fallback.
+    let hasCompleteCalendarMetadata: Bool
 
     public init(
         schemaVersion: Int = currentSchemaVersion,
@@ -101,6 +105,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         self.lockScreenCoveredEndDayKey = lockScreenCoveredEndDayKey
         self.lockScreenDaySummaries = lockScreenDaySummaries
         self.plannerTaskPreviewsByDayKey = plannerTaskPreviewsByDayKey
+        self.hasCompleteCalendarMetadata = true
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -121,14 +126,20 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let generatedAt = try container.decode(Date.self, forKey: .generatedAt)
         let defaultCoverage = Self.defaultCoverage(for: generatedAt)
-        let coveredStartDayKey = try container.decodeIfPresent(
+        let storedCoveredStartDayKey = try container.decodeIfPresent(
             String.self,
             forKey: .coveredStartDayKey
-        ) ?? defaultCoverage.startDayKey
-        let coveredEndDayKey = try container.decodeIfPresent(
+        )
+        let storedCoveredEndDayKey = try container.decodeIfPresent(
             String.self,
             forKey: .coveredEndDayKey
-        ) ?? defaultCoverage.endDayKey
+        )
+        let storedEventCounts = try container.decodeIfPresent(
+            [String: Int].self,
+            forKey: .eventCountsByDayKey
+        )
+        let coveredStartDayKey = storedCoveredStartDayKey ?? defaultCoverage.startDayKey
+        let coveredEndDayKey = storedCoveredEndDayKey ?? defaultCoverage.endDayKey
         let events = try container.decode(
             [CalendarWidgetEventSnapshot].self,
             forKey: .events
@@ -139,10 +150,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         self.themeID = try container.decodeIfPresent(String.self, forKey: .themeID)
         self.coveredStartDayKey = coveredStartDayKey
         self.coveredEndDayKey = coveredEndDayKey
-        self.eventCountsByDayKey = try container.decodeIfPresent(
-            [String: Int].self,
-            forKey: .eventCountsByDayKey
-        ) ?? Self.eventCounts(
+        self.eventCountsByDayKey = storedEventCounts ?? Self.eventCounts(
             for: events,
             startDayKey: coveredStartDayKey,
             endDayKey: coveredEndDayKey
@@ -164,6 +172,9 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
             [String: [PlannerWidgetTaskPreview]].self,
             forKey: .plannerTaskPreviewsByDayKey
         )
+        self.hasCompleteCalendarMetadata = schemaVersion < 5 ||
+            (storedCoveredStartDayKey != nil && storedCoveredEndDayKey != nil &&
+                storedEventCounts != nil)
     }
 
     @MainActor
@@ -179,17 +190,14 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
         let rangeEnd = DayKey.addingDays(-1, to: DayKey.addingMonths(3, to: monthStart))
         let rangeEndKey = DayKey.key(for: rangeEnd)
 
-        let representatives = representativeEvents(
-            from: events
+        // Visibility cannot revive an older physical row when the latest active
+        // representative moved away or contains a blank/invalid value.
+        let representatives = CalendarEventRules.activeRepresentatives(in: events)
             .filter { event in
-                event.supersededAt == nil
-                    && !event.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && DayKey.date(from: event.startDayKey) != nil
-                    && DayKey.date(from: event.endDayKey) != nil
+                CalendarEventRules.hasSnapshotDisplayContent(event)
                     && event.startDayKey <= rangeEndKey
                     && event.endDayKey >= rangeStartKey
             }
-        )
         let allSnapshots = representatives
             .map { snapshot(for: $0) }
             .sorted(by: snapshotSort)
@@ -329,19 +337,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
             && lockScreenCoveredEndDayKey == other.lockScreenCoveredEndDayKey
             && lockScreenDaySummaries == other.lockScreenDaySummaries
             && plannerTaskPreviewsByDayKey == other.plannerTaskPreviewsByDayKey
-    }
-
-    private static func representativeEvents(
-        from events: [CalendarEvent]
-    ) -> [CalendarEvent] {
-        Dictionary(grouping: events, by: \.id).values.compactMap { candidates in
-            candidates.max { lhs, rhs in
-                if lhs.updatedAt != rhs.updatedAt {
-                    return lhs.updatedAt < rhs.updatedAt
-                }
-                return lhs.instanceID.uuidString < rhs.instanceID.uuidString
-            }
-        }
+            && hasCompleteCalendarMetadata == other.hasCompleteCalendarMetadata
     }
 
     private static func snapshot(for event: CalendarEvent) -> CalendarWidgetEventSnapshot {

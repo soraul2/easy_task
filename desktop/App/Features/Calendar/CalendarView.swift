@@ -597,23 +597,7 @@ struct CalendarView: View {
         on date: Date,
         in events: [CalendarEvent]
     ) -> [CalendarEvent] {
-        let dayEvents = CalendarEventRules.events(on: date, in: events)
-        let representativeItems = CalendarEventGridLayout.representativeItems(
-            from: dayEvents.map {
-                CalendarEventGridLayoutItem(
-                    renderID: $0.instanceID,
-                    eventID: $0.id,
-                    title: $0.title,
-                    startDayKey: $0.startDayKey,
-                    endDayKey: $0.endDayKey,
-                    updatedAt: $0.updatedAt
-                )
-            }
-        )
-        let renderIDs = Set(representativeItems.map(\.renderID))
-        return CalendarEventRules.sorted(
-            dayEvents.filter { renderIDs.contains($0.instanceID) }
-        )
+        CalendarEventRules.events(on: date, in: events)
     }
 
 }

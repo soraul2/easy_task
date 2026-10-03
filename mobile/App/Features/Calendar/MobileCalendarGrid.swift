@@ -10,8 +10,24 @@ struct CalendarHeader: View {
     var onShowTemplates: () -> Void
     var onAddEvent: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var headerLeadingCornerInset: CGFloat = 0
 
     var body: some View {
+        if #available(iOS 26.0, *) {
+            headerContent
+                .padding(.leading, headerLeadingCornerInset)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, geometry.containerCornerInsets.topLeading.width)
+                } action: { leadingInset in
+                    headerLeadingCornerInset = leadingInset
+                }
+        } else {
+            headerContent
+        }
+    }
+
+    private var headerContent: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 8) {
@@ -196,8 +212,8 @@ struct MobileMonthDayCell: View {
     var visibleMonth: Date
     var isSelected: Bool
     var isPlacementSelected: Bool
-    var events: [CalendarEvent]
-    var templatePlacements: [TemplatePlacement]
+    var eventCount: Int
+    var templatePlacementCount: Int
     var hiddenEventCount: Int
     var showsInlineOverflowCount: Bool
     var specialDays: [SpecialDay]
@@ -251,9 +267,9 @@ struct MobileMonthDayCell: View {
         if isSelected { parts.append("선택됨") }
         if isPlacementSelected { parts.append("배치 선택됨") }
         if let specialDay = specialDays.first { parts.append(specialDay.name) }
-        if !events.isEmpty { parts.append("일정 \(events.count)개") }
+        if eventCount > 0 { parts.append("일정 \(eventCount)개") }
         if hiddenEventCount > 0 { parts.append("숨겨진 일정 \(hiddenEventCount)개") }
-        if !templatePlacements.isEmpty { parts.append("템플릿 배치 \(templatePlacements.count)개") }
+        if templatePlacementCount > 0 { parts.append("템플릿 배치 \(templatePlacementCount)개") }
         return parts.joined(separator: ", ")
     }
 
@@ -285,11 +301,11 @@ struct MobileMonthDayCell: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.accent)
                         .padding(.top, 2)
-                } else if !templatePlacements.isEmpty {
+                } else if templatePlacementCount > 0 {
                     HStack(spacing: 2) {
                         Image(systemName: "square.grid.3x3.fill")
-                        if templatePlacements.count > 1 {
-                            Text("\(templatePlacements.count)")
+                        if templatePlacementCount > 1 {
+                            Text("\(templatePlacementCount)")
                         }
                     }
                     .font(.caption2.weight(.semibold))
@@ -298,7 +314,7 @@ struct MobileMonthDayCell: View {
                     .padding(.vertical, 2)
                     .background(AppTheme.selectedTab, in: Capsule())
                     .fixedSize()
-                    .accessibilityLabel("템플릿 배치 \(templatePlacements.count)개")
+                    .accessibilityLabel("템플릿 배치 \(templatePlacementCount)개")
                         .padding(.top, 2)
                 }
             }

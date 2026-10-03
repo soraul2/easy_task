@@ -46,12 +46,10 @@ public enum FocusSessionIntegrityService {
             ])
             descriptor.fetchOffset = offset
             descriptor.fetchLimit = resolvedPageSize
-            descriptor.includePendingChanges = false
-            let batch = try context.fetch(descriptor)
+            let page = try SavedModelPageReader.read(
+                descriptor, in: context, excluding: pendingIdentifiers)
 
-            for session in batch where
-                session.supersededAt == nil &&
-                !pendingIdentifiers.contains(session.persistentModelID) {
+            for session in page.rows where session.supersededAt == nil {
                 if isCancelled() { throw CancellationError() }
                 guard normalize(session, report: &report) else { continue }
                 if pendingID == session.id {
@@ -63,8 +61,8 @@ public enum FocusSessionIntegrityService {
                 }
             }
 
-            guard batch.count == resolvedPageSize else { break }
-            offset += batch.count
+            guard page.fetchedCount == resolvedPageSize else { break }
+            offset += page.fetchedCount
         }
         reconcileGroup(pendingGroup, report: &report)
         try reconcilePendingGroups(

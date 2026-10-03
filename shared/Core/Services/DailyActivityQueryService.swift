@@ -6,15 +6,36 @@ import SwiftData
 @MainActor
 public final class DailyActivityQueryService {
     private let context: ModelContext
+    private let progressReader: DailyProgressIndexLoader
+    private let reviewChanges: PersistenceViewRevision
+    private var taskChanges: PersistenceViewRevision?
     private var progressIndex: [UUID: TaskProgressProjection]?
     private var progressCoverageStart: Date?
+    private var progressSource: DailyProgressReadSource?
+    private var readerGeneration = 0
     private let batchSize = 256
 
-    public init(context: ModelContext) { self.context = context }
+    public convenience init(context: ModelContext) {
+        let container = context.container
+        self.init(context: context, progressReader: { request in
+            try await Self.readProgressIndex(request, in: container)
+        })
+    }
+
+    init(context: ModelContext, progressReader: @escaping DailyProgressIndexLoader) {
+        self.context = context
+        self.progressReader = progressReader
+        reviewChanges = PersistenceViewRevision(context: context, domains: .reviews)
+        taskChanges = PersistenceViewRevision(context: context, domains: .tasks) { [weak self] in
+            self?.invalidate()
+        }
+    }
 
     public func invalidate() {
+        readerGeneration &+= 1
         progressIndex = nil
         progressCoverageStart = nil
+        progressSource = nil
     }
 
     public func page(
@@ -23,6 +44,10 @@ public final class DailyActivityQueryService {
         referenceDate: Date = Date()
     ) async throws -> ArchiveQueryPage {
         try Swift.Task.checkCancellation()
+        let source = captureProgressSource()
+        if source.hasChanges || (progressSource != nil && progressSource != source) { invalidate() }
+        let requestGeneration = readerGeneration
+        let reviewRevision = reviewChanges.value
         let range = ArchiveQueryRules.dayKeyRange(for: filter, referenceDate: referenceDate)
         let extent = try BoundedQueryService.archiveDayKeyExtent(basis: .completed, in: context)
         var activityFirst = FetchDescriptor<TaskCompletionActivity>(
@@ -52,7 +77,10 @@ public final class DailyActivityQueryService {
         guard let lowerKey = range.lowerBound ?? sourceLower,
             let lowerDate = DayKey.date(from: lowerKey),
             var upperDate = DayKey.date(from: range.upperBound)
-        else { return emptyPage }
+        else {
+            try validate(source: source, generation: requestGeneration, reviewRevision: reviewRevision)
+            return emptyPage
+        }
         if let beforeDayKey, let before = DayKey.date(from: beforeDayKey) {
             upperDate = min(upperDate, DayKey.addingDays(-1, to: before))
         }
@@ -62,7 +90,9 @@ public final class DailyActivityQueryService {
         while upperDate >= lowerDate, records.count < BoundedQueryService.archivePageSize {
             try Swift.Task.checkCancellation()
             let windowStart = max(lowerDate, DayKey.addingDays(-29, to: upperDate))
-            let window = try await window(from: windowStart, through: upperDate, filter: filter)
+            let window = try await window(
+                from: windowStart, through: upperDate, filter: filter,
+                source: source, generation: requestGeneration)
             let selected = Array(window.records.prefix(BoundedQueryService.archivePageSize - records.count))
             records += selected
             let reviewIDs = Set(selected.compactMap { $0.review?.id })
@@ -73,6 +103,7 @@ public final class DailyActivityQueryService {
         }
         let last = records.last?.dayKey
         let hasMore = records.count == BoundedQueryService.archivePageSize && (last ?? lowerKey) > lowerKey
+        try validate(source: source, generation: requestGeneration, reviewRevision: reviewRevision)
         return ArchiveQueryPage(
             records: records, attachments: attachments, blocks: blocks,
             nextBeforeDayKey: hasMore ? last : nil, hasMore: hasMore
@@ -83,41 +114,64 @@ public final class DailyActivityQueryService {
         ArchiveQueryPage(records: [], attachments: [], blocks: [], nextBeforeDayKey: nil, hasMore: false)
     }
 
-    private func prepareProgressIndex(from lowerDate: Date) async throws {
-        if let progressCoverageStart, progressCoverageStart <= lowerDate { return }
+    private func captureProgressSource() -> DailyProgressReadSource {
+        DailyProgressReadSource(context: context, revision: taskChanges?.value ?? 0)
+    }
+
+    private func validate(source: DailyProgressReadSource, generation: Int,
+                          reviewRevision: Int? = nil) throws {
         try Swift.Task.checkCancellation()
-        let pendingModels =
-            context.insertedModelsArray + context.changedModelsArray + context.deletedModelsArray
-        let excludedIDs = Set(pendingModels.compactMap { ($0 as? TaskProgressEvent)?.persistentModelID })
-        let deletedIDs = Set(context.deletedModelsArray.map(\.persistentModelID))
-        var seen = Set<PersistentIdentifier>()
-        let pending = pendingModels.compactMap { $0 as? TaskProgressEvent }.filter {
-            !deletedIDs.contains($0.persistentModelID) && seen.insert($0.persistentModelID).inserted
-        }.map(TaskProgressEventSnapshot.init)
-        let container = context.container
-        let existingTaskIDs = Set(progressIndex?.keys.map { $0 } ?? [])
+        guard readerGeneration == generation, captureProgressSource() == source
+        else { throw DailyActivityReadInvalidated.changed }
+        if let reviewRevision, reviewChanges.value != reviewRevision {
+            throw DailyActivityReadInvalidated.changed
+        }
+    }
+
+    private func prepareProgressIndex(from lowerDate: Date, source: DailyProgressReadSource,
+                                      generation: Int) async throws -> [UUID: TaskProgressProjection] {
+        try validate(source: source, generation: generation)
+        if !source.hasChanges, progressSource == source,
+           let progressCoverageStart, progressCoverageStart <= lowerDate, let progressIndex {
+            return progressIndex
+        }
+        let existing = !source.hasChanges && progressSource == source ? (progressIndex ?? [:]) : [:]
+        let request = DailyProgressIndexRequest(
+            from: lowerDate, existingTaskIDs: Set(existing.keys), excluding: Set(source.pending.keys),
+            pending: source.pending.values.filter { ($0.roles & 4) == 0 }.map(\.snapshot))
+        let index = try await progressReader(request)
+        try validate(source: source, generation: generation)
+        // Dirty overlays belong to this request, including unrelated unsaved drafts.
+        guard !source.hasChanges else { return index }
+        let merged = (progressIndex ?? [:]).merging(index) { _, new in new }
+        progressIndex = merged
+        progressSource = source
+        progressCoverageStart = min(progressCoverageStart ?? lowerDate, lowerDate)
+        return merged
+    }
+
+    static func readProgressIndex(_ request: DailyProgressIndexRequest,
+                                  in container: ModelContainer) async throws -> [UUID: TaskProgressProjection] {
         // A dedicated context enumerates once instead of repeatedly offset-scanning the same history.
         // Only immutable projections cross back to the UI's actor.
         let read = Swift.Task.detached(priority: .userInitiated) {
             let reader = DailyProgressIndexReader(modelContainer: container)
             return try await reader.read(
-                from: lowerDate, existingTaskIDs: existingTaskIDs,
-                excluding: excludedIDs, pending: pending)
+                from: request.from, existingTaskIDs: request.existingTaskIDs,
+                excluding: request.excluding, pending: request.pending)
         }
-        let index = try await withTaskCancellationHandler {
+        return try await withTaskCancellationHandler {
             try await read.value
         } onCancel: {
             read.cancel()
         }
-        try Swift.Task.checkCancellation()
-        progressIndex = (progressIndex ?? [:]).merging(index) { _, new in new }
-        progressCoverageStart = lowerDate
     }
 
-    private func window(from start: Date, through end: Date, filter: ArchiveFilter) async throws
+    private func window(from start: Date, through end: Date, filter: ArchiveFilter,
+                        source: DailyProgressReadSource, generation: Int) async throws
         -> ArchiveQueryPage
     {
-        try await prepareProgressIndex(from: start)
+        let progress = try await prepareProgressIndex(from: start, source: source, generation: generation)
         let lower = DayKey.key(for: start)
         let upper = DayKey.key(for: end)
         let endExclusive = DayKey.addingDays(1, to: end)
@@ -141,7 +195,7 @@ public final class DailyActivityQueryService {
             }
         }
 
-        for (taskID, projection) in progressIndex ?? [:] {
+        for (taskID, projection) in progress {
             try Swift.Task.checkCancellation()
             let progressByDay = DailyActivityRules.progressEvidenceByDay(
                 projection, from: start, through: end)
@@ -300,7 +354,18 @@ public final class DailyActivityQueryService {
     private func fetch<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) async throws -> [Model] {
         var result: [Model] = []
         try await batches(descriptor) { result += $0 }
-        return result
+        // A batch yield can change a registered row without changing the
+        // progress source (for example while an unrelated draft is pending).
+        // Recheck the current window and overlay edits made during the scan.
+        result += (context.insertedModelsArray + context.changedModelsArray)
+            .compactMap { $0 as? Model }
+        let deletedIDs = Set(context.deletedModelsArray.map(\.persistentModelID))
+        var seen: Set<PersistentIdentifier> = []
+        return try result.filter {
+            guard !deletedIDs.contains($0.persistentModelID),
+                  seen.insert($0.persistentModelID).inserted else { return false }
+            return try descriptor.predicate?.evaluate($0) ?? true
+        }
     }
 
     private func batches<Model: PersistentModel>(
@@ -311,16 +376,15 @@ public final class DailyActivityQueryService {
         let pendingIDs = Set(pending.compactMap { ($0 as? Model)?.persistentModelID })
         let deletedIDs = Set(context.deletedModelsArray.map(\.persistentModelID))
         var descriptor = source
-        descriptor.includePendingChanges = false
         descriptor.fetchLimit = batchSize
         var offset = 0
         while true {
             try Swift.Task.checkCancellation()
             descriptor.fetchOffset = offset
-            let rows = try context.fetch(descriptor)
-            consume(rows.filter { !pendingIDs.contains($0.persistentModelID) })
-            if rows.count < batchSize { break }
-            offset += rows.count
+            let page = try SavedModelPageReader.read(descriptor, in: context, excluding: pendingIDs)
+            consume(page.rows)
+            if page.fetchedCount < batchSize { break }
+            offset += page.fetchedCount
             await Swift.Task.yield()
         }
         var seen = Set<PersistentIdentifier>()
@@ -331,6 +395,63 @@ public final class DailyActivityQueryService {
         }
         consume(pendingRows)
         try Swift.Task.checkCancellation()
+    }
+}
+
+enum DailyActivityReadInvalidated: Error { case changed }
+
+struct DailyProgressIndexRequest: Sendable {
+    let from: Date
+    let existingTaskIDs: Set<UUID>
+    let excluding: Set<PersistentIdentifier>
+    let pending: [TaskProgressEventSnapshot]
+}
+
+typealias DailyProgressIndexLoader = @MainActor (DailyProgressIndexRequest) async throws
+    -> [UUID: TaskProgressProjection]
+
+private struct DailyProgressPendingValue: Equatable {
+    let roles: Int
+    let snapshot: TaskProgressEventSnapshot
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        let a = lhs.snapshot
+        let b = rhs.snapshot
+        guard lhs.roles == rhs.roles, a.id == b.id, a.instanceID == b.instanceID,
+              a.taskId == b.taskId, a.kindRawValue == b.kindRawValue, a.originRawValue == b.originRawValue
+        else { return false }
+        return a.occurredAt.timeIntervalSinceReferenceDate.bitPattern == b.occurredAt.timeIntervalSinceReferenceDate.bitPattern
+            && a.createdAt.timeIntervalSinceReferenceDate.bitPattern == b.createdAt.timeIntervalSinceReferenceDate.bitPattern
+            && a.updatedAt.timeIntervalSinceReferenceDate.bitPattern == b.updatedAt.timeIntervalSinceReferenceDate.bitPattern
+            && a.supersededAt?.timeIntervalSinceReferenceDate.bitPattern == b.supersededAt?.timeIntervalSinceReferenceDate.bitPattern
+    }
+}
+
+private struct DailyProgressReadSource: Equatable {
+    let revision: Int
+    let hasChanges: Bool
+    let pending: [PersistentIdentifier: DailyProgressPendingValue]
+
+    @MainActor
+    init(context: ModelContext, revision: Int) {
+        self.revision = revision
+        hasChanges = context.hasChanges
+        let groups = [(context.insertedModelsArray, 1), (context.changedModelsArray, 2),
+                      (context.deletedModelsArray, 4)]
+        var roles: [PersistentIdentifier: Int] = [:]
+        for (models, role) in groups {
+            for case let event as TaskProgressEvent in models {
+                roles[event.persistentModelID, default: 0] |= role
+            }
+        }
+        var values: [PersistentIdentifier: DailyProgressPendingValue] = [:]
+        for (models, _) in groups {
+            for case let event as TaskProgressEvent in models {
+                values[event.persistentModelID] = DailyProgressPendingValue(
+                    roles: roles[event.persistentModelID] ?? 0, snapshot: TaskProgressEventSnapshot(event))
+            }
+        }
+        pending = values
     }
 }
 

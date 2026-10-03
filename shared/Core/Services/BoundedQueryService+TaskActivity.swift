@@ -42,10 +42,10 @@ extension BoundedQueryService {
             )
             descriptor.fetchOffset = offset
             descriptor.fetchLimit = taskActivityBatchSize
-            descriptor.includePendingChanges = false
-            let batch = try context.fetch(descriptor)
+            let page = try SavedModelPageReader.read(
+                descriptor, in: context, excluding: pendingIdentifiers)
 
-            snapshots.append(contentsOf: batch.compactMap { activity in
+            snapshots.append(contentsOf: page.rows.compactMap { activity in
                 guard activity.supersededAt == nil,
                       lowerBound <= activity.activityDayKey,
                       activity.activityDayKey <= upperBound,
@@ -57,8 +57,8 @@ extension BoundedQueryService {
                     activityDayKey: activity.activityDayKey
                 )
             })
-            guard batch.count == taskActivityBatchSize else { break }
-            offset += batch.count
+            guard page.fetchedCount == taskActivityBatchSize else { break }
+            offset += page.fetchedCount
         }
 
         snapshots.append(contentsOf: pendingActivities.compactMap { activity in
@@ -85,10 +85,17 @@ extension BoundedQueryService {
         before dayKey: String,
         in context: ModelContext
     ) throws -> Bool {
-        if (context.insertedModelsArray + context.changedModelsArray)
+        let deletedIdentifiers = Set(context.deletedModelsArray.map(\.persistentModelID))
+        let pendingModels = context.insertedModelsArray + context.changedModelsArray
+        let pendingIdentifiers = Set(
+            (pendingModels + context.deletedModelsArray).compactMap {
+                ($0 as? TaskCompletionActivity)?.persistentModelID
+            })
+        if pendingModels
             .compactMap({ $0 as? TaskCompletionActivity })
             .contains(where: {
-                $0.supersededAt == nil && $0.activityDayKey < dayKey
+                !deletedIdentifiers.contains($0.persistentModelID) &&
+                    $0.supersededAt == nil && $0.activityDayKey < dayKey
             }) {
             return true
         }
@@ -96,12 +103,26 @@ extension BoundedQueryService {
             predicate: #Predicate<TaskCompletionActivity> { activity in
                 activity.supersededAt == nil && activity.activityDayKey < dayKey
             },
-            sortBy: [SortDescriptor(\TaskCompletionActivity.activityDayKey, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\TaskCompletionActivity.activityDayKey, order: .reverse),
+                SortDescriptor(\TaskCompletionActivity.instanceID)
+            ]
         )
-        descriptor.fetchLimit = 1
-        descriptor.includePendingChanges = false
-        return try context.fetch(descriptor).contains { activity in
-            activity.supersededAt == nil && activity.activityDayKey < dayKey
+        var offset = 0
+        var pageSize = 1
+        while true {
+            descriptor.fetchOffset = offset
+            descriptor.fetchLimit = pageSize
+            let page = try SavedModelPageReader.read(
+                descriptor, in: context, excluding: pendingIdentifiers)
+            if page.rows.contains(where: {
+                $0.supersededAt == nil && $0.activityDayKey < dayKey
+            }) { return true }
+            guard page.fetchedCount == pageSize else { return false }
+            // A pending move/deletion can exclude the first saved row. Continue
+            // through saved identifiers instead of reporting a false empty result.
+            offset += page.fetchedCount
+            pageSize = taskActivityBatchSize
         }
     }
 }

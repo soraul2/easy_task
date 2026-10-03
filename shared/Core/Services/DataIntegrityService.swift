@@ -126,7 +126,8 @@ public enum DataIntegrityService {
         normalizeActive(checklistItems, with: normalizeChecklistItem, report: &report)
         normalizeActive(reviews, with: normalizeReview, report: &report)
         normalizeActive(diaryBlocks, with: normalizeDiaryBlock, report: &report)
-        normalizeActive(diaryAttachments, with: normalizeDiaryAttachment, report: &report)
+        // Attachment normalization runs in the reference loop so the same
+        // actual inspection result can be used locally without retaining N Data.
         normalizeActive(memos, with: normalizeMemo, report: &report)
         normalizeActive(memoDrawings, with: normalizeMemoDrawing, report: &report)
         normalizeActive(

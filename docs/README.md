@@ -5,12 +5,13 @@
 
 ## 현재 상태
 
-기준일: 2026-10-02
+기준일: 2026-10-03
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
 | 최신 업로드 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md), iOS·iPadOS·watchOS 및 macOS |
-| 배포 확인 | 두 플랫폼 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
+| 배포 준비 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md), 두 archive·iOS Production 패키지·전체 게이트 확인 완료. iOS 계정 오류·Mac 설치 서명 인증서 부재 이후 사용자 요청으로 업로드 후속 보류 및 Git 반영. 계정·설정은 사용자가 직접 준비하며 업로드 성공은 미확인 |
+| build 86 배포 확인 | 두 플랫폼 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
 | 최근 변경 | [보드의 저장한 작업 `/` 안내와 접근성 힌트](releases/TESTFLIGHT_BUILD_86.md#포함한-변경) |
 | build 86 확인 | Debug 511·Release 507 공통 테스트, 전체 플랫폼 게이트, Release archive·Production 서명·배포 패키지 확인 |
@@ -39,6 +40,7 @@
 
 | 주제 | 상태와 연결 문서 |
 |---|---|
+| [2026-10-02 성능·사용 흐름 최적화](plans/active/OPTIMIZATION_2026_10_02_PLAN.md) | 9영역 조사·채택, 메뉴/초기 로딩10조건 비교, 최신 main UI2개·전체 플랫폼 게이트·안내 검토 완료. 2026-10-03 최신 사용자 지시로 실제 잠금 화면·Watch·일부 Mac 인수와 TestFlight87 업로드를 후속 보류하고 현재 변경의 commit·push를 진행한다. Goal 도구의 이전 blocked 상태와 화면 미완료 기록은 유지한다. [결과와 측정 한계](plans/active/OPTIMIZATION_2026_10_02_RESULTS.md), [Goal 실행 프롬프트](plans/active/OPTIMIZATION_2026_10_02_GOAL_PROMPT.md) |
 | [2026-09-29 캘린더 추천 사용성](plans/active/CALENDAR_RECOMMENDATION_USABILITY_REVIEW_2026_09_29.md) | build 84 구현·공통/플랫폼 회귀·격리 화면·업로드 완료, 수동 IME·VoiceOver 등 미확인 범위 유지 |
 | [2026-09-28 탭 반응성·Focus](plans/active/TAB_RESPONSIVENESS_AND_FOCUS_2026_09_28_RESULTS.md) | build 83 구현·빌드·업로드 완료, 기능·성능 실측 미실행 |
 | [2026-09-22 UI·UX](plans/active/UI_UX_2026_09_22_PLAN.md) | 필수 로컬 구현·검증 완료. [결과·실기기 미확인 범위](plans/active/UI_UX_2026_09_22_RESULTS.md), [최초 점검](plans/active/UI_UX_2026_09_22_AUDIT.md), [접근성 54건 분류](plans/active/UI_UX_2026_09_22_ACCESSIBILITY.md), [실행 프롬프트](plans/active/UI_UX_2026_09_22_GOAL_PROMPT.md) |
@@ -69,6 +71,7 @@
 - [macOS 바탕화면 네이티브 위젯](plans/active/MACOS_DESKTOP_WIDGET_PLAN.md)
 - [월간 일정·오늘 작업 플래너 위젯](plans/active/PLANNER_WIDGET_PLAN.md)
 - [잠금 화면 위젯](plans/active/LOCK_SCREEN_WIDGET_PLAN.md)
+- [오늘 캘린더 일정 잠금 화면 위젯 사용 안내](CALENDAR_LOCK_SCREEN_WIDGET_GUIDE.md): 기능 포함 버전의 추가 방법·표시 내용·마지막 발행 데이터와 갱신 한계. 실제 OS 화면 확인은 최적화 결과의 미완료 항목을 따른다.
 - [Task 중심 잠금 화면·Live Activity](plans/active/LOCK_SCREEN_TASK_LIVE_ACTIVITY_PLAN.md)
 
 실제 위젯 갤러리·잠금 인증·저휘도·알림 전달과 Watch 햅틱은 각 문서의 미완료 항목을 따른다.
@@ -98,6 +101,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
+| [TestFlight 1.0 (87) 준비](releases/TESTFLIGHT_BUILD_87.md) | 2026-10-03 최적화·오늘 일정 잠금 화면 위젯, 실제 화면 인수 후속 보류 |
 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md) | 2026-10-02 저장한 작업 `/` 빠른 입력 안내 |
 | [TestFlight 1.0 (85)](releases/TESTFLIGHT_BUILD_85.md) | 2026-09-29 Dynamic Island 타이머·Focus 상태·장시간 표시 개선 |
 | [TestFlight 1.0 (84)](releases/TESTFLIGHT_BUILD_84.md) | 2026-09-29 캘린더 최근 일정 추천 사용성·검색 개선 |
