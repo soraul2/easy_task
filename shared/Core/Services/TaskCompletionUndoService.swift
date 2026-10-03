@@ -12,6 +12,7 @@ public struct TaskCompletionUndoToken: Sendable {
     public let expiresAt: Date
     fileprivate let instanceID: UUID
     fileprivate let completedAt: Date
+    fileprivate let completedDayKey: String
     fileprivate let previousOrder: Double
     fileprivate let completedOrder: Double
     fileprivate let previousCompletedAt: Date?
@@ -55,17 +56,31 @@ fileprivate struct CompletionUndoRecordVersion: Equatable, Sendable {
 public enum TaskCompletionUndoService {
     public static let availabilityDuration: TimeInterval = 15
 
+    public enum CompletionError: Error {
+        case backdatedDayNoLongerAvailable
+    }
+
     @MainActor
     public static func complete(
         _ task: Task,
         in context: ModelContext,
         order: Double? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        completionDayKey: String? = nil
     ) throws -> TaskCompletionUndoToken? {
         try PersistenceCommandService.perform(in: context) {
             guard task.supersededAt == nil,
                   let previousStatus = TaskStatus(rawValue: task.status),
                   previousStatus != .done else { return nil }
+            if let completionDayKey {
+                guard TaskCompletionRules.backdatedDayKey(
+                    selectedDayKey: completionDayKey,
+                    plannedDayKey: task.plannedDayKey,
+                    status: previousStatus,
+                    todayKey: DayKey.key(for: now)
+                ) != nil else { throw CompletionError.backdatedDayNoLongerAvailable }
+            }
+            let recordedDayKey = completionDayKey ?? DayKey.key(for: now)
             let dayKeys = Array(Set([
                 DayKey.key(for: now), TaskActivityRules.legacyDayKey(for: now)
             ]))
@@ -77,13 +92,16 @@ public enum TaskCompletionUndoService {
             let previousArchivedAt = task.archivedAt
             let previousArchivedDayKey = task.archivedDayKey
 
-            try TaskLifecycleService.applyStatus(.done, to: task, in: context, now: now)
+            try TaskLifecycleService.applyStatus(
+                .done, to: task, in: context, now: now, completionDayKey: recordedDayKey
+            )
             if let order { task.order = order }
             return TaskCompletionUndoToken(
                 id: UUID(), taskID: task.id, previousStatusRawValue: previousStatus.rawValue,
                 boardDate: task.plannedAt,
                 expiresAt: now.addingTimeInterval(availabilityDuration),
                 instanceID: task.instanceID, completedAt: now,
+                completedDayKey: recordedDayKey,
                 previousOrder: previousOrder, completedOrder: task.order,
                 previousCompletedAt: previousCompletedAt,
                 previousCompletedDayKey: previousCompletedDayKey,
@@ -125,7 +143,7 @@ public enum TaskCompletionUndoService {
               task.status == TaskStatus.done.rawValue,
               task.updatedAt == token.completedAt,
               task.completedAt == token.completedAt,
-              task.completedDayKey == DayKey.key(for: token.completedAt),
+              task.completedDayKey == token.completedDayKey,
               task.plannedAt == token.boardDate,
               task.archivedAt == token.previousArchivedAt,
               task.archivedDayKey == token.previousArchivedDayKey,

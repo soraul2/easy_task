@@ -32,6 +32,7 @@ private struct PendingMobileTaskCompletion {
     var taskID: UUID
     var title: String
     var reminderAt: Date
+    var completionDayKey: String?
 }
 
 private struct PendingMobileLibrarySave {
@@ -232,7 +233,7 @@ struct MobileBoardView: View {
                 ),
                 presenting: pendingTaskCompletion
             ) { pending in
-                Button("완료하기", role: .destructive) {
+                Button(pending.completionDayKey.map { TaskCompletionRules.backdatedActionTitle(dayKey: $0) } ?? "완료하기", role: .destructive) {
                     completePendingTask(pending)
                 }
                 Button("취소", role: .cancel) {}
@@ -421,6 +422,7 @@ struct MobileBoardView: View {
         BoardTaskList(
             tasks: BoardQueryRules.tasks(tasks, matching: status),
             selectedStatus: status,
+            selectedDayKey: selectedDayKey,
             isEmbeddedInScrollView: true,
             isBoardEmpty: tasks.isEmpty,
             showsEmptyStateIcon: !showsColumns,
@@ -430,7 +432,8 @@ struct MobileBoardView: View {
             onStartFocus: { onStartFocus($0.id) },
             onDelete: deleteTask,
             onSaveToLibrary: saveToLibrary,
-            onStatusChange: requestTaskStatusChange,
+            onStatusChange: { requestTaskStatusChange(task: $0, status: $1) },
+            onRecordCompletion: { requestTaskStatusChange(task: $0, status: .done, completionDayKey: $1) },
             progressText: progressText,
             highlightedTaskID: highlightedTaskID
         )
@@ -515,7 +518,9 @@ struct MobileBoardView: View {
         }
     }
 
-    private func requestTaskStatusChange(task: TodoTask, status: TaskStatus) {
+    private func requestTaskStatusChange(
+        task: TodoTask, status: TaskStatus, completionDayKey: String? = nil
+    ) {
         let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard currentStatus != status else { return }
 
@@ -526,12 +531,13 @@ struct MobileBoardView: View {
             pendingTaskCompletion = PendingMobileTaskCompletion(
                 taskID: task.id,
                 title: task.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                reminderAt: reminderAt
+                reminderAt: reminderAt,
+                completionDayKey: completionDayKey
             )
             return
         }
 
-        changeTaskStatus(task: task, status: status)
+        changeTaskStatus(task: task, status: status, completionDayKey: completionDayKey)
     }
 
     private func handleActionRequest(_ request: MobileBoardActionRequest?) {
@@ -572,7 +578,8 @@ struct MobileBoardView: View {
             }
             changeTaskStatus(
                 task: task,
-                status: .done
+                status: .done,
+                completionDayKey: pending.completionDayKey
             )
         } catch {
             persistenceFailureMessage = "작업을 다시 불러오지 못했습니다. 다시 시도해 주세요."
@@ -581,14 +588,17 @@ struct MobileBoardView: View {
 
     private func changeTaskStatus(
         task: TodoTask,
-        status: TaskStatus
+        status: TaskStatus,
+        completionDayKey: String? = nil
     ) {
         let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard currentStatus != status else { return }
         do {
             let undo: TaskCompletionUndoToken?
             if status == .done {
-                undo = try TaskCompletionUndoService.complete(task, in: modelContext)
+                undo = try TaskCompletionUndoService.complete(
+                    task, in: modelContext, completionDayKey: completionDayKey
+                )
             } else {
                 try PersistenceCommandService.perform(in: modelContext) {
                     try TaskLifecycleService.applyStatus(status, to: task, in: modelContext)
@@ -609,6 +619,8 @@ struct MobileBoardView: View {
                     await TaskLiveActivityCoordinator.shared.resumeAfterExplicitStart(taskID: task.id, context: modelContext)
                 }
             }
+        } catch TaskCompletionUndoService.CompletionError.backdatedDayNoLongerAvailable {
+            showBoardNotice("작업 날짜가 변경되어 해당 날짜에 완료로 기록하지 못했어요", tone: .information)
         } catch {
             persistenceFailureMessage = "작업 상태를 변경하지 못했습니다. 다시 시도해 주세요."
         }
@@ -618,11 +630,14 @@ struct MobileBoardView: View {
         task: TodoTask, status: TaskStatus, undo: TaskCompletionUndoToken? = nil
     ) {
         let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let summary = status == .done
+            ? task.completedDayKey.map { TaskCompletionRules.completionNotice(dayKey: $0) } ?? status.transitionNotice
+            : status.transitionNotice
         let message = title.isEmpty
-            ? status.transitionNotice
-            : "\(title) · \(status.transitionNotice)"
+            ? summary
+            : "\(title) · \(summary)"
         showBoardNotice(message, duration: undo == nil ? 8 : TaskCompletionUndoService.availabilityDuration)
-        statusNoticeSummary = status.transitionNotice
+        statusNoticeSummary = summary
         statusNoticeSubject = title.isEmpty ? nil : title
         statusDestination = (task.id, status)
         completionUndo = undo
@@ -655,7 +670,8 @@ struct MobileBoardView: View {
                 BoundedQueryService.taskCandidatesDescriptor(id: destination.taskID)
             )
             guard let task = BoundedQueryService.representativeTask(from: candidates),
-                  let status = TaskStatus(rawValue: task.status), task.archivedAt == nil else {
+                  let status = TaskStatus(rawValue: task.status),
+                  task.archivedAt == nil || status == .done else {
                 showBoardNotice("작업이 변경되어 이동할 수 없어요", tone: .information)
                 return
             }

@@ -29,6 +29,7 @@ private struct PendingDesktopTaskCompletion {
     var taskID: UUID
     var title: String
     var reminderAt: Date
+    var completionDayKey: String?
 }
 
 private struct PendingDesktopLibrarySave {
@@ -74,6 +75,7 @@ struct BoardView: View {
     @State private var savedTaskNotice: String?
     @State private var completionUndo: TaskCompletionUndoToken?
     @State private var completedTaskTitle = ""
+    @State private var completedTaskNotice = ""
     @State private var persistenceFailureMessage: String?
     @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
     @State private var pendingLibrarySave: PendingDesktopLibrarySave?
@@ -202,7 +204,7 @@ struct BoardView: View {
             ),
             presenting: pendingTaskCompletion
         ) { pending in
-            Button("완료하기", role: .destructive) {
+            Button(pending.completionDayKey.map { TaskCompletionRules.backdatedActionTitle(dayKey: $0) } ?? "완료하기", role: .destructive) {
                 completePendingTask(pending)
             }
             Button("취소", role: .cancel) {}
@@ -253,7 +255,7 @@ struct BoardView: View {
         .overlay(alignment: .bottom) {
             if completionUndo != nil {
                 HStack(spacing: 16) {
-                    Text("\(completedTaskTitle) · 완료했어요")
+                    Text("\(completedTaskTitle) · \(completedTaskNotice)")
                         .lineLimit(2)
                     Button("완료 실행 취소", action: undoCompletion)
                         .buttonStyle(PlanBaseButtonStyle(.secondary))
@@ -494,6 +496,7 @@ struct BoardView: View {
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
+                onRecordCompletion: recordCompletion,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
                 onStartFocus: openFocus,
@@ -511,6 +514,7 @@ struct BoardView: View {
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
+                onRecordCompletion: recordCompletion,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
                 onStartFocus: openFocus,
@@ -528,6 +532,7 @@ struct BoardView: View {
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
+                onRecordCompletion: recordCompletion,
                 onTitleChange: updateTaskTitle,
                 onEdit: editTask,
                 onStartFocus: openFocus,
@@ -611,8 +616,14 @@ struct BoardView: View {
         _ = requestTaskStatusChange(task, to: status)
     }
 
+    private func recordCompletion(_ task: Task, on dayKey: String) {
+        _ = requestTaskStatusChange(task, to: .done, completionDayKey: dayKey)
+    }
+
     @discardableResult
-    private func requestTaskStatusChange(_ task: Task, to status: TaskStatus) -> Bool {
+    private func requestTaskStatusChange(
+        _ task: Task, to status: TaskStatus, completionDayKey: String? = nil
+    ) -> Bool {
         let currentStatus = TaskStatus(rawValue: task.status) ?? .todo
         guard currentStatus != status else { return false }
 
@@ -622,12 +633,13 @@ struct BoardView: View {
             pendingTaskCompletion = PendingDesktopTaskCompletion(
                 taskID: task.id,
                 title: task.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                reminderAt: reminderAt
+                reminderAt: reminderAt,
+                completionDayKey: completionDayKey
             )
             return true
         }
 
-        return persistTaskStatusChange(task, to: status)
+        return persistTaskStatusChange(task, to: status, completionDayKey: completionDayKey)
     }
 
     private func completePendingTask(_ pending: PendingDesktopTaskCompletion) {
@@ -640,14 +652,16 @@ struct BoardView: View {
                 persistenceFailureMessage = "작업이 변경되어 완료하지 못했습니다."
                 return
             }
-            _ = persistTaskStatusChange(task, to: .done)
+            _ = persistTaskStatusChange(task, to: .done, completionDayKey: pending.completionDayKey)
         } catch {
             persistenceFailureMessage = "작업을 다시 불러오지 못했습니다."
         }
     }
 
     @discardableResult
-    private func persistTaskStatusChange(_ task: Task, to status: TaskStatus) -> Bool {
+    private func persistTaskStatusChange(
+        _ task: Task, to status: TaskStatus, completionDayKey: String? = nil
+    ) -> Bool {
         do {
             let now = Date()
             let nextOrder = try BoundedQueryService.nextOrder(
@@ -655,9 +669,12 @@ struct BoardView: View {
             )
             if status == .done {
                 completionUndo = try TaskCompletionUndoService.complete(
-                    task, in: modelContext, order: nextOrder, now: now
+                    task, in: modelContext, order: nextOrder, now: now, completionDayKey: completionDayKey
                 )
                 completedTaskTitle = task.title
+                completedTaskNotice = TaskCompletionRules.completionNotice(
+                    dayKey: task.completedDayKey ?? DayKey.key(for: now)
+                )
             } else {
                 try PersistenceCommandService.perform(in: modelContext) {
                     try TaskLifecycleService.applyStatus(status, to: task, in: modelContext, now: now)
@@ -666,6 +683,9 @@ struct BoardView: View {
                 completionUndo = nil
             }
             return true
+        } catch TaskCompletionUndoService.CompletionError.backdatedDayNoLongerAvailable {
+            persistenceFailureMessage = "작업 날짜가 변경되어 해당 날짜에 완료로 기록하지 못했어요"
+            return false
         } catch {
             persistenceFailureMessage = "작업 상태를 변경하지 못했습니다."
             return false

@@ -2658,7 +2658,9 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let originalDate = app.staticTexts["board-date-title"].label
         let title = "지난 날짜 완료 취소"
         addKanbanFlowTask(title, in: app)
-        app.buttons["\(title) 완료 상태"].tap()
+        let completeToday = app.buttons["\(title) 오늘 완료 상태"]
+        XCTAssertTrue(completeToday.waitForExistence(timeout: 5))
+        completeToday.tap()
         let destination = app.buttons["board-status-destination"]
         XCTAssertTrue(destination.waitForExistence(timeout: 5))
         XCTAssertEqual(destination.label, "완료 보기")
@@ -2671,6 +2673,71 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["board-date-title"].label, originalDate)
         XCTAssertTrue(app.buttons["\(title) 작업 편집"].waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "kanban-past-day-undo")
+    }
+
+    @MainActor
+    func testKanbanRecordsCompletionOnSelectedPastDayAndUndoes() {
+        verifySelectedPastDayCompletion(additionalArguments: [])
+    }
+
+    @MainActor
+    func testKanbanRecordsPastDayCompletionWithAccessibilityText() {
+        verifySelectedPastDayCompletion(additionalArguments: ["--ui-testing-accessibility-text-size"])
+    }
+
+    @MainActor
+    private func verifySelectedPastDayCompletion(additionalArguments: [String]) {
+        let app = launchKanbanFlowApp(additionalArguments: additionalArguments)
+        let usesLargeText = additionalArguments.contains("--ui-testing-accessibility-text-size")
+        app.buttons["이전 날짜"].tap()
+        let originalDate = app.staticTexts["board-date-title"].label
+        let title = "선택한 날짜의 완료 기록"
+        addKanbanFlowTask(title, in: app)
+        let menu = app.buttons["\(title) 작업 메뉴"]
+        XCTAssertTrue(scrollToHittable(menu, in: app.scrollViews["board-accessibility-scroll"]))
+        menu.tap()
+        let recordCompletion = app.buttons["\(title) 선택 날짜에 완료"]
+        XCTAssertTrue(recordCompletion.waitForExistence(timeout: 5))
+        XCTAssertTrue(recordCompletion.label.contains("완료로 기록"))
+        addReferenceScreenshot(named: "kanban-past-date-completion-choice")
+        recordCompletion.tap()
+        let destination = app.buttons["board-status-destination"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        destination.tap()
+        if usesLargeText {
+            XCTAssertTrue((app.buttons["board-status-filter-menu"].value as? String)?.contains("완료") == true)
+        } else {
+            XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-done"]))
+        }
+        if !usesLargeText {
+            XCTAssertEqual(app.staticTexts["board-date-title"].label, originalDate)
+        }
+        XCTAssertTrue(scrollToHittable(
+            app.buttons["\(title) 작업 편집"], in: app.scrollViews["board-accessibility-scroll"]
+        ))
+        let dates = app.descendants(matching: .any)["\(title) 계획일과 완료일"].firstMatch
+        XCTAssertTrue(dates.waitForExistence(timeout: 5))
+        XCTAssertTrue(dates.label.contains("계획일"))
+        XCTAssertTrue(dates.label.contains("완료일"))
+        addReferenceScreenshot(named: "kanban-past-date-completed")
+        let undo = app.buttons["board-completion-undo"]
+        XCTAssertTrue(undo.isHittable)
+        undo.tap()
+        if usesLargeText {
+            XCTAssertTrue((app.buttons["board-status-filter-menu"].value as? String)?.contains("할 일") == true)
+        } else {
+            XCTAssertTrue(waitForSelected(app.buttons["board-status-filter-todo"]))
+        }
+        if usesLargeText {
+            XCTAssertTrue(scrollTowardTopToHittable(
+                app.staticTexts["board-date-title"], in: app.scrollViews["board-accessibility-scroll"]
+            ))
+        }
+        XCTAssertEqual(app.staticTexts["board-date-title"].label, originalDate)
+        XCTAssertTrue(scrollToHittable(
+            app.buttons["\(title) 작업 편집"], in: app.scrollViews["board-accessibility-scroll"]
+        ))
+        addReferenceScreenshot(named: "kanban-past-date-completion-undone")
     }
 
     @MainActor
@@ -2737,7 +2804,9 @@ final class PlanBaseLaunchUITests: XCTestCase {
         field.tap()
         field.typeText(title)
         app.buttons["작업 추가"].tap()
-        XCTAssertTrue(app.buttons["\(title) 작업 편집"].waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToHittable(
+            app.buttons["\(title) 작업 편집"], in: app.scrollViews["board-accessibility-scroll"]
+        ))
     }
 
     @MainActor

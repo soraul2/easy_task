@@ -12,6 +12,7 @@ struct KanbanColumn: View {
     var selectedDayKey: String
     var onMove: (String, TaskStatus) -> Bool
     var onStatusChange: (Task, TaskStatus) -> Void
+    var onRecordCompletion: (Task, String) -> Void
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onStartFocus: (Task) -> Void
@@ -47,7 +48,8 @@ struct KanbanColumn: View {
             }
             .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
             .padding(.horizontal, 2)
-            .help(status.guidanceText)
+            .help(status == .done && selectedDayKey < DayKey.today
+                ? "이 영역으로 옮기면 오늘 완료로 기록해요" : status.guidanceText)
 
             TimelineView(.periodic(from: .now, by: 60)) { timeline in
                 LazyVStack(spacing: 10) {
@@ -64,6 +66,7 @@ struct KanbanColumn: View {
                                 task: task,
                                 selectedDayKey: selectedDayKey,
                                 onStatusChange: onStatusChange,
+                                onRecordCompletion: onRecordCompletion,
                                 onTitleChange: onTitleChange,
                                 onEdit: onEdit,
                                 onStartFocus: onStartFocus,
@@ -143,6 +146,7 @@ struct TaskCard: View {
     @Bindable var task: Task
     var selectedDayKey: String
     var onStatusChange: (Task, TaskStatus) -> Void
+    var onRecordCompletion: (Task, String) -> Void
     var onTitleChange: (Task, String) -> Bool
     var onEdit: (Task) -> Void
     var onStartFocus: (Task) -> Void
@@ -180,6 +184,14 @@ struct TaskCard: View {
                 Menu {
                     Button("작업 편집", systemImage: "square.and.pencil") { onEdit(task) }
                     Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task) }
+                    if let dayKey = TaskCompletionRules.backdatedDayKey(
+                        selectedDayKey: selectedDayKey, plannedDayKey: task.plannedDayKey, status: status
+                    ) {
+                        Button(TaskCompletionRules.backdatedActionTitle(dayKey: dayKey), systemImage: "calendar.badge.checkmark") {
+                            onRecordCompletion(task, dayKey)
+                        }
+                        .accessibilityIdentifier("\(task.title) 선택 날짜에 완료")
+                    }
                     Divider()
                     Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task) }
                 } label: {
@@ -195,6 +207,15 @@ struct TaskCard: View {
                 .fixedSize()
                 .help("작업 편집 및 메뉴")
                 .accessibilityLabel("\(task.title) 작업 메뉴")
+            }
+
+            if status == .done {
+                let dates = TaskHistoryDatePresentation(task: task)
+                Label(dates.text, systemImage: "calendar")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(dates.accessibilityLabel)
             }
 
             if task.plannedDayKey < DayKey.today && status != .done {
@@ -254,13 +275,13 @@ struct TaskCard: View {
                 }
 
                 Button { onStatusChange(task, status.primaryActionStatus) } label: {
-                    Label(status.primaryActionTitle, systemImage: status.primaryActionSystemImage)
+                    Label(primaryActionTitle, systemImage: status.primaryActionSystemImage)
                         .font(.caption.weight(.semibold))
                         .fixedSize()
                 }
                 .buttonStyle(PlanBaseButtonStyle(status == .doing ? .primary : .secondary))
-                .help("\(task.title) 작업을 \(status.primaryActionStatus.title) 상태로 변경")
-                .accessibilityLabel("\(task.title) \(status.primaryActionTitle)")
+                .help("\(task.title) · \(primaryActionTitle)")
+                .accessibilityLabel("\(task.title) \(primaryActionTitle)")
             }
         }
         .padding(14)
@@ -298,11 +319,22 @@ struct TaskCard: View {
         }
     }
 
+    private var primaryActionTitle: String {
+        status.primaryActionStatus == .done
+            ? TaskCompletionRules.defaultActionTitle(selectedDayKey: selectedDayKey)
+            : status.primaryActionTitle
+    }
+
     private var statusMenu: some View {
         Menu {
             ForEach(TaskStatus.allCases) { nextStatus in
                 Button { onStatusChange(task, nextStatus) } label: {
-                    Label(nextStatus.title, systemImage: nextStatus == status ? "checkmark" : nextStatus.systemImage)
+                    Label(
+                        nextStatus == .done && status != .done
+                            ? TaskCompletionRules.defaultActionTitle(selectedDayKey: selectedDayKey)
+                            : nextStatus.title,
+                        systemImage: nextStatus == status ? "checkmark" : nextStatus.systemImage
+                    )
                 }
             }
         } label: {

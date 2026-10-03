@@ -9,16 +9,16 @@
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
-| 최신 업로드 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md), iOS·iPadOS·watchOS 및 macOS |
-| 배포 준비 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md), 두 archive·iOS Production 패키지·전체 게이트 확인 완료. iOS 계정 오류·Mac 설치 서명 인증서 부재 이후 사용자 요청으로 업로드 후속 보류 및 Git 반영. 계정·설정은 사용자가 직접 준비하며 업로드 성공은 미확인 |
-| build 86 배포 확인 | 두 플랫폼 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
+| 최신 업로드 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md), iOS·iPadOS·watchOS 및 macOS |
+| 배포 준비 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md), 과거 보드 완료일 선택·실행 취소·날짜 표시 개선. iPhone·iPad UI6개·전체 플랫폼·Production 패키지 검증 완료, 업로드 준비 |
+| build 87 배포 확인 | 2026-10-03 iOS 13:14:21·macOS 13:16:38 KST 업로드 성공·Apple 패키지 처리 시작. 로그인·Mac 설치 서명 준비 후 기존 archive에서 재개. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
-| 최근 변경 | [보드의 저장한 작업 `/` 안내와 접근성 힌트](releases/TESTFLIGHT_BUILD_86.md#포함한-변경) |
-| build 86 확인 | Debug 511·Release 507 공통 테스트, 전체 플랫폼 게이트, Release archive·Production 서명·배포 패키지 확인 |
-| 남은 확인 | 새 안내의 실기기·VoiceOver, iOS 27 타이머·Focus 실기기, 저전력·Always-On·최소 글꼴 가독성, TestFlight 설치와 기존 IME·작은 화면·탭 반응성 인수 |
+| 최근 변경 | [시작·복귀/추천/검색 등의 반복 처리 개선, 메모·iPad 화면 보완과 오늘 일정 잠금 화면 위젯](releases/TESTFLIGHT_BUILD_87.md#포함한-변경) |
+| build 87 확인 | Debug 689통과·36skip / Release 684통과·10skip, 전체 플랫폼 게이트, 두 Release archive·Production 패키지의 여섯 번들·실행 파일 확인. 재개 시 빌드 입력409개 일치 |
+| 남은 확인 | 잠금 화면 위젯 세 모양·Watch Today/Focus·일부 Mac·VoiceOver/IME 실제 화면 인수, 직접100ms 반응·실기기 배터리·운영 CloudKit 왕복, TestFlight 설치와 기존 실기기 미확인 항목 |
 
 업로드 성공, 기능 검증 완료, 성능 개선 확인은 서로 다른 상태다. 이전 빌드의 테스트 통과나
-측정값으로 build 86의 체감 성능·실기기 동작을 보증하지 않는다.
+측정값으로 build 87의 체감 성능·실기기 동작을 보증하지 않는다.
 
 ## 운영 문서
 
@@ -40,7 +40,7 @@
 
 | 주제 | 상태와 연결 문서 |
 |---|---|
-| [2026-10-02 성능·사용 흐름 최적화](plans/active/OPTIMIZATION_2026_10_02_PLAN.md) | 9영역 조사·채택, 메뉴/초기 로딩10조건 비교, 최신 main UI2개·전체 플랫폼 게이트·안내 검토 완료. 2026-10-03 최신 사용자 지시로 실제 잠금 화면·Watch·일부 Mac 인수와 TestFlight87 업로드를 후속 보류하고 현재 변경의 commit·push를 진행한다. Goal 도구의 이전 blocked 상태와 화면 미완료 기록은 유지한다. [결과와 측정 한계](plans/active/OPTIMIZATION_2026_10_02_RESULTS.md), [Goal 실행 프롬프트](plans/active/OPTIMIZATION_2026_10_02_GOAL_PROMPT.md) |
+| [2026-10-02 성능·사용 흐름 최적화](plans/active/OPTIMIZATION_2026_10_02_PLAN.md) | 9영역 조사·채택, 메뉴/초기 로딩10조건 비교, 최신 main UI2개·전체 플랫폼 게이트·안내 검토 완료. 소스 commit·push 후 사용자 로그인과 재개 요청으로 2026-10-03 TestFlight87 두 플랫폼 업로드를 완료했다. 실제 잠금 화면·Watch·일부 Mac 인수는 후속으로 보류하며 Goal 도구의 이전 blocked 상태와 화면 미완료 기록을 유지한다. [결과와 측정 한계](plans/active/OPTIMIZATION_2026_10_02_RESULTS.md), [Goal 실행 프롬프트](plans/active/OPTIMIZATION_2026_10_02_GOAL_PROMPT.md) |
 | [2026-09-29 캘린더 추천 사용성](plans/active/CALENDAR_RECOMMENDATION_USABILITY_REVIEW_2026_09_29.md) | build 84 구현·공통/플랫폼 회귀·격리 화면·업로드 완료, 수동 IME·VoiceOver 등 미확인 범위 유지 |
 | [2026-09-28 탭 반응성·Focus](plans/active/TAB_RESPONSIVENESS_AND_FOCUS_2026_09_28_RESULTS.md) | build 83 구현·빌드·업로드 완료, 기능·성능 실측 미실행 |
 | [2026-09-22 UI·UX](plans/active/UI_UX_2026_09_22_PLAN.md) | 필수 로컬 구현·검증 완료. [결과·실기기 미확인 범위](plans/active/UI_UX_2026_09_22_RESULTS.md), [최초 점검](plans/active/UI_UX_2026_09_22_AUDIT.md), [접근성 54건 분류](plans/active/UI_UX_2026_09_22_ACCESSIBILITY.md), [실행 프롬프트](plans/active/UI_UX_2026_09_22_GOAL_PROMPT.md) |
@@ -101,7 +101,8 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
-| [TestFlight 1.0 (87) 준비](releases/TESTFLIGHT_BUILD_87.md) | 2026-10-03 최적화·오늘 일정 잠금 화면 위젯, 실제 화면 인수 후속 보류 |
+| [TestFlight 1.0 (88) 준비](releases/TESTFLIGHT_BUILD_88.md) | 2026-10-03 과거 보드에서 오늘 완료·선택 날짜 완료 구분 |
+| [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md) | 2026-10-03 최적화·오늘 일정 잠금 화면 위젯 업로드 완료, 실제 화면 인수 후속 보류 |
 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md) | 2026-10-02 저장한 작업 `/` 빠른 입력 안내 |
 | [TestFlight 1.0 (85)](releases/TESTFLIGHT_BUILD_85.md) | 2026-09-29 Dynamic Island 타이머·Focus 상태·장시간 표시 개선 |
 | [TestFlight 1.0 (84)](releases/TESTFLIGHT_BUILD_84.md) | 2026-09-29 캘린더 최근 일정 추천 사용성·검색 개선 |

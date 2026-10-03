@@ -80,6 +80,7 @@ struct MobileTaskStatusSlider: View {
     var taskTitle: String
     var status: TaskStatus
     var accentColor: Color
+    var completionTitle: String = "완료"
     var onChange: (TaskStatus) -> Void
 
     private var statuses: [TaskStatus] {
@@ -108,7 +109,7 @@ struct MobileTaskStatusSlider: View {
                 Button {
                     updateStatus(nextStatus)
                 } label: {
-                    Label(nextStatus.title, systemImage: nextStatus.systemImage)
+                    Label(actionTitle(for: nextStatus), systemImage: nextStatus.systemImage)
                 }
                 .disabled(nextStatus == status)
             }
@@ -169,7 +170,7 @@ struct MobileTaskStatusSlider: View {
                                 Image(systemName: nextStatus.systemImage)
                                     .font(.caption.weight(.medium))
                                     .foregroundStyle(nextStatus == status ? accentColor : AppTheme.secondaryText)
-                                Text(nextStatus.title)
+                                Text(actionTitle(for: nextStatus))
                                     .font(.caption.weight(nextStatus == status ? .semibold : .regular))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.90)
@@ -181,11 +182,11 @@ struct MobileTaskStatusSlider: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(MobilePressFeedbackButtonStyle())
-                        .accessibilityLabel("\(taskTitle) \(nextStatus.title) 상태")
+                        .accessibilityLabel("\(taskTitle) \(actionTitle(for: nextStatus)) 상태")
                         .accessibilityValue(nextStatus == status ? "현재 상태" : "변경 가능")
                         .accessibilityHint(nextStatus == status
                             ? "현재 선택된 상태예요"
-                            : "두 번 탭하여 \(nextStatus.title)로 변경해요")
+                            : "두 번 탭하여 \(actionTitle(for: nextStatus))로 변경해요")
                         .accessibilityAddTraits(nextStatus == status ? .isSelected : [])
                     }
                 }
@@ -193,6 +194,10 @@ struct MobileTaskStatusSlider: View {
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .frame(height: 48)
+    }
+
+    private func actionTitle(for nextStatus: TaskStatus) -> String {
+        nextStatus == .done && status != .done ? completionTitle : nextStatus.title
     }
 
     private func updateStatus(_ nextStatus: TaskStatus) {

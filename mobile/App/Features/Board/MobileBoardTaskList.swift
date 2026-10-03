@@ -7,6 +7,7 @@ import SwiftUI
 struct BoardTaskList: View {
     var tasks: [TodoTask]
     var selectedStatus: TaskStatus
+    var selectedDayKey: String
     var isEmbeddedInScrollView = false
     var isBoardEmpty: Bool
     var showsEmptyStateIcon: Bool
@@ -17,6 +18,7 @@ struct BoardTaskList: View {
     var onDelete: (TodoTask) -> Void
     var onSaveToLibrary: (TodoTask) -> Void
     var onStatusChange: (TodoTask, TaskStatus) -> Void
+    var onRecordCompletion: (TodoTask, String) -> Void
     var progressText: ((TodoTask, Date) -> String?)? = nil
     var highlightedTaskID: UUID? = nil
 
@@ -75,6 +77,8 @@ struct BoardTaskList: View {
                     onDelete: { onDelete(task) },
                     onSaveToLibrary: { onSaveToLibrary(task) },
                     onStatusChange: { onStatusChange(task, $0) },
+                    onRecordCompletion: { onRecordCompletion(task, $0) },
+                    selectedDayKey: selectedDayKey,
                     progressText: progressText?(task, date)
                 )
                 .id(task.id)
@@ -179,6 +183,8 @@ private struct MobileTaskCardContent {
     let tags: [String]
     let estimatedMinutes: Int?
     let reminderAt: Date?
+    let plannedDayKey: String
+    let datePresentation: TaskHistoryDatePresentation?
 
     init(_ task: TodoTask) {
         id = task.id
@@ -189,6 +195,9 @@ private struct MobileTaskCardContent {
         tags = task.tags
         estimatedMinutes = task.estimatedMinutes
         reminderAt = task.reminderAt
+        plannedDayKey = task.plannedDayKey
+        datePresentation = task.status == TaskStatus.done.rawValue
+            ? TaskHistoryDatePresentation(task: task) : nil
     }
 }
 
@@ -203,6 +212,8 @@ private struct MobileTaskRow: View {
     var onDelete: () -> Void
     var onSaveToLibrary: () -> Void
     var onStatusChange: (TaskStatus) -> Void
+    var onRecordCompletion: (String) -> Void
+    var selectedDayKey: String
     var progressText: String?
     @Query private var checklistItemRows: [TaskChecklistItem]
     @State private var checklistSaveError: String?
@@ -214,6 +225,8 @@ private struct MobileTaskRow: View {
         onDelete: @escaping () -> Void,
         onSaveToLibrary: @escaping () -> Void,
         onStatusChange: @escaping (TaskStatus) -> Void,
+        onRecordCompletion: @escaping (String) -> Void,
+        selectedDayKey: String,
         progressText: String? = nil
     ) {
         self.task = MobileTaskCardContent(task)
@@ -222,6 +235,8 @@ private struct MobileTaskRow: View {
         self.onDelete = onDelete
         self.onSaveToLibrary = onSaveToLibrary
         self.onStatusChange = onStatusChange
+        self.onRecordCompletion = onRecordCompletion
+        self.selectedDayKey = selectedDayKey
         self.progressText = progressText
         _checklistItemRows = Query(TaskChecklistService.descriptor(taskID: task.id))
     }
@@ -271,6 +286,12 @@ private struct MobileTaskRow: View {
             HStack(alignment: .top, spacing: 8) {
                 taskTitleButton
                 taskMenu
+            }
+
+            if let datePresentation = task.datePresentation {
+                MobileTaskMetadataLabel(title: datePresentation.text, systemImage: "calendar")
+                    .accessibilityLabel(datePresentation.accessibilityLabel)
+                    .accessibilityIdentifier("\(task.title) 계획일과 완료일")
             }
 
             if hasSummary {
@@ -353,6 +374,7 @@ private struct MobileTaskRow: View {
             taskTitle: task.title,
             status: status,
             accentColor: AppTheme.accent,
+            completionTitle: TaskCompletionRules.defaultActionTitle(selectedDayKey: selectedDayKey),
             onChange: onStatusChange
         )
     }
@@ -413,6 +435,14 @@ private struct MobileTaskRow: View {
         Menu {
             Button("작업 편집", systemImage: "pencil", action: onEdit)
             Button("자주 쓰는 작업으로 저장", systemImage: "bookmark", action: onSaveToLibrary)
+            if let dayKey = TaskCompletionRules.backdatedDayKey(
+                selectedDayKey: selectedDayKey, plannedDayKey: task.plannedDayKey, status: status
+            ) {
+                Button(TaskCompletionRules.backdatedActionTitle(dayKey: dayKey), systemImage: "calendar.badge.checkmark") {
+                    onRecordCompletion(dayKey)
+                }
+                .accessibilityIdentifier("\(task.title) 선택 날짜에 완료")
+            }
             Button("작업 삭제", systemImage: "trash", role: .destructive, action: onDelete)
         } label: {
             Image(systemName: "ellipsis")
