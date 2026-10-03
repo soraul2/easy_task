@@ -9,16 +9,15 @@
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
-| 최신 업로드 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md), iOS·iPadOS·watchOS 및 macOS |
-| 배포 준비 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md), 과거 보드 완료일 선택·실행 취소·날짜 표시 개선. iPhone·iPad UI6개·전체 플랫폼·Production 패키지 검증 및 commit·push 완료. 업로드 시 계정 접근 실패, Mac 잠금 해제 후 재개 대기 |
-| build 87 배포 확인 | 2026-10-03 iOS 13:14:21·macOS 13:16:38 KST 업로드 성공·Apple 패키지 처리 시작. 로그인·Mac 설치 서명 준비 후 기존 archive에서 재개. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
+| 최신 업로드 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md), iOS·iPadOS·watchOS 및 macOS |
+| build 88 배포 확인 | 2026-10-03 iOS 16:51:39·macOS 16:51:14 KST 업로드 성공·Apple 패키지 처리 시작. 사용자 재로그인 후 같은 archive로 재개. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
-| 최근 변경 | [시작·복귀/추천/검색 등의 반복 처리 개선, 메모·iPad 화면 보완과 오늘 일정 잠금 화면 위젯](releases/TESTFLIGHT_BUILD_87.md#포함한-변경) |
-| build 87 확인 | Debug 689통과·36skip / Release 684통과·10skip, 전체 플랫폼 게이트, 두 Release archive·Production 패키지의 여섯 번들·실행 파일 확인. 재개 시 빌드 입력409개 일치 |
+| 최근 변경 | [과거 보드의 오늘 완료·선택 날짜 완료 구분, 날짜 표시와 실행 취소](releases/TESTFLIGHT_BUILD_88.md#포함한-변경) |
+| build 88 확인 | Debug 693통과·36skip / Release 688통과·10skip, iPhone·iPad UI6개, 전체 플랫폼 게이트, Release archive·Production 패키지 검증 완료. 재개 시 빌드 입력411개·고정 소스491개 일치 |
 | 남은 확인 | 잠금 화면 위젯 세 모양·Watch Today/Focus·일부 Mac·VoiceOver/IME 실제 화면 인수, 직접100ms 반응·실기기 배터리·운영 CloudKit 왕복, TestFlight 설치와 기존 실기기 미확인 항목 |
 
 업로드 성공, 기능 검증 완료, 성능 개선 확인은 서로 다른 상태다. 이전 빌드의 테스트 통과나
-측정값으로 build 87의 체감 성능·실기기 동작을 보증하지 않는다.
+측정값으로 최신 빌드의 체감 성능·실기기 동작을 보증하지 않는다.
 
 ## 운영 문서
 
@@ -101,7 +100,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
-| [TestFlight 1.0 (88) 준비](releases/TESTFLIGHT_BUILD_88.md) | 2026-10-03 과거 보드에서 오늘 완료·선택 날짜 완료 구분 |
+| [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md) | 2026-10-03 과거 보드의 완료일 선택·날짜 표시·실행 취소, 두 플랫폼 업로드 완료 |
 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md) | 2026-10-03 최적화·오늘 일정 잠금 화면 위젯 업로드 완료, 실제 화면 인수 후속 보류 |
 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md) | 2026-10-02 저장한 작업 `/` 빠른 입력 안내 |
 | [TestFlight 1.0 (85)](releases/TESTFLIGHT_BUILD_85.md) | 2026-09-29 Dynamic Island 타이머·Focus 상태·장시간 표시 개선 |

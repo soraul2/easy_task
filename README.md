@@ -10,11 +10,11 @@ CloudKit 컨테이너를 공유한다.
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 최신 업로드는
-[TestFlight 1.0 (87)](docs/releases/TESTFLIGHT_BUILD_87.md)이며, 2026-10-03 iOS·iPadOS·watchOS와
-macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다. 시작·복귀와 추천·검색 등의
-반복 처리를 줄이고, 메모·iPad 화면을 보완했으며 **PlanBase 오늘 일정** 잠금 화면 위젯을 추가했다.
-공통 테스트·전체 플랫폼 회귀와 배포 패키지 검증을 통과했으며,
-TestFlight 설치 가능 상태와 남은 잠금 화면·Watch·Mac 실제 화면 인수는 미확인이다.
+[TestFlight 1.0 (88)](docs/releases/TESTFLIGHT_BUILD_88.md)이며, 2026-10-03 iOS·iPadOS·watchOS와
+macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다. 과거 보드에서 **오늘 완료**와
+**선택한 날짜 완료로 기록**을 구분하고, 완료일 표시와 실행 취소를 보완했다.
+공통 테스트·iPhone/iPad UI6개·전체 플랫폼 회귀와 배포 패키지 검증을 통과했으며,
+TestFlight 설치 가능 상태와 기존 잠금 화면·Watch·Mac 실제 화면 인수의 미확인 항목은 유지한다.
 최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
 ## 시작하기

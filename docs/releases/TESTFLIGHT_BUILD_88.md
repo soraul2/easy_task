@@ -1,12 +1,19 @@
-# TestFlight 1.0 (88) — 검증 완료·업로드 대기
+# TestFlight 1.0 (88) — 업로드 완료
 
-2026-10-03 과거 날짜 보드에서 완료일을 선택하는 기능을 추가했다. 구현·검증을 마치고 `e594ede16a05d394f0bc57c3bb69d8119c51ca2f`로 `origin/codex/kanban-card-design`에 commit·push했다. 사용자가 요청한 TestFlight 업로드는 아래 계정 접근 문제로 아직 완료되지 않았다.
+2026-10-03 과거 날짜 보드에서 완료일을 선택하는 기능을 추가했다. 구현·검증을 마치고 `e594ede16a05d394f0bc57c3bb69d8119c51ca2f`로 `origin/codex/kanban-card-design`에 commit·push했다. 사용자 로그인 후 2026-10-03 iOS·iPadOS·watchOS와 macOS 업로드 성공·Apple 패키지 처리 시작을 확인했다.
 
 ## 업로드 상태
 
-두 플랫폼의 최종 배포 패키지 검증 후 2026-10-03 13:55 KST `upload-ios-retry1`·`upload-macos-retry1`을 실행했으나 모두 `Failed to Use Accounts`·exit70으로 종료됐다. 업로드 성공/Apple 처리 시작 근거는 없으며 최신 성공 업로드는 build87이다.
+| 플랫폼 | 업로드 완료 시각(KST) | 확인 결과 |
+|---|---|---|
+| iOS·iPadOS·watchOS | 2026-10-03 16:51:39 | `upload-ios-retry2` exit0, 업로드 성공·Apple 패키지 처리 시작 |
+| macOS | 2026-10-03 16:51:14 | `upload-macos-retry2` exit0, 업로드 성공·Apple 패키지 처리 시작 |
 
-Xcode 계정 UI 확인 중 computer-use 도구가 Mac 잠금 상태와 자동 잠금 해제 실패를 반환했다. 사용자에게 Mac 잠금 해제를 요청했다. 잠금 해제 후 계정 상태를 확인하고 검증된 같은 build88 archive로 재개한다. 새 배포 번호·재컴파일·인증서 폐기는 필요하지 않다. 이 Mac 잠금 확인 자체가 계정 오류의 유일한 원인임을 입증하는 것은 아니다.
+Delivery ID는 iOS `e5401c91-e2a6-4b9d-aa29-b3a1e7868f2a`, macOS `15bd623a-112b-465c-b137-b232f3d64a10`다. 두 플랫폼 모두 `Upload succeeded.`·`Uploaded package is processing.`과 exit0를 확인했다. 설치 가능 상태·테스터 공개·외부 테스트 심사는 확인하지 않았다.
+
+13:55 KST의 첫 업로드는 두 플랫폼 모두 `Failed to Use Accounts`·exit70으로 종료됐고, 계정 UI 확인 때는 Mac이 잠겨 있었다. 16:48 KST 재개 시 잠금이 해제됐지만 Xcode 계정 목록은 비어 있었다. 사용자가 다시 로그인한 뒤 계정 표시를 확인하고 검증된 같은 archive로 업로드했다. Mac 잠금만을 계정 오류의 유일한 원인으로 단정하지 않는다. 새 배포 번호·재컴파일·인증서 폐기는 하지 않았다.
+
+재개 시 commit `f2de7310a3ee0f0757f65e198e3719c869a65ed5`의 빌드 입력411개와 고정 소스491개를 대조해 불일치0을 확인했다. archive·Production 패키지12개 번들의 실행 파일 해시와 strict 서명도 다시 확인했다. 최종 영수증은 `upload-results.json`, 재개 검증은 `resume-preflight-20261003.json`에 보존한다.
 
 ## 포함한 변경
 
