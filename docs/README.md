@@ -9,12 +9,11 @@
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
-| 최신 업로드 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md), iOS·iPadOS·watchOS 및 macOS |
-| build 88 배포 확인 | 2026-10-03 iOS 16:51:39·macOS 16:51:14 KST 업로드 성공·Apple 패키지 처리 시작. 사용자 재로그인 후 같은 archive로 재개. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
+| 최신 업로드 | [TestFlight 1.0 (89)](releases/TESTFLIGHT_BUILD_89.md), iOS·iPadOS·watchOS 및 macOS |
+| build 89 배포 확인 | 2026-10-03 iOS 22:05:05·macOS 22:04:48 KST 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
-| 최근 변경 | [과거 보드의 오늘 완료·선택 날짜 완료 구분, 날짜 표시와 실행 취소](releases/TESTFLIGHT_BUILD_88.md#포함한-변경) |
-| build 88 확인 | Debug 693통과·36skip / Release 688통과·10skip, iPhone·iPad UI6개, 전체 플랫폼 게이트, Release archive·Production 패키지 검증 완료. 재개 시 빌드 입력411개·고정 소스491개 일치 |
-| 배포 준비 | [TestFlight 1.0 (89)](releases/TESTFLIGHT_BUILD_89.md): 라이트 2개·다크 2개 추가, 전체 플랫폼 회귀·서명·업로드 진행 중 |
+| 최근 변경 | [인기 팔레트 기반 라이트 2개·다크 2개 추가](THEMES.md), 총 12개 테마 |
+| build 89 확인 | Debug 693통과·36skip / Release 688통과·10skip, iPhone 전체 12개 테마 UI검사 1개, 전체 플랫폼 게이트, Release archive·Production 패키지 6개 번들 검증 완료. 빌드 입력415개·고정 소스492개, 소스 commit `350ffbb` |
 | 남은 확인 | 잠금 화면 위젯 세 모양·Watch Today/Focus·일부 Mac·VoiceOver/IME 실제 화면 인수, 직접100ms 반응·실기기 배터리·운영 CloudKit 왕복, TestFlight 설치와 기존 실기기 미확인 항목 |
 
 업로드 성공, 기능 검증 완료, 성능 개선 확인은 서로 다른 상태다. 이전 빌드의 테스트 통과나
@@ -30,7 +29,7 @@
 | [아키텍처](ARCHITECTURE.md) | 모듈 경계, 데이터 흐름, 화면 갱신, 무결성·백업 |
 | [CloudKit 동기화](CLOUDKIT_SYNC.md) | entitlement, schema 배포, 수렴 진단과 운영 인수 절차 |
 | [Apple Watch](WATCHOS.md) | 독립 실행형 앱·컴플리케이션 데이터 흐름과 출시 확인 |
-| [앱 테마](THEMES.md) | 라이트 8개·다크 4개, 새 인기 팔레트 출처·순위·색상 조정과 위젯 적용 경로. build 88 이후 미배포 변경 |
+| [앱 테마](THEMES.md) | 라이트 8개·다크 4개, 새 인기 팔레트 출처·순위·색상 조정과 위젯 적용 경로. build 89 포함 |
 
 ## 구현·검증 후속 작업
 
@@ -102,6 +101,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
+| [TestFlight 1.0 (89)](releases/TESTFLIGHT_BUILD_89.md) | 2026-10-03 라이트 2개·다크 2개 추가, 두 플랫폼 업로드 완료, 업데이트 공지 방식과 한국어 초안 |
 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md) | 2026-10-03 과거 보드의 완료일 선택·날짜 표시·실행 취소, 두 플랫폼 업로드 완료 |
 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md) | 2026-10-03 최적화·오늘 일정 잠금 화면 위젯 업로드 완료, 실제 화면 인수 후속 보류 |
 | [TestFlight 1.0 (86)](releases/TESTFLIGHT_BUILD_86.md) | 2026-10-02 저장한 작업 `/` 빠른 입력 안내 |

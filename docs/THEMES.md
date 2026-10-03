@@ -1,7 +1,7 @@
 # 앱 테마
 
 현재 소스는 라이트 8개와 다크 4개를 제공한다. 2026-10-03 추가한 네 테마는
-TestFlight build 88 이후 변경이며 아직 배포하지 않았다.
+[TestFlight 1.0 (89)](releases/TESTFLIGHT_BUILD_89.md)로 iOS·macOS 업로드를 완료했다.
 
 ## 인기 팔레트에서 추가한 테마
 
@@ -51,7 +51,7 @@ TestFlight build 88 이후 변경이며 아직 배포하지 않았다.
 - Xcode 26.6의 macOS Debug 앱·위젯 빌드와 iOS Debug 앱·위젯·내장 Watch 구성이 통과했다.
 - iPhone 17 Pro / iOS 26.5의 `testKanbanEveryThemeVisuals` 1개 통과. 전체 12개 테마를
   실행해 화면 21장을 저장했고, 새 네 테마의 칸반 화면을 직접 검토했다.
-- 실제 iCloud 왕복, iPad·Mac의 수동 화면 확인, Release archive와 TestFlight 업로드는
-  이번 검증에 포함하지 않았다.
+- 실제 iCloud 왕복과 iPad·Mac의 수동 화면 확인은 이번 검증에 포함하지 않았다.
+  이후 build 89 배포에서는 전체 플랫폼 Debug·Release 회귀와 Production 패키지 검증·업로드를 완료했다.
 
 검증 로그와 화면은 `.local/theme-expansion-20261003/`에 저장했다.

@@ -10,10 +10,10 @@ CloudKit 컨테이너를 공유한다.
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 최신 업로드는
-[TestFlight 1.0 (88)](docs/releases/TESTFLIGHT_BUILD_88.md)이며, 2026-10-03 iOS·iPadOS·watchOS와
-macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다. 과거 보드에서 **오늘 완료**와
-**선택한 날짜 완료로 기록**을 구분하고, 완료일 표시와 실행 취소를 보완했다.
-공통 테스트·iPhone/iPad UI6개·전체 플랫폼 회귀와 배포 패키지 검증을 통과했으며,
+[TestFlight 1.0 (89)](docs/releases/TESTFLIGHT_BUILD_89.md)이며, 2026-10-03 iOS·iPadOS·watchOS와
+macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다. 인기 팔레트를 활용한
+**라이트 2개·다크 2개**를 추가해 총 12개 테마를 제공한다. 출처와 배색 기준은 [앱 테마](docs/THEMES.md)에 정리했다.
+공통 테스트·iPhone 전체 테마 UI 검사·전체 플랫폼 회귀와 배포 패키지 검증을 통과했으며,
 TestFlight 설치 가능 상태와 기존 잠금 화면·Watch·Mac 실제 화면 인수의 미확인 항목은 유지한다.
 최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
