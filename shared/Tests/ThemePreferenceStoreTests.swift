@@ -35,8 +35,8 @@ func activityHeatmapEmojiValidationAcceptsOneRenderedEmoji() {
     #expect(ThemePreferenceRules.normalizedEmoji("") == nil)
 }
 
-@Test @MainActor
-func themePreferencesRoundTripBetweenTwoDevicesThroughCloudStore() {
+@Test(arguments: AppThemePreset.all.map(\.id)) @MainActor
+func themePreferencesRoundTripBetweenTwoDevicesThroughCloudStore(themeID: String) {
     let cloud = InMemoryThemePreferenceStore()
     let firstLocal = InMemoryThemePreferenceStore()
     let firstDevice = ThemePreferenceStore(
@@ -45,9 +45,9 @@ func themePreferencesRoundTripBetweenTwoDevicesThroughCloudStore() {
     )
 
     _ = firstDevice.start()
-    firstDevice.setSelectedThemeID("forestCream")
-    firstDevice.setActivityStyle(.emoji, for: "forestCream")
-    #expect(firstDevice.setActivityEmoji("🐢", for: "forestCream"))
+    firstDevice.setSelectedThemeID(themeID)
+    firstDevice.setActivityStyle(.emoji, for: themeID)
+    #expect(firstDevice.setActivityEmoji("🐢", for: themeID))
 
     let secondLocal = InMemoryThemePreferenceStore()
     let secondDevice = ThemePreferenceStore(
@@ -56,10 +56,10 @@ func themePreferencesRoundTripBetweenTwoDevicesThroughCloudStore() {
     )
     let selectedThemeID = secondDevice.start()
 
-    #expect(selectedThemeID == "forestCream")
-    #expect(secondDevice.activityStyle(for: "forestCream") == .emoji)
-    #expect(secondDevice.activityEmoji(for: "forestCream") == "🐢")
-    #expect(secondDevice.activityMark(for: "forestCream") == .emoji("🐢"))
+    #expect(selectedThemeID == themeID)
+    #expect(secondDevice.activityStyle(for: themeID) == .emoji)
+    #expect(secondDevice.activityEmoji(for: themeID) == "🐢")
+    #expect(secondDevice.activityMark(for: themeID) == .emoji("🐢"))
     #expect(cloud.synchronizationCount == 2)
 }
 

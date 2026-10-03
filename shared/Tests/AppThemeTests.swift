@@ -108,7 +108,8 @@ func themeColorSetsStayFixedAcrossSystemAppearances() {
 @Test
 func fixedThemePalettesUseTheirCanonicalBrightSurfaces() {
     let expectedBackgroundTop = Dictionary(uniqueKeysWithValues:
-        ["appleSystem", "maroonEmber", "plumNight", "roseLilac", "forestCream", "tealPaper"]
+        ["appleSystem", "maroonEmber", "plumNight", "roseLilac", "forestCream", "tealPaper",
+         "oliveLinen", "burgundyIvory"]
             .map { ($0, ThemeColorToken(hex: "#FFFFFF")) })
 
     let brightPresets = AppThemePreset.all.filter { !$0.isDarkTheme }
@@ -129,7 +130,9 @@ func fixedThemePalettesUseTheirCanonicalBrightSurfaces() {
 func fixedDarkThemesUseLowLuminanceSurfacesAndDarkSystemChrome() {
     let expectedBackgroundTop: [String: ThemeColorToken] = [
         "midnightBlue": ThemeColorToken(hex: "#08101D"),
-        "charcoalRose": ThemeColorToken(hex: "#121014")
+        "charcoalRose": ThemeColorToken(hex: "#121014"),
+        "forestGold": ThemeColorToken(hex: "#081C17"),
+        "cocoaCopper": ThemeColorToken(hex: "#1C1310")
     ]
     let darkPresets = AppThemePreset.all.filter(\.isDarkTheme)
 
@@ -167,10 +170,10 @@ func roseLilacThemeUsesRequestedBrightPinkPalette() {
 
 @Test
 func consolidatedThemesResolveLegacySelectionAndWidgetIdentifiers() {
-    #expect(AppThemePreset.all.count == 8)
+    #expect(AppThemePreset.all.count == 12)
     #expect(Set(AppThemePreset.all.map(\.name)) == Set([
         "Clean White", "Apricot", "Lavender Cloud", "Blush Pink", "Mint Cream", "Aqua Mist",
-        "Midnight Blue", "Charcoal Rose"
+        "Midnight Blue", "Charcoal Rose", "Olive Linen", "Burgundy Ivory", "Forest Gold", "Cocoa Copper"
     ]))
     for (legacy, canonical) in [("apple2020", "appleSystem"), ("navyBlush", "appleSystem"),
                                 ("solarBerry", "maroonEmber")] {

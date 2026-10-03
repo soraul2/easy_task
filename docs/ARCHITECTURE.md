@@ -133,10 +133,11 @@ Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 이 경로는 Task·회고 등의 SwiftData/CloudKit private database 동기화와 분리된다.
 위젯은 key-value store에 직접 접근하지 않고 기존 App Group snapshot만 읽는다.
 
-테마 목록은 밝은 6개·다크 2개로 구성된다. `apple2020`·`navyBlush`는 `appleSystem`
-(Clean White), `solarBerry`는 `maroonEmber`(Apricot)의 별칭으로 인식한다. 정식 ID도
-기존 배포 ID를 유지하므로 구버전 앱이 새 선택 값을 이해할 수 있다. 저장된 snapshot의
-테마 ID는 수정하지 않고 팔레트를 조회할 때 별칭을 해석한다.
+테마 목록은 밝은 8개·다크 4개로 구성된다. `apple2020`·`navyBlush`는 `appleSystem`
+(Clean White), `solarBerry`는 `maroonEmber`(Apricot)의 별칭으로 인식한다. 기존 정식 ID와
+별칭을 유지하고 `oliveLinen`·`burgundyIvory`·`forestGold`·`cocoaCopper`를 추가했다.
+새 ID를 모르는 구버전 앱은 기본 테마로 해석한다. 저장된 snapshot의 테마 ID는 수정하지
+않고 팔레트를 조회할 때 별칭을 해석한다. 출처와 배색 기준은 [앱 테마](THEMES.md)를 따른다.
 
 활동 그래프 설정을 통합할 때는 필드마다 기존 정식 키의 유효한 값을 우선하고,
 값이 없으면 현재 선택된 과거 테마, 그다음 별칭 ID 정렬 순으로 가져온다. 과거 키는

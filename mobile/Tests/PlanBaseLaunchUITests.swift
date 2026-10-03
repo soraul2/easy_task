@@ -2886,6 +2886,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let themes = [
             "appleSystem", "maroonEmber", "plumNight", "roseLilac",
             "forestCream", "tealPaper", "midnightBlue", "charcoalRose",
+            "oliveLinen", "burgundyIvory", "forestGold", "cocoaCopper",
         ]
         for theme in themes {
             let app = XCUIApplication()

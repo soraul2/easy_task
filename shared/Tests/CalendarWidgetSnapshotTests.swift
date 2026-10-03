@@ -53,8 +53,8 @@ func calendarWidgetSnapshotFiltersSortsAndFindsSpanningEvents() throws {
     #expect(snapshot.events(onDayKey: "2026-07-19").isEmpty)
 }
 
-@Test
-func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent() throws {
+@Test(arguments: AppThemePreset.all.map(\.id).filter { $0 != AppThemePreset.defaultID })
+func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent(themeID: String) throws {
     let directoryURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directoryURL) }
@@ -78,7 +78,7 @@ func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent() throws {
     )
     let changedTheme = CalendarWidgetSnapshot(
         generatedAt: Date(timeIntervalSince1970: 300),
-        themeID: "roseLilac",
+        themeID: themeID,
         events: [event]
     )
 
@@ -87,7 +87,7 @@ func calendarWidgetSnapshotStoreRoundTripsAndSkipsEquivalentContent() throws {
     #expect(try !CalendarWidgetSnapshotStore.writeIfChanged(sameContent, directoryURL: directoryURL))
     #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.generatedAt == first.generatedAt)
     #expect(try CalendarWidgetSnapshotStore.writeIfChanged(changedTheme, directoryURL: directoryURL))
-    #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID == "roseLilac")
+    #expect(try CalendarWidgetSnapshotStore.read(directoryURL: directoryURL)?.themeID == themeID)
 }
 
 @Test

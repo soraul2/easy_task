@@ -71,6 +71,16 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
               bottom: "#EFF9FC", input: "#F4FBFD", border: "#BFDCE5",
               selection: "#DCF1F7", column: "#E7F4F8", doing: "#D0EDF2",
               fill: "#007D91", ink: "#006172", darkInk: "#59CEE6"),
+        // Color Hunt popular palettes, adapted for text/control contrast.
+        // Source colors, observed ranks, and adaptation notes: docs/THEMES.md.
+        light(id: "oliveLinen", name: "Olive Linen",
+              bottom: "#F7F2EB", input: "#F8F6EF", border: "#CFD2BB",
+              selection: "#EAE2D6", column: "#F0F0E3", doing: "#E4E9D5",
+              fill: "#596D2A", ink: "#4A6215", darkInk: "#C3D684"),
+        light(id: "burgundyIvory", name: "Burgundy Ivory",
+              bottom: "#FFF9F2", input: "#FCF5EF", border: "#DCC5BF",
+              selection: "#F3E6D5", column: "#F7EDE5", doing: "#F2DDDC",
+              fill: "#800020", ink: "#800020", darkInk: "#F2A1B4"),
         dark(id: "midnightBlue", name: "Midnight Blue",
              top: "#08101D", bottom: "#101B30", panel: "#121E32", input: "#17253B",
              border: "#314763", text: "#F4F8FF", muted: "#BAC8DB",
@@ -80,7 +90,17 @@ public struct AppThemePreset: Identifiable, Hashable, Sendable {
              top: "#121014", bottom: "#1D171D", panel: "#251E25", input: "#2E252D",
              border: "#51404D", text: "#FFF7FA", muted: "#D6C3CB",
              selection: "#4A293A", columnTodo: "#282229", columnDoing: "#35232D",
-             todo: "#211C22", doing: "#5B2F43", accent: "#F08DB3", lightInk: "#A51F5A")
+             todo: "#211C22", doing: "#5B2F43", accent: "#F08DB3", lightInk: "#A51F5A"),
+        dark(id: "forestGold", name: "Forest Gold",
+             top: "#081C17", bottom: "#102F27", panel: "#102A23", input: "#15362D",
+             border: "#3E6555", text: "#F6EFDF", muted: "#CEC9B9",
+             selection: "#214235", columnTodo: "#142C25", columnDoing: "#263B29",
+             todo: "#11251E", doing: "#39432C", accent: "#D6AE58", lightInk: "#75510A"),
+        dark(id: "cocoaCopper", name: "Cocoa Copper",
+             top: "#1C1310", bottom: "#2C1C16", panel: "#2D201B", input: "#37271F",
+             border: "#6B4D3E", text: "#FFF1E1", muted: "#DAC6B8",
+             selection: "#50362A", columnTodo: "#30251F", columnDoing: "#3B2B20",
+             todo: "#281D18", doing: "#563A2B", accent: "#E8B08D", lightInk: "#814625")
     ]
 
     /// Classification colors deliberately retain their hue across all themes.
