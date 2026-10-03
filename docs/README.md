@@ -10,7 +10,7 @@
 | 항목 | 기준과 확인 범위 |
 |---|---|
 | 최신 업로드 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md), iOS·iPadOS·watchOS 및 macOS |
-| 배포 준비 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md), 과거 보드 완료일 선택·실행 취소·날짜 표시 개선. iPhone·iPad UI6개·전체 플랫폼·Production 패키지 검증 완료, 업로드 준비 |
+| 배포 준비 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md), 과거 보드 완료일 선택·실행 취소·날짜 표시 개선. iPhone·iPad UI6개·전체 플랫폼·Production 패키지 검증 및 commit·push 완료. 업로드 시 계정 접근 실패, Mac 잠금 해제 후 재개 대기 |
 | build 87 배포 확인 | 2026-10-03 iOS 13:14:21·macOS 13:16:38 KST 업로드 성공·Apple 패키지 처리 시작. 로그인·Mac 설치 서명 준비 후 기존 archive에서 재개. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
 | 최근 변경 | [시작·복귀/추천/검색 등의 반복 처리 개선, 메모·iPad 화면 보완과 오늘 일정 잠금 화면 위젯](releases/TESTFLIGHT_BUILD_87.md#포함한-변경) |

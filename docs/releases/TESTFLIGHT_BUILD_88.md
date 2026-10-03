@@ -1,6 +1,12 @@
-# TestFlight 1.0 (88) — 검증 완료·업로드 준비
+# TestFlight 1.0 (88) — 검증 완료·업로드 대기
 
-2026-10-03 과거 날짜 보드에서 완료일을 선택하는 기능을 추가했다. 사용자는 구현·검증 후 commit·push와 TestFlight 업로드까지 요청했다. 업로드 성공 여부는 전송 결과가 확인된 뒤 갱신한다.
+2026-10-03 과거 날짜 보드에서 완료일을 선택하는 기능을 추가했다. 구현·검증을 마치고 `e594ede16a05d394f0bc57c3bb69d8119c51ca2f`로 `origin/codex/kanban-card-design`에 commit·push했다. 사용자가 요청한 TestFlight 업로드는 아래 계정 접근 문제로 아직 완료되지 않았다.
+
+## 업로드 상태
+
+두 플랫폼의 최종 배포 패키지 검증 후 2026-10-03 13:55 KST `upload-ios-retry1`·`upload-macos-retry1`을 실행했으나 모두 `Failed to Use Accounts`·exit70으로 종료됐다. 업로드 성공/Apple 처리 시작 근거는 없으며 최신 성공 업로드는 build87이다.
+
+Xcode 계정 UI 확인 중 computer-use 도구가 Mac 잠금 상태와 자동 잠금 해제 실패를 반환했다. 사용자에게 Mac 잠금 해제를 요청했다. 잠금 해제 후 계정 상태를 확인하고 검증된 같은 build88 archive로 재개한다. 새 배포 번호·재컴파일·인증서 폐기는 필요하지 않다. 이 Mac 잠금 확인 자체가 계정 오류의 유일한 원인임을 입증하는 것은 아니다.
 
 ## 포함한 변경
 
