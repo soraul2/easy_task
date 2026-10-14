@@ -2,6 +2,7 @@ import CoreData
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 enum LegacyStoreMigrationError: LocalizedError {
     case unavailableManagedObjectModel
 
@@ -13,6 +14,7 @@ enum LegacyStoreMigrationError: LocalizedError {
     }
 }
 
+@available(watchOS 11, *)
 enum LegacyStoreMigrationService {
     struct PreparedMigration {
         let storeURL: URL
@@ -102,6 +104,7 @@ enum LegacyStoreMigrationService {
 
 }
 
+@available(watchOS 11, *)
 private extension LegacyStoreMigrationService {
     static func isLegacyStore(at storeURL: URL) throws -> Bool {
         let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(

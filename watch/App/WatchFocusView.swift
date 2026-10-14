@@ -6,10 +6,12 @@ import SwiftUI
 import UserNotifications
 import WatchKit
 
+@available(watchOS 11, *)
 struct WatchFocusDestination: Hashable {
     let taskID: UUID?
 }
 
+@available(watchOS 11, *)
 struct WatchFocusView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -607,6 +609,7 @@ struct WatchFocusView: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct WatchFocusCompletion {
     let sessionID: UUID
     let kind: WatchFocusCompletionKind
@@ -618,12 +621,14 @@ private struct WatchFocusCompletion {
     let outcome: FocusSessionOutcome
 }
 
+@available(watchOS 11, *)
 private enum WatchFocusCompletionKind {
     case focus
     case breakTime
 }
 
 @MainActor
+@available(watchOS 11, *)
 final class WatchFocusNotificationScheduler {
     static let shared = WatchFocusNotificationScheduler()
 

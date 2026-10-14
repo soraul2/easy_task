@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 struct FocusDurationControl: View {
     let title: String
     let identifier: String
@@ -41,6 +42,7 @@ struct FocusDurationControl: View {
     }
 }
 
+@available(watchOS 11, *)
 struct FocusTimerDial: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

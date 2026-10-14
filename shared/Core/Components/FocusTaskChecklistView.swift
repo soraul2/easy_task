@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// Separate from the timer's TimelineView: ticking never refetches checklist rows.
+@available(watchOS 11, *)
 struct FocusTaskChecklistView: View {
     @Environment(\.modelContext) private var context
     @Query private var rows: [TaskChecklistItem]

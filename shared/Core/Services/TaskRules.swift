@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum TaskRules {
     public static func applyStatus(
         _ status: TaskStatus,

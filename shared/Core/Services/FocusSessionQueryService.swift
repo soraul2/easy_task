@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct FocusDaySummary: Equatable, Sendable {
     public var sessionCount: Int
     public var completedCount: Int
@@ -17,6 +18,7 @@ public struct FocusDaySummary: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusSessionQueryService {
     public static func dayDescriptor(
         dayKey: String

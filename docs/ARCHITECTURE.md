@@ -110,6 +110,10 @@ iOS/macOS Widget Extension 소스는 `mobile/Widget`에 둔다.
 
 Apple Watch 앱과 전용 Widget Extension은 `watch/`에 둔다.
 
+watchOS 10은 `WatchCompanionView`에서 로컬 목록·outbox·타이머를 관리하고 iPhone의
+`WatchCompanionBridge`/`WatchCompanionService`를 통해 저장한다. 아래 독립 CloudKit 경로는
+watchOS 11 이상에 적용한다. 상세 전송·충돌·실기기 인수 절차는 [Watch 운영 문서](WATCHOS.md)를 따른다.
+
 - `PlanBase-watchOS`는 `PlanBaseContainerFactory`로 같은 V11 private CloudKit 저장소를 열어
   iPhone 연결 없이 오늘 작업·일정을 조회하고 작업을 생성하거나 상태를 변경한다.
 - 상태 변경은 `PersistenceCommandService`와 `TaskLifecycleService` 경계를 그대로 사용해
@@ -180,7 +184,7 @@ controller와 후보 UI를 사용한다. 정확한 입력어 하나 또는 명�
 백업 V10은 입력어를 포함하며, 이전 DTO의 필드 부재는 현재 입력어 보존,
 새 DTO의 빈 문자열은 명시적 해제를 의미한다.
 
-1. iOS, macOS와 watchOS 앱은 `PlanBaseContainerFactory`에서 같은 V11 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
+1. iOS, macOS와 watchOS 11 이상 앱은 `PlanBaseContainerFactory`에서 같은 V11 스키마와 private CloudKit 설정을 사용하는 컨테이너를 생성한다.
 2. 저장소는 V1 → V2 → V3 → V4 → V5 → V6 → V7 → V8 → V9 → V10 → V11 순서로 이동하며 이미 배포된 V1~V10 정의는 수정하지 않는다.
    TemplatePlacement 도입 전의 초기 macOS 저장소는 별도 레거시 브리지를 거친다.
 3. 앱 시작 시 무결성 정리를 하나의 저장 명령으로 실행하고, 레거시 이미지 이관 뒤 seed와 lazy archive 규칙을 실행한다.

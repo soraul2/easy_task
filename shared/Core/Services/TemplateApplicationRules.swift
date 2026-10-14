@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct TemplateApplicationSummary: Equatable {
     public var totalCount: Int
     public var newCount: Int
@@ -11,6 +12,7 @@ public struct TemplateApplicationSummary: Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TemplateApplicationRules {
     public static func summary(drafts: [TemplateTaskDraft], dates: [Date], tasks: [Task]) -> TemplateApplicationSummary {
         let titles = drafts.map { normalize($0.title) }.filter { !$0.isEmpty }

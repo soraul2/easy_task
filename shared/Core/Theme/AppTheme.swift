@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct ThemeColorToken: Hashable, Sendable {
     public var red: Double
     public var green: Double
@@ -48,6 +49,7 @@ public struct ThemeColorToken: Hashable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum AppThemeAppearance: CaseIterable {
     case light
     case dark
@@ -57,6 +59,7 @@ public enum AppThemeAppearance: CaseIterable {
     }
 }
 
+@available(watchOS 11, *)
 public struct AppThemeColorSet: Hashable, Sendable {
     public var backgroundTop: ThemeColorToken
     public var backgroundBottom: ThemeColorToken
@@ -165,6 +168,7 @@ public struct AppThemeColorSet: Hashable, Sendable {
 
 
 @MainActor @Observable
+@available(watchOS 11, *)
 private final class AppThemeRuntime {
     var id: String
     var appearance: AppThemeAppearance = .light
@@ -178,6 +182,7 @@ private final class AppThemeRuntime {
 }
 
 @MainActor
+@available(watchOS 11, *)
 public enum AppTheme {
     public nonisolated static let storageKey = "todoAppThemeID"
     public nonisolated static let defaultMigrationKey = "todoAppThemeDefaultMigrationVersion"

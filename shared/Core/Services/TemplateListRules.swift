@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum TemplateListScope: String, CaseIterable, Identifiable {
     case all
     case favorites
@@ -14,6 +15,7 @@ public enum TemplateListScope: String, CaseIterable, Identifiable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TemplateListRules {
     public static func filterAndSort(
         _ templates: [TaskTemplate],

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+@available(watchOS 11, *)
 public enum ActivityHeatmapMarkStyle: String, CaseIterable, Identifiable, Sendable {
     case color
     case emoji
@@ -15,11 +16,13 @@ public enum ActivityHeatmapMarkStyle: String, CaseIterable, Identifiable, Sendab
     }
 }
 
+@available(watchOS 11, *)
 public enum ActivityHeatmapMark: Equatable, Sendable {
     case color
     case emoji(String)
 }
 
+@available(watchOS 11, *)
 public enum ThemePreferenceRules {
     public static let selectedThemeCloudKey = "planbase.theme.selected.v1"
     public static let activityStyleKeyPrefix = "planbase.theme.activity.style.v1."
@@ -63,6 +66,7 @@ public enum ThemePreferenceRules {
 }
 
 @MainActor
+@available(watchOS 11, *)
 public protocol ThemePreferenceValueStoring: AnyObject {
     func object(forKey key: String) -> Any?
     func string(forKey key: String) -> String?
@@ -70,16 +74,20 @@ public protocol ThemePreferenceValueStoring: AnyObject {
 }
 
 @MainActor
+@available(watchOS 11, *)
 public protocol ThemePreferenceCloudStoring: ThemePreferenceValueStoring {
     @discardableResult
     func synchronize() -> Bool
 }
 
+@available(watchOS 11, *)
 extension UserDefaults: ThemePreferenceValueStoring {}
+@available(watchOS 11, *)
 extension NSUbiquitousKeyValueStore: ThemePreferenceCloudStoring {}
 
 @Observable
 @MainActor
+@available(watchOS 11, *)
 public final class ThemePreferenceStore {
     public static let shared = ThemePreferenceStore()
 
@@ -203,6 +211,7 @@ public final class ThemePreferenceStore {
     }
 }
 
+@available(watchOS 11, *)
 private extension ThemePreferenceStore {
     @discardableResult
     func reconcileFromCloud(

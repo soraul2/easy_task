@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct CalendarEventGridLayoutItem: Equatable, Hashable, Sendable {
     public let renderID: UUID
     public let eventID: UUID
@@ -25,6 +26,7 @@ public struct CalendarEventGridLayoutItem: Equatable, Hashable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CalendarEventGridSegment: Equatable, Identifiable, Sendable {
     public let renderID: UUID
     public let eventID: UUID
@@ -60,6 +62,7 @@ public struct CalendarEventGridSegment: Equatable, Identifiable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CalendarEventGridLayoutResult: Equatable, Sendable {
     public let rowCount: Int
     public let segments: [CalendarEventGridSegment]
@@ -79,6 +82,7 @@ public struct CalendarEventGridLayoutResult: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CalendarEventGridLayout {
     public static func make(
         items: [CalendarEventGridLayoutItem],

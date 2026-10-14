@@ -13,6 +13,7 @@ public enum CalendarWidgetConstants {
     ]
 }
 
+@available(watchOS 11, *)
 public struct CalendarWidgetEventSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public let renderID: UUID
@@ -57,6 +58,7 @@ public struct CalendarWidgetEventSnapshot: Codable, Equatable, Identifiable, Sen
     }
 }
 
+@available(watchOS 11, *)
 public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     public static let currentSchemaVersion = 5
 
@@ -177,7 +179,8 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
                 storedEventCounts != nil)
     }
 
-    @MainActor
+    /// Reads model rows synchronously on their owning context's executor. Never
+    /// pass these rows across actors; only the returned value snapshot is Sendable.
     public static func make(
         events: [CalendarEvent],
         tasks: [Task]? = nil,
@@ -484,6 +487,7 @@ public struct CalendarWidgetSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CalendarWidgetMonthSelection: Equatable, Sendable {
     public let month: Date
     public let canMoveBackward: Bool
@@ -500,6 +504,7 @@ public struct CalendarWidgetMonthSelection: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CalendarWidgetMonthNavigation {
     public static func selection(
         selectedMonthDayKey: String?,

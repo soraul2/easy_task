@@ -4,6 +4,7 @@ import SwiftData
 import WidgetKit
 
 @MainActor
+@available(watchOS 11, *)
 enum WatchWidgetSnapshotPublicationService {
     @discardableResult
     static func publish(

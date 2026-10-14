@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum FocusSessionServiceError: LocalizedError, Equatable {
     case activeSessionAlreadyExists(UUID)
     case noActiveSession
@@ -30,6 +31,7 @@ public enum FocusSessionServiceError: LocalizedError, Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusSessionReconciliationResult {
     case unchanged(FocusActiveSessionSnapshot)
     case focusEnded(FocusSession)
@@ -37,6 +39,7 @@ public enum FocusSessionReconciliationResult {
     case noActiveSession
 }
 
+@available(watchOS 11, *)
 public enum FocusSessionService {
     @MainActor
     public static func beginFocus(
@@ -274,6 +277,7 @@ public enum FocusSessionService {
     }
 }
 
+@available(watchOS 11, *)
 private extension FocusSessionService {
     static func requiredSnapshot(
         expectedSessionID: UUID,

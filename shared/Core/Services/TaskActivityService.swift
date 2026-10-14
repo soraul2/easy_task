@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum TaskActivityService {
     @MainActor
     @discardableResult
@@ -19,7 +20,7 @@ public enum TaskActivityService {
         )
     }
 
-    @MainActor
+    /// Runs synchronously on the supplied context's executor.
     @discardableResult
     public static func record(
         taskID: UUID,
@@ -42,7 +43,6 @@ public enum TaskActivityService {
 
     /// Invocation-local pending values for synchronous backfill without a caller
     /// callback, await, or save. Never reused by public record() or across calls.
-    @MainActor
     final class StableLegacyPendingProof {
         let contextID: ObjectIdentifier
         private(set) var physicalIDs: Set<PersistentIdentifier>
@@ -72,7 +72,6 @@ public enum TaskActivityService {
         }
     }
 
-    @MainActor
     static func recordLegacyCompletion(
         taskID: UUID, activityDayKey: String, occurredAt: Date, createdAt: Date,
         in context: ModelContext, pending: StableLegacyPendingProof
@@ -100,7 +99,6 @@ public enum TaskActivityService {
         return activity
     }
 
-    @MainActor
     private static func insertActivity(
         taskID: UUID, activityDayKey: String, occurredAt: Date,
         origin: TaskCompletionActivityOrigin, createdAt: Date,
@@ -116,7 +114,6 @@ public enum TaskActivityService {
     }
 
 
-    @MainActor
     private static func hasBlockingActivity(
         taskID: UUID,
         activityDayKey: String,

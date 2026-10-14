@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct TemplateContentSnapshot: Equatable, Identifiable {
     public var id: UUID
     public var name: String
@@ -12,6 +13,7 @@ public struct TemplateContentSnapshot: Equatable, Identifiable {
 
 /// Editing a saved routine never changes tasks or placement history already on a board.
 @MainActor
+@available(watchOS 11, *)
 public enum TemplateEditingService {
     public enum Failure: LocalizedError {
         case unavailable, changed, emptyName, emptyTasks, invalidTask

@@ -182,8 +182,8 @@ struct AdvancePlanBaseTaskIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "PlanBase 다음 작업"
     static let description = IntentDescription("남은 작업 중 표시할 작업만 변경합니다.")
     static let isDiscoverable = false
-    static let authenticationPolicy: IntentAuthenticationPolicy =
-        .requiresLocalDeviceAuthentication
+    // Browsing changes only the displayed selection, so it must work while locked.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
 
     @Parameter(title: "작업 ID")
     var taskID: String

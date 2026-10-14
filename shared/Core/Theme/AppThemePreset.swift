@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 /// A fixed appearance with one canonical palette. Legacy IDs resolve at the boundary.
+@available(watchOS 11, *)
 public struct AppThemePreset: Identifiable, Hashable, Sendable {
     public let id: String
     public let name: String

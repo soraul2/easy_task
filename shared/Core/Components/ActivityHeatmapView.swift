@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapPalette {
     public var empty: Color
     public var level1: Color
@@ -45,6 +46,7 @@ public struct ActivityHeatmapPalette {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapMarkSample: View {
     private let level: ActivityIntensityLevel
     private let palette: ActivityHeatmapPalette
@@ -105,6 +107,7 @@ public struct ActivityHeatmapMarkSample: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapLayout: Equatable, Sendable {
     public var size: CGSize
     public var weekCount: Int
@@ -161,6 +164,7 @@ public struct ActivityHeatmapLayout: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapView: View {
     private let overview: ActivityOverview
     private let palette: ActivityHeatmapPalette
@@ -317,6 +321,7 @@ public struct ActivityHeatmapView: View {
     }
 }
 
+@available(watchOS 11, *)
 private extension ActivityHeatmapView {
     func emojiIndicatorPath(in rect: CGRect) -> Path {
         Path(ellipseIn: rect.insetBy(dx: rect.width * 0.04, dy: rect.height * 0.04))

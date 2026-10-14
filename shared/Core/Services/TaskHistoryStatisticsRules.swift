@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct TaskHistoryStatistics: Equatable, Sendable {
     public var plannedTaskCount: Int
     public var completedTaskCount: Int
@@ -29,6 +30,7 @@ public struct TaskHistoryStatistics: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct TaskHistoryStatisticsPresentation: Equatable, Sendable {
     public var periodTitle: String
     public var populationTitle: String
@@ -61,6 +63,7 @@ public struct TaskHistoryStatisticsPresentation: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskHistoryStatisticsRules {
     public static func statistics(
         from tasks: [Task],

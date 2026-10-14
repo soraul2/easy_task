@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum DailyReviewRules {
     public static func hasContent(_ review: DailyReview) -> Bool {
         hasContent(

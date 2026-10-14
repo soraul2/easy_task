@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Keeps recovery actions reachable before optional technical details on every platform.
+@available(watchOS 11, *)
 public struct PlanBaseRecoveryView: View {
     private let details: String
     private let retry: () -> Void

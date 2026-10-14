@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     public static let focusMarkerDate = Date(timeIntervalSince1970: 4_102_272_000)
 
@@ -61,6 +62,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitConvergenceProbe {
     @MainActor
     static func writeFocusMarker(token: UUID, context: ModelContext) throws {

@@ -6,6 +6,7 @@ import SwiftData
 import UniformTypeIdentifiers
 
 /// Opt-in local UI fixtures. Production launch paths never call this service.
+@available(watchOS 11, *)
 public enum DiscoveryPreviewFixtures {
     @MainActor
     public static func seed(in context: ModelContext, arguments: [String] = ProcessInfo.processInfo.arguments) throws {

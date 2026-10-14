@@ -128,6 +128,7 @@ public struct WatchWidgetSnapshot: Codable, Equatable, Sendable {
             && focusPlannedSeconds == other.focusPlannedSeconds
     }
 
+    @available(watchOS 11, *)
     @MainActor
     public static func make(
         tasks: [Task],

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     public static let activityMarkerDayKey = "2099-12-30"
 
@@ -71,6 +72,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitConvergenceProbe {
     @MainActor
     static func writeActivityMarker(

@@ -4,6 +4,7 @@ import SwiftData
 
 /// Opt-in, isolated local stores let UI tests verify a real process restart.
 /// This path is never used by a normal launch and never enables CloudKit.
+@available(watchOS 11, *)
 public enum MemoUITestSupport {
     @MainActor
     public static func makeContainer(arguments: [String]) throws -> ModelContainer {

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     static let checklistMarkerTitle = "__PLANBASE_CLOUDKIT_CHECKLIST_PROBE__"
     static let checklistMarkerDayKey = "2099-12-28"
@@ -215,6 +216,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitConvergenceProbe {
     @MainActor
     static func checklistTasks(

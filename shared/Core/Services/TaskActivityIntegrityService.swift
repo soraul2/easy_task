@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct TaskActivityIntegrityReport: Equatable, Sendable {
     public var scannedRecords: Int
     public var mergedRecords: Int
@@ -24,6 +25,9 @@ public struct TaskActivityIntegrityReport: Equatable, Sendable {
     }
 }
 
+/// Synchronous work on caller-owned models and context. The caller must remain
+/// on that context's executor; contexts and persistent models must not cross actors.
+@available(watchOS 11, *)
 public enum TaskActivityIntegrityService {
     public static let batchSize = 200
 
@@ -32,7 +36,6 @@ public enum TaskActivityIntegrityService {
         var dayKey: String
     }
 
-    @MainActor
     @discardableResult
     public static func reconcile(
         in context: ModelContext,
@@ -98,8 +101,8 @@ public enum TaskActivityIntegrityService {
     }
 }
 
+@available(watchOS 11, *)
 private extension TaskActivityIntegrityService {
-    @MainActor
     static func pendingActivities(
         in context: ModelContext
     ) -> [TaskCompletionActivity] {
@@ -109,7 +112,6 @@ private extension TaskActivityIntegrityService {
             .filter { seen.insert($0.persistentModelID).inserted }
     }
 
-    @MainActor
     static func normalize(
         _ activity: TaskCompletionActivity,
         report: inout TaskActivityIntegrityReport
@@ -138,7 +140,6 @@ private extension TaskActivityIntegrityService {
         )
     }
 
-    @MainActor
     static func reconcilePendingNaturalGroups(
         _ pendingActivities: [TaskCompletionActivity],
         in context: ModelContext,
@@ -177,7 +178,6 @@ private extension TaskActivityIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileNaturalGroup(
         _ group: [TaskCompletionActivity],
         report: inout TaskActivityIntegrityReport
@@ -203,7 +203,6 @@ private extension TaskActivityIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileNaturalAndCrossDayGroup(
         _ group: [TaskCompletionActivity],
         in context: ModelContext,
@@ -236,7 +235,6 @@ private extension TaskActivityIntegrityService {
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
-    @MainActor
     static func reconcileCrossDayLegacy(
         _ legacy: TaskCompletionActivity,
         in context: ModelContext,
@@ -276,7 +274,6 @@ private extension TaskActivityIntegrityService {
         report.mergedRecords += 1
     }
 
-    @MainActor
     static func supersede(
         _ activity: TaskCompletionActivity,
         at timestamp: Date,

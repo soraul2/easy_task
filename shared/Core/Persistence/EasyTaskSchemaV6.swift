@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum EasyTaskSchemaV6: VersionedSchema {
     public static var versionIdentifier: Schema.Version {
         Schema.Version(6, 0, 0)

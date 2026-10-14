@@ -32,6 +32,11 @@ enum AppTab: String, CaseIterable, Identifiable {
 }
 
 struct AppRootView: View {
+    var hasCompletedBootstrap = false
+    var bootstrapImageMigrationReport: LegacyDiaryAttachmentMigrationReport? = nil
+    var takePendingBootstrapImport: () -> CloudKitSyncEventSummary? = { nil }
+    var startupOpenURLRevision = 0
+    var takePendingStartupOpenURLs: (() -> [URL])? = nil
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -93,6 +98,10 @@ struct AppRootView: View {
         .environment(syncMonitor)
         .task {
             start()
+            if let summary = takePendingBootstrapImport() {
+                handleCloudKitSummary(summary)
+            }
+            handlePendingStartupOpenURLs()
             await DesktopFocusNotificationScheduler.shared.reconcile()
             await handlePendingFocusNotificationRoutes()
             if cloudKitEnabled {
@@ -101,6 +110,9 @@ struct AppRootView: View {
         }
         .onChange(of: selectedTab) {
             persistArchiveIfNeeded()
+        }
+        .onChange(of: startupOpenURLRevision) {
+            handlePendingStartupOpenURLs()
         }
         .onChange(of: selectedBoardDate) { _, newDate in
             selectedBoardDayKey = DayKey.key(for: newDate)
@@ -175,7 +187,11 @@ struct AppRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             refreshCurrentDay()
         }
-        .onOpenURL(perform: handleDeepLink)
+        .onOpenURL { url in
+            // App-managed roots consume the shared buffer; standalone roots
+            // retain their existing direct URL handler.
+            if case nil = takePendingStartupOpenURLs { handleDeepLink(url) }
+        }
         .preferredColorScheme(preferredThemeColorScheme)
     }
 
@@ -205,17 +221,24 @@ struct AppRootView: View {
         AppTheme.activate(syncedThemeID, colorScheme: colorScheme)
 
         do {
-            try PersistenceCommandService.perform(in: modelContext) {
-                _ = try DataIntegrityService.reconcile(
-                    context: modelContext,
-                    saveChanges: false
-                )
+            if !hasCompletedBootstrap {
+                try PersistenceCommandService.perform(in: modelContext) {
+                    _ = try DataIntegrityService.reconcile(
+                        context: modelContext,
+                        saveChanges: false
+                    )
+                }
             }
             reconcileFocusSession()
-            let migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
-                context: modelContext,
-                appSupportFolder: PlanBaseCompatibility.legacyDesktopImageFolderName
-            )
+            let migration: LegacyDiaryAttachmentMigrationReport
+            if let bootstrapImageMigrationReport {
+                migration = bootstrapImageMigrationReport
+            } else {
+                migration = try LegacyDiaryAttachmentMigrationService.migrateIfNeeded(
+                    context: modelContext,
+                    appSupportFolder: PlanBaseCompatibility.legacyDesktopImageFolderName
+                )
+            }
             if !migration.missingFileNames.isEmpty ||
                 !migration.rejectedFileNames.isEmpty ||
                 !migration.deferredFileNames.isEmpty {
@@ -409,6 +432,10 @@ struct AppRootView: View {
 
     private func handleCloudKitEvent(_ notification: Notification) {
         guard let summary = CloudKitSyncService.summary(from: notification) else { return }
+        handleCloudKitSummary(summary)
+    }
+
+    private func handleCloudKitSummary(_ summary: CloudKitSyncEventSummary) {
         syncMonitor.record(summary)
         activityImportCoordinator?.schedule(after: summary)
 
@@ -522,6 +549,10 @@ struct AppRootView: View {
         case .memo:
             MemoView(editorSession: $memoEditorSession)
         }
+    }
+
+    private func handlePendingStartupOpenURLs() {
+        for url in takePendingStartupOpenURLs?() ?? [] { handleDeepLink(url) }
     }
 
     private func handleDeepLink(_ url: URL) {

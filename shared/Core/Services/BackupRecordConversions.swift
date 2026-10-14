@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 extension TaskDTO {
     init(task: Task) {
         id = task.id
@@ -25,6 +26,7 @@ extension TaskDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskChecklistItemDTO {
     init(item: TaskChecklistItem) {
         id = item.id
@@ -39,6 +41,7 @@ extension TaskChecklistItemDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension CalendarEventDTO {
     init(event: CalendarEvent) {
         id = event.id
@@ -55,6 +58,7 @@ extension CalendarEventDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskTemplateDTO {
     init(template: TaskTemplate) {
         id = template.id
@@ -68,6 +72,7 @@ extension TaskTemplateDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskTemplateItemDTO {
     init(item: TaskTemplateItem) {
         id = item.id
@@ -86,6 +91,7 @@ extension TaskTemplateItemDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension TemplatePlacementDTO {
     init(placement: TemplatePlacement) {
         id = placement.id
@@ -99,6 +105,7 @@ extension TemplatePlacementDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension DailyReviewDTO {
     init(review: DailyReview) {
         id = review.id
@@ -114,6 +121,7 @@ extension DailyReviewDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension DiaryBlockDTO {
     init(block: DiaryBlock) {
         id = block.id
@@ -129,6 +137,7 @@ extension DiaryBlockDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension MemoDTO {
     init(memo: Memo) {
         id = memo.id
@@ -141,6 +150,7 @@ extension MemoDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension MemoDrawingDTO {
     init(drawing: MemoDrawing) {
         id = drawing.id
@@ -152,6 +162,7 @@ extension MemoDrawingDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension MemoChecklistItemDTO {
     init(item: MemoChecklistItem) {
         id = item.id
@@ -166,6 +177,7 @@ extension MemoChecklistItemDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskCompletionActivityDTO {
     init(activity: TaskCompletionActivity) {
         id = activity.id
@@ -179,6 +191,7 @@ extension TaskCompletionActivityDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskProgressEventDTO {
     init(event: TaskProgressEvent) {
         id = event.id
@@ -192,6 +205,7 @@ extension TaskProgressEventDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension FocusSessionDTO {
     init(session: FocusSession) {
         id = session.id
@@ -207,6 +221,7 @@ extension FocusSessionDTO {
     }
 }
 
+@available(watchOS 11, *)
 extension CalendarEvent {
     convenience init(dto: CalendarEventDTO) {
         self.init(
@@ -225,6 +240,7 @@ extension CalendarEvent {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskTemplate {
     convenience init(dto: TaskTemplateDTO) {
         self.init(
@@ -240,6 +256,7 @@ extension TaskTemplate {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskTemplateItem {
     convenience init(dto: TaskTemplateItemDTO) {
         self.init(
@@ -260,6 +277,7 @@ extension TaskTemplateItem {
     }
 }
 
+@available(watchOS 11, *)
 extension TemplatePlacement {
     convenience init(dto: TemplatePlacementDTO) {
         self.init(
@@ -275,6 +293,7 @@ extension TemplatePlacement {
     }
 }
 
+@available(watchOS 11, *)
 extension Task {
     convenience init(dto: TaskDTO) {
         self.init(
@@ -304,6 +323,7 @@ extension Task {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskChecklistItem {
     convenience init(dto: TaskChecklistItemDTO) {
         self.init(
@@ -320,6 +340,7 @@ extension TaskChecklistItem {
     }
 }
 
+@available(watchOS 11, *)
 extension DailyReview {
     convenience init(dto: DailyReviewDTO) {
         self.init(
@@ -337,6 +358,7 @@ extension DailyReview {
     }
 }
 
+@available(watchOS 11, *)
 extension DiaryBlock {
     convenience init(dto: DiaryBlockDTO) {
         self.init(
@@ -354,6 +376,7 @@ extension DiaryBlock {
     }
 }
 
+@available(watchOS 11, *)
 extension Memo {
     convenience init(dto: MemoDTO) {
         self.init(
@@ -368,6 +391,7 @@ extension Memo {
     }
 }
 
+@available(watchOS 11, *)
 extension MemoDrawing {
     convenience init(dto: MemoDrawingDTO) {
         self.init(
@@ -381,6 +405,7 @@ extension MemoDrawing {
     }
 }
 
+@available(watchOS 11, *)
 extension MemoChecklistItem {
     convenience init(dto: MemoChecklistItemDTO) {
         self.init(
@@ -397,6 +422,7 @@ extension MemoChecklistItem {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskCompletionActivity {
     convenience init(dto: TaskCompletionActivityDTO) {
         self.init(
@@ -412,6 +438,7 @@ extension TaskCompletionActivity {
     }
 }
 
+@available(watchOS 11, *)
 extension TaskProgressEvent {
     convenience init(dto: TaskProgressEventDTO) {
         self.init(
@@ -427,6 +454,7 @@ extension TaskProgressEvent {
     }
 }
 
+@available(watchOS 11, *)
 extension FocusSession {
     convenience init(dto: FocusSessionDTO) {
         self.init(

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapThemeEditor: View {
     public var themeID: String
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -84,6 +85,7 @@ public struct ActivityHeatmapThemeEditor: View {
     }
 }
 
+@available(watchOS 11, *)
 private extension ActivityHeatmapThemeEditor {
     var currentStyle: ActivityHeatmapMarkStyle {
         preferenceStore.activityStyle(for: themeID)

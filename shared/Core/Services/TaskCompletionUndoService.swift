@@ -3,6 +3,7 @@ import SwiftData
 
 /// A short-lived receipt for one completion on this device. Resuming a task is a
 /// separate lifecycle action and deliberately retains its completion history.
+@available(watchOS 11, *)
 public struct TaskCompletionUndoToken: Sendable {
     public let id: UUID
     public let taskID: UUID
@@ -26,6 +27,7 @@ public struct TaskCompletionUndoToken: Sendable {
     fileprivate let progress: [UUID: CompletionUndoRecordVersion]
 }
 
+@available(watchOS 11, *)
 fileprivate struct CompletionUndoRecordVersion: Equatable, Sendable {
     let id: UUID
     let type: String
@@ -53,6 +55,7 @@ fileprivate struct CompletionUndoRecordVersion: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskCompletionUndoService {
     public static let availabilityDuration: TimeInterval = 15
 

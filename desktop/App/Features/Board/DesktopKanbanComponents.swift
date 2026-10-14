@@ -2,23 +2,63 @@ import SwiftData
 import SwiftUI
 import PlanBaseCore
 
+// Construct while the query rows are attached. SwiftUI can evaluate a retained
+// ForEach child after a deletion has invalidated the original model's backing.
+struct DesktopTaskCardSnapshot: Identifiable {
+    let id: UUID
+    let instanceID: UUID
+    let title: String
+    let status: String
+    let priority: String?
+    let estimatedMinutes: Int?
+    let reminderAt: Date?
+    let plannedDayKey: String
+    let completedAt: Date?
+    let datePresentation: TaskHistoryDatePresentation?
+    let progress: TaskProgressProjection?
+
+    init(task: Task, progress: TaskProgressProjection?) {
+        id = task.id
+        instanceID = task.instanceID
+        title = task.title
+        status = task.status
+        priority = task.priority
+        estimatedMinutes = task.estimatedMinutes
+        reminderAt = task.reminderAt
+        plannedDayKey = task.plannedDayKey
+        completedAt = task.completedAt
+        datePresentation = task.status == TaskStatus.done.rawValue
+            ? TaskHistoryDatePresentation(task: task) : nil
+        self.progress = progress
+    }
+
+    func progressText(at date: Date) -> String? {
+        guard let progress else { return nil }
+        return TaskProgressEventRules.detailText(
+            projection: progress,
+            status: TaskStatus(rawValue: status) ?? .todo,
+            now: date,
+            completedAt: completedAt
+        )
+    }
+}
+
 struct KanbanColumn: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var title: String
     var status: TaskStatus
-    var tasks: [Task]
+    var tasks: [DesktopTaskCardSnapshot]
     var isBoardEmpty: Bool
     var onAddTask: () -> Void
     var selectedDayKey: String
     var onMove: (String, TaskStatus) -> Bool
-    var onStatusChange: (Task, TaskStatus) -> Void
-    var onRecordCompletion: (Task, String) -> Void
-    var onTitleChange: (Task, String) -> Bool
-    var onEdit: (Task) -> Void
-    var onStartFocus: (Task) -> Void
-    var onDelete: (Task) -> Void
-    var onSaveToLibrary: (Task) -> Void
-    var progressText: ((Task, Date) -> String?)? = nil
+    var onStatusChange: (UUID, TaskStatus) -> Void
+    var onRecordCompletion: (UUID, String) -> Void
+    var onTitleChange: (UUID, String) -> Bool
+    var onEdit: (UUID) -> Void
+    var onStartFocus: (UUID) -> Void
+    var onDelete: (UUID) -> Void
+    var onSaveToLibrary: (UUID) -> Void
     @State private var isDropTargeted = false
 
     var body: some View {
@@ -72,7 +112,7 @@ struct KanbanColumn: View {
                                 onStartFocus: onStartFocus,
                                 onDelete: onDelete,
                                 onSaveToLibrary: onSaveToLibrary,
-                                progressText: progressText?(task, timeline.date)
+                                progressText: task.progressText(at: timeline.date)
                             )
                             .draggable(task.instanceID.uuidString)
                         }
@@ -104,7 +144,7 @@ struct KanbanColumn: View {
     @ViewBuilder
     private var doingFocusLauncher: some View {
         if tasks.count == 1, let task = tasks.first {
-            Button { onStartFocus(task) } label: {
+            Button { onStartFocus(task.id) } label: {
                 focusLauncherLabel
             }
             .buttonStyle(.plain)
@@ -113,7 +153,7 @@ struct KanbanColumn: View {
         } else {
             Menu {
                 ForEach(tasks) { task in
-                    Button(displayTitle(for: task)) { onStartFocus(task) }
+                    Button(displayTitle(for: task)) { onStartFocus(task.id) }
                 }
             } label: {
                 focusLauncherLabel
@@ -135,7 +175,7 @@ struct KanbanColumn: View {
             .contentShape(Rectangle())
     }
 
-    private func displayTitle(for task: Task) -> String {
+    private func displayTitle(for task: DesktopTaskCardSnapshot) -> String {
         let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return title.isEmpty ? "제목 없는 작업" : title
     }
@@ -143,17 +183,18 @@ struct KanbanColumn: View {
 
 struct TaskCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Bindable var task: Task
+    var task: DesktopTaskCardSnapshot
     var selectedDayKey: String
-    var onStatusChange: (Task, TaskStatus) -> Void
-    var onRecordCompletion: (Task, String) -> Void
-    var onTitleChange: (Task, String) -> Bool
-    var onEdit: (Task) -> Void
-    var onStartFocus: (Task) -> Void
-    var onDelete: (Task) -> Void
-    var onSaveToLibrary: (Task) -> Void
+    var onStatusChange: (UUID, TaskStatus) -> Void
+    var onRecordCompletion: (UUID, String) -> Void
+    var onTitleChange: (UUID, String) -> Bool
+    var onEdit: (UUID) -> Void
+    var onStartFocus: (UUID) -> Void
+    var onDelete: (UUID) -> Void
+    var onSaveToLibrary: (UUID) -> Void
     var progressText: String?
     @State private var draftTitle = ""
+    @State private var hasInitializedTitle = false
     @State private var isHovered = false
     @FocusState private var isTitleFocused: Bool
 
@@ -182,18 +223,18 @@ struct TaskCard: View {
                     }
 
                 Menu {
-                    Button("작업 편집", systemImage: "square.and.pencil") { onEdit(task) }
-                    Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task) }
+                    Button("작업 편집", systemImage: "square.and.pencil") { onEdit(task.id) }
+                    Button("자주 쓰는 작업으로 저장", systemImage: "bookmark") { onSaveToLibrary(task.id) }
                     if let dayKey = TaskCompletionRules.backdatedDayKey(
                         selectedDayKey: selectedDayKey, plannedDayKey: task.plannedDayKey, status: status
                     ) {
                         Button(TaskCompletionRules.backdatedActionTitle(dayKey: dayKey), systemImage: "calendar.badge.checkmark") {
-                            onRecordCompletion(task, dayKey)
+                            onRecordCompletion(task.id, dayKey)
                         }
                         .accessibilityIdentifier("\(task.title) 선택 날짜에 완료")
                     }
                     Divider()
-                    Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task) }
+                    Button("작업 삭제", systemImage: "trash", role: .destructive) { onDelete(task.id) }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 14, weight: .medium))
@@ -209,8 +250,7 @@ struct TaskCard: View {
                 .accessibilityLabel("\(task.title) 작업 메뉴")
             }
 
-            if status == .done {
-                let dates = TaskHistoryDatePresentation(task: task)
+            if let dates = task.datePresentation {
                 Label(dates.text, systemImage: "calendar")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText)
@@ -261,7 +301,7 @@ struct TaskCard: View {
                 Spacer(minLength: 0)
 
                 if status != .done {
-                    Button { onStartFocus(task) } label: {
+                    Button { onStartFocus(task.id) } label: {
                         Image(systemName: "timer")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(AppTheme.accent)
@@ -274,7 +314,7 @@ struct TaskCard: View {
                     .accessibilityLabel("\(task.title) 집중 시작")
                 }
 
-                Button { onStatusChange(task, status.primaryActionStatus) } label: {
+                Button { onStatusChange(task.id, status.primaryActionStatus) } label: {
                     Label(primaryActionTitle, systemImage: status.primaryActionSystemImage)
                         .font(.caption.weight(.semibold))
                         .fixedSize()
@@ -298,9 +338,14 @@ struct TaskCard: View {
         .shadow(color: .black.opacity(isLifted ? 0.08 : 0.025), radius: isLifted ? 8 : 3, y: isLifted ? 4 : 2)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isLifted)
         .onHover { isHovered = $0 }
-        .onAppear { draftTitle = task.title }
-        .onChange(of: task.title) { _, title in
-            if !isTitleFocused { draftTitle = title }
+        .onAppear {
+            guard !hasInitializedTitle else { return }
+            draftTitle = task.title
+            hasInitializedTitle = true
+        }
+        .onChange(of: task.title) { oldTitle, title in
+            // Refresh committed values without replacing a focused or failed draft.
+            if !isTitleFocused, draftTitle == oldTitle { draftTitle = title }
         }
     }
 
@@ -328,7 +373,7 @@ struct TaskCard: View {
     private var statusMenu: some View {
         Menu {
             ForEach(TaskStatus.allCases) { nextStatus in
-                Button { onStatusChange(task, nextStatus) } label: {
+                Button { onStatusChange(task.id, nextStatus) } label: {
                     Label(
                         nextStatus == .done && status != .done
                             ? TaskCompletionRules.defaultActionTitle(selectedDayKey: selectedDayKey)
@@ -380,7 +425,7 @@ struct TaskCard: View {
             draftTitle = trimmedTitle
             return
         }
-        draftTitle = onTitleChange(task, trimmedTitle) ? trimmedTitle : task.title
+        if onTitleChange(task.id, trimmedTitle) { draftTitle = trimmedTitle }
     }
 }
 
@@ -392,17 +437,35 @@ private struct TaskCardChecklistSection: View {
     @State private var saveErrorMessage: String?
 
     let taskTitle: String
+    private struct ItemSnapshot: Identifiable {
+        let id: UUID
+        let instanceID: UUID
+        let title: String
+        let isCompleted: Bool
+
+        init(_ item: TaskChecklistItem) {
+            id = item.id
+            instanceID = item.instanceID
+            title = item.title
+            isCompleted = item.isCompleted
+        }
+    }
 
     init(taskID: UUID, taskTitle: String) {
         self.taskTitle = taskTitle
         _checklistItems = Query(TaskChecklistService.descriptor(taskID: taskID))
     }
 
+    private var attachedChecklistItems: [TaskChecklistItem] {
+        checklistItems.filter { $0.modelContext != nil }
+    }
+
     private var progress: ChecklistProgress {
-        TaskChecklistService.progress(in: checklistItems)
+        TaskChecklistService.progress(in: attachedChecklistItems)
     }
 
     var body: some View {
+        let items = attachedChecklistItems.map(ItemSnapshot.init)
         if !progress.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Button {
@@ -429,9 +492,9 @@ private struct TaskCardChecklistSection: View {
 
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(checklistItems) { item in
+                        ForEach(items) { item in
                             Button {
-                                toggleCompletion(of: item)
+                                toggleCompletion(instanceID: item.instanceID)
                             } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                                     Image(systemName: item.isCompleted
@@ -487,9 +550,16 @@ private struct TaskCardChecklistSection: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func toggleCompletion(of item: TaskChecklistItem) {
+    private func toggleCompletion(instanceID: UUID) {
         do {
             try PersistenceCommandService.perform(in: modelContext) {
+                var descriptor = FetchDescriptor<TaskChecklistItem>(predicate: #Predicate {
+                    $0.supersededAt == nil && $0.instanceID == instanceID
+                })
+                descriptor.fetchLimit = 1
+                guard let item = try modelContext.fetch(descriptor).first else {
+                    throw CocoaError(.fileNoSuchFile)
+                }
                 TaskChecklistService.setCompletion(!item.isCompleted, for: item)
             }
             saveErrorMessage = nil
@@ -507,7 +577,7 @@ struct TaskChecklistProgressLabel: View {
     }
 
     var body: some View {
-        let progress = TaskChecklistService.progress(in: checklistItems)
+        let progress = TaskChecklistService.progress(in: checklistItems.filter { $0.modelContext != nil })
 
         if !progress.isEmpty {
             Label(

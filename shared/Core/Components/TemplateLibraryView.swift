@@ -6,6 +6,7 @@ import UIKit
 #endif
 
 /// A shared library for the board and calendar: choosing a saved routine always comes first.
+@available(watchOS 11, *)
 public struct TemplateLibraryView: View {
     private let selectedDate: Date?
     private let boardTasks: [Task]
@@ -401,6 +402,7 @@ public struct TemplateLibraryView: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct RoutineApplyRequest: Identifiable {
     var id: UUID
     var name: String

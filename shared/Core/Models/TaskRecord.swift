@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct TaskRecordSelection: Identifiable, Hashable, Sendable {
     public let taskID: UUID
     public let dayKey: String
@@ -11,6 +12,7 @@ public struct TaskRecordSelection: Identifiable, Hashable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 struct TaskRecord {
     var title: String
     var hasCurrentTask: Bool
@@ -29,6 +31,7 @@ struct TaskRecord {
     var timeline: [TaskRecordEvent]
 }
 
+@available(watchOS 11, *)
 struct TaskRecordEvent: Identifiable {
     enum Kind { case created, progress, focus, completed, legacyCompletion, openProgress, unknownProgress }
 

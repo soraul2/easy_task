@@ -128,13 +128,14 @@ struct MobileBoardView: View {
     }
 
     private func refreshBoard() throws {
+        let interval = PlanBasePerformanceTrace.begin("BoardRead")
+        defer { PlanBasePerformanceTrace.end("BoardRead", interval) }
         let rows = try modelContext.fetch(BoundedQueryService.boardTasksDescriptor(selectedDayKey: selectedDayKey))
         let events = try BoundedQueryService.events(
             overlappingStartDayKey: selectedDayKey, endDayKey: selectedDayKey, in: modelContext)
         selectedDayTaskRows = rows
         boardTasks = BoardQueryRules.tasksForBoard(rows, selectedDayKey: selectedDayKey)
         dayEvents = CalendarEventRules.events(onDayKey: selectedDayKey, in: events)
-        progressSession?.refresh(debounce: true)
     }
 
     private var carryoverTasks: [TodoTask] {
@@ -428,20 +429,34 @@ struct MobileBoardView: View {
             showsEmptyStateIcon: !showsColumns,
             emptyStateMinimumHeight: emptyStateMinimumHeight,
             onAddTask: { quickAddFocusRequestID = UUID() },
-            onEdit: { presentedSheet = .task($0) },
-            onStartFocus: { onStartFocus($0.id) },
-            onDelete: deleteTask,
-            onSaveToLibrary: saveToLibrary,
-            onStatusChange: { requestTaskStatusChange(task: $0, status: $1) },
-            onRecordCompletion: { requestTaskStatusChange(task: $0, status: .done, completionDayKey: $1) },
+            onEdit: { id in withCurrentTask(id) { presentedSheet = .task($0) } },
+            onStartFocus: onStartFocus,
+            onDelete: { id, title in
+                pendingTaskDeletion = PendingMobileTaskDeletion(taskID: id, title: title)
+            },
+            onSaveToLibrary: { saveToLibrary(taskID: $0, title: $1) },
+            onStatusChange: { id, status in
+                withCurrentTask(id) { requestTaskStatusChange(task: $0, status: status) }
+            },
+            onRecordCompletion: { id, dayKey in
+                withCurrentTask(id) {
+                    requestTaskStatusChange(task: $0, status: .done, completionDayKey: dayKey)
+                }
+            },
             progressText: progressText,
             highlightedTaskID: highlightedTaskID
         )
         .id(status)
     }
 
-    private func saveToLibrary(_ task: TodoTask) {
-        saveToLibrary(taskID: task.id, title: task.title)
+    private func withCurrentTask(_ id: UUID, perform action: (TodoTask) -> Void) {
+        do {
+            let candidates = try modelContext.fetch(BoundedQueryService.taskCandidatesDescriptor(id: id))
+            guard let task = BoundedQueryService.representativeTask(from: candidates) else { return }
+            action(task)
+        } catch {
+            persistenceFailureMessage = "작업을 불러오지 못했습니다. 다시 시도해 주세요."
+        }
     }
 
     private func saveToLibrary(taskID: UUID, title: String) {
@@ -463,6 +478,8 @@ struct MobileBoardView: View {
     }
 
     private func addQuickTask() {
+        let interval = PlanBasePerformanceTrace.begin("TaskSubmit")
+        defer { PlanBasePerformanceTrace.end("TaskSubmit", interval) }
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         if SavedTaskShortcutRules.query(in: title) != nil {
@@ -498,11 +515,9 @@ struct MobileBoardView: View {
         showBoardNotice("‘\(task.title)’ 추가했어요")
     }
 
-    private func deleteTask(_ task: TodoTask) {
-        pendingTaskDeletion = PendingMobileTaskDeletion(taskID: task.id, title: task.title)
-    }
-
     private func confirmTaskDeletion(_ pending: PendingMobileTaskDeletion) {
+        let interval = PlanBasePerformanceTrace.begin("TaskDeletion")
+        defer { PlanBasePerformanceTrace.end("TaskDeletion", interval) }
         pendingTaskDeletion = nil
         do {
             try PersistenceCommandService.perform(in: modelContext) {

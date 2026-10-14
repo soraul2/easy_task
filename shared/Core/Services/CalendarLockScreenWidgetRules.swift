@@ -1,10 +1,12 @@
 import Foundation
 
+@available(watchOS 11, *)
 public extension CalendarWidgetConstants {
     // A new configuration leaves installed task/quick-add widgets unchanged.
     static let calendarLockScreenKind = "PlanBaseCalendarLockScreenWidget"
 }
 
+@available(watchOS 11, *)
 public enum CalendarLockScreenAvailability: Equatable, Sendable {
     case available
     case needsRefresh
@@ -19,17 +21,20 @@ public enum CalendarLockScreenAvailability: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CalendarLockScreenEventPreview: Equatable, Identifiable, Sendable {
     public let id: UUID
     public let title: String
     public let periodText: String
 }
 
+@available(watchOS 11, *)
 public struct CalendarLockScreenTimelineEntry: Equatable, Sendable {
     public let date: Date
     public let availability: CalendarLockScreenAvailability
 }
 
+@available(watchOS 11, *)
 public struct CalendarLockScreenPresentation: Equatable, Sendable {
     public let availability: CalendarLockScreenAvailability
     // Unknown/unreadable coverage must never become a confirmed zero.
@@ -60,6 +65,7 @@ public struct CalendarLockScreenPresentation: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CalendarLockScreenWidgetRules {
     public static let maximumPreviewCount = 2
     public static let maximumTimelineDayCount = 8

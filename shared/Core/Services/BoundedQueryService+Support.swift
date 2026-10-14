@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension BoundedQueryService {
 static func deduplicated<Model, Key: Hashable>(
         _ models: [Model],

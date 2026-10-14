@@ -86,41 +86,38 @@ enum CalendarWidgetSnapshotPublicationService {
 #endif
         nextPublicationSequence += 1
         let publicationSequence = nextPublicationSequence
-        let coverage = CalendarWidgetSnapshot.coverageDayKeys(for: referenceDate)
-        let events = try BoundedQueryService.events(
-            overlappingStartDayKey: coverage.startDayKey,
-            endDayKey: coverage.endDayKey,
-            in: context
-        )
-        let tasks: [PlanBaseCore.Task]?
+        let snapshot: CalendarWidgetSnapshot
+        let interval = PlanBasePerformanceTrace.begin("WidgetSnapshotRead")
         do {
-            let lockScreenCoverage = LockScreenWidgetRules.coverageDayKeys(
-                for: referenceDate
-            )
-            let plannedTasks = try context.fetch(
-                BoundedQueryService.widgetPlannedTasksDescriptor(
-                    from: lockScreenCoverage.startDayKey,
-                    through: lockScreenCoverage.endDayKey
+            if context.hasChanges {
+                // Preserve the previous publication semantics for pending edits:
+                // another context can only read the saved store.
+                snapshot = try CalendarWidgetSnapshotReader.makeSnapshot(
+                    in: context,
+                    referenceDate: referenceDate,
+                    themeID: themeID
                 )
-            )
-            let completedTasks = try context.fetch(
-                BoundedQueryService.widgetCompletedTasksDescriptor(
-                    from: lockScreenCoverage.startDayKey,
-                    through: lockScreenCoverage.endDayKey
-                )
-            )
-            tasks = mergedTasks(plannedTasks, completedTasks)
+            } else {
+                let container = context.container
+                let read = Swift.Task.detached(priority: .utility) {
+                    let reader = CalendarWidgetSnapshotReader(modelContainer: container)
+                    return try await reader.loadSnapshot(
+                        referenceDate: referenceDate,
+                        themeID: themeID
+                    )
+                }
+                snapshot = try await withTaskCancellationHandler {
+                    try await read.value
+                } onCancel: {
+                    read.cancel()
+                }
+            }
+            try Swift.Task.checkCancellation()
+            PlanBasePerformanceTrace.end("WidgetSnapshotRead", interval)
         } catch {
-            // Keep publishing calendar events even when the auxiliary
-            // lock-screen task query is temporarily unavailable.
-            tasks = nil
+            PlanBasePerformanceTrace.end("WidgetSnapshotRead", interval)
+            throw error
         }
-        let snapshot = CalendarWidgetSnapshot.make(
-            events: events,
-            tasks: tasks,
-            referenceDate: referenceDate,
-            themeID: themeID
-        )
         let didWrite = try await CalendarWidgetSnapshotWriteCoordinator.shared.write(
             snapshot,
             sequence: publicationSequence,
@@ -147,15 +144,6 @@ enum CalendarWidgetSnapshotPublicationService {
 #endif
     }
 
-    private static func mergedTasks(
-        _ plannedTasks: [PlanBaseCore.Task],
-        _ completedTasks: [PlanBaseCore.Task]
-    ) -> [PlanBaseCore.Task] {
-        var seenInstanceIDs: Set<UUID> = []
-        return (plannedTasks + completedTasks).filter {
-            seenInstanceIDs.insert($0.instanceID).inserted
-        }
-    }
 }
 
 struct CalendarWidgetSnapshotPublisher: View {
@@ -188,6 +176,7 @@ struct CalendarWidgetSnapshotPublisher: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave, object: modelContext)) { notification in
                 guard let source = notification.object as? ModelContext, source === modelContext,
+                      !PersistenceCommandService.isPerformingCommand(in: modelContext),
                       PersistenceViewRevision.affects([.tasks, .calendar], inSaveNotification: notification) else { return }
                 requestPublication()
             }

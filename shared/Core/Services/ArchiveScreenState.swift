@@ -4,6 +4,7 @@ import Observation
 /// Owned by the app root so navigating to a board does not discard the archive session.
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class ArchiveScreenState {
     public var pane: ArchivePane = .activity
     public var reviewFilter = ReviewDiscoveryFilter()
@@ -22,6 +23,7 @@ public final class ArchiveScreenState {
     public init() {}
 }
 
+@available(watchOS 11, *)
 public struct ArchiveDaySelection: Identifiable {
     public let date: Date
     public var id: String { DayKey.key(for: date) }

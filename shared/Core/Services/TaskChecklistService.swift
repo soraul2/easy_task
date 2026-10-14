@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct ChecklistItemDraft: Equatable, Identifiable, Sendable {
     public var id: UUID
     public var title: String
@@ -29,6 +30,7 @@ public struct ChecklistItemDraft: Equatable, Identifiable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ChecklistProgress: Equatable, Sendable {
     public var completedCount: Int
     public var totalCount: Int
@@ -42,6 +44,7 @@ public struct ChecklistProgress: Equatable, Sendable {
     public var isComplete: Bool { totalCount > 0 && completedCount == totalCount }
 }
 
+@available(watchOS 11, *)
 public enum TaskChecklistService {
     public static func descriptor(taskID: UUID) -> FetchDescriptor<TaskChecklistItem> {
         FetchDescriptor(

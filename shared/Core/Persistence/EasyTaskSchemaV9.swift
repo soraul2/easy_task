@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum MemoEditorMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case text
     case drawing
@@ -31,6 +32,7 @@ public enum MemoEditorMode: String, Codable, CaseIterable, Identifiable, Sendabl
     }
 }
 
+@available(watchOS 11, *)
 public enum EasyTaskSchemaV9: VersionedSchema {
     public static var versionIdentifier: Schema.Version {
         Schema.Version(9, 0, 0)

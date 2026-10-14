@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct LegacyJSONMergeReport: Equatable, Sendable {
     public var merge: BackupPackageMergeReport
     public var referencedImageFileNames: [String]
@@ -14,6 +15,7 @@ public struct LegacyJSONMergeReport: Equatable, Sendable {
         self.referencedImageFileNames = referencedImageFileNames
     }
 }
+@available(watchOS 11, *)
 public extension BackupPackageCodec {
     @MainActor
     @discardableResult
@@ -112,6 +114,7 @@ public extension BackupPackageCodec {
     }
 }
 
+@available(watchOS 11, *)
 extension BackupPackageCodec {
     @MainActor
     @discardableResult

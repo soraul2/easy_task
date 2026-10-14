@@ -6,6 +6,7 @@ public enum LockScreenWidgetFocusKind: String, Codable, Equatable, Sendable {
     case todoTask
 }
 
+@available(watchOS 11, *)
 public struct LockScreenWidgetDaySummary: Codable, Equatable, Sendable {
     public let dayKey: String
     public let todoCount: Int
@@ -53,6 +54,7 @@ public struct LockScreenWidgetDaySummary: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum LockScreenWidgetTaskState: String, Equatable, Sendable {
     case doing
     case startable
@@ -60,6 +62,7 @@ public enum LockScreenWidgetTaskState: String, Equatable, Sendable {
     case empty
 }
 
+@available(watchOS 11, *)
 public struct LockScreenWidgetTaskPresentation: Equatable, Sendable {
     public let state: LockScreenWidgetTaskState
     public let taskID: UUID?
@@ -86,6 +89,7 @@ public struct LockScreenWidgetTaskPresentation: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum LockScreenWidgetRules {
     public static let coverageDayCount = 8
 
@@ -142,7 +146,8 @@ public enum LockScreenWidgetRules {
         )
     }
 
-    @MainActor
+    /// Synchronous projection on the input models' owning context executor.
+    /// No model rows are retained or transferred to another actor.
     public static func makeDaySummaries(
         tasks: [Task],
         events: [CalendarEvent],
@@ -157,7 +162,6 @@ public enum LockScreenWidgetRules {
         }
     }
 
-    @MainActor
     static func makeTodaySummary(
         tasks: [Task],
         events: [CalendarEvent],
@@ -173,7 +177,6 @@ public enum LockScreenWidgetRules {
         )
     }
 
-    @MainActor
     private static func preparedSummaryInputs(
         tasks: [Task],
         events: [CalendarEvent],
@@ -201,7 +204,6 @@ public enum LockScreenWidgetRules {
         return (startDate, activeTasks, activeEvents)
     }
 
-    @MainActor
     private static func summary(
         dayKey: String,
         tasks: [Task],
@@ -243,7 +245,6 @@ public enum LockScreenWidgetRules {
         )
     }
 
-    @MainActor
     private static func representativeTasks(from tasks: [Task]) -> [Task] {
         Dictionary(grouping: tasks, by: \.id).values.compactMap { candidates in
             candidates.max { lhs, rhs in
@@ -255,7 +256,6 @@ public enum LockScreenWidgetRules {
         }
     }
 
-    @MainActor
     private static func taskSort(_ lhs: Task, _ rhs: Task) -> Bool {
         if lhs.order != rhs.order {
             return lhs.order < rhs.order
@@ -268,7 +268,6 @@ public enum LockScreenWidgetRules {
         return lhs.id.uuidString < rhs.id.uuidString
     }
 
-    @MainActor
     private static func eventSort(_ lhs: CalendarEvent, _ rhs: CalendarEvent) -> Bool {
         if lhs.startDayKey != rhs.startDayKey {
             return lhs.startDayKey < rhs.startDayKey
@@ -287,14 +286,12 @@ public enum LockScreenWidgetRules {
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
-    @MainActor
     private static func firstTitledTask(in tasks: [Task]) -> String? {
         tasks.lazy
             .map { normalizedTitle($0.title) }
             .first(where: { !$0.isEmpty })
     }
 
-    @MainActor
     private static func firstTitledEvent(in events: [CalendarEvent]) -> String? {
         events.lazy
             .map { normalizedTitle($0.title) }

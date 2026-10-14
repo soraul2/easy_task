@@ -2,6 +2,7 @@
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 struct SavedTaskEditorSheet: View {
     let entry: SavedTaskEntry?
     @Environment(\.modelContext) private var context

@@ -4,6 +4,7 @@ import SwiftData
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class TaskHistoryStatisticsSession {
     public private(set) var statistics = TaskHistoryStatistics()
     public private(set) var isLoading = false

@@ -4,6 +4,7 @@ import SwiftData
 import SwiftUI
 import WatchKit
 
+@available(watchOS 11, *)
 private struct PendingWatchCompletion: Identifiable {
     let id = UUID()
     let taskID: UUID
@@ -11,6 +12,7 @@ private struct PendingWatchCompletion: Identifiable {
     let reminderAt: Date
 }
 
+@available(watchOS 11, *)
 struct WatchTodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var taskRows: [PlanBaseCore.Task]
@@ -367,6 +369,7 @@ struct WatchTodayView: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct WatchSummaryMetric: View {
     let value: Int
     let label: String
@@ -385,6 +388,7 @@ private struct WatchSummaryMetric: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct WatchTaskRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast

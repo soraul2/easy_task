@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension BoundedQueryService {
 @MainActor
     public static func taskActivitySnapshots(

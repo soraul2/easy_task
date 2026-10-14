@@ -3,6 +3,7 @@ import SwiftData
 
 /// Lazy archival still runs at navigation/day boundaries, but a read-only check
 /// must not announce a data mutation to every query session and widget publisher.
+@available(watchOS 11, *)
 public enum ArchiveMaintenanceService {
     @MainActor
     @discardableResult

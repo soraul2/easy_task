@@ -4,6 +4,7 @@ import SwiftUI
 import UIKit
 #endif
 
+@available(watchOS 11, *)
 public extension View {
     /// Uses the same discard choice for Cancel and an attempted interactive dismissal.
     func planBaseDiscardConfirmation(
@@ -23,6 +24,7 @@ public extension View {
     }
 }
 
+@available(watchOS 11, *)
 private struct PlanBaseDiscardConfirmation: ViewModifier {
     @Binding var isPresented: Bool
     var hasUnsavedChanges: Bool
@@ -52,6 +54,7 @@ private struct PlanBaseDiscardConfirmation: ViewModifier {
 }
 
 #if os(iOS)
+@available(watchOS 11, *)
 private struct PlanBaseSheetDismissGuard: UIViewControllerRepresentable {
     var isBlocked: Bool
     var onAttempt: () -> Void
@@ -70,6 +73,7 @@ private struct PlanBaseSheetDismissGuard: UIViewControllerRepresentable {
     }
 }
 
+@available(watchOS 11, *)
 private final class PlanBaseDismissGuardController: UIViewController, UIAdaptivePresentationControllerDelegate {
     var isBlocked = false
     var onAttempt: (() -> Void)?

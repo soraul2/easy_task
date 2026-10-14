@@ -1,6 +1,7 @@
 import Foundation
 
 /// UI-only comparison state; never written to the persistent store.
+@available(watchOS 11, *)
 public struct TaskEditorDraftSnapshot: Equatable {
     public var title: String
     public var note: String

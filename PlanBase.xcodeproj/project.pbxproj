@@ -114,6 +114,9 @@
 		DG3000000000000000000002 /* desktop/App/Features/Archive/DesktopDiaryImageSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DG2000000000000000000002 /* desktop/App/Features/Archive/DesktopDiaryImageSupport.swift */; };
 		DH3000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DH2000000000000000000001 /* desktop/App/Features/Calendar/DesktopCalendarDayInspector.swift */; };
 		F30000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */; };
+		6A6EE782E85EC074D69F1CD4 /* mobile/App/Infrastructure/WatchCompanionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCA54AC66FF20A91053E109 /* mobile/App/Infrastructure/WatchCompanionBridge.swift */; };
+		FE510ADB577E972233C0796A /* watch/App/WatchCompanionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40731D889EE26A2116F88D9 /* watch/App/WatchCompanionController.swift */; };
+		189E1BE5BD4D85C21355431F /* watch/App/WatchCompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E275C96A852EA75025013DB2 /* watch/App/WatchCompanionView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -319,6 +322,9 @@
 		E20000000000000000000007 /* desktop/Configuration/PlanBase-macOS-ExportOptions.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "desktop/Configuration/PlanBase-macOS-ExportOptions.plist"; sourceTree = SOURCE_ROOT; };
 		F10000000000000000000010 /* PlanBaseLaunchUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlanBaseLaunchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F20000000000000000000001 /* mobile/Tests/PlanBaseLaunchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/Tests/PlanBaseLaunchUITests.swift; sourceTree = SOURCE_ROOT; };
+		CDCA54AC66FF20A91053E109 /* mobile/App/Infrastructure/WatchCompanionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mobile/App/Infrastructure/WatchCompanionBridge.swift; sourceTree = SOURCE_ROOT; };
+		B40731D889EE26A2116F88D9 /* watch/App/WatchCompanionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/App/WatchCompanionController.swift; sourceTree = SOURCE_ROOT; };
+		E275C96A852EA75025013DB2 /* watch/App/WatchCompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = watch/App/WatchCompanionView.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -421,6 +427,7 @@
 			children = (
 				A20000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift */,
 				AR2000000000000000000001 /* mobile/App/MobileAppRootView.swift */,
+				CDCA54AC66FF20A91053E109 /* mobile/App/Infrastructure/WatchCompanionBridge.swift */,
 				AQ2000000000000000000001 /* mobile/App/MobileCloudKitSyncViews.swift */,
 				AS2000000000000000000001 /* mobile/App/MobileThemePickerViews.swift */,
 				AE1000000000000000000002 /* Features */,
@@ -693,6 +700,8 @@
 			isa = PBXGroup;
 			children = (
 				B20000000000000000000003 /* watch/App/PlanBaseWatchApp.swift */,
+				E275C96A852EA75025013DB2 /* watch/App/WatchCompanionView.swift */,
+				B40731D889EE26A2116F88D9 /* watch/App/WatchCompanionController.swift */,
 				B20000000000000000000004 /* watch/App/WatchRootView.swift */,
 				B20000000000000000000005 /* watch/App/WatchTodayView.swift */,
 				B20000000000000000000006 /* watch/App/WatchWidgetSnapshotPublisher.swift */,
@@ -1068,6 +1077,7 @@
 			files = (
 				A30000000000000000000010 /* mobile/App/PlanBaseMobileApp.swift in Sources */,
 				AR3000000000000000000001 /* mobile/App/MobileAppRootView.swift in Sources */,
+				6A6EE782E85EC074D69F1CD4 /* mobile/App/Infrastructure/WatchCompanionBridge.swift in Sources */,
 				AQ3000000000000000000001 /* mobile/App/MobileCloudKitSyncViews.swift in Sources */,
 				AS3000000000000000000001 /* mobile/App/MobileThemePickerViews.swift in Sources */,
 				AT3000000000000000000001 /* mobile/App/Infrastructure/MobilePersistenceRecoveryView.swift in Sources */,
@@ -1164,6 +1174,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				B30000000000000000000001 /* watch/App/PlanBaseWatchApp.swift in Sources */,
+				189E1BE5BD4D85C21355431F /* watch/App/WatchCompanionView.swift in Sources */,
+				FE510ADB577E972233C0796A /* watch/App/WatchCompanionController.swift in Sources */,
 				B30000000000000000000002 /* watch/App/WatchRootView.swift in Sources */,
 				B30000000000000000000003 /* watch/App/WatchTodayView.swift in Sources */,
 				B30000000000000000000004 /* watch/App/WatchWidgetSnapshotPublisher.swift in Sources */,
@@ -1222,7 +1234,7 @@
 				CODE_SIGN_ENTITLEMENTS = mobile/Configuration/PlanBaseWidget.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1256,7 +1268,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "desktop/Configuration/PlanBaseWidget-macOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "mobile/Configuration/PlanBaseWidget-Info.plist";
@@ -1410,7 +1422,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1439,7 +1451,7 @@
 				CODE_SIGN_ENTITLEMENTS = "mobile/Configuration/PlanBase-iOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
@@ -1465,7 +1477,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1491,7 +1503,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1517,7 +1529,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1542,7 +1554,7 @@
 				CODE_SIGN_ENTITLEMENTS = "desktop/Configuration/PlanBase-macOS-AppStore.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -1563,7 +1575,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1588,7 +1600,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1615,7 +1627,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "watch/Configuration/PlanBase-watchOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "watch/Configuration/PlanBase-watchOS-Info.plist";
@@ -1633,7 +1645,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
 		};
@@ -1645,7 +1657,7 @@
 				CODE_SIGN_ENTITLEMENTS = "watch/Configuration/PlanBase-watchOS.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1663,7 +1675,7 @@
 				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
 		};
@@ -1673,7 +1685,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = watch/Configuration/PlanBaseWatchWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "watch/Configuration/PlanBaseWatchWidget-Info.plist";
@@ -1692,7 +1704,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
 		};
@@ -1703,7 +1715,7 @@
 				CODE_SIGN_ENTITLEMENTS = watch/Configuration/PlanBaseWatchWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 89;
+				CURRENT_PROJECT_VERSION = 92;
 				DEVELOPMENT_TEAM = 8QCW4WP3SM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1722,7 +1734,7 @@
 				SUPPORTED_PLATFORMS = "watchos watchsimulator";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Release;
 		};

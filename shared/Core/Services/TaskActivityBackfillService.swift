@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct TaskActivityBackfillReport: Equatable, Sendable {
     public var scannedTasks: Int
     public var insertedActivities: Int
@@ -11,10 +12,12 @@ public struct TaskActivityBackfillReport: Equatable, Sendable {
     }
 }
 
+/// Synchronous work on caller-owned models and context. The caller must remain
+/// on that context's executor; contexts and persistent models must not cross actors.
+@available(watchOS 11, *)
 public enum TaskActivityBackfillService {
     public static let batchSize = 200
 
-    @MainActor
     @discardableResult
     public static func backfillLegacyCompletions(
         in context: ModelContext, createdAt: Date = Date()
@@ -23,7 +26,6 @@ public enum TaskActivityBackfillService {
                                       isCancelled: { false }, stablePendingScope: true)
     }
 
-    @MainActor
     @discardableResult
     public static func backfillLegacyCompletions(
         in context: ModelContext,
@@ -36,7 +38,6 @@ public enum TaskActivityBackfillService {
                                       isCancelled: isCancelled, stablePendingScope: false)
     }
 
-    @MainActor
     private static func backfillLegacyCompletions(
         in context: ModelContext, createdAt: Date,
         isCancelled: () -> Bool, stablePendingScope: Bool
@@ -138,6 +139,7 @@ public enum TaskActivityBackfillService {
     }
 }
 
+@available(watchOS 11, *)
 private extension TaskActivityBackfillService {
     struct SavedCompletionCandidate {
         let persistentModelID: PersistentIdentifier
@@ -161,7 +163,6 @@ private extension TaskActivityBackfillService {
         let activityID: UUID
     }
 
-    @MainActor
     static func knownRecordedCompletions(
         in context: ModelContext, candidates: [SavedCompletionCandidate],
         excluding pendingIdentifiers: Set<PersistentIdentifier>, doneStatus: String
@@ -204,7 +205,6 @@ private extension TaskActivityBackfillService {
         return proven
     }
 
-    @MainActor
     static func backfill(
         taskID: UUID,
         completedAt: Date,

@@ -123,6 +123,8 @@ final class TaskNotificationScheduler {
 
         isReconciling = true
         defer { isReconciling = false }
+        let interval = PlanBasePerformanceTrace.begin("TaskNotificationReconcile")
+        defer { PlanBasePerformanceTrace.end("TaskNotificationReconcile", interval) }
         repeat {
             needsAnotherPass = false
             do {
@@ -154,8 +156,13 @@ final class TaskNotificationScheduler {
             return
         }
 
-        let tasks = try context.fetch(BoundedQueryService.activeReminderTasksDescriptor())
-        let desired = TaskReminderRules.desiredSnapshots(from: tasks, now: now)
+        let desired: [TaskReminderSnapshot]
+        do {
+            let interval = PlanBasePerformanceTrace.begin("TaskReminderRead")
+            defer { PlanBasePerformanceTrace.end("TaskReminderRead", interval) }
+            let tasks = try context.fetch(BoundedQueryService.activeReminderTasksDescriptor())
+            desired = TaskReminderRules.desiredSnapshots(from: tasks, now: now)
+        }
         let pending = pendingRequests.map { request in
             PendingTaskReminder(
                 identifier: request.identifier,

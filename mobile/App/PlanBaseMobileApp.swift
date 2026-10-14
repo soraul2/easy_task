@@ -129,52 +129,94 @@ enum PlanBaseLaunchEnvironment {
 @main
 struct PlanBaseMobileApp: App {
     @UIApplicationDelegateAdaptor(PlanBaseAppDelegate.self) private var appDelegate
-    @State private var persistenceState: PersistenceState
+    @State private var startup: PlanBaseStartupSession
 #if DEBUG
     @MainActor private static var didSimulateRecovery = false
 #endif
 
+    @MainActor
     init() {
-        _persistenceState = State(initialValue: Self.makePersistenceState())
+        let session = PlanBaseStartupSession()
+        _startup = State(initialValue: session)
+        PlanBaseTaskIntentRuntime.install(startup: session) {
+            await Self.loadStartup(session)
+        }
+        // Background launches need no WindowGroup task. Scene and Intent callers
+        // join this same single flight; the initializer performs no store work.
+        Swift.Task { @MainActor in
+            await Self.loadStartup(session)
+        }
     }
 
     var body: some Scene {
         WindowGroup {
             Group {
-                switch persistenceState {
-                case .ready(let modelContainer):
+                switch startup.state {
+                case .opening:
+                    ProgressView("PlanBase 준비 중…")
+                        .accessibilityIdentifier("planbase-startup-loading")
+                case .ready(let modelContainer, let context):
                     Group {
 #if DEBUG
                         if Self.isCloudKitProbeRequested {
                             Color.clear
                         } else {
-                            MobileAppRootView()
+                            MobileAppRootView(
+                                hasCompletedBootstrap: true,
+                                bootstrapImageMigrationReport: startup.legacyImageMigrationReport,
+                                takePendingBootstrapImport: startup.takePendingImport,
+                                startupOpenURLRevision: startup.pendingOpenURLRevision,
+                                takePendingStartupOpenURLs: startup.takePendingOpenURLs
+                            )
                         }
 #else
-                        MobileAppRootView()
+                        MobileAppRootView(
+                            hasCompletedBootstrap: true,
+                            bootstrapImageMigrationReport: startup.legacyImageMigrationReport,
+                            takePendingBootstrapImport: startup.takePendingImport,
+                            startupOpenURLRevision: startup.pendingOpenURLRevision,
+                            takePendingStartupOpenURLs: startup.takePendingOpenURLs
+                        )
 #endif
                     }
                     .planBaseAccessibilityTextSizeFixture()
                     .modelContainer(modelContainer)
+                    .environment(\.modelContext, context)
                 case .failed(let details):
                     PersistenceRecoveryView(details: details) {
-                        persistenceState = Self.makePersistenceState()
+                        startup.retry()
                     }
                     .planBaseAccessibilityTextSizeFixture()
                 }
             }
             .environment(\.locale, Locale(identifier: "ko_KR"))
+            .onOpenURL(perform: startup.recordOpenURL)
+            .task(id: startup.attempt) {
+                await Self.loadStartup(startup)
+            }
         }
     }
 
     @MainActor
-    private static func makePersistenceState() -> PersistenceState {
+    private static func loadStartup(_ session: PlanBaseStartupSession) async {
+        await session.load(open: Self.makePersistenceState,
+                           performIntegrity: Self.shouldPrepareIntegrity,
+                           legacyImageMigration: PlanBaseLegacyImageMigrationConfiguration(
+                               appSupportFolder: MobileImageStorage.appSupportFolder
+                           ),
+                           onReady: Self.completeStartup)
+    }
+
+    @MainActor
+    private static func makePersistenceState() async throws -> ModelContainer {
 #if DEBUG
         if PlanBaseLaunchEnvironment.isUITesting {
             if ProcessInfo.processInfo.arguments.contains("--ui-testing-recovery-once"),
                !didSimulateRecovery {
                 didSimulateRecovery = true
-                return .failed("UI 검증용 저장소 열기 실패입니다. 실제 사용자 저장소에는 접근하지 않았습니다. 다시 시도하면 격리된 메모리 저장소를 엽니다.")
+                throw NSError(domain: "PlanBaseUITestRecovery", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "UI 검증용 저장소 열기 실패입니다. 실제 사용자 저장소에는 접근하지 않았습니다. 다시 시도하면 격리된 메모리 저장소를 엽니다."
+                ])
             }
             do {
                 let modelContainer: ModelContainer
@@ -184,17 +226,16 @@ struct PlanBaseMobileApp: App {
                     let directory = URL.applicationSupportDirectory
                         .appendingPathComponent("ResponsivenessFixtures", isDirectory: true)
                     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                    modelContainer = try PlanBaseContainerFactory.makePersistent(
+                    modelContainer = try await PlanBaseContainerFactory.makeAppPersistentAsync(
                         storeURL: directory.appendingPathComponent("v1.store"), mode: .local)
                     try ResponsivenessPreviewFixtures.seed(in: modelContainer.mainContext)
                 } else {
                     modelContainer = try MemoUITestSupport.makeContainer(arguments: ProcessInfo.processInfo.arguments)
                 }
                 try seedUITestingDemoDataIfNeeded(in: modelContainer)
-                PlanBaseTaskIntentRuntime.install(modelContainer: modelContainer)
-                return .ready(modelContainer)
+                return modelContainer
             } catch {
-                return .failed(error.localizedDescription)
+                throw error
             }
         }
 #endif
@@ -213,16 +254,29 @@ struct PlanBaseMobileApp: App {
 #if DEBUG
             _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
 #endif
-            let modelContainer = try PlanBaseContainerFactory.makeAppPersistent()
-            PlanBaseTaskIntentRuntime.install(modelContainer: modelContainer)
-#if DEBUG
-            startCloudKitProbeIfRequested(modelContainer: modelContainer)
-#endif
-            return .ready(modelContainer)
+            return try await PlanBaseContainerFactory.makeAppPersistentAsync()
         } catch {
             print("PlanBase 저장소를 열 수 없습니다: \(error.localizedDescription)")
-            return .failed(error.localizedDescription)
+            throw error
         }
+    }
+
+    @MainActor
+    private static var shouldPrepareIntegrity: Bool {
+#if DEBUG
+        // Explicit convergence probes own their fixture setup and reconciliation.
+        !isCloudKitProbeRequested
+#else
+        true
+#endif
+    }
+
+    @MainActor
+    private static func completeStartup(container: ModelContainer, context: ModelContext) {
+        WatchCompanionBridge.shared.install(container: container, context: context)
+#if DEBUG
+        startCloudKitProbeIfRequested(context: context)
+#endif
     }
 
 #if DEBUG
@@ -263,12 +317,12 @@ struct PlanBaseMobileApp: App {
         )
     }
 
-    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
+    private static func startCloudKitProbeIfRequested(context: ModelContext) {
         guard isCloudKitProbeRequested else { return }
 
         Swift.Task { @MainActor in
             _ = await CloudKitConvergenceProbe.runIfRequested(
-                context: modelContainer.mainContext
+                context: context
             )
         }
     }
@@ -293,10 +347,6 @@ private extension View {
     }
 }
 
-private enum PersistenceState {
-    case ready(ModelContainer)
-    case failed(String)
-}
 
 #else
 @main

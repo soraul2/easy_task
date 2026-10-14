@@ -3,6 +3,7 @@ import Foundation
 import SwiftData
 
 
+@available(watchOS 11, *)
 public enum BackupPackageCodec {
     public static let formatIdentifier = PlanBaseCompatibility.backupFormatIdentifier
     public static let currentVersion = 10
@@ -484,6 +485,7 @@ public enum BackupPackageCodec {
     }
 }
 
+@available(watchOS 11, *)
 extension BackupPackageCodec {
     @MainActor
     static func validateFinalAttachmentCounts(context: ModelContext) throws {
@@ -495,6 +497,7 @@ extension BackupPackageCodec {
     }
 }
 
+@available(watchOS 11, *)
 private extension BackupPackageCodec {
     static let zeroUUID = UUID(
         uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)

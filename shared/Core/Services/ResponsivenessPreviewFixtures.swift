@@ -3,6 +3,7 @@ import Foundation
 import SwiftData
 
 /// Opt-in performance data. The caller supplies an isolated local store, never the app store.
+@available(watchOS 11, *)
 public enum ResponsivenessPreviewFixtures {
     @MainActor
     public static func seed(in context: ModelContext, referenceDate: Date = Date()) throws {

@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum SpecialDayType: String, Codable, Sendable {
     case holiday
     case anniversary
@@ -7,6 +8,7 @@ public enum SpecialDayType: String, Codable, Sendable {
     case miscellaneous
 }
 
+@available(watchOS 11, *)
 public struct SpecialDay: Codable, Identifiable, Equatable, Sendable {
     public var id: String { "\(dateKey)-\(name)" }
 
@@ -16,6 +18,7 @@ public struct SpecialDay: Codable, Identifiable, Equatable, Sendable {
     public let isPublicHoliday: Bool
 }
 
+@available(watchOS 11, *)
 public struct SpecialDayStore {
     private let daysByDateKey: [String: [SpecialDay]]
 

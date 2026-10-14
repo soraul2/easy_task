@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 extension DataIntegrityService {
     struct SeededItemKey: Hashable {
         let templateID: UUID
@@ -8,7 +9,6 @@ extension DataIntegrityService {
 
     static let fallbackTimestamp = Date(timeIntervalSince1970: 0)
 
-    @MainActor
     static func mergeActive<Record: IntegrityRecord, Key: Hashable>(
         _ records: [Record],
         groupedBy key: (Record) -> Key?,
@@ -50,7 +50,6 @@ extension DataIntegrityService {
         return rewrites
     }
 
-    @MainActor
     static func normalizeActive<Record: IntegrityRecord>(
         _ records: [Record],
         with normalize: (Record) -> Int,
@@ -92,7 +91,6 @@ extension DataIntegrityService {
         record.supersededAt == nil
     }
 
-    @MainActor
     static func supersede<Record: IntegrityRecord>(_ record: Record, report: inout Report) {
         guard record.supersededAt == nil else { return }
         record.supersededAt = record.updatedAt
@@ -100,8 +98,8 @@ extension DataIntegrityService {
     }
 }
 
+@available(watchOS 11, *)
 extension DataIntegrityService {
-    @MainActor
     static func reconcileTemplateReferences(
         templates: [TaskTemplate],
         items: [TaskTemplateItem],
@@ -153,7 +151,6 @@ extension DataIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileDiaryBlockReferences(
         reviews: [DailyReview],
         blocks: [DiaryBlock],
@@ -200,27 +197,31 @@ extension DataIntegrityService {
             }
         }
 
-        for attachment in attachments where isActive(attachment) {
-            // Normalize scalars first, as before. Only this attachment's actual
-            // successful metadata survives locally through reference validation.
-            // No image bytes are retained in a cache or across attachments/calls.
-            report.normalizedFields += normalizeDiaryAttachmentScalars(attachment)
-            let metadata = try? DiaryAttachmentService.inspect(attachment.data)
-            if let metadata {
-                report.normalizedFields += normalizeDiaryAttachmentMetadata(
-                    attachment, metadata: metadata
-                )
-            }
-            if let canonicalID = rewrites[attachment.reviewId],
-               canonicalID != attachment.reviewId {
-                attachment.reviewId = canonicalID
-                report.rewiredReferences += 1
-            }
+        do {
+            let interval = PlanBasePerformanceTrace.begin("StartupImageInspect")
+            defer { PlanBasePerformanceTrace.end("StartupImageInspect", interval) }
+            for attachment in attachments where isActive(attachment) {
+                // Normalize scalars first, as before. Only this attachment's actual
+                // successful metadata survives locally through reference validation.
+                // No image bytes are retained in a cache or across attachments/calls.
+                report.normalizedFields += normalizeDiaryAttachmentScalars(attachment)
+                let metadata = try? DiaryAttachmentService.inspect(attachment.data)
+                if let metadata {
+                    report.normalizedFields += normalizeDiaryAttachmentMetadata(
+                        attachment, metadata: metadata
+                    )
+                }
+                if let canonicalID = rewrites[attachment.reviewId],
+                   canonicalID != attachment.reviewId {
+                    attachment.reviewId = canonicalID
+                    report.rewiredReferences += 1
+                }
 
-            guard activeReviewIDs.contains(attachment.reviewId),
-                  metadata != nil else {
-                supersede(attachment, report: &report)
-                continue
+                guard activeReviewIDs.contains(attachment.reviewId),
+                      metadata != nil else {
+                    supersede(attachment, report: &report)
+                    continue
+                }
             }
         }
 
@@ -243,7 +244,6 @@ extension DataIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileTaskReferences(
         events: [CalendarEvent],
         placements: [TemplatePlacement],
@@ -266,7 +266,6 @@ extension DataIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileChecklistReferences(
         tasks: [Task],
         items: [TaskChecklistItem],
@@ -301,7 +300,6 @@ extension DataIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileMemoReferences(
         memos: [Memo],
         drawings: [MemoDrawing],

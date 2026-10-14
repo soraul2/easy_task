@@ -1,6 +1,9 @@
 import Foundation
 import SwiftData
 
+/// Synchronous work on caller-owned models and context. The caller must remain
+/// on that context's executor; contexts and persistent models must not cross actors.
+@available(watchOS 11, *)
 public enum FocusSessionIntegrityService {
     public static let batchSize = 200
 
@@ -23,7 +26,6 @@ public enum FocusSessionIntegrityService {
         }
     }
 
-    @MainActor
     @discardableResult
     public static func reconcile(
         in context: ModelContext,
@@ -75,8 +77,8 @@ public enum FocusSessionIntegrityService {
     }
 }
 
+@available(watchOS 11, *)
 private extension FocusSessionIntegrityService {
-    @MainActor
     static func pendingSessions(in context: ModelContext) -> [FocusSession] {
         var seen: Set<PersistentIdentifier> = []
         return (context.insertedModelsArray + context.changedModelsArray)
@@ -84,7 +86,6 @@ private extension FocusSessionIntegrityService {
             .filter { seen.insert($0.persistentModelID).inserted }
     }
 
-    @MainActor
     static func normalize(
         _ session: FocusSession,
         report: inout Report
@@ -113,7 +114,6 @@ private extension FocusSessionIntegrityService {
         return true
     }
 
-    @MainActor
     static func reconcilePendingGroups(
         _ pendingSessions: [FocusSession],
         in context: ModelContext,
@@ -143,7 +143,6 @@ private extension FocusSessionIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileGroup(
         _ group: [FocusSession],
         report: inout Report
@@ -171,7 +170,6 @@ private extension FocusSessionIntegrityService {
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
-    @MainActor
     static func supersede(
         _ session: FocusSession,
         at timestamp: Date,

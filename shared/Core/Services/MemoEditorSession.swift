@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum MemoSaveState: Equatable, Sendable {
     case idle
     case saving
@@ -24,6 +25,7 @@ public enum MemoSaveState: Equatable, Sendable {
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class MemoEditorSession {
     public typealias ContentLoader = @MainActor (UUID, ModelContext) throws -> (drawing: Data, checklist: [MemoChecklistDraft])
     public typealias CompositeSaver = @MainActor (
@@ -354,6 +356,7 @@ public final class MemoEditorSession {
     }
 }
 
+@available(watchOS 11, *)
 private enum MemoEditorLoadError: LocalizedError {
     case unavailable
 

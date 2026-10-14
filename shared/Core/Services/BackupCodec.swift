@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum BackupCodec {
     public static let currentVersion = 2
     public static let supportedVersions: ClosedRange<Int> = 1...2
@@ -225,6 +226,7 @@ public enum BackupCodec {
     }
 }
 
+@available(watchOS 11, *)
 private extension BackupCodec {
     static func validatedPayload(_ source: BackupPayload) throws -> BackupPayload {
         guard supportedVersions.contains(source.backupVersion) else {

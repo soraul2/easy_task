@@ -2,6 +2,7 @@
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct ArchiveDayDetailContent: View {
     @State private var date: Date
     @State private var session: ArchiveQuerySession

@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum DailyReviewWritingPrompt: String, CaseIterable, Identifiable, Sendable {
     case memorableMoment
     case didWell
@@ -18,6 +19,7 @@ public enum DailyReviewWritingPrompt: String, CaseIterable, Identifiable, Sendab
     }
 }
 
+@available(watchOS 11, *)
 public enum DailyReviewWritingRules {
     public static func contains(
         _ prompt: DailyReviewWritingPrompt,

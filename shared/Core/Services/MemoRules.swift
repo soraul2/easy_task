@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum MemoRules {
     public static let emptyTitle = "빈 메모"
 

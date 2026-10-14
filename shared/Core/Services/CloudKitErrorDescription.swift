@@ -2,6 +2,7 @@ import CloudKit
 import CoreData
 import Foundation
 
+@available(watchOS 11, *)
 public enum CloudKitErrorDescription {
     public static let systemDeferred =
         "iCloud 동기화가 시스템 상태에 따라 잠시 미뤄졌습니다. "

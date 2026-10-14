@@ -5,6 +5,7 @@ import SwiftData
 import Security
 #endif
 
+@available(watchOS 11, *)
 public enum PlanBaseStoreMode: Sendable, Equatable {
     case local
     case cloudKit
@@ -14,6 +15,7 @@ public enum PlanBaseStoreMode: Sendable, Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum PlanBaseContainerFactory {
     public static let cloudKitContainerIdentifier =
         PlanBaseCompatibility.cloudKitContainerIdentifier
@@ -59,6 +61,44 @@ public enum PlanBaseContainerFactory {
         )
 
         let container = try makePersistent(storeURL: resolvedStoreURL, mode: resolvedMode)
+        return try finishLegacyMigration(migration, in: container)
+    }
+
+    /// Opens the current store off MainActor before an app view or command writer
+    /// receives it. Legacy preparation and restore retain their existing executor
+    /// and backup/rollback behavior; no UI model context crosses into the worker.
+    @MainActor
+    public static func makeAppPersistentAsync(
+        storeURL: URL? = nil,
+        mode: PlanBaseStoreMode? = nil
+    ) async throws -> ModelContainer {
+        let resolvedMode = mode ?? runtimeAppStoreMode
+        if mode == nil, resolvedMode == .local, appStoreMode == .cloudKit {
+            print("PlanBase CloudKit entitlements unavailable; opening the local store.")
+        }
+        let resolvedStoreURL = try storeURL ?? defaultStoreURL()
+        let migration = try LegacyStoreMigrationService.prepareIfNeeded(
+            storeURL: resolvedStoreURL
+        )
+        try Swift.Task.checkCancellation()
+        let opening = Swift.Task.detached(priority: .userInitiated) {
+            try Swift.Task.checkCancellation()
+            return try makePersistent(storeURL: resolvedStoreURL, mode: resolvedMode)
+        }
+        let container = try await withTaskCancellationHandler {
+            try await opening.value
+        } onCancel: {
+            opening.cancel()
+        }
+        try Swift.Task.checkCancellation()
+        return try finishLegacyMigration(migration, in: container)
+    }
+
+    @MainActor
+    private static func finishLegacyMigration(
+        _ migration: LegacyStoreMigrationService.PreparedMigration?,
+        in container: ModelContainer
+    ) throws -> ModelContainer {
         guard let migration else { return container }
 
         do {
@@ -87,6 +127,8 @@ public enum PlanBaseContainerFactory {
         storeURL: URL? = nil,
         mode: PlanBaseStoreMode = .local
     ) throws -> ModelContainer {
+        let interval = PlanBasePerformanceTrace.begin("StoreOpen")
+        defer { PlanBasePerformanceTrace.end("StoreOpen", interval) }
         let configuration = makeConfiguration(
             storeURL: storeURL,
             mode: mode,

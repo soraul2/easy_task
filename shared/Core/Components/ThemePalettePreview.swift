@@ -2,6 +2,7 @@ import SwiftUI
 
 /// A miniature of the actual neutral card, selected navigation, and primary action.
 /// Uses the candidate palette rather than the currently active application's style.
+@available(watchOS 11, *)
 public struct ThemePalettePreview: View {
     private let colors: AppThemeColorSet
 

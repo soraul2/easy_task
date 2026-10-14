@@ -2,12 +2,14 @@ import Foundation
 import Observation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum CalendarEventRecommendationState: Equatable, Sendable {
     case idle, loading, results, empty, failed, dismissed, applied
 }
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class CalendarEventRecommendationSession {
     public private(set) var recommendations: [CalendarEventRecommendation] = []
     public private(set) var state: CalendarEventRecommendationState = .idle
@@ -162,5 +164,6 @@ public final class CalendarEventRecommendationSession {
 }
 
 #if DEBUG
+@available(watchOS 11, *)
 private enum RecommendationFixtureFailure: Error { case unavailable }
 #endif

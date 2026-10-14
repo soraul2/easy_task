@@ -4,6 +4,7 @@ import SwiftData
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class ActivityOverviewSession {
     public nonisolated static let backwardPageDayCount = 90
 

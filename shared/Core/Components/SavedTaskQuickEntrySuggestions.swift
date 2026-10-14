@@ -1,6 +1,7 @@
 #if os(iOS) || os(macOS)
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct SavedTaskQuickEntrySuggestions: View {
     public let controller: SavedTaskQuickEntryController
     private let onAdd: (UUID) -> Void

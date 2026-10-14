@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum SavedTaskShortcutRules {
     public enum Failure: LocalizedError {
         case invalidAlias, duplicateAlias(String), unknownAlias, ambiguousAlias, selectionRequired

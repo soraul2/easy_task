@@ -1,10 +1,12 @@
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 private struct PlanBaseContentIsActiveKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+@available(watchOS 11, *)
 public extension EnvironmentValues {
     var planBaseContentIsActive: Bool {
         get { self[PlanBaseContentIsActiveKey.self] }
@@ -12,6 +14,7 @@ public extension EnvironmentValues {
     }
 }
 
+@available(watchOS 11, *)
 public extension View {
     /// Retains the view and its editor/scroll state; only data refresh is deferred.
     func refreshVisibleData(
@@ -23,6 +26,7 @@ public extension View {
     }
 }
 
+@available(watchOS 11, *)
 private struct VisibleDataRefresh: ViewModifier {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase

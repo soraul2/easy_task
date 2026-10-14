@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 struct ActivityPendingChanges: Equatable, Sendable {
     let excludedIDs: Set<PersistentIdentifier>
     let snapshots: Set<TaskActivitySnapshot>
@@ -22,6 +23,7 @@ struct ActivityPendingChanges: Equatable, Sendable {
 
 /// Constructed from a detached task so both the context and aggregation stay off MainActor.
 @ModelActor
+@available(watchOS 11, *)
 actor ActivityOverviewReader {
     func loadOverview(
         weekCount: Int,

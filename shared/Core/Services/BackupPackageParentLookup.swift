@@ -5,6 +5,7 @@ import SwiftData
 /// after each parent merge or reconciliation; never retain it across a restore.
 /// Loading is lazy so untouched parent tables are neither fetched nor indexed.
 @MainActor
+@available(watchOS 11, *)
 final class BackupPackageParentLookup {
     private let context: ModelContext
     private var templateIDs: [UUID: UUID]?

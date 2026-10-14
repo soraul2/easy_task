@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct DailyReviewTaskSummaryItem: Identifiable, Equatable, Sendable {
     public var id: UUID
     public var title: String
@@ -25,6 +26,7 @@ public struct DailyReviewTaskSummaryItem: Identifiable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct DailyReviewTaskSummary: Equatable, Sendable {
     public var completed: [DailyReviewTaskSummaryItem]
     public var inProgress: [DailyReviewTaskSummaryItem]
@@ -52,6 +54,7 @@ public struct DailyReviewTaskSummary: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum DailyReviewTaskSummaryRules {
     public static func summary(
         from tasks: [Task],

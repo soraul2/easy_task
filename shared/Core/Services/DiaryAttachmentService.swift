@@ -3,6 +3,7 @@ import Foundation
 import ImageIO
 import SwiftData
 
+@available(watchOS 11, *)
 public enum DiaryAttachmentMediaType: String, Codable, CaseIterable, Sendable {
     case jpeg = "image/jpeg"
     case png = "image/png"
@@ -17,6 +18,7 @@ public enum DiaryAttachmentMediaType: String, Codable, CaseIterable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct DiaryAttachmentDraft: Equatable, Sendable {
     public var id: UUID?
     public var instanceID: UUID?
@@ -43,6 +45,7 @@ public struct DiaryAttachmentDraft: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct DiaryAttachmentMetadata: Equatable, Sendable {
     public var mediaType: DiaryAttachmentMediaType
     public var byteCount: Int
@@ -55,6 +58,7 @@ public struct DiaryAttachmentMetadata: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum DiaryAttachmentServiceError: LocalizedError, Equatable {
     case emptyData
     case fileTooLarge(actualBytes: Int, maximumBytes: Int)
@@ -87,6 +91,7 @@ public enum DiaryAttachmentServiceError: LocalizedError, Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum DiaryAttachmentService {
     public static let maximumAttachmentCount = 10
     public static let maximumImageSizeBytes = DiaryImageFileStore.maximumImageSizeBytes
@@ -325,6 +330,7 @@ public enum DiaryAttachmentService {
     }
 }
 
+@available(watchOS 11, *)
 private extension DiaryAttachmentService {
     static let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
     static let heicBrands: Set<String> = ["heic", "heix", "hevc", "hevx", "mif1", "msf1"]
@@ -430,6 +436,7 @@ private extension DiaryAttachmentService {
 }
 
 @MainActor
+@available(watchOS 11, *)
 public struct DiaryAttachmentIndex {
     private let attachmentsByReviewID: [UUID: [DiaryAttachment]]
     private let imageBlocksByReviewID: [UUID: [DiaryBlock]]
@@ -468,6 +475,7 @@ public struct DiaryAttachmentIndex {
     }
 }
 
+@available(watchOS 11, *)
 public struct LegacyDiaryAttachmentMigrationReport: Equatable, Sendable {
     public var importedCount: Int
     public var missingFileNames: [String]
@@ -487,14 +495,36 @@ public struct LegacyDiaryAttachmentMigrationReport: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum LegacyDiaryAttachmentMigrationService {
     @MainActor
     @discardableResult
     public static func migrateIfNeeded(
         context: ModelContext,
         appSupportFolder: String,
-        now: Date = Date()
+        now: Date = Date(),
+        imageDirectoryURL: URL? = nil
     ) throws -> LegacyDiaryAttachmentMigrationReport {
+        try migrateInCallerContext(
+            context: context, appSupportFolder: appSupportFolder,
+            now: now, imageDirectoryURL: imageDirectoryURL, saveChanges: true
+        )
+    }
+
+    /// Synchronous access confined to the caller's context executor. The public
+    /// UI path checkpoints pending edits and commits each review as before.
+    /// Only the quiescent bootstrap worker uses false: it owns all pending
+    /// models and rolls back this migration together with integrity repairs.
+    static func migrateInCallerContext(
+        context: ModelContext,
+        appSupportFolder: String,
+        now: Date,
+        imageDirectoryURL: URL?,
+        saveChanges: Bool,
+        beforeImageRead: @Sendable () throws -> Void = {}
+    ) throws -> LegacyDiaryAttachmentMigrationReport {
+        let interval = PlanBasePerformanceTrace.begin("LegacyImageMigration")
+        defer { PlanBasePerformanceTrace.end("LegacyImageMigration", interval) }
         let reviews = try context.fetch(FetchDescriptor<DailyReview>())
             .filter { $0.supersededAt == nil }
         let blocks = try context.fetch(FetchDescriptor<DiaryBlock>())
@@ -509,9 +539,10 @@ public enum LegacyDiaryAttachmentMigrationService {
         var knownIDs = Set(existing.map(\.id))
 
         // Keep already-saved user edits as the rollback point for each review migration.
-        try context.save()
+        if saveChanges { try context.save() }
 
         for review in reviews.sorted(by: { $0.dayKey < $1.dayKey }) {
+            if !saveChanges { try Swift.Task.checkCancellation() }
             let reviewBlocks = blocks
                 .filter { $0.reviewId == review.id }
                 .sorted {
@@ -529,6 +560,7 @@ public enum LegacyDiaryAttachmentMigrationService {
                 $0.reviewId == review.id
             }.count
             for (index, candidate) in candidates.enumerated() {
+                if !saveChanges { try Swift.Task.checkCancellation() }
                 let fileName = candidate.fileName
                 let attachmentID = DiaryAttachmentService.stableLegacyAttachmentID(
                     reviewID: review.id,
@@ -550,7 +582,8 @@ public enum LegacyDiaryAttachmentMigrationService {
                 do {
                     url = try DiaryImageFileStore.validatedImageURL(
                         for: fileName,
-                        appSupportFolder: appSupportFolder
+                        appSupportFolder: appSupportFolder,
+                        imageDirectoryURL: imageDirectoryURL
                     )
                 } catch {
                     report.rejectedFileNames.append(fileName)
@@ -563,37 +596,47 @@ public enum LegacyDiaryAttachmentMigrationService {
                     continue
                 }
 
+                try beforeImageRead()
+                let data: Data
+                let metadata: DiaryAttachmentMetadata
                 do {
-                    let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-                    let metadata = try DiaryAttachmentService.inspect(data)
-                    context.insert(DiaryAttachment(
-                        id: attachmentID,
-                        reviewId: review.id,
-                        order: Double(index) * 100,
-                        originalFileName: fileName,
-                        mimeType: metadata.mediaType.rawValue,
-                        byteCount: metadata.byteCount,
-                        sha256: metadata.sha256,
-                        data: data,
-                        createdAt: review.createdAt,
-                        updatedAt: now
-                    ))
-                    knownIDs.insert(attachmentID)
-                    activeAttachmentCount += 1
-                    report.importedCount += 1
+                    data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                    metadata = try DiaryAttachmentService.inspect(data)
                 } catch {
                     report.rejectedFileNames.append(fileName)
                     didResolveAllCandidates = false
+                    continue
                 }
+                // The hook is also sampled after inspect, outside the rejection
+                // catch. Cancellation/test failures must abort the transaction.
+                try beforeImageRead()
+                if !saveChanges { try Swift.Task.checkCancellation() }
+                context.insert(DiaryAttachment(
+                    id: attachmentID,
+                    reviewId: review.id,
+                    order: Double(index) * 100,
+                    originalFileName: fileName,
+                    mimeType: metadata.mediaType.rawValue,
+                    byteCount: metadata.byteCount,
+                    sha256: metadata.sha256,
+                    data: data,
+                    createdAt: review.createdAt,
+                    updatedAt: now
+                ))
+                knownIDs.insert(attachmentID)
+                activeAttachmentCount += 1
+                report.importedCount += 1
             }
 
             guard didResolveAllCandidates else {
                 // Persist valid candidates, but retain legacy references so missing files stay retryable.
-                do {
-                    try context.save()
-                } catch {
-                    context.rollback()
-                    throw DiaryAttachmentServiceError.saveFailed(error.localizedDescription)
+                if saveChanges {
+                    do {
+                        try context.save()
+                    } catch {
+                        context.rollback()
+                        throw DiaryAttachmentServiceError.saveFailed(error.localizedDescription)
+                    }
                 }
                 continue
             }
@@ -604,11 +647,13 @@ public enum LegacyDiaryAttachmentMigrationService {
                 block.supersededAt = now
                 block.updatedAt = now
             }
-            do {
-                try context.save()
-            } catch {
-                context.rollback()
-                throw DiaryAttachmentServiceError.saveFailed(error.localizedDescription)
+            if saveChanges {
+                do {
+                    try context.save()
+                } catch {
+                    context.rollback()
+                    throw DiaryAttachmentServiceError.saveFailed(error.localizedDescription)
+                }
             }
         }
         report.missingFileNames.sort()

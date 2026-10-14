@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum MemoDrawingPreviewRules {
     public static let maximumPixelDimension = 1_800.0
 
@@ -10,6 +11,7 @@ public enum MemoDrawingPreviewRules {
     }
 }
 
+@available(watchOS 11, *)
 public struct MemoChecklistDraft: Equatable, Identifiable, Sendable {
     public var id: UUID
     public var title: String
@@ -38,6 +40,7 @@ public struct MemoChecklistDraft: Equatable, Identifiable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum MemoDrawingService {
     public static let maximumDrawingSizeBytes = 10 * 1_024 * 1_024
 
@@ -131,6 +134,7 @@ public enum MemoDrawingService {
     }
 }
 
+@available(watchOS 11, *)
 public enum MemoChecklistService {
     public static func descriptor(memoID: UUID) -> FetchDescriptor<MemoChecklistItem> {
         FetchDescriptor(

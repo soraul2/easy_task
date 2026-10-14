@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum ArchiveOverviewMode: String, CaseIterable, Identifiable, Sendable {
     case activity
     case statistics

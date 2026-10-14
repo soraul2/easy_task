@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 
 @MainActor
+@available(watchOS 11, *)
 public enum FocusModeSelectionRequest {
     public nonisolated static let didRequestNotification = Notification.Name(
         "PlanBaseFocusModeSelectionRequested"
@@ -23,6 +24,7 @@ public enum FocusModeSelectionRequest {
     }
 }
 
+@available(watchOS 11, *)
 public struct FocusModeLauncher: View {
     private let action: () -> Void
     @State private var snapshot: FocusActiveSessionSnapshot?
@@ -75,6 +77,7 @@ public struct FocusModeLauncher: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct FocusModeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -957,6 +960,7 @@ public struct FocusModeView: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct FocusCompletionPresentation {
     let sessionID: UUID
     let kind: FocusCompletionKind
@@ -968,11 +972,13 @@ private struct FocusCompletionPresentation {
     let outcome: FocusSessionOutcome
 }
 
+@available(watchOS 11, *)
 private enum FocusCompletionKind {
     case focus
     case breakTime
 }
 
+@available(watchOS 11, *)
 private enum FocusModeFormatting {
     static func clock(_ seconds: TimeInterval) -> String {
         let value = max(0, Int(seconds.rounded(.up)))

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum FocusNotificationAction: String, Codable, Equatable, Sendable {
     case open
     case startBreak
@@ -10,6 +11,7 @@ public enum FocusNotificationAction: String, Codable, Equatable, Sendable {
     case dismiss
 }
 
+@available(watchOS 11, *)
 public struct FocusNotificationActionToken: Codable, Equatable, Sendable {
     public static let currentFormatVersion = 1
 
@@ -62,6 +64,7 @@ public struct FocusNotificationActionToken: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusNotificationRulesError: LocalizedError, Equatable {
     case invalidSnapshot
     case invalidToken
@@ -82,6 +85,7 @@ public enum FocusNotificationRulesError: LocalizedError, Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusNotificationRules {
     public static let actionGracePeriod: TimeInterval = 60 * 60
     public static let extensionBreakSeconds = 5 * 60
@@ -221,6 +225,7 @@ public enum FocusNotificationRules {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusNotificationActionTokenStoreError: LocalizedError, Equatable {
     case appGroupContainerUnavailable
     case unsupportedFormatVersion(Int)
@@ -238,6 +243,7 @@ public enum FocusNotificationActionTokenStoreError: LocalizedError, Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusNotificationActionTokenStore {
     public static let fileName = "focus-notification-action-v1.json"
 
@@ -295,6 +301,7 @@ public enum FocusNotificationActionTokenStore {
     }
 }
 
+@available(watchOS 11, *)
 private extension FocusNotificationActionTokenStore {
     struct FormatEnvelope: Decodable {
         let formatVersion: Int
@@ -321,11 +328,13 @@ private extension FocusNotificationActionTokenStore {
     }
 }
 
+@available(watchOS 11, *)
 public enum FocusNotificationActionResult: Equatable, Sendable {
     case dismissed
     case started(FocusActiveSessionSnapshot)
 }
 
+@available(watchOS 11, *)
 public enum FocusNotificationActionService {
     @MainActor
     public static func perform(
@@ -413,6 +422,7 @@ public enum FocusNotificationActionService {
     }
 }
 
+@available(watchOS 11, *)
 public final class FocusPresentationVisibilityStore: @unchecked Sendable {
     public static let shared = FocusPresentationVisibilityStore()
 
@@ -445,6 +455,7 @@ public final class FocusPresentationVisibilityStore: @unchecked Sendable {
     }
 }
 
+@available(watchOS 11, *)
 private extension FocusNotificationActionService {
     @MainActor
     static func validateCompletedFocus(

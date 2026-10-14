@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct TaskReminderSnapshot: Equatable, Hashable, Sendable {
     public var taskID: UUID
     public var title: String
@@ -23,6 +24,7 @@ public struct TaskReminderSnapshot: Equatable, Hashable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct PendingTaskReminder: Equatable, Sendable {
     public var identifier: String
     public var title: String
@@ -35,6 +37,7 @@ public struct PendingTaskReminder: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct TaskReminderReconciliationPlan: Equatable, Sendable {
     public var remindersToSchedule: [TaskReminderSnapshot]
     public var identifiersToCancel: [String]
@@ -52,6 +55,7 @@ public struct TaskReminderReconciliationPlan: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskReminderRules {
     public static let identifierPrefix = "planbase.task-reminder."
     public static let legacyIdentifierPrefix =

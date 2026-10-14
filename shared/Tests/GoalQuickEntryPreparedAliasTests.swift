@@ -157,7 +157,7 @@ func goalPreparedAliasFailedReloadRetainsSnapshotsAndRetryUsesLatestAlias() thro
     let previousSuggestions = controller.suggestions
     let previousKeys = controller.preparedAliasKeys
     record.template.quickEntryAlias = "other"
-    record.item.title = "run 최신 내용"
+    record.item.title = "최신 내용"
     try context.save()
     probe.fails = true
     controller.refresh(in: context)
@@ -165,16 +165,41 @@ func goalPreparedAliasFailedReloadRetainsSnapshotsAndRetryUsesLatestAlias() thro
     goalPreparedAliasExpectEqual(controller.suggestions, previousSuggestions)
     #expect(controller.preparedAliasKeys == previousKeys && controller.highlightedID == record.template.id)
     #expect(controller.failure == "isolated library load failure")
+    // The current alias and title no longer match the highlighted query. This
+    // submission must fail independently of the injected display reload error.
     #expect(controller.add(input: "/run", on: Date(), in: context) == nil)
+    let submissionFailure = SavedTaskLibraryService.Failure.unavailable.localizedDescription
+    #expect(controller.failure == submissionFailure)
+    #expect(controller.failure != "isolated library load failure")
+    goalPreparedAliasExpectEqual(controller.entries, previousEntries)
+    goalPreparedAliasExpectEqual(controller.suggestions, previousSuggestions)
     #expect(controller.preparedAliasKeys == previousKeys && controller.highlightedID == record.template.id)
-    #expect(try context.fetchCount(FetchDescriptor<Task>()) == 0)
+    #expect(try context.fetch(FetchDescriptor<Task>()).isEmpty)
+    #expect(!context.hasChanges && controller.input == "/run" && controller.isPresented)
+    #expect(probe.calls == 3) // Initial load, explicit refresh and failed-submit display retry.
+
+    record.item.title = "run 최신 내용"
+    record.item.note = "최신 메모"
+    record.item.checklistTitles = ["최신 체크"]
+    try context.save()
     probe.fails = false
     controller.refresh(in: context)
     #expect(controller.preparedAliasKeys == [record.template.id: "other"])
     #expect(controller.suggestions.first?.draft.title == "run 최신 내용")
-    #expect(controller.failure == "isolated library load failure") // Successful refresh preserves prior failure.
-    let task = try #require(controller.add(input: "/run", on: Date(), in: context))
-    #expect(task.title == "run 최신 내용") // Preserved explicit highlight is still a current title match.
+    #expect(controller.highlightedID == record.template.id)
+    #expect(controller.failure == submissionFailure) // Successful refresh preserves the submission error.
+    #expect(probe.calls == 4)
+
+    // A valid explicit submission resolves current records without rebuilding
+    // the display library, even if that display loader would now fail again.
+    probe.fails = true
+    let date = try #require(DayKey.date(from: "2026-10-20"))
+    let task = try #require(controller.add(input: "/run", selectedID: record.template.id, on: date, in: context))
+    #expect(task.title == "run 최신 내용" && task.note == "최신 메모")
+    #expect(task.plannedDayKey == "2026-10-20")
+    #expect(try TaskChecklistService.items(for: task.id, in: context).map(\.title) == ["최신 체크"])
+    #expect(try context.fetch(FetchDescriptor<Task>()).count == 1)
+    #expect(probe.calls == 4)
     #expect(controller.preparedAliasKeys.isEmpty && controller.entries.isEmpty && controller.suggestions.isEmpty)
     #expect(controller.failure == nil && !controller.isPresented)
 }
@@ -195,9 +220,10 @@ func goalPreparedAliasFailedInitialLoadRetriesWithSameInput() throws {
     controller.refresh(in: context)
     #expect(controller.preparedAliasKeys == [record.template.id: "run"])
     #expect(controller.suggestions.map(\.id) == [record.template.id] && controller.failure == failure)
-    #expect(controller.add(input: "/run", on: Date(), in: context) != nil)
+    let task = try #require(controller.add(input: "/run", on: Date(), in: context))
+    #expect(task.title == "새 대상")
     #expect(controller.preparedAliasKeys.isEmpty && controller.failure == nil)
-    #expect(probe.calls == 3)
+    #expect(probe.calls == 2) // Initial failed load and retry; successful submission skips display loading.
 }
 
 @Test @MainActor

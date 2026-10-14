@@ -122,3 +122,22 @@ Apple 문서상 하나의 Live Activity는 최대 8시간 활성 상태를 유�
 
 이 문서의 신규 동작을 확인하는 규칙/Intent/Coordinator 테스트와 실제 카드 전환 확인이 필수다.
 기존 테스트 통과나 SwiftUI Preview만으로 완료 처리하지 않는다.
+
+## 2026-10-14 화살표 버튼의 잠금 상태 실행 수정
+
+큰 실시간 카드에서 화살표를 눌러도 다른 할 일로 바뀌지 않는다는 피드백을 확인했다.
+`AdvancePlanBaseTaskIntent`에도 `.requiresLocalDeviceAuthentication`이 설정돼 있어,
+기기가 잠겨 있으면 표시 변경에도 잠금 해제가 필요했다.
+표시 선택만 바꾸는 이 Intent를 `.alwaysAllowed`로 수정했다.
+이 정책은 잠긴 기기에서도 Intent 실행을 허용한다.
+([Apple 인증 정책](https://developer.apple.com/documentation/appintents/intentauthenticationpolicy))
+시작·완료·집중 제어의 인증 정책과 제목의 개인정보 가림은 유지한다.
+
+공통 선택 회귀 테스트 6개가 통과했다. iOS Debug 빌드와 전용 iPhone 17 Pro
+Simulator(iOS 26.5)의 상태 테스트 13개·실시간 카드 UI 테스트 1개도 통과했다.
+추가한 상태 테스트는 표시 변경의 잠금 상태 실행 허용과 상태 변경의 인증 요구를 확인한다.
+UI 테스트는 할 일 순환·시작·완료·같은 Activity 유지·마지막 작업 완료 후 제거를 확인한다.
+결과는 `/tmp/PlanBaseLockscreenBrowse-20261014.xcresult`, 공통 테스트 로그는
+`/tmp/planbase-lockscreen-selection-20261014.log`에 있다.
+Simulator 결과는 실제 암호로 잠긴 iPhone의 인증 없는 넘김 검증을 대신하지 않으며,
+그 실기기 확인은 남아 있다.

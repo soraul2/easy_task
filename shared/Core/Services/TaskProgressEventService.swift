@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum TaskProgressEventService {
     public static let fetchBatchSize = 100
 
@@ -30,7 +31,7 @@ public enum TaskProgressEventService {
         return event
     }
 
-    @MainActor
+    /// Runs synchronously on the supplied context's executor.
     @discardableResult
     public static func recordCompatibilityBoundary(
         taskID: UUID,
@@ -59,7 +60,7 @@ public enum TaskProgressEventService {
         return event
     }
 
-    @MainActor
+    /// Returns caller-owned models; neither the context nor result may cross actors.
     public static func events(
         forTaskIDs taskIDs: Set<UUID>,
         in context: ModelContext
@@ -129,6 +130,7 @@ public enum TaskProgressEventService {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskProgressCompatibilityService {
     public struct Report: Equatable, Sendable {
         public var insertedBoundaries: Int
@@ -138,7 +140,6 @@ public enum TaskProgressCompatibilityService {
         }
     }
 
-    @MainActor
     @discardableResult
     public static func reconcile(
         tasks: [Task],

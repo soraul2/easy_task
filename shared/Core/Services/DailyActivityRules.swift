@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum DailyActivityRules {
     /// Visit days containing evidence instead of scanning every day for every task.
     /// Calendar boundaries preserve 23/25-hour days and closed-interval semantics.

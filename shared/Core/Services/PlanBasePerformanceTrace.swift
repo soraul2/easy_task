@@ -1,6 +1,7 @@
 import os
 
 /// Lightweight intervals for Instruments. No model data is included in the log.
+@available(watchOS 11, *)
 public enum PlanBasePerformanceTrace {
     private static let log = OSLog(
         subsystem: "com.soraul2.easytask.performance",

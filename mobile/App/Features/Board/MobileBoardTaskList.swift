@@ -13,12 +13,12 @@ struct BoardTaskList: View {
     var showsEmptyStateIcon: Bool
     var emptyStateMinimumHeight: CGFloat
     var onAddTask: () -> Void
-    var onEdit: (TodoTask) -> Void
-    var onStartFocus: (TodoTask) -> Void
-    var onDelete: (TodoTask) -> Void
-    var onSaveToLibrary: (TodoTask) -> Void
-    var onStatusChange: (TodoTask, TaskStatus) -> Void
-    var onRecordCompletion: (TodoTask, String) -> Void
+    var onEdit: (UUID) -> Void
+    var onStartFocus: (UUID) -> Void
+    var onDelete: (UUID, String) -> Void
+    var onSaveToLibrary: (UUID, String) -> Void
+    var onStatusChange: (UUID, TaskStatus) -> Void
+    var onRecordCompletion: (UUID, String) -> Void
     var progressText: ((TodoTask, Date) -> String?)? = nil
     var highlightedTaskID: UUID? = nil
 
@@ -49,7 +49,14 @@ struct BoardTaskList: View {
 
     @ViewBuilder
     private func taskRows(at date: Date) -> some View {
-        if tasks.isEmpty {
+        // ForEach retains its child closure across a deletion. Capture all
+        // display values before that closure can outlive a SwiftData row.
+        let rows = tasks.compactMap { task -> MobileBoardTaskRowContent? in
+            guard task.modelContext != nil, !task.isDeleted else { return nil }
+            return MobileBoardTaskRowContent(
+                card: MobileTaskCardContent(task), progressText: progressText?(task, date))
+        }
+        if rows.isEmpty {
             BoardEmptyStateView(
                 status: selectedStatus,
                 isBoardEmpty: isBoardEmpty,
@@ -62,28 +69,28 @@ struct BoardTaskList: View {
         } else {
             if selectedStatus == .doing {
                 MobileDoingFocusLauncher(
-                    tasks: tasks,
+                    rows: rows,
                     onStartFocus: onStartFocus
                 )
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
 
-            ForEach(tasks.filter { $0.modelContext != nil }) { task in
+            ForEach(rows) { row in
                 MobileTaskRow(
-                    task: task,
-                    onEdit: { onEdit(task) },
-                    onStartFocus: { onStartFocus(task) },
-                    onDelete: { onDelete(task) },
-                    onSaveToLibrary: { onSaveToLibrary(task) },
-                    onStatusChange: { onStatusChange(task, $0) },
-                    onRecordCompletion: { onRecordCompletion(task, $0) },
+                    task: row.card,
+                    onEdit: { onEdit(row.id) },
+                    onStartFocus: { onStartFocus(row.id) },
+                    onDelete: { onDelete(row.id, row.card.title) },
+                    onSaveToLibrary: { onSaveToLibrary(row.id, row.card.title) },
+                    onStatusChange: { onStatusChange(row.id, $0) },
+                    onRecordCompletion: { onRecordCompletion(row.id, $0) },
                     selectedDayKey: selectedDayKey,
-                    progressText: progressText?(task, date)
+                    progressText: row.progressText
                 )
-                .id(task.id)
+                .id(row.id)
                 .overlay {
-                    if highlightedTaskID == task.id {
+                    if highlightedTaskID == row.id {
                         RoundedRectangle(cornerRadius: 16)
                             .strokeBorder(AppTheme.accent, lineWidth: 2)
                             .allowsHitTesting(false)
@@ -97,31 +104,31 @@ struct BoardTaskList: View {
 }
 
 private struct MobileDoingFocusLauncher: View {
-    var tasks: [TodoTask]
-    var onStartFocus: (TodoTask) -> Void
+    var rows: [MobileBoardTaskRowContent]
+    var onStartFocus: (UUID) -> Void
 
     var body: some View {
         Group {
-            if tasks.count == 1, let task = tasks.first {
+            if rows.count == 1, let row = rows.first {
                 Button {
-                    onStartFocus(task)
+                    onStartFocus(row.id)
                 } label: {
                     launcherLabel(
-                        detail: displayTitle(for: task),
+                        detail: displayTitle(for: row.card),
                         trailingSystemImage: "chevron.right"
                     )
                 }
                 .buttonStyle(.plain)
             } else {
                 Menu {
-                    ForEach(tasks) { task in
-                        Button(displayTitle(for: task)) {
-                            onStartFocus(task)
+                    ForEach(rows) { row in
+                        Button(displayTitle(for: row.card)) {
+                            onStartFocus(row.id)
                         }
                     }
                 } label: {
                     launcherLabel(
-                        detail: "진행 중인 작업 \(tasks.count)개 중 선택",
+                        detail: "진행 중인 작업 \(rows.count)개 중 선택",
                         trailingSystemImage: "chevron.down"
                     )
                 }
@@ -129,7 +136,7 @@ private struct MobileDoingFocusLauncher: View {
             }
         }
         .accessibilityIdentifier("board-doing-focus-launcher")
-        .accessibilityLabel(tasks.count == 1
+        .accessibilityLabel(rows.count == 1
             ? "진행 중인 작업으로 집중 시작"
             : "집중할 진행 중 작업 선택")
     }
@@ -166,14 +173,20 @@ private struct MobileDoingFocusLauncher: View {
         .background(AppTheme.input.opacity(0.45), in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private func displayTitle(for task: TodoTask) -> String {
+    private func displayTitle(for task: MobileTaskCardContent) -> String {
         let title = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return title.isEmpty ? "제목 없는 작업" : title
     }
 }
 
-// A disappearing row can render once more after SwiftData detaches a deleted model.
-// Keep display values independent; actions still resolve through the board's persistence boundary.
+private struct MobileBoardTaskRowContent: Identifiable {
+    let card: MobileTaskCardContent
+    let progressText: String?
+    var id: UUID { card.id }
+}
+
+// Constructed before entering a lazy row closure. Rendering and actions retain
+// values and logical IDs; the board resolves the current representative model.
 private struct MobileTaskCardContent {
     let id: UUID
     let title: String
@@ -219,7 +232,7 @@ private struct MobileTaskRow: View {
     @State private var checklistSaveError: String?
 
     init(
-        task: TodoTask,
+        task: MobileTaskCardContent,
         onEdit: @escaping () -> Void,
         onStartFocus: @escaping () -> Void,
         onDelete: @escaping () -> Void,
@@ -229,7 +242,7 @@ private struct MobileTaskRow: View {
         selectedDayKey: String,
         progressText: String? = nil
     ) {
-        self.task = MobileTaskCardContent(task)
+        self.task = task
         self.onEdit = onEdit
         self.onStartFocus = onStartFocus
         self.onDelete = onDelete

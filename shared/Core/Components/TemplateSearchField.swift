@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct TemplateSearchField: View {
     @Binding var text: String
 

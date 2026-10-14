@@ -3,6 +3,7 @@ import Combine
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct ArchivePanePicker: View {
     @Binding var selection: ArchivePane
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -21,6 +22,7 @@ public struct ArchivePanePicker: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryPeriodControls: View {
     @Binding var filter: ReviewDiscoveryFilter
     public init(filter: Binding<ReviewDiscoveryFilter>) { _filter = filter }
@@ -43,6 +45,7 @@ public struct ReviewDiscoveryPeriodControls: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryCard<Photos: View>: View {
     public var record: ReviewDiscoveryRecord
     public var isDetail: Bool
@@ -116,6 +119,7 @@ public struct ReviewDiscoveryCard<Photos: View>: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryEmptyState: View {
     @Binding var filter: ReviewDiscoveryFilter
     var onCompose: () -> Void
@@ -139,6 +143,7 @@ public struct ReviewDiscoveryEmptyState: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryFooter: View {
     public var session: ReviewDiscoverySession?
     public init(session: ReviewDiscoverySession?) { self.session = session }
@@ -158,6 +163,7 @@ public struct ReviewDiscoveryFooter: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct ReviewDiscoveryConnection: ViewModifier {
     @Bindable var state: ArchiveScreenState
     @Environment(\.modelContext) private var context
@@ -214,6 +220,7 @@ private struct ReviewDiscoveryConnection: ViewModifier {
 
 /// SwiftUI can report the top/nil position while a recreated scroll view lays out.
 /// Keep the prior anchor until restoration finishes so that report cannot overwrite it.
+@available(watchOS 11, *)
 private struct ArchiveScrollRestoration: ViewModifier {
     @Binding var savedID: String?
     @State private var currentID: String?
@@ -252,6 +259,7 @@ private struct ArchiveScrollRestoration: ViewModifier {
     }
 }
 
+@available(watchOS 11, *)
 public extension View {
     func archiveRestoringScrollPosition(id: Binding<String?>) -> some View {
         modifier(ArchiveScrollRestoration(savedID: id))

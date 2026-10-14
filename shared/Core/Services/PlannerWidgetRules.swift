@@ -1,10 +1,12 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum PlannerWidgetTaskStatus: String, Codable, Equatable, Sendable {
     case todo
     case doing
 }
 
+@available(watchOS 11, *)
 public struct PlannerWidgetTaskPreview: Codable, Equatable, Identifiable, Sendable {
     public let id: UUID
     public let renderID: UUID
@@ -27,10 +29,12 @@ public struct PlannerWidgetTaskPreview: Codable, Equatable, Identifiable, Sendab
     }
 }
 
+@available(watchOS 11, *)
 public enum PlannerWidgetRules {
     public static let maximumPreviewCountPerDay = 6
 
-    @MainActor
+    /// Synchronous projection on the input models' owning context executor.
+    /// The model rows must remain confined there; the returned previews are values.
     public static func makeTaskPreviewsByDayKey(
         tasks: [Task],
         referenceDate: Date = Date()
@@ -57,7 +61,6 @@ public enum PlannerWidgetRules {
         })
     }
 
-    @MainActor
     private static func representativeTasks(from tasks: [Task]) -> [Task] {
         Dictionary(grouping: tasks, by: \.id).values.compactMap { candidates in
             candidates.max { lhs, rhs in
@@ -69,7 +72,6 @@ public enum PlannerWidgetRules {
         }
     }
 
-    @MainActor
     private static func taskSort(_ lhs: Task, _ rhs: Task) -> Bool {
         let lhsStatus = snapshotStatus(for: lhs.status)
         let rhsStatus = snapshotStatus(for: rhs.status)
@@ -90,7 +92,6 @@ public enum PlannerWidgetRules {
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
-    @MainActor
     private static func preview(_ task: Task) -> PlannerWidgetTaskPreview? {
         guard let status = snapshotStatus(for: task.status) else { return nil }
         return PlannerWidgetTaskPreview(

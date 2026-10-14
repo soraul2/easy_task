@@ -3,6 +3,7 @@ import CoreData
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public extension PlanBaseContainerFactory {
     static let cloudKitSchemaInitializationArgument = "--initialize-cloudkit-schema"
 
@@ -62,6 +63,7 @@ public extension PlanBaseContainerFactory {
     }
 }
 
+@available(watchOS 11, *)
 public enum CloudKitDevelopmentSchemaError: LocalizedError {
     case unavailableManagedObjectModel
 

@@ -5,15 +5,20 @@
 
 ## 현재 상태
 
-기준일: 2026-10-03
+기준일: 2026-10-14
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
-| 최신 업로드 | [TestFlight 1.0 (89)](releases/TESTFLIGHT_BUILD_89.md), iOS·iPadOS·watchOS 및 macOS |
-| build 89 배포 확인 | 2026-10-03 iOS 22:05:05·macOS 22:04:48 KST 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
+| 호환 변경 | [watchOS 10·SE 1세대 iPhone 연동 모드](WATCHOS.md): 구현·공통 테스트·전체 플랫폼 빌드 검증 완료. build 90 포함, 실제 SE 1 설치·iPhone 왕복은 확인 대기 |
+| 최신 업로드 | iOS·iPadOS·내장 watchOS [TestFlight 1.0 (92)](releases/TESTFLIGHT_BUILD_92.md), macOS [1.0 (91)](releases/TESTFLIGHT_BUILD_91.md) |
+| build 92 배포 확인 | 2026-10-14 16:36:50 KST iOS 업로드 성공. 처리 완료·내부 지인 그룹 2명 연결·한국어 업데이트 공지 저장 완료 |
+| build 91 배포 확인 | 2026-10-13 iOS 20:04:51·macOS 20:04:53 KST 업로드 성공·Apple 패키지 처리 시작. 두 플랫폼 처리 완료·내부 지인 그룹 연결·한국어 업데이트 공지 저장 완료 |
+| build 90 배포 확인 | 2026-10-03 iOS 23:48:07·macOS 23:47:08 KST 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
-| 최근 변경 | [인기 팔레트 기반 라이트 2개·다크 2개 추가](THEMES.md), 총 12개 테마 |
-| build 89 확인 | Debug 693통과·36skip / Release 688통과·10skip, iPhone 전체 12개 테마 UI검사 1개, 전체 플랫폼 게이트, Release archive·Production 패키지 6개 번들 검증 완료. 빌드 입력415개·고정 소스492개, 소스 commit `350ffbb` |
+| 최근 변경 | 잠금화면 실시간 카드의 화살표에 적용된 잠금 해제 요구 수정. build 91의 시작·조회·입력어·삭제 카드·캘린더 링크 개선, SE 1 호환 모드와 [테마 12개](THEMES.md)는 유지 |
+| build 92 확인 | 공통 선택 6개·iOS 상태 13개·Simulator 카드 UI 1개 통과. Release archive·배포 패키지의 Production 4개 번들 검증. 고정 소스 519개, build 91 대비 기능 변경은 화살표 Intent 인증 정책 한 곳 |
+| build 91 확인 | 기존 fullgate003와 shipping 439파일 SHA 일치로 PASS 재사용. Release archive·local export·Production 패키지6번들 확인. 빌드 번호만91로 변경, 고정 소스518개. 추가 성능·실기기 검증은 사용자 요청으로 보류 |
+| build 90 확인 | Debug 703통과·36skip / Release 698통과·10skip, 연동 로직 10개·40mm 시뮬레이터 UI·전체 플랫폼 게이트·Production 패키지 6개 번들 검증 완료. 빌드 입력417개·고정 소스499개. 당시 시작 HEAD `d09d431`의 미커밋 작업 폴더에서 호환 변경을 배포했다 |
 | 남은 확인 | 잠금 화면 위젯 세 모양·Watch Today/Focus·일부 Mac·VoiceOver/IME 실제 화면 인수, 직접100ms 반응·실기기 배터리·운영 CloudKit 왕복, TestFlight 설치와 기존 실기기 미확인 항목 |
 
 업로드 성공, 기능 검증 완료, 성능 개선 확인은 서로 다른 상태다. 이전 빌드의 테스트 통과나
@@ -28,7 +33,7 @@
 | [프로젝트 구조](../PROJECT_STRUCTURE.md) | 디렉터리·주요 진입점·파일 추가 규칙 |
 | [아키텍처](ARCHITECTURE.md) | 모듈 경계, 데이터 흐름, 화면 갱신, 무결성·백업 |
 | [CloudKit 동기화](CLOUDKIT_SYNC.md) | entitlement, schema 배포, 수렴 진단과 운영 인수 절차 |
-| [Apple Watch](WATCHOS.md) | 독립 실행형 앱·컴플리케이션 데이터 흐름과 출시 확인 |
+| [Apple Watch](WATCHOS.md) | watchOS 10 iPhone 연동·11 이상 독립 실행·컴플리케이션 흐름과 SE 1 인수 |
 | [앱 테마](THEMES.md) | 라이트 8개·다크 4개, 새 인기 팔레트 출처·순위·색상 조정과 위젯 적용 경로. build 89 포함 |
 
 ## 구현·검증 후속 작업
@@ -101,6 +106,9 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
+| [TestFlight 1.0 (92)](releases/TESTFLIGHT_BUILD_92.md) | 2026-10-14 잠금화면 화살표 인증 설정 수정, iOS·iPadOS·Watch 업로드 완료 |
+| [TestFlight 1.0 (91)](releases/TESTFLIGHT_BUILD_91.md) | 2026-10-13 시작·조회·입력어·삭제 카드·캘린더 링크 개선, 최소 배포 검사와 두 플랫폼 업로드 완료 |
+| [TestFlight 1.0 (90)](releases/TESTFLIGHT_BUILD_90.md) | 2026-10-03 watchOS 10·SE 1 iPhone 연동 모드, 두 플랫폼 업로드 완료, 실기기 확인 대기 |
 | [TestFlight 1.0 (89)](releases/TESTFLIGHT_BUILD_89.md) | 2026-10-03 라이트 2개·다크 2개 추가, 두 플랫폼 업로드 완료, 업데이트 공지 방식과 한국어 초안 |
 | [TestFlight 1.0 (88)](releases/TESTFLIGHT_BUILD_88.md) | 2026-10-03 과거 보드의 완료일 선택·날짜 표시·실행 취소, 두 플랫폼 업로드 완료 |
 | [TestFlight 1.0 (87)](releases/TESTFLIGHT_BUILD_87.md) | 2026-10-03 최적화·오늘 일정 잠금 화면 위젯 업로드 완료, 실제 화면 인수 후속 보류 |

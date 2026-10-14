@@ -2,6 +2,7 @@ import Foundation
 
 /// A board completion normally records the action day. Backdating is an explicit
 /// choice offered only for an unfinished task on its selected past planned day.
+@available(watchOS 11, *)
 public enum TaskCompletionRules {
     public static func backdatedDayKey(
         selectedDayKey: String,

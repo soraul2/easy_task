@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     static let mediaMarkerTitle = "__PLANBASE_CLOUDKIT_MEDIA_PROBE__"
     static let mediaMarkerDayKey = "2099-12-30"
@@ -249,6 +250,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitConvergenceProbe {
     @MainActor
     static func mediaReviews(

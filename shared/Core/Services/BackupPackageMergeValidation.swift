@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension BackupPackageCodec {
     static func sameEvent(_ dto: CalendarEventDTO, _ event: CalendarEvent) -> Bool {
         event.title == dto.title &&

@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct BackupPackageAttachmentManifest: Codable, Equatable, Sendable {
     public var id: UUID
     public var fileName: String
@@ -14,6 +15,7 @@ public struct BackupPackageAttachmentManifest: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct BackupPackageManifest: Codable, Equatable, Sendable {
     public var formatIdentifier: String
     public var formatVersion: Int
@@ -48,6 +50,7 @@ public struct BackupPackageManifest: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct BackupPackageAttachmentRecord: Codable, Equatable, Sendable {
     public var id: UUID
     public var instanceID: UUID
@@ -85,6 +88,7 @@ public struct BackupPackageAttachmentRecord: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct BackupPackageRecords: Codable {
     public var formatVersion: Int
     public var exportedAt: Date
@@ -104,6 +108,7 @@ public struct BackupPackageRecords: Codable {
     }
 }
 
+@available(watchOS 11, *)
 public struct BackupPackageContents {
     public var manifest: BackupPackageManifest
     public var records: BackupPackageRecords
@@ -120,6 +125,7 @@ public struct BackupPackageContents {
     }
 }
 
+@available(watchOS 11, *)
 public struct BackupPackageMergeReport: Equatable, Sendable {
     public var insertedRecords: Int
     public var updatedRecords: Int
@@ -142,6 +148,7 @@ public struct BackupPackageMergeReport: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum BackupPackageError: LocalizedError, Equatable {
     case invalidMetadataEncoding
     case invalidFormatIdentifier(String)

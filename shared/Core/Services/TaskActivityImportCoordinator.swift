@@ -4,6 +4,7 @@ import SwiftData
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class TaskActivityImportCoordinator {
     public static let productionDebounce: Duration = .seconds(2)
 
@@ -67,6 +68,7 @@ public final class TaskActivityImportCoordinator {
     }
 }
 
+@available(watchOS 11, *)
 private extension TaskActivityImportCoordinator {
     func runIfCurrent(_ requestGeneration: Int) {
         guard generation == requestGeneration else { return }

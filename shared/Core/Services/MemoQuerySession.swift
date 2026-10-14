@@ -4,6 +4,7 @@ import SwiftData
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class MemoQuerySession {
     public typealias PageLoader = @MainActor (ModelContext, String, MemoQueryCursor?) throws -> MemoQueryPage
     public private(set) var memos: [Memo] = []
@@ -168,6 +169,7 @@ public final class MemoQuerySession {
     var readPosition: (depth: Int, cursor: MemoQueryCursor?) { (loadedPageCount, nextCursor) }
 }
 
+@available(watchOS 11, *)
 private extension MemoQuerySession {
     func resetAndLoad(query: String) {
         if cooperativeLoader != nil { cancelRead() }

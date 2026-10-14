@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// A quiet placeholder below either a status picker or a column heading.
+@available(watchOS 11, *)
 public struct BoardEmptyStateView: View {
     public let status: TaskStatus
     public let isBoardEmpty: Bool

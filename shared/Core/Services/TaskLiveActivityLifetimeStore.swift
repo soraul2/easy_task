@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct TaskLiveActivityLifetimeReceipt: Codable, Equatable, Sendable {
     public var activityID: String?
     public var startedAt: Date?
@@ -11,6 +12,7 @@ public struct TaskLiveActivityLifetimeReceipt: Codable, Equatable, Sendable {
 /// ActivityKit does not report who dismissed a card. Only an observed lifetime expiry
 /// is automatically recoverable; ambiguous disappearance respects the person's dismissal.
 @MainActor
+@available(watchOS 11, *)
 public final class TaskLiveActivityLifetimeStore {
     public static let maximumActivityAge: TimeInterval = 8 * 60 * 60
     private let defaults: UserDefaults

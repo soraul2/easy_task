@@ -2,6 +2,7 @@
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct TaskRecordSheet: View {
     private let selection: TaskRecordSelection
     @Environment(\.modelContext) private var modelContext
@@ -295,6 +296,7 @@ public struct TaskRecordSheet: View {
 
 #if DEBUG
 @MainActor
+@available(watchOS 11, *)
 private enum TaskRecordUITestFixture {
     private static var didFailLoad = false
 

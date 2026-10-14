@@ -4,6 +4,7 @@ import SwiftData
 /// A disposable, value-only progress index supplies intervals that span an entire query window.
 /// All persistent reads stay on the owning context; batches yield so newer requests can cancel.
 @MainActor
+@available(watchOS 11, *)
 public final class DailyActivityQueryService {
     private let context: ModelContext
     private let progressReader: DailyProgressIndexLoader
@@ -398,8 +399,10 @@ public final class DailyActivityQueryService {
     }
 }
 
+@available(watchOS 11, *)
 enum DailyActivityReadInvalidated: Error { case changed }
 
+@available(watchOS 11, *)
 struct DailyProgressIndexRequest: Sendable {
     let from: Date
     let existingTaskIDs: Set<UUID>
@@ -407,9 +410,11 @@ struct DailyProgressIndexRequest: Sendable {
     let pending: [TaskProgressEventSnapshot]
 }
 
+@available(watchOS 11, *)
 typealias DailyProgressIndexLoader = @MainActor (DailyProgressIndexRequest) async throws
     -> [UUID: TaskProgressProjection]
 
+@available(watchOS 11, *)
 private struct DailyProgressPendingValue: Equatable {
     let roles: Int
     let snapshot: TaskProgressEventSnapshot
@@ -427,6 +432,7 @@ private struct DailyProgressPendingValue: Equatable {
     }
 }
 
+@available(watchOS 11, *)
 private struct DailyProgressReadSource: Equatable {
     let revision: Int
     let hasChanges: Bool
@@ -456,6 +462,7 @@ private struct DailyProgressReadSource: Equatable {
 }
 
 @ModelActor
+@available(watchOS 11, *)
 private actor DailyProgressIndexReader {
     func read(
         from lowerDate: Date,

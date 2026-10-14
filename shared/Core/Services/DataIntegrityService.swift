@@ -1,6 +1,9 @@
 import Foundation
 import SwiftData
 
+/// Synchronous work on caller-owned models and context. The caller must remain
+/// on that context's executor; contexts and persistent models must not cross actors.
+@available(watchOS 11, *)
 public enum DataIntegrityService {
     public struct Report: Equatable, Sendable {
         public internal(set) var insertedRecords: Int
@@ -34,13 +37,14 @@ public enum DataIntegrityService {
         }
     }
 
-    @MainActor
     @discardableResult
     public static func reconcile(
         context: ModelContext,
         saveChanges: Bool = true,
         backfillLegacyTaskActivity: Bool = true
     ) throws -> Report {
+        let interval = PlanBasePerformanceTrace.begin("DataIntegrity")
+        defer { PlanBasePerformanceTrace.end("DataIntegrity", interval) }
         let events = try context.fetch(FetchDescriptor<CalendarEvent>())
         let templates = try context.fetch(FetchDescriptor<TaskTemplate>())
         let templateItems = try context.fetch(FetchDescriptor<TaskTemplateItem>())

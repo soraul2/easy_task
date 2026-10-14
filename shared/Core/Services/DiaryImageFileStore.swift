@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum DiaryImageFileStoreError: LocalizedError, Equatable {
     case unsafeFileName(String)
     case unsupportedFileExtension(String)
@@ -20,6 +21,7 @@ public enum DiaryImageFileStoreError: LocalizedError, Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum DiaryImageFileStore {
     public static let maximumImageSizeBytes = 20 * 1_024 * 1_024
     public static let supportedFileExtensions: Set<String> = ["heic", "jpeg", "jpg", "png"]
@@ -38,10 +40,17 @@ public enum DiaryImageFileStore {
                 .appendingPathComponent("__rejected_attachment__", isDirectory: false)
     }
 
-    public static func validatedImageURL(for fileName: String, appSupportFolder: String) throws -> URL {
+    public static func validatedImageURL(
+        for fileName: String,
+        appSupportFolder: String,
+        imageDirectoryURL: URL? = nil
+    ) throws -> URL {
         _ = try validateAttachmentFileName(fileName)
 
-        let directory = directoryURL(appSupportFolder: appSupportFolder).standardizedFileURL
+        // An explicit directory lets local diagnostics avoid the app's image
+        // folder. Filename validation and confinement remain identical.
+        let directory = (imageDirectoryURL ?? directoryURL(appSupportFolder: appSupportFolder))
+            .standardizedFileURL
         let destination = directory
             .appendingPathComponent(fileName, isDirectory: false)
             .standardizedFileURL

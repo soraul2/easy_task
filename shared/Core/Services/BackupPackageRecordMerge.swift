@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension BackupPackageCodec {
     static func normalizedLegacyPayload(_ source: BackupPayload) throws -> BackupPayload {
         try BackupCodec.validate(source)

@@ -1,10 +1,12 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension BoundedQueryService {
     /// A range descriptor finds candidate logical IDs, not necessarily their
     /// latest physical versions. Complete those IDs before testing the range.
-    @MainActor
+    /// Call synchronously on the supplied context's owning executor and keep
+    /// the returned model rows confined to that executor.
     public static func events(
         overlappingStartDayKey startDayKey: String,
         endDayKey: String,
@@ -18,7 +20,6 @@ extension BoundedQueryService {
     }
 
     // Injection tests query failures without using an unavailable user store.
-    @MainActor
     static func representativeCalendarEvents(
         overlappingStartDayKey startDayKey: String,
         endDayKey: String,

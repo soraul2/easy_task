@@ -6,9 +6,35 @@ import SwiftData
 
 @MainActor
 enum PlanBaseTaskIntentRuntime {
-    static func install(modelContainer: ModelContainer) {
+    static func install(modelContainer: ModelContainer, context: ModelContext? = nil) {
+        let readyContext = context ?? modelContainer.mainContext
+        install(contextProvider: { readyContext })
+    }
+
+    /// Register synchronously during App.init. LiveActivityIntent can launch the
+    /// app process without creating a scene, so its handler must await startup.
+    static func install(
+        startup: PlanBaseStartupSession,
+        load: @escaping @MainActor () async -> Void
+    ) {
+        install(contextProvider: {
+            await load()
+            switch startup.state {
+            case .ready(_, let context):
+                return context
+            case .failed(let details):
+                throw PlanBaseTaskIntentRuntimeError.startupFailed(details)
+            case .opening:
+                throw PlanBaseTaskIntentRuntimeError.startupUnavailable
+            }
+        })
+    }
+
+    private static func install(
+        contextProvider: @escaping @MainActor () async throws -> ModelContext
+    ) {
         let executor = PlanBaseTaskIntentCommandExecutor(
-            modelContainer: modelContainer
+            contextProvider: contextProvider
         )
         AppDependencyManager.shared.add(
             key: PlanBaseTaskIntentDependency.key,
@@ -21,14 +47,15 @@ enum PlanBaseTaskIntentRuntime {
 private final class PlanBaseTaskIntentCommandExecutor:
     PlanBaseTaskIntentCommandHandling,
     @unchecked Sendable {
-    private let modelContainer: ModelContainer
+    private let contextProvider: @MainActor () async throws -> ModelContext
 
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
+    init(contextProvider: @escaping @MainActor () async throws -> ModelContext) {
+        self.contextProvider = contextProvider
     }
 
     func perform(_ command: PlanBaseTaskIntentCommand) async throws {
-        let context = modelContainer.mainContext
+        let context = try await contextProvider()
+        try Swift.Task.checkCancellation()
         let now = Date()
 
         switch command {
@@ -137,12 +164,18 @@ private final class PlanBaseTaskIntentCommandExecutor:
 }
 
 private enum PlanBaseTaskIntentRuntimeError: LocalizedError {
+    case startupFailed(String)
+    case startupUnavailable
     case staleTask
     case noNextTask
     case completionNeedsConfirmation
 
     var errorDescription: String? {
         switch self {
+        case .startupFailed(let details):
+            details
+        case .startupUnavailable:
+            "PlanBase 준비를 완료하지 못했습니다. 다시 시도해 주세요."
         case .staleTask:
             "작업이 이미 변경되었습니다."
         case .noNextTask:

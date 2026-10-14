@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct ArchiveRecordSummary: Equatable, Sendable {
     public var dayCount: Int
     public var reviewCount: Int
@@ -22,6 +23,7 @@ public struct ArchiveRecordSummary: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct TaskHistoryDatePresentation: Equatable, Sendable {
     public var text: String
     public var accessibilityLabel: String

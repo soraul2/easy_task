@@ -22,77 +22,128 @@ enum PlanBaseDesktopLaunchEnvironment {
 @MainActor
 struct PlanBaseDesktopApp: App {
     @NSApplicationDelegateAdaptor(PlanBaseDesktopAppDelegate.self) private var appDelegate
-    @State private var persistenceState: PersistenceState
-
-    init() {
-        _persistenceState = State(initialValue: Self.openPersistentStore())
-    }
+    @State private var startup = PlanBaseStartupSession()
 
     var body: some Scene {
         WindowGroup {
             Group {
-                switch persistenceState {
-                case .ready(let modelContainer):
+                switch startup.state {
+                case .opening:
+                    ProgressView("PlanBase 준비 중…")
+                        .accessibilityIdentifier("planbase-startup-loading")
+                case .ready(let modelContainer, let context):
                     Group {
 #if DEBUG
                         if Self.isCloudKitProbeRequested {
                             Color.clear
                         } else {
-                            AppRootView()
+                            AppRootView(
+                                hasCompletedBootstrap: true,
+                                bootstrapImageMigrationReport: startup.legacyImageMigrationReport,
+                                takePendingBootstrapImport: startup.takePendingImport,
+                                startupOpenURLRevision: startup.pendingOpenURLRevision,
+                                takePendingStartupOpenURLs: startup.takePendingOpenURLs
+                            )
                         }
 #else
-                        AppRootView()
+                        AppRootView(
+                            hasCompletedBootstrap: true,
+                            bootstrapImageMigrationReport: startup.legacyImageMigrationReport,
+                            takePendingBootstrapImport: startup.takePendingImport,
+                            startupOpenURLRevision: startup.pendingOpenURLRevision,
+                            takePendingStartupOpenURLs: startup.takePendingOpenURLs
+                        )
 #endif
                     }
                     .modelContainer(modelContainer)
+                    .environment(\.modelContext, context)
                 case .failed(let details):
                     PlanBaseRecoveryView(details: details) {
-                        persistenceState = Self.openPersistentStore()
+                        startup.retry()
                     }
                 }
             }
             .frame(minWidth: 900, minHeight: 680)
             .environment(\.locale, Locale(identifier: "ko_KR"))
+            .onOpenURL(perform: startup.recordOpenURL)
+            .task(id: startup.attempt) {
+                await startup.load(open: Self.openPersistentStore,
+                                   performIntegrity: Self.shouldPrepareIntegrity,
+                                   legacyImageMigration: PlanBaseLegacyImageMigrationConfiguration(
+                                       appSupportFolder: PlanBaseCompatibility.legacyDesktopImageFolderName
+                                   ),
+                                   onReady: Self.completeStartup)
+            }
         }
 
         Window("집중 모드", id: "focus-mode") {
             Group {
-                switch persistenceState {
-                case .ready(let modelContainer):
+                switch startup.state {
+                case .opening:
+                    ProgressView("PlanBase 준비 중…")
+                case .ready(let modelContainer, let context):
                     FocusModeView()
                         .modelContainer(modelContainer)
+                        .environment(\.modelContext, context)
                         .background(FocusFloatingWindowConfigurator())
                 case .failed(let details):
                     PlanBaseRecoveryView(details: details) {
-                        persistenceState = Self.openPersistentStore()
+                        startup.retry()
                     }
                 }
             }
             .environment(\.locale, Locale(identifier: "ko_KR"))
+            .task(id: startup.attempt) {
+                await startup.load(open: Self.openPersistentStore,
+                                   performIntegrity: Self.shouldPrepareIntegrity,
+                                   legacyImageMigration: PlanBaseLegacyImageMigrationConfiguration(
+                                       appSupportFolder: PlanBaseCompatibility.legacyDesktopImageFolderName
+                                   ),
+                                   onReady: Self.completeStartup)
+            }
         }
         .defaultSize(width: 480, height: 700)
         .windowResizability(.contentMinSize)
     }
 
-    private static func openPersistentStore() -> PersistenceState {
-        do {
+    private static func openPersistentStore() async throws -> ModelContainer {
 #if DEBUG
-            if PlanBaseDesktopLaunchEnvironment.isUITesting {
-                let container = try MemoUITestSupport.makeContainer(arguments: ProcessInfo.processInfo.arguments)
+        if PlanBaseDesktopLaunchEnvironment.isUITesting {
+            let container: ModelContainer
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing-performance") {
+                let directory = URL.applicationSupportDirectory
+                    .appendingPathComponent("PlanBaseResponsivenessFixtures", isDirectory: true)
+                    .appendingPathComponent(
+                        Bundle.main.bundleIdentifier ?? "com.soraul2.planbase.responsiveness-diagnostic",
+                        isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                container = try await PlanBaseContainerFactory.makeAppPersistentAsync(
+                    storeURL: directory.appendingPathComponent("v1.store"), mode: .local)
+                try ResponsivenessPreviewFixtures.seed(in: container.mainContext)
+            } else {
+                container = try MemoUITestSupport.makeContainer(arguments: ProcessInfo.processInfo.arguments)
                 try DiscoveryPreviewFixtures.seed(in: container.mainContext)
-                return .ready(container)
             }
-            _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
-#endif
-            let modelContainer = try PlanBaseContainerFactory.makeAppPersistent()
-#if DEBUG
-            startCloudKitProbeIfRequested(modelContainer: modelContainer)
-#endif
-            return .ready(modelContainer)
-        } catch {
-            print("PlanBase persistent store startup failed: \(error)")
-            return .failed(error.localizedDescription)
+            return container
         }
+        _ = try PlanBaseContainerFactory.initializeDevelopmentCloudKitSchemaIfRequested()
+#endif
+        return try await PlanBaseContainerFactory.makeAppPersistentAsync()
+    }
+
+    private static var shouldPrepareIntegrity: Bool {
+#if DEBUG
+        // Explicit convergence probes own their fixture setup and reconciliation.
+        !isCloudKitProbeRequested
+#else
+        true
+#endif
+    }
+
+    private static func completeStartup(container: ModelContainer, context: ModelContext) {
+#if DEBUG
+        startCloudKitProbeIfRequested(context: context)
+#endif
     }
 
 #if DEBUG
@@ -102,12 +153,12 @@ struct PlanBaseDesktopApp: App {
         )
     }
 
-    private static func startCloudKitProbeIfRequested(modelContainer: ModelContainer) {
+    private static func startCloudKitProbeIfRequested(context: ModelContext) {
         guard isCloudKitProbeRequested else { return }
 
         Swift.Task { @MainActor in
             _ = await CloudKitConvergenceProbe.runIfRequested(
-                context: modelContainer.mainContext
+                context: context
             )
         }
     }
@@ -437,9 +488,4 @@ final class DesktopFocusNotificationRouteStore {
         defer { pendingRoutes.removeAll() }
         return pendingRoutes
     }
-}
-
-private enum PersistenceState {
-    case ready(ModelContainer)
-    case failed(String)
 }

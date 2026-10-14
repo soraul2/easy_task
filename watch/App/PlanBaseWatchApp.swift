@@ -9,23 +9,56 @@ import WatchKit
 struct PlanBaseWatchApp: App {
     @WKExtensionDelegateAdaptor(PlanBaseWatchExtensionDelegate.self)
     private var extensionDelegate
-    @State private var persistenceState: WatchPersistenceState
-
-    init() {
-        _persistenceState = State(initialValue: Self.makePersistenceState())
-    }
 
     var body: some Scene {
         WindowGroup {
             Group {
+                if #available(watchOS 11, *) {
+                    if usesCompatibilityMode {
+                        WatchCompanionView()
+                    } else {
+                        PlanBaseModernWatchRoot()
+                            .task {
+                                // Deliver an existing watchOS 10 outbox after an OS upgrade.
+                                if !WatchCompanionController.shared.state.pending.isEmpty {
+                                    WatchCompanionController.shared.start()
+                                }
+                            }
+                    }
+                } else {
+                    WatchCompanionView()
+                }
+            }
+            .environment(\.locale, Locale(identifier: "ko_KR"))
+        }
+    }
+
+    private var usesCompatibilityMode: Bool {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--watch-companion-mode") { return true }
+#endif
+        // Finish a locally owned timer before switching to the modern storage path.
+        return WatchCompanionController.shared.state.activeFocus != nil
+    }
+}
+
+@available(watchOS 11, *)
+private struct PlanBaseModernWatchRoot: View {
+    @State private var persistenceState: WatchPersistenceState?
+
+    var body: some View {
+        Group {
+            Group {
                 switch persistenceState {
-                case .ready(let modelContainer):
+                case .some(.ready(let modelContainer)):
                     WatchRootView()
                         .modelContainer(modelContainer)
-                case .failed(let details):
+                case .some(.failed(let details)):
                     WatchPersistenceRecoveryView(details: details) {
                         persistenceState = Self.makePersistenceState()
                     }
+                case nil:
+                    ProgressView("준비 중")
                 }
             }
             .environment(\.locale, Locale(identifier: "ko_KR"))
@@ -38,6 +71,10 @@ struct PlanBaseWatchApp: App {
                 }
             }
 #endif
+        }
+        .task {
+            guard persistenceState == nil else { return }
+            persistenceState = Self.makePersistenceState()
         }
     }
 
@@ -67,7 +104,9 @@ final class PlanBaseWatchExtensionDelegate: NSObject, WKExtensionDelegate,
     func applicationDidFinishLaunching() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        WatchFocusNotificationScheduler.registerCategories(center: center)
+        if #available(watchOS 11, *) {
+            WatchFocusNotificationScheduler.registerCategories(center: center)
+        }
     }
 
     nonisolated func userNotificationCenter(
@@ -76,7 +115,8 @@ final class PlanBaseWatchExtensionDelegate: NSObject, WKExtensionDelegate,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
-        if let sessionValue = userInfo[FocusNotificationRules.sessionIDKey] as? String,
+        if #available(watchOS 11, *),
+           let sessionValue = userInfo[FocusNotificationRules.sessionIDKey] as? String,
            let sessionID = UUID(uuidString: sessionValue),
            FocusPresentationVisibilityStore.shared.isVisible(sessionID: sessionID) {
             completionHandler([.sound])
@@ -89,7 +129,11 @@ final class PlanBaseWatchExtensionDelegate: NSObject, WKExtensionDelegate,
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let route = WatchFocusNotificationRoute(
+        if response.notification.request.identifier == WatchCompanionProtocol.focusNotificationID {
+            await WatchCompanionController.shared.openFocusFromNotification()
+            return
+        }
+        guard #available(watchOS 11, *), let route = WatchFocusNotificationRoute(
             userInfo: response.notification.request.content.userInfo,
             actionIdentifier: response.actionIdentifier,
             requestIdentifier: response.notification.request.identifier
@@ -98,6 +142,7 @@ final class PlanBaseWatchExtensionDelegate: NSObject, WKExtensionDelegate,
     }
 }
 
+@available(watchOS 11, *)
 struct WatchFocusNotificationRoute: Equatable, Sendable {
     var action: FocusNotificationAction
     var tokenID: UUID
@@ -144,6 +189,7 @@ struct WatchFocusNotificationRoute: Equatable, Sendable {
 }
 
 @MainActor
+@available(watchOS 11, *)
 final class WatchFocusNotificationRouteStore {
     static let shared = WatchFocusNotificationRouteStore()
     static let didReceiveRoute = Notification.Name("PlanBaseWatchFocusNotificationRoute")
@@ -160,11 +206,13 @@ final class WatchFocusNotificationRouteStore {
     }
 }
 
+@available(watchOS 11, *)
 private enum WatchPersistenceState {
     case ready(ModelContainer)
     case failed(String)
 }
 
+@available(watchOS 11, *)
 private struct WatchPersistenceRecoveryView: View {
     let details: String
     let retry: () -> Void

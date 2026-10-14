@@ -1,6 +1,9 @@
 import Foundation
 import SwiftData
 
+/// Synchronous work on caller-owned models and context. The caller must remain
+/// on that context's executor; contexts and persistent models must not cross actors.
+@available(watchOS 11, *)
 public enum TaskProgressEventIntegrityService {
     public static let batchSize = 200
 
@@ -23,7 +26,6 @@ public enum TaskProgressEventIntegrityService {
         }
     }
 
-    @MainActor
     @discardableResult
     public static func reconcile(
         in context: ModelContext,
@@ -75,8 +77,8 @@ public enum TaskProgressEventIntegrityService {
     }
 }
 
+@available(watchOS 11, *)
 private extension TaskProgressEventIntegrityService {
-    @MainActor
     static func pendingEvents(in context: ModelContext) -> [TaskProgressEvent] {
         var seen: Set<PersistentIdentifier> = []
         return (context.insertedModelsArray + context.changedModelsArray)
@@ -84,7 +86,6 @@ private extension TaskProgressEventIntegrityService {
             .filter { seen.insert($0.persistentModelID).inserted }
     }
 
-    @MainActor
     static func normalize(
         _ event: TaskProgressEvent,
         in context: ModelContext,
@@ -133,7 +134,6 @@ private extension TaskProgressEventIntegrityService {
         return true
     }
 
-    @MainActor
     static func reconcilePendingGroups(
         _ pendingEvents: [TaskProgressEvent],
         in context: ModelContext,
@@ -163,7 +163,6 @@ private extension TaskProgressEventIntegrityService {
         }
     }
 
-    @MainActor
     static func reconcileGroup(
         _ group: [TaskProgressEvent],
         report: inout Report
@@ -194,7 +193,6 @@ private extension TaskProgressEventIntegrityService {
         return lhs.instanceID.uuidString < rhs.instanceID.uuidString
     }
 
-    @MainActor
     static func supersede(
         _ event: TaskProgressEvent,
         at timestamp: Date,

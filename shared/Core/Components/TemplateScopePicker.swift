@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct TemplateScopePicker: View {
     @Binding var scope: TemplateListScope
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

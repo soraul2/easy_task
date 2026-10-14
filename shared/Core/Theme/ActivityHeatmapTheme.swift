@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapColorTokens: Hashable, Sendable {
     public var empty: ThemeColorToken
     public var level1: ThemeColorToken
@@ -48,6 +49,7 @@ public struct ActivityHeatmapColorTokens: Hashable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public extension AppThemeColorSet {
     var activityHeatmap: ActivityHeatmapColorTokens {
         let level1 = input.blended(with: accentFill, amount: 0.18)
@@ -70,12 +72,14 @@ public extension AppThemeColorSet {
 }
 
 @MainActor
+@available(watchOS 11, *)
 public extension AppTheme {
     static var activityHeatmapPalette: ActivityHeatmapPalette {
         colors.activityHeatmap.palette
     }
 }
 
+@available(watchOS 11, *)
 private extension ThemeColorToken {
     func blended(with other: ThemeColorToken, amount: Double) -> ThemeColorToken {
         let value = min(max(amount, 0), 1)

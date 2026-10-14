@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum CalendarEventTimeline {
     public static func dateRangeText(for event: CalendarEvent) -> String {
         dateRangeText(startAt: event.startAt, endAt: event.endAt)

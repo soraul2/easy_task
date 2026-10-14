@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
         [
@@ -124,6 +125,7 @@ public enum EasyTaskMigrationPlan: SchemaMigrationPlan {
     )
 }
 
+@available(watchOS 11, *)
 private extension EasyTaskMigrationPlan {
     static func migratedInstanceID(for event: EasyTaskSchemaV2.CalendarEvent) -> UUID {
         stableInstanceID(

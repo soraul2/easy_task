@@ -8,6 +8,7 @@ import AppKit
 
 /// Uses the same semibold font as the calendar bars to decide whether a title wraps.
 @MainActor
+@available(watchOS 11, *)
 public enum CalendarEventTitleMetrics {
     public static func needsTwoLines(_ title: String, width: CGFloat, fontSize: CGFloat) -> Bool {
         guard width > 0 else { return false }

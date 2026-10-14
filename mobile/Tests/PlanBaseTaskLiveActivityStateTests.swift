@@ -1,7 +1,17 @@
+import AppIntents
 import XCTest
 @testable import PlanBase
 
 final class PlanBaseTaskLiveActivityStateTests: XCTestCase {
+    func testBrowsingTasksIsAllowedWhileLockedAndStateChangesRequireUnlocking() {
+        XCTAssertEqual(AdvancePlanBaseTaskIntent.authenticationPolicy, .alwaysAllowed)
+        XCTAssertEqual(StartPlanBaseTaskIntent.authenticationPolicy, .requiresLocalDeviceAuthentication)
+        XCTAssertEqual(CompletePlanBaseTaskIntent.authenticationPolicy, .requiresLocalDeviceAuthentication)
+        XCTAssertEqual(PausePlanBaseFocusIntent.authenticationPolicy, .requiresLocalDeviceAuthentication)
+        XCTAssertEqual(ResumePlanBaseFocusIntent.authenticationPolicy, .requiresLocalDeviceAuthentication)
+        XCTAssertEqual(StopPlanBaseFocusIntent.authenticationPolicy, .requiresLocalDeviceAuthentication)
+    }
+
     func testLegacyPayloadStillDecodesAsDoingWithOriginalTimerWireKey() throws {
         let id = UUID()
         let data = try JSONSerialization.data(withJSONObject: [

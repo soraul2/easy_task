@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public enum CalendarEventColor: String, CaseIterable, Identifiable {
     case blue
     case red
@@ -43,6 +44,7 @@ public enum CalendarEventColor: String, CaseIterable, Identifiable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CalendarEventPalette {
     public static let defaultColor = CalendarEventColor.blue.rawValue
 

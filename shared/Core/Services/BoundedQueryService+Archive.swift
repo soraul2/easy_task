@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension BoundedQueryService {
     @MainActor
     public static func archivePage(
@@ -139,6 +140,7 @@ extension BoundedQueryService {
         )
     }
 }
+@available(watchOS 11, *)
 extension BoundedQueryService {
     static let archiveScanWindowDays = 30
 

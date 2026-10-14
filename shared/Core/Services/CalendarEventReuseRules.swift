@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct CalendarEventReuseDraft: Equatable, Sendable {
     public var title: String
     public var startAt: Date
@@ -42,6 +43,7 @@ public struct CalendarEventReuseDraft: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CalendarEventRecommendation: Equatable, Identifiable, Sendable {
     public var eventID: UUID
     public var instanceID: UUID
@@ -82,6 +84,7 @@ public struct CalendarEventRecommendation: Equatable, Identifiable, Sendable {
 }
 
 /// A local, one-step receipt. It never mutates the source event or persistent data.
+@available(watchOS 11, *)
 public struct CalendarEventRecommendationApplication: Equatable, Sendable {
     public let before: CalendarEventReuseDraft
     public private(set) var after: CalendarEventReuseDraft
@@ -116,6 +119,7 @@ public struct CalendarEventRecommendationApplication: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CalendarEventReuseRules {
     public static let recommendationLimit = 5
 

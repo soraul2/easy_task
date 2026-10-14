@@ -1,6 +1,7 @@
 #if os(iOS) || os(macOS)
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct DailyActivityTaskList: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let entries: [DailyActivityEntry]

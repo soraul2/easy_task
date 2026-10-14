@@ -1,7 +1,7 @@
 import Foundation
 
+@available(watchOS 11, *)
 extension DataIntegrityService {
-    @MainActor
     static func normalizeEvent(_ event: CalendarEvent) -> Int {
         var changes = normalizeTimestamps(event)
         var startAt = isFinite(event.startAt) ? event.startAt : nil
@@ -39,14 +39,12 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeTemplate(_ template: TaskTemplate) -> Int {
         var changes = normalizeTimestamps(template)
         changes += assign(template, \.seedKey, normalizedNaturalKey(template.seedKey))
         return changes
     }
 
-    @MainActor
     static func normalizeTemplateItem(_ item: TaskTemplateItem) -> Int {
         var changes = normalizeTimestamps(item)
         changes += assign(item, \.seedKey, normalizedNaturalKey(item.seedKey))
@@ -65,7 +63,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizePlacement(_ placement: TemplatePlacement) -> Int {
         var changes = normalizeTimestamps(placement)
         if validDayKey(placement.dayKey) == nil {
@@ -74,7 +71,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeTask(_ task: Task) -> Int {
         var changes = normalizeTimestamps(task)
         let hasCompletionEvidence = task.completedAt != nil ||
@@ -134,7 +130,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeChecklistItem(_ item: TaskChecklistItem) -> Int {
         var changes = normalizeTimestamps(item)
         changes += assign(
@@ -151,7 +146,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeReview(_ review: DailyReview) -> Int {
         var changes = normalizeTimestamps(review)
         if validDayKey(review.dayKey) == nil {
@@ -160,7 +154,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeDiaryBlock(_ block: DiaryBlock) -> Int {
         var changes = normalizeTimestamps(block)
         if validDayKey(block.dayKey) == nil {
@@ -191,7 +184,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeDiaryAttachmentScalars(_ attachment: DiaryAttachment) -> Int {
         var changes = normalizeTimestamps(attachment)
         if !attachment.order.isFinite {
@@ -204,7 +196,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeDiaryAttachmentMetadata(
         _ attachment: DiaryAttachment,
         metadata: DiaryAttachmentMetadata
@@ -215,7 +206,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeMemo(_ memo: Memo) -> Int {
         var changes = normalizeTimestamps(memo)
         let mode = MemoEditorMode(rawValue: memo.preferredModeRawValue) ?? .text
@@ -223,12 +213,10 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeMemoDrawing(_ drawing: MemoDrawing) -> Int {
         normalizeTimestamps(drawing)
     }
 
-    @MainActor
     static func normalizeMemoChecklistItem(_ item: MemoChecklistItem) -> Int {
         var changes = normalizeTimestamps(item)
         changes += assign(
@@ -245,7 +233,6 @@ extension DataIntegrityService {
         return changes
     }
 
-    @MainActor
     static func normalizeTimestamps<Record: IntegrityRecord>(_ record: Record) -> Int {
         var createdAt = finiteDate(record.createdAt)
         var updatedAt = finiteDate(record.updatedAt)
@@ -271,8 +258,8 @@ extension DataIntegrityService {
     }
 }
 
+@available(watchOS 11, *)
 extension DataIntegrityService {
-    @MainActor
     static func mergeReviewLegacyFileNames(from source: DailyReview, to target: DailyReview) {
         _ = assign(
             target, \.imageFileNames,
@@ -281,6 +268,7 @@ extension DataIntegrityService {
     }
 }
 
+@available(watchOS 11, *)
 extension DataIntegrityService {
     static func validDayKey(_ value: String) -> String? {
         guard let date = DayKey.date(from: value), DayKey.key(for: date) == value else {
@@ -352,7 +340,6 @@ extension DataIntegrityService {
         value.timeIntervalSinceReferenceDate.isFinite
     }
 
-    @MainActor
     @discardableResult
     static func assign<Record: AnyObject, Value: Equatable>(
         _ record: Record,

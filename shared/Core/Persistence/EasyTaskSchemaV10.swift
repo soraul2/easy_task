@@ -8,6 +8,7 @@ public enum FocusSessionOutcome: String, Codable, CaseIterable, Sendable {
     case interrupted
 }
 
+@available(watchOS 11, *)
 public enum EasyTaskSchemaV10: VersionedSchema {
     public static var versionIdentifier: Schema.Version {
         Schema.Version(10, 0, 0)

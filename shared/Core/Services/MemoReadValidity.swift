@@ -1,9 +1,11 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 enum MemoReadInvalidated: Error { case changed }
 
 /// Values only; neither revisions nor pending edits are inferred from row IDs alone.
+@available(watchOS 11, *)
 struct MemoReadVersion: Equatable {
     let revision: Int
     let additionalRevision: Int
@@ -11,6 +13,7 @@ struct MemoReadVersion: Equatable {
     let pending: [PersistentIdentifier: MemoPendingReadValue]
 }
 
+@available(watchOS 11, *)
 struct MemoPendingReadValue: Equatable {
     let roles: Int
     let kind: Int
@@ -29,6 +32,7 @@ struct MemoPendingReadValue: Equatable {
 }
 
 @MainActor
+@available(watchOS 11, *)
 final class MemoReadValidity {
     private let context: ModelContext
     private let changes: PersistenceViewRevision
@@ -84,16 +88,19 @@ final class MemoReadValidity {
 }
 
 @MainActor
+@available(watchOS 11, *)
 struct MemoReadCheckpoint {
     let body: @MainActor () async throws -> Void
     func callAsFunction() async throws { try await body() }
 }
 
+@available(watchOS 11, *)
 typealias MemoCooperativePageLoader = @MainActor (
     ModelContext, String, MemoQueryCursor?, MemoReadCheckpoint
 ) async throws -> MemoQueryPage
 
 @MainActor
+@available(watchOS 11, *)
 struct MemoCooperativeReadResult {
     var memos: [Memo]
     var summaries: [UUID: MemoListSummary]
@@ -104,6 +111,7 @@ struct MemoCooperativeReadResult {
 }
 
 @MainActor
+@available(watchOS 11, *)
 enum MemoCooperativeRead {
     static func run(context: ModelContext, query: String, targetDepth: Int,
                     appendTo published: MemoCooperativeReadResult?, validity: MemoReadValidity,

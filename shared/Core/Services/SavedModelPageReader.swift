@@ -1,16 +1,18 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 struct SavedModelPage<Model: PersistentModel> {
     let rows: [Model]
     // Store offsets count saved identifiers, including excluded pending rows.
     let fetchedCount: Int
 }
 
+/// Executes synchronously on the caller-owned context's executor.
 /// Reads a bounded saved page without refreshing objects that carry pending edits.
 /// SwiftData's model fetch with includePendingChanges=false can reload a registered
 /// dirty object before a caller gets the chance to exclude its identifier.
-@MainActor
+@available(watchOS 11, *)
 enum SavedModelPageReader {
     static func read<Model: PersistentModel>(
         _ source: FetchDescriptor<Model>,

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct FocusTaskCandidate: Identifiable {
     public let id: UUID
     public let title: String
@@ -10,6 +11,7 @@ public struct FocusTaskCandidate: Identifiable {
     public let updatedAt: Date
 }
 
+@available(watchOS 11, *)
 public enum FocusTaskQueryService {
     @MainActor
     public static func candidates(

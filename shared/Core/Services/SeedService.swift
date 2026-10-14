@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum SeedPolicy: Sendable {
     case release
     case demo
@@ -18,6 +19,7 @@ public enum SeedPolicy: Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum SeedService {
     @MainActor
     public static func seedIfNeeded(

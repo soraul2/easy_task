@@ -1,16 +1,19 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum TaskProgressEventKind: String, Codable, CaseIterable, Sendable {
     case started
     case stopped
 }
 
+@available(watchOS 11, *)
 public enum TaskProgressEventOrigin: String, Codable, Sendable {
     case captured
     case compatibilityBoundary
 }
 
+@available(watchOS 11, *)
 public enum EasyTaskSchemaV8: VersionedSchema {
     public static var versionIdentifier: Schema.Version {
         Schema.Version(8, 0, 0)

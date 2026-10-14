@@ -5,6 +5,7 @@ import Observation
 import OSLog
 import SwiftData
 
+@available(watchOS 11, *)
 public enum CloudKitSyncEventKind: String, Sendable {
     case setup
     case `import`
@@ -12,6 +13,7 @@ public enum CloudKitSyncEventKind: String, Sendable {
     case unknown
 }
 
+@available(watchOS 11, *)
 public struct CloudKitSyncEventSummary: Equatable, Sendable {
     public let identifier: UUID
     public let kind: CloudKitSyncEventKind
@@ -43,6 +45,7 @@ public struct CloudKitSyncEventSummary: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CloudKitAccountAvailability: Equatable, Sendable {
     case checking
     case available
@@ -82,6 +85,7 @@ public enum CloudKitAccountAvailability: Equatable, Sendable {
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class CloudKitSyncMonitor {
     public private(set) var accountAvailability: CloudKitAccountAvailability = .checking
     public private(set) var isSyncing = false
@@ -219,6 +223,7 @@ public final class CloudKitSyncMonitor {
     }
 }
 
+@available(watchOS 11, *)
 public enum CloudKitSyncService {
     private static let logger = Logger(
         subsystem: PlanBaseCompatibility.appStoreBundleIdentifier,
@@ -296,6 +301,7 @@ public enum CloudKitSyncService {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitSyncService {
     static func kind(
         for eventType: NSPersistentCloudKitContainer.EventType
@@ -313,6 +319,7 @@ private extension CloudKitSyncService {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitSyncMonitor {
     static func availability(for status: CKAccountStatus) -> CloudKitAccountAvailability {
         switch status {

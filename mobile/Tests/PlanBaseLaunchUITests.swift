@@ -7844,3 +7844,351 @@ final class PlanBaseResponsivenessTraceTests: XCTestCase {
         app.terminate()
     }
 }
+
+/// Paired baseline/candidate measurements through the existing isolated UI
+/// fixture. These intervals include XCTest IPC, idle waiting and accessibility
+/// polling. They are neither core-function timings nor touch/frame latency.
+/// Select this class explicitly when collecting the goal comparison.
+final class PlanBaseGoalLatencyUITests: XCTestCase {
+    private struct Fixture {
+        let app: XCUIApplication
+        let localMidnight: Date
+        let timeZoneIdentifier: String
+    }
+
+    private enum Mutation: String {
+        case plainCreate = "plain-create-submit-to-row"
+        case taskDelete = "task-delete-confirm-to-row-absent"
+        case savedAlias = "saved-alias-submit-to-row"
+    }
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    @MainActor
+    func testPreparedStoreLaunchLatency() throws {
+        let fixture = prepareFixture()
+        let app = fixture.app
+        app.terminate()
+
+        // Store preparation and Xcode's initial argument-less prelaunch are
+        // outside every sample. Each launch below starts a new app process.
+        let first = launchIntervals(fixture)
+        app.terminate()
+        var inputSamples: [Double] = []
+        var contentSamples: [Double] = []
+        let options = XCTMeasureOptions()
+        options.iterationCount = 10
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+        measure(metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true), XCTClockMetric()], options: options) {
+            assertFixtureDay(fixture)
+            startMeasuring()
+            let sample = launchIntervals(fixture)
+            stopMeasuring()
+            inputSamples.append(sample.inputMs)
+            contentSamples.append(sample.contentMs)
+            assertFixtureDay(fixture)
+            app.terminate()
+        }
+        // XCTest invokes iterationCount + 1 times and discards its first native
+        // warmup. Keep that raw value explicit, separate from the fresh process
+        // first sample and from the reported repeat distribution.
+        XCTAssertEqual(inputSamples.count, 11)
+        XCTAssertEqual(contentSamples.count, 11)
+        try emitResult(
+            "prepared-store-launch-to-input", firstMs: first.inputMs,
+            invocations: inputSamples, expectedRepeatCount: 10, fixture: fixture,
+            nativeMetrics: ["XCTApplicationLaunchMetric", "XCTClockMetric"],
+            details: ["readyCondition": "quick-add input exists and is enabled"]
+        )
+        try emitResult(
+            "prepared-store-launch-to-fixture-content", firstMs: first.contentMs,
+            invocations: contentSamples, expectedRepeatCount: 10, fixture: fixture,
+            nativeMetrics: ["XCTApplicationLaunchMetric", "XCTClockMetric"],
+            details: ["readyCondition": "real fixture Task 0000 accessibility row exists",
+                      "nativeClockScope": "launch-to-fixture-content"]
+        )
+    }
+
+    @MainActor
+    func testPlainCreationLatency() throws {
+        try measureMutation(.plainCreate)
+    }
+
+    @MainActor
+    func testTaskDeletionLatency() throws {
+        try measureMutation(.taskDelete)
+    }
+
+    @MainActor
+    func testSavedAliasSubmissionLatency() throws {
+        try measureMutation(.savedAlias)
+    }
+
+    @MainActor
+    private func measureMutation(_ mutation: Mutation) throws {
+        let fixture = prepareFixture()
+        let app = fixture.app
+        selectEmptyTomorrow(fixture)
+        let runID = String(UUID().uuidString.prefix(8))
+        var sequence = 0
+
+        func nextTitle() -> String {
+            defer { sequence += 1 }
+            return "goal \(mutation.rawValue) \(runID) \(sequence)"
+        }
+
+        // The first targeted mutation is separate from repeats and starts in
+        // the explicitly reopened process. Deletion requires an untimed create
+        // first; typing, row-menu navigation and confirmation presentation are
+        // outside the deletion interval.
+        let firstTitle = mutation == .savedAlias ? "성능 보관 0012" : nextTitle()
+        prepareMutation(mutation, title: firstTitle, fixture: fixture)
+        let first = mutationInterval(mutation, title: firstTitle, fixture: fixture)
+        finishMutation(mutation, title: firstTitle, fixture: fixture)
+
+        var samples: [Double] = []
+        let options = XCTMeasureOptions()
+        options.iterationCount = 20
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+        measure(metrics: mutationMetrics(application: app), options: options) {
+            assertFixtureDay(fixture)
+            let title = mutation == .savedAlias ? "성능 보관 0012" : nextTitle()
+            prepareMutation(mutation, title: title, fixture: fixture)
+            startMeasuring()
+            let milliseconds = mutationInterval(mutation, title: title, fixture: fixture)
+            stopMeasuring()
+            samples.append(milliseconds)
+            // Only the row created by this invocation is cleaned up through the
+            // same user deletion UI. Future-day fixture rows are never bulk
+            // deleted or accessed directly through a store.
+            finishMutation(mutation, title: title, fixture: fixture)
+            assertFixtureDay(fixture)
+        }
+        XCTAssertEqual(samples.count, 21)
+        var names = ["XCTClockMetric", "XCTCPUMetric", "XCTMemoryMetric", "PersistenceCommand signpost"]
+        if #available(iOS 26.0, *) { names.append("XCTHitchMetric") }
+        try emitResult(
+            mutation.rawValue, firstMs: first, invocations: samples,
+            expectedRepeatCount: 20, fixture: fixture, nativeMetrics: names,
+            details: [
+                "typingTimed": false,
+                "menuNavigationTimed": false,
+                "cleanupTimed": false,
+                "boardDay": "tomorrow, empty before each invocation",
+                "taskTitle": mutation == .savedAlias ? "exact fixture title 성능 보관 0012" : "unique per invocation",
+                "firstMeaning": mutation == .taskDelete
+                    ? "first deletion in a fresh process; prerequisite creation excluded"
+                    : "first submission of this kind in a fresh process; typing excluded",
+                "nativeMetricsLocation": "xcresult only; absent metrics are unverified, never zero",
+            ]
+        )
+        app.terminate()
+    }
+
+    @MainActor
+    private func prepareFixture() -> Fixture {
+        let fixture = Fixture(
+            app: XCUIApplication(), localMidnight: Calendar.current.startOfDay(for: Date()),
+            timeZoneIdentifier: TimeZone.current.identifier
+        )
+        fixture.app.launchArguments = ["--ui-testing", "--ui-testing-performance", "--ui-testing-theme=appleSystem"]
+        // Match the existing public fixture preparation path. The store belongs
+        // to the UI-testing hook; the test never opens app/CloudKit data.
+        fixture.app.launch()
+        fixture.app.terminate()
+        fixture.app.launch()
+        waitForBoard(fixture)
+        let diagnostic = XCTAttachment(string: """
+            Goal latency UI prerequisites
+            launchArguments: \(fixture.app.launchArguments)
+            store: isolated ResponsivenessFixtures/v1.store via existing app hook
+            testStoreAccess: none
+            localMidnightUnix: \(fixture.localMidnight.timeIntervalSince1970)
+            timeZoneIdentifier: \(fixture.timeZoneIdentifier)
+            expectedCurrentDayTask: 성능 작업 0000 작업 편집
+            rawClockScope: XCTest automation/accessibility including idle waits
+            nativeMetrics: xcresult; missing signpost/hitch measurements remain unverified
+            """)
+        diagnostic.name = "goal-latency-ui-prerequisites"
+        diagnostic.lifetime = .keepAlways
+        add(diagnostic)
+        return fixture
+    }
+
+    @MainActor
+    private func waitForBoard(_ fixture: Fixture) {
+        assertFixtureDay(fixture)
+        let input = fixture.app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(input.waitForExistence(timeout: 90), "The performance fixture input must load.")
+        XCTAssertTrue(input.isEnabled)
+        XCTAssertTrue(fixture.app.buttons["성능 작업 0000 작업 편집"].waitForExistence(timeout: 90),
+                      "Require real prepared fixture content, rather than an empty/demo board.")
+        assertFixtureDay(fixture)
+    }
+
+    @MainActor
+    private func launchIntervals(_ fixture: Fixture) -> (inputMs: Double, contentMs: Double) {
+        assertFixtureDay(fixture)
+        let start = DispatchTime.now().uptimeNanoseconds
+        fixture.app.launch()
+        let input = fixture.app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(input.waitForExistence(timeout: 90))
+        XCTAssertTrue(input.isEnabled)
+        let inputEnd = DispatchTime.now().uptimeNanoseconds
+        XCTAssertTrue(fixture.app.buttons["성능 작업 0000 작업 편집"].waitForExistence(timeout: 90))
+        let contentEnd = DispatchTime.now().uptimeNanoseconds
+        return (elapsedMs(start, inputEnd), elapsedMs(start, contentEnd))
+    }
+
+    @MainActor
+    private func selectEmptyTomorrow(_ fixture: Fixture) {
+        let app = fixture.app
+        let date = app.staticTexts["board-date-title"]
+        XCTAssertTrue(date.waitForExistence(timeout: 10))
+        let todayLabel = date.label
+        let next = app.buttons["다음 날짜"]
+        XCTAssertTrue(next.isHittable)
+        next.tap()
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", todayLabel), object: date)
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed)
+        let todo = app.buttons["board-status-filter-todo"]
+        if todo.exists && todo.isHittable { todo.tap() }
+        XCTAssertTrue(app.descendants(matching: .any)["board-empty-todo"].waitForExistence(timeout: 15),
+                      "Tomorrow must be empty; do not silently substitute a different fixture or date.")
+        XCTAssertTrue(app.textFields["해당 날짜에 할 일 입력"].isHittable)
+    }
+
+    @MainActor
+    private func prepareMutation(_ mutation: Mutation, title: String, fixture: Fixture) {
+        let app = fixture.app
+        XCTAssertTrue(app.descendants(matching: .any)["board-empty-todo"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 0,
+                       "The exact title must have no existing row on this date.")
+        let field = app.textFields["해당 날짜에 할 일 입력"]
+        XCTAssertTrue(field.isHittable)
+        field.tap()
+        let text = mutation == .savedAlias ? "/perf12" : title
+        field.typeText(text)
+        XCTAssertEqual(field.value as? String, text)
+        if mutation == .savedAlias {
+            XCTAssertTrue(app.buttons["성능 보관 0012 /perf12 추가"].waitForExistence(timeout: 15))
+        }
+        XCTAssertTrue(app.buttons["작업 추가"].isHittable)
+        if mutation == .taskDelete {
+            app.buttons["작업 추가"].tap()
+            XCTAssertTrue(app.buttons["\(title) 작업 편집"].waitForExistence(timeout: 30))
+            XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 1)
+            presentDeleteConfirmation(title: title, in: app)
+        }
+    }
+
+    @MainActor
+    private func mutationInterval(_ mutation: Mutation, title: String, fixture: Fixture) -> Double {
+        let app = fixture.app
+        let row = app.buttons["\(title) 작업 편집"]
+        let start = DispatchTime.now().uptimeNanoseconds
+        if mutation == .taskDelete {
+            app.alerts["작업을 삭제할까요?"].buttons["삭제"].tap()
+            XCTAssertTrue(row.waitForNonExistence(timeout: 30), "Confirmed deletion must remove this actual Task row.")
+        } else {
+            app.buttons["작업 추가"].tap()
+            XCTAssertTrue(row.waitForExistence(timeout: 30), "Submission must show the exact new Task row.")
+        }
+        return elapsedMs(start, DispatchTime.now().uptimeNanoseconds)
+    }
+
+    @MainActor
+    private func finishMutation(_ mutation: Mutation, title: String, fixture: Fixture) {
+        let app = fixture.app
+        if mutation != .taskDelete {
+            let row = app.buttons["\(title) 작업 편집"]
+            XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 1,
+                           "The exact alias copy/title must resolve to one row before cleanup.")
+            XCTAssertTrue(row.isHittable, "An empty future day must expose the newly created row without scrolling.")
+            presentDeleteConfirmation(title: title, in: app)
+            app.alerts["작업을 삭제할까요?"].buttons["삭제"].tap()
+            XCTAssertTrue(row.waitForNonExistence(timeout: 30))
+        }
+        XCTAssertEqual(app.buttons.matching(identifier: "\(title) 작업 편집").count, 0)
+        XCTAssertTrue(app.descendants(matching: .any)["board-empty-todo"].waitForExistence(timeout: 15))
+    }
+
+    @MainActor
+    private func presentDeleteConfirmation(title: String, in app: XCUIApplication) {
+        // The existing task row exposes its actions through this Menu button.
+        // Use its actual destructive action and app confirmation, not draft
+        // backspaces or hiding a row with a status/date filter.
+        let menu = app.buttons["\(title) 작업 메뉴"]
+        XCTAssertTrue(menu.isHittable)
+        menu.tap()
+        let delete = app.buttons["작업 삭제"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 10))
+        delete.tap()
+        let confirmation = app.alerts["작업을 삭제할까요?"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
+        XCTAssertTrue(confirmation.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "‘\(title)’ 작업을 삭제합니다.")
+        ).firstMatch.exists, "The app must confirm deletion of this exact row title.")
+        XCTAssertTrue(confirmation.buttons["삭제"].isHittable)
+    }
+
+    @MainActor
+    private func mutationMetrics(application app: XCUIApplication) -> [any XCTMetric] {
+        var metrics: [any XCTMetric] = [
+            XCTClockMetric(), XCTCPUMetric(application: app), XCTMemoryMetric(application: app),
+            XCTOSSignpostMetric(subsystem: "com.soraul2.easytask.performance", category: "PointsOfInterest", name: "PersistenceCommand"),
+        ]
+        if #available(iOS 26.0, *) { metrics.append(XCTHitchMetric(application: app)) }
+        return metrics
+    }
+
+    @MainActor
+    private func assertFixtureDay(_ fixture: Fixture) {
+        XCTAssertEqual(TimeZone.current.identifier, fixture.timeZoneIdentifier)
+        XCTAssertEqual(Calendar.current.startOfDay(for: Date()), fixture.localMidnight,
+                       "A midnight/time-zone change invalidates this date-bound paired measurement.")
+    }
+
+    private func elapsedMs(_ start: UInt64, _ end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+
+    private func emitResult(
+        _ name: String, firstMs: Double, invocations: [Double], expectedRepeatCount: Int,
+        fixture: Fixture, nativeMetrics: [String], details: [String: Any]
+    ) throws {
+        XCTAssertEqual(invocations.count, expectedRepeatCount + 1)
+        guard invocations.count == expectedRepeatCount + 1 else { return }
+        let raw = Array(invocations.dropFirst())
+        let ordered = raw.sorted()
+        let middle = ordered.count / 2
+        let p50 = ordered.count.isMultiple(of: 2)
+            ? (ordered[middle - 1] + ordered[middle]) / 2 : ordered[middle]
+        let p95 = ordered[Int(ceil(Double(ordered.count) * 0.95)) - 1]
+        var result: [String: Any] = [
+            "name": name, "source": ProcessInfo.processInfo.environment["PLANBASE_GOAL_SOURCE_LABEL"] ?? "unspecified",
+            "unit": "ms", "scope": "UI XCTest automation and accessibility latency",
+            "interpretation": "Tap IPC, XCTest idle waiting and AX polling are included. Do not use these intervals to judge a 100 ms response target or combine them with core-function timings.",
+            "mayJudge100msTarget": false, "historicalUITestResultsUsed": false,
+            "n": raw.count, "rawMs": raw, "firstMs": firstMs,
+            "nativeWarmupMs": invocations[0], "p50Ms": p50, "p95Ms": p95,
+            "p95Method": "nearest rank", "firstIncludedInRepeatStatistics": false,
+            "nativeWarmupIncludedInRepeatStatistics": false,
+            "physicalColdBoot": false, "productionOrCloudKitStore": false,
+            "nativeMetrics": nativeMetrics, "fixtureTaskCount": 3_000,
+            "fixtureTodayTaskCount": 240, "fixtureSavedTaskCount": 1_000,
+            "localMidnightUnix": fixture.localMidnight.timeIntervalSince1970,
+            "timeZoneIdentifier": fixture.timeZoneIdentifier,
+        ]
+        result.merge(details, uniquingKeysWith: { _, new in new })
+        let data = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+        let line = String(decoding: data, as: UTF8.self)
+        print("GOAL_LATENCY_RESULT \(line)")
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        attachment.name = "goal-latency-\(name)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

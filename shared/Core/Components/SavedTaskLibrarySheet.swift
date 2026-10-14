@@ -2,11 +2,13 @@
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 private struct SavedTaskEditRequest: Identifiable {
     let id = UUID()
     var entry: SavedTaskEntry?
 }
 
+@available(watchOS 11, *)
 public struct SavedTaskLibrarySheet: View {
     private let selectedDate: Date
     private let onAdded: (String) -> Void

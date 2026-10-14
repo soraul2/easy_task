@@ -3,6 +3,7 @@ import SwiftData
 
 /// Read-only, task-scoped history. No editing or repair occurs when a record is opened.
 @MainActor
+@available(watchOS 11, *)
 enum TaskRecordQueryService {
     static func load(selection: TaskRecordSelection, in context: ModelContext) async throws -> TaskRecord {
         let taskID = selection.taskID

@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum CalendarEventRules {
     public struct EventDraft: Equatable {
         public var title: String

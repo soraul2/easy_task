@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum TaskHistoryDateBasis: String, CaseIterable, Identifiable, Sendable {
     case completed
     case planned
@@ -21,6 +22,7 @@ public enum TaskHistoryDateBasis: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskHistoryCompletionDateSource: String, Equatable, Sendable {
     case completedDayKey
     case completedAt
@@ -28,6 +30,7 @@ public enum TaskHistoryCompletionDateSource: String, Equatable, Sendable {
     case plannedDayKey
 }
 
+@available(watchOS 11, *)
 public struct TaskHistoryCompletionDate: Equatable, Sendable {
     public var dayKey: String
     public var source: TaskHistoryCompletionDateSource
@@ -46,6 +49,7 @@ public struct TaskHistoryCompletionDate: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskHistoryDateRules {
     public static let completedAtFallbackExplanation =
         "저장된 완료일이 없는 이전 작업은 현재 시간대 기준으로 완료 처리 시각을 해석한 날짜입니다."
@@ -105,6 +109,7 @@ public enum TaskHistoryDateRules {
     }
 }
 
+@available(watchOS 11, *)
 public enum ArchivePeriod: String, CaseIterable, Identifiable {
     case all
     case last7Days
@@ -123,6 +128,7 @@ public enum ArchivePeriod: String, CaseIterable, Identifiable {
     }
 }
 
+@available(watchOS 11, *)
 public enum ArchiveScope: String, CaseIterable, Identifiable {
     case all
     case tasks
@@ -147,6 +153,7 @@ public enum ArchiveScope: String, CaseIterable, Identifiable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ArchiveFilter: Equatable {
     public var contentMode: ArchiveContentMode
     public var searchText: String
@@ -196,6 +203,7 @@ public struct ArchiveFilter: Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ArchiveDayRecord: Identifiable {
     public var activityEntries: [DailyActivityEntry]?
     public var dayKey: String
@@ -229,6 +237,7 @@ public struct ArchiveDayRecord: Identifiable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ArchiveDayPresentation: Equatable {
     public var dayKey: String
     public var title: String
@@ -284,6 +293,7 @@ public struct ArchiveDayPresentation: Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ArchiveDayKeyRange: Equatable, Sendable {
     public var lowerBound: String?
     public var upperBound: String
@@ -294,6 +304,7 @@ public struct ArchiveDayKeyRange: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum ArchiveQueryRules {
     public static func records(
         tasks: [Task],

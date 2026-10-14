@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum CalendarWidgetSnapshotStore {
     public enum StoreError: Error, Equatable {
         case appGroupContainerUnavailable

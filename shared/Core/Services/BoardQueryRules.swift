@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum BoardQueryRules {
     public static func tasksForBoard(
         _ tasks: [Task],

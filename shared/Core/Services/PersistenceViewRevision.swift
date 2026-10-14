@@ -6,6 +6,7 @@ import SwiftData
 /// without fetching models or rebuilding a fingerprint of the store.
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class PersistenceViewRevision {
     public private(set) var value = 0
     @ObservationIgnored private var observers: [ViewNotificationObserver] = []
@@ -22,7 +23,8 @@ public final class PersistenceViewRevision {
         }
         // Covers direct saves/autosaves as well as command-based mutations.
         observe(ModelContext.didSave, object: context) { notification in
-            Self.affects(domains, inSaveNotification: notification)
+            guard !PersistenceCommandService.isPerformingCommand(in: context) else { return false }
+            return Self.affects(domains, inSaveNotification: notification)
         }
         observe(CloudKitSyncService.eventChangedNotification) { notification in
             guard let event = CloudKitSyncService.summary(from: notification) else { return false }
@@ -55,7 +57,7 @@ public final class PersistenceViewRevision {
         !savedDomains(in: notification).intersection(domains).isEmpty
     }
 
-    private static func savedDomains(in notification: Notification) -> PersistenceChangeDomains {
+    static func savedDomains(in notification: Notification) -> PersistenceChangeDomains {
         guard let info = notification.userInfo else { return .all }
         func value(_ key: ModelContext.NotificationKey) -> Any? {
             info[key] ?? info[key.rawValue]
@@ -97,6 +99,7 @@ public final class PersistenceViewRevision {
     }
 }
 
+@available(watchOS 11, *)
 private final class ViewNotificationObserver: @unchecked Sendable {
     private let token: any NSObjectProtocol
     init(_ token: any NSObjectProtocol) { self.token = token }

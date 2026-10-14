@@ -1,8 +1,8 @@
 # PlanBase
 
 PlanBase는 iPhone, iPad, Apple Watch와 macOS에서 계획을 관리하는 개인 생산성 앱이다.
-iOS universal 앱, 독립 실행형 watchOS 앱과 macOS 앱은 같은 SwiftData 모델과 private
-CloudKit 컨테이너를 공유한다.
+iOS universal 앱, watchOS 11 이상 독립 실행형 앱과 macOS 앱은 같은 SwiftData 모델과 private
+CloudKit 컨테이너를 공유한다. watchOS 10은 iPhone 연동 모드로 같은 데이터를 사용한다.
 
 현재 소스 기준은 앱 버전 `1.0`, 영속 스키마 `EasyTaskSchemaV11`, 위젯 스냅샷 v5,
 백업 package V10이다. V11은 저장한 작업에 선택적인 빠른 입력어를 추가한다.
@@ -10,16 +10,21 @@ CloudKit 컨테이너를 공유한다.
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 최신 업로드는
-[TestFlight 1.0 (89)](docs/releases/TESTFLIGHT_BUILD_89.md)이며, 2026-10-03 iOS·iPadOS·watchOS와
-macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다. 인기 팔레트를 활용한
-**라이트 2개·다크 2개**를 추가해 총 12개 테마를 제공한다. 출처와 배색 기준은 [앱 테마](docs/THEMES.md)에 정리했다.
-공통 테스트·iPhone 전체 테마 UI 검사·전체 플랫폼 회귀와 배포 패키지 검증을 통과했으며,
-TestFlight 설치 가능 상태와 기존 잠금 화면·Watch·Mac 실제 화면 인수의 미확인 항목은 유지한다.
+[iOS TestFlight 1.0 (92)](docs/releases/TESTFLIGHT_BUILD_92.md)이며, 2026-10-14 iOS·iPadOS·내장 watchOS의
+업로드·처리 완료와 한국어 공지 저장을 확인했다. 잠금화면 실시간 할 일 카드의 화살표가
+잠금 해제를 요구하던 설정을 수정했다. macOS 최신 배포는 [1.0 (91)](docs/releases/TESTFLIGHT_BUILD_91.md)이다.
+**watchOS 10·SE 1세대용 iPhone 연동 모드**와
+watchOS 11 이상 독립 동기화를 유지한다. 총 12개 테마의 출처와 배색 기준은
+[앱 테마](docs/THEMES.md)에 정리했다.
+build 92의 관련 공통·iOS 테스트 20개와 서명된 배포 패키지 검사가 통과했다. 전체 플랫폼 회귀는 이번에 재실행하지 않았다.
+실제 암호로 잠긴 iPhone의 넘김, SE 1 실기기 설치·iPhone 왕복, TestFlight 설치와 기존 잠금 화면·Watch·Mac 인수의 미확인 항목은 유지한다.
 최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
 ## 시작하기
 
-Swift 6 / Swift tools 6.3을 사용하며 최소 지원은 iOS 18, macOS 26, watchOS 11이다.
+Swift 6 / Swift tools 6.3을 사용하며 현재 소스의 최소 지원은 iOS 18, macOS 26, watchOS 10이다.
+watchOS 10은 iPhone 연동 모드이고, watchOS 11 이상은 기존 독립 실행 모드를 사용한다.
+watchOS 10 호환 변경은 TestFlight build 90에 포함했다. 실제 SE 1 설치와 기기 간 왕복은 확인 대기다.
 Xcode에서 `PlanBase.xcodeproj`를 열고 목적에 맞는 scheme을 선택한다.
 
 - `PlanBase-iOS`: iPhone·iPad universal 앱과 캘린더·플래너·잠금 화면 위젯, Live Activity

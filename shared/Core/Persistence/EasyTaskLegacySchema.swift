@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 enum EasyTaskLegacySchema {
     static var models: [any PersistentModel.Type] {
         [

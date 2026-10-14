@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct BackupPayload: Codable {
     public var backupVersion: Int
     public var exportedAt: Date
@@ -20,6 +21,7 @@ public struct BackupPayload: Codable {
     public var focusSessions: [FocusSessionDTO]? = nil
 }
 
+@available(watchOS 11, *)
 public struct TaskDTO: Codable {
     public var id: UUID
     public var title: String
@@ -43,6 +45,7 @@ public struct TaskDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct TaskChecklistItemDTO: Codable {
     public var id: UUID
     public var taskId: UUID
@@ -55,6 +58,7 @@ public struct TaskChecklistItemDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct CalendarEventDTO: Codable {
     public var id: UUID
     public var title: String
@@ -69,6 +73,7 @@ public struct CalendarEventDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct TaskTemplateDTO: Codable {
     public var id: UUID
     public var name: String
@@ -81,6 +86,7 @@ public struct TaskTemplateDTO: Codable {
     public var quickEntryAlias: String? = nil
 }
 
+@available(watchOS 11, *)
 public struct TaskTemplateItemDTO: Codable {
     public var id: UUID
     public var templateId: UUID
@@ -97,6 +103,7 @@ public struct TaskTemplateItemDTO: Codable {
     public var updatedAt: Date? = nil
 }
 
+@available(watchOS 11, *)
 public struct TemplatePlacementDTO: Codable {
     public var id: UUID
     public var sourceTemplateId: UUID?
@@ -108,6 +115,7 @@ public struct TemplatePlacementDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct DailyReviewDTO: Codable {
     public var id: UUID
     public var dayKey: String
@@ -121,6 +129,7 @@ public struct DailyReviewDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct DiaryBlockDTO: Codable {
     public var id: UUID
     public var reviewId: UUID
@@ -134,6 +143,7 @@ public struct DiaryBlockDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct MemoDTO: Codable {
     public var id: UUID
     public var content: String
@@ -144,6 +154,7 @@ public struct MemoDTO: Codable {
     public var preferredModeRawValue: String? = nil
 }
 
+@available(watchOS 11, *)
 public struct MemoDrawingDTO: Codable {
     public var id: UUID
     public var memoId: UUID
@@ -153,6 +164,7 @@ public struct MemoDrawingDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct MemoChecklistItemDTO: Codable {
     public var id: UUID
     public var memoId: UUID
@@ -165,6 +177,7 @@ public struct MemoChecklistItemDTO: Codable {
     public var instanceID: UUID? = nil
 }
 
+@available(watchOS 11, *)
 public struct TaskCompletionActivityDTO: Codable {
     public var id: UUID
     public var instanceID: UUID
@@ -176,6 +189,7 @@ public struct TaskCompletionActivityDTO: Codable {
     public var updatedAt: Date
 }
 
+@available(watchOS 11, *)
 public struct TaskProgressEventDTO: Codable {
     public var id: UUID
     public var instanceID: UUID
@@ -187,6 +201,7 @@ public struct TaskProgressEventDTO: Codable {
     public var updatedAt: Date
 }
 
+@available(watchOS 11, *)
 public struct FocusSessionDTO: Codable {
     public var id: UUID
     public var instanceID: UUID
@@ -200,6 +215,7 @@ public struct FocusSessionDTO: Codable {
     public var updatedAt: Date
 }
 
+@available(watchOS 11, *)
 public enum BackupServiceError: LocalizedError, Equatable {
     case unsupportedVersion(Int)
     case duplicateIdentifier(recordType: String, id: UUID)

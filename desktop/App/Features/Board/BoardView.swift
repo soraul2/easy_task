@@ -101,7 +101,7 @@ struct BoardView: View {
 
     private var boardTasks: [Task] {
         BoardQueryRules.tasksForBoard(
-            selectedDayTaskRows,
+            selectedDayTaskRows.filter { $0.modelContext != nil },
             selectedDayKey: selectedDayKey,
             todayKey: todayKey
         )
@@ -174,9 +174,7 @@ struct BoardView: View {
                     savedTaskNotice = $0
                 }
             case .taskDetail(let id):
-                if let task = (selectedDayTaskRows + carryoverTasks).first(where: {
-                    $0.supersededAt == nil && $0.id == id
-                }) {
+                if let task = try? currentTask(id: id) {
                     TaskDetailSheet(task: task)
                 } else {
                     EmptySheetState(
@@ -486,11 +484,16 @@ struct BoardView: View {
     }
 
     private func kanbanBoard(tasks: [Task]) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+        // Materialize before the column/TimelineView/ForEach closures retain any
+        // children. A disappearing card must never construct a snapshot later.
+        let todo = cardSnapshots(for: BoardQueryRules.tasks(tasks, matching: .todo))
+        let doing = cardSnapshots(for: BoardQueryRules.tasks(tasks, matching: .doing))
+        let done = cardSnapshots(for: BoardQueryRules.tasks(tasks, matching: .done))
+        return HStack(alignment: .top, spacing: 14) {
             KanbanColumn(
                 title: TaskStatus.todo.title,
                 status: .todo,
-                tasks: BoardQueryRules.tasks(tasks, matching: .todo),
+                tasks: todo,
                 isBoardEmpty: tasks.isEmpty,
                 onAddTask: { isQuickTitleFocused = true },
                 selectedDayKey: selectedDayKey,
@@ -501,14 +504,13 @@ struct BoardView: View {
                 onEdit: editTask,
                 onStartFocus: openFocus,
                 onDelete: deleteTask,
-                onSaveToLibrary: saveToLibrary,
-                progressText: progressText
+                onSaveToLibrary: saveToLibrary
             )
 
             KanbanColumn(
                 title: TaskStatus.doing.title,
                 status: .doing,
-                tasks: BoardQueryRules.tasks(tasks, matching: .doing),
+                tasks: doing,
                 isBoardEmpty: tasks.isEmpty,
                 onAddTask: { isQuickTitleFocused = true },
                 selectedDayKey: selectedDayKey,
@@ -519,14 +521,13 @@ struct BoardView: View {
                 onEdit: editTask,
                 onStartFocus: openFocus,
                 onDelete: deleteTask,
-                onSaveToLibrary: saveToLibrary,
-                progressText: progressText
+                onSaveToLibrary: saveToLibrary
             )
 
             KanbanColumn(
                 title: TaskStatus.done.title,
                 status: .done,
-                tasks: BoardQueryRules.tasks(tasks, matching: .done),
+                tasks: done,
                 isBoardEmpty: tasks.isEmpty,
                 onAddTask: { isQuickTitleFocused = true },
                 selectedDayKey: selectedDayKey,
@@ -537,18 +538,43 @@ struct BoardView: View {
                 onEdit: editTask,
                 onStartFocus: openFocus,
                 onDelete: deleteTask,
-                onSaveToLibrary: saveToLibrary,
-                progressText: progressText
+                onSaveToLibrary: saveToLibrary
             )
         }
     }
 
-    private func openFocus(_ task: Task) {
+    private func cardSnapshots(for tasks: [Task]) -> [DesktopTaskCardSnapshot] {
+        tasks.map { task in
+            DesktopTaskCardSnapshot(task: task, progress: progressSession?.projection(for: task.id))
+        }
+    }
+
+    private func currentTask(id: UUID) throws -> Task? {
+        BoundedQueryService.representativeTask(from: try modelContext.fetch(
+            BoundedQueryService.taskCandidatesDescriptor(id: id)))
+    }
+
+    private func taskForAction(id: UUID) -> Task? {
+        do {
+            guard let task = try currentTask(id: id) else {
+                persistenceFailureMessage = "작업이 변경되어 사용할 수 없습니다."
+                return nil
+            }
+            return task
+        } catch {
+            persistenceFailureMessage = "작업을 다시 불러오지 못했습니다."
+            return nil
+        }
+    }
+
+    private func openFocus(_ taskID: UUID) {
+        guard let task = taskForAction(id: taskID) else { return }
         FocusModeSelectionRequest.post(taskID: task.id)
         openWindow(id: "focus-mode")
     }
 
-    private func saveToLibrary(_ task: Task) {
+    private func saveToLibrary(_ taskID: UUID) {
+        guard let task = taskForAction(id: taskID) else { return }
         saveToLibrary(taskID: task.id, title: task.title)
     }
 
@@ -563,6 +589,8 @@ struct BoardView: View {
     }
 
     private func addQuickTask() {
+        let interval = PlanBasePerformanceTrace.begin("TaskSubmit")
+        defer { PlanBasePerformanceTrace.end("TaskSubmit", interval) }
         let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         if SavedTaskShortcutRules.query(in: title) != nil {
@@ -600,9 +628,9 @@ struct BoardView: View {
     private func moveTask(idString: String, to status: TaskStatus) -> Bool {
         guard let instanceID = UUID(uuidString: idString) else { return false }
         do {
-            guard let task = try modelContext.fetch(
+            guard let instance = try modelContext.fetch(
                 BoundedQueryService.taskDescriptor(instanceID: instanceID)
-            ).first else {
+            ).first, let task = try currentTask(id: instance.id) else {
                 return false
             }
             return requestTaskStatusChange(task, to: status)
@@ -612,11 +640,13 @@ struct BoardView: View {
         }
     }
 
-    private func moveTask(_ task: Task, to status: TaskStatus) {
+    private func moveTask(_ taskID: UUID, to status: TaskStatus) {
+        guard let task = taskForAction(id: taskID) else { return }
         _ = requestTaskStatusChange(task, to: status)
     }
 
-    private func recordCompletion(_ task: Task, on dayKey: String) {
+    private func recordCompletion(_ taskID: UUID, on dayKey: String) {
+        guard let task = taskForAction(id: taskID) else { return }
         _ = requestTaskStatusChange(task, to: .done, completionDayKey: dayKey)
     }
 
@@ -645,9 +675,7 @@ struct BoardView: View {
     private func completePendingTask(_ pending: PendingDesktopTaskCompletion) {
         pendingTaskCompletion = nil
         do {
-            guard let task = try modelContext.fetch(
-                BoundedQueryService.taskDescriptor(id: pending.taskID)
-            ).first,
+            guard let task = try currentTask(id: pending.taskID),
                   task.status != TaskStatus.done.rawValue else {
                 persistenceFailureMessage = "작업이 변경되어 완료하지 못했습니다."
                 return
@@ -708,10 +736,13 @@ struct BoardView: View {
         }
     }
 
-    private func updateTaskTitle(_ task: Task, to title: String) -> Bool {
+    private func updateTaskTitle(_ taskID: UUID, to title: String) -> Bool {
         performPersistenceCommand(
             failureMessage: "작업 제목을 저장하지 못했습니다."
         ) {
+            guard let task = try currentTask(id: taskID) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
             task.title = title
             task.updatedAt = Date()
         }
@@ -758,10 +789,18 @@ struct BoardView: View {
     }
 
     private func deleteTask(_ task: Task) {
-        pendingTaskDeletion = PendingDesktopTaskDeletion(taskID: task.id, title: task.title)
+        guard task.modelContext != nil else { return }
+        deleteTask(task.id)
+    }
+
+    private func deleteTask(_ taskID: UUID) {
+        guard let task = taskForAction(id: taskID) else { return }
+        pendingTaskDeletion = PendingDesktopTaskDeletion(taskID: taskID, title: task.title)
     }
 
     private func confirmTaskDeletion(_ pending: PendingDesktopTaskDeletion) {
+        let interval = PlanBasePerformanceTrace.begin("TaskDeletion")
+        defer { PlanBasePerformanceTrace.end("TaskDeletion", interval) }
         pendingTaskDeletion = nil
         performPersistenceCommand(failureMessage: "작업을 삭제하지 못했습니다.") {
             let candidates = try modelContext.fetch(
@@ -799,17 +838,8 @@ struct BoardView: View {
         }
     }
 
-    private func editTask(_ task: Task) {
-        presentedSheet = .taskDetail(task.id)
-    }
-
-    private func progressText(for task: Task, at date: Date) -> String? {
-        guard let progressSession else { return nil }
-        return TaskProgressEventRules.detailText(
-            projection: progressSession.projection(for: task.id),
-            status: TaskStatus(rawValue: task.status) ?? .todo,
-            now: date,
-            completedAt: task.completedAt
-        )
+    private func editTask(_ taskID: UUID) {
+        guard taskForAction(id: taskID) != nil else { return }
+        presentedSheet = .taskDetail(taskID)
     }
 }

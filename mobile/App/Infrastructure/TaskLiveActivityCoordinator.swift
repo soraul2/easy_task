@@ -47,6 +47,8 @@ final class TaskLiveActivityCoordinator {
         guard !isReconciling else { return }
         isReconciling = true
         defer { isReconciling = false }
+        let interval = PlanBasePerformanceTrace.begin("TaskLiveActivityReconcile")
+        defer { PlanBasePerformanceTrace.end("TaskLiveActivityReconcile", interval) }
         while let request = pending {
             pending = nil
             do { try await reconcileOnce(request) }

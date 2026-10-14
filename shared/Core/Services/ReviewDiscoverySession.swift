@@ -2,12 +2,14 @@ import Foundation
 import Observation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum ArchivePane: String, CaseIterable, Identifiable {
     case activity, reviews
     public var id: String { rawValue }
     public var title: String { self == .activity ? "활동 기록" : "회고" }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryFilter: Equatable {
     public var searchText = ""
     public var period: ArchivePeriod = .all
@@ -27,6 +29,7 @@ public struct ReviewDiscoveryFilter: Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryRecord: Identifiable {
     public var review: DailyReview
     public var attachments: [DiaryAttachment]
@@ -40,12 +43,14 @@ public struct ReviewDiscoveryRecord: Identifiable {
     public var photoCount: Int { attachments.count + legacyFileNames.count }
 }
 
+@available(watchOS 11, *)
 public struct ReviewDiscoveryPage {
     public var records: [ReviewDiscoveryRecord]
     public var nextBeforeDayKey: String?
     public var hasMore: Bool
 }
 
+@available(watchOS 11, *)
 public enum ReviewDiscoveryRules {
     @MainActor
     public static func records(
@@ -86,6 +91,7 @@ public enum ReviewDiscoveryRules {
 
 /// Pages over existing review dates, not over calendar days or task history.
 @MainActor
+@available(watchOS 11, *)
 public final class ReviewDiscoveryQueryService {
     private let context: ModelContext
     public init(context: ModelContext) { self.context = context }
@@ -134,6 +140,7 @@ public final class ReviewDiscoveryQueryService {
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class ReviewDiscoverySession {
     public private(set) var records: [ReviewDiscoveryRecord] = []
     public private(set) var isLoading = false

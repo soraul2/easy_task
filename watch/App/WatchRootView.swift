@@ -5,6 +5,7 @@ import SwiftData
 import SwiftUI
 import WatchKit
 
+@available(watchOS 11, *)
 struct WatchRootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase

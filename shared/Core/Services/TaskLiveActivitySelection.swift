@@ -1,12 +1,14 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum TaskLiveActivitySelectionError: Error {
     case staleSelection
     case noOtherTask
     case completionNeedsConfirmation
 }
 
+@available(watchOS 11, *)
 public struct TaskLiveActivitySelection: Codable, Equatable, Sendable {
     public var dayKey: String
     public var taskID: UUID
@@ -16,6 +18,7 @@ public struct TaskLiveActivitySelection: Codable, Equatable, Sendable {
     public var token: String { "selection:\(revision.uuidString.lowercased())" }
 }
 
+@available(watchOS 11, *)
 public enum TaskLiveActivitySelectionRules {
     @MainActor
     public static func candidates(from tasks: [Task], dayKey: String) -> [Task] {
@@ -47,6 +50,7 @@ public enum TaskLiveActivitySelectionRules {
 
 /// Device-local presentation state. Browsing never changes a task or its progress events.
 @MainActor
+@available(watchOS 11, *)
 public final class TaskLiveActivitySelectionStore {
     private let defaults: UserDefaults
     private let key = "PlanBaseTaskLiveActivitySelection.v1"
@@ -106,6 +110,7 @@ public final class TaskLiveActivitySelectionStore {
 }
 
 @MainActor
+@available(watchOS 11, *)
 public enum TaskLiveActivityCommandService {
     public static func browse(
         taskID: UUID, token: String, in context: ModelContext,

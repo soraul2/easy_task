@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 
+@available(watchOS 11, *)
 public struct TaskActivitySnapshot: Equatable, Hashable, Sendable {
     public var taskID: UUID
     public var activityDayKey: String
@@ -11,6 +12,7 @@ public struct TaskActivitySnapshot: Equatable, Hashable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum ActivityIntensityLevel: Int, CaseIterable, Sendable {
     case none = 0
     case low = 1
@@ -19,6 +21,7 @@ public enum ActivityIntensityLevel: Int, CaseIterable, Sendable {
     case veryHigh = 4
 }
 
+@available(watchOS 11, *)
 public enum ActivityTodayState: Equatable, Sendable {
     case completed
     case waitingToContinue
@@ -39,6 +42,7 @@ public enum ActivityTodayState: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityHeatmapRange: Equatable, Sendable {
     public var weekCount: Int
     public var startDayKey: String
@@ -58,6 +62,7 @@ public struct ActivityHeatmapRange: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityDaySummary: Equatable, Sendable {
     public var dayKey: String
     public var completedTaskCount: Int
@@ -80,6 +85,7 @@ public struct ActivityDaySummary: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityWeekSummary: Equatable, Sendable {
     public var startDayKey: String
     public var days: [ActivityDaySummary]
@@ -90,6 +96,7 @@ public struct ActivityWeekSummary: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct ActivityOverview: Equatable, Sendable {
     public var range: ActivityHeatmapRange?
     public var weeks: [ActivityWeekSummary]
@@ -119,6 +126,7 @@ public struct ActivityOverview: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskActivityRules {
     public static let compactWeekCount = 16
     public static let regularWeekCount = 52
@@ -328,6 +336,7 @@ public enum TaskActivityRules {
     }
 }
 
+@available(watchOS 11, *)
 private extension TaskActivityRules {
     static func date(from dayKey: String, calendar: Calendar) -> Date? {
         let parts = dayKey.split(separator: "-", omittingEmptySubsequences: false)

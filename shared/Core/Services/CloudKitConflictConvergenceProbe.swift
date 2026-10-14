@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     static let conflictMarkerTitle = "__PLANBASE_CLOUDKIT_CONFLICT_PROBE__"
 
@@ -213,6 +214,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitConvergenceProbe {
     struct ConflictNote {
         let token: UUID

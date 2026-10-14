@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public extension MemoEditorMode {
     /// Creation labels are separate from the legacy composite editor's tabs.
     var creationTitle: String {
@@ -15,6 +16,7 @@ public extension MemoEditorMode {
 
 /// Content determines which editor is safe to show. A legacy preferred mode is
 /// only a preference, and must never hide another nonempty content collection.
+@available(watchOS 11, *)
 public enum MemoTypeRules {
     public static func contentModes(
         content: String, hasDrawing: Bool, checklist: [MemoChecklistDraft]
@@ -41,6 +43,7 @@ public enum MemoTypeRules {
     }
 }
 
+@available(watchOS 11, *)
 public struct MemoListSummary: Sendable {
     public let title: String
     public let preview: String

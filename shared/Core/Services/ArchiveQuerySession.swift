@@ -4,6 +4,7 @@ import SwiftData
 
 @MainActor
 @Observable
+@available(watchOS 11, *)
 public final class ArchiveQuerySession {
     public private(set) var records: [ArchiveDayRecord] = []
     public private(set) var attachments: [DiaryAttachment] = []
@@ -150,6 +151,7 @@ public final class ArchiveQuerySession {
     }
 }
 
+@available(watchOS 11, *)
 private extension ArchiveQuerySession {
     func rememberRevision() {
         loadedRevision = changes.value

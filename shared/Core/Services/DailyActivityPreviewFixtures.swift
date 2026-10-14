@@ -3,6 +3,7 @@ import Foundation
 import SwiftData
 
 /// Deterministic, in-memory-only UI preview data. Callers must opt in via the UI testing launch flag.
+@available(watchOS 11, *)
 public enum DailyActivityPreviewFixtures {
     @MainActor
     public static func seed(in context: ModelContext, referenceDate: Date = Date()) throws {

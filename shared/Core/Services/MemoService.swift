@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct MemoQueryPage {
     public var memos: [Memo]
     public var summaries: [UUID: MemoListSummary]
@@ -16,6 +17,7 @@ public struct MemoQueryPage {
     }
 }
 
+@available(watchOS 11, *)
 public struct MemoQueryCursor: Equatable, Sendable {
     public var scansPinned: Bool
     public var pinnedOffset: Int
@@ -32,6 +34,7 @@ public struct MemoQueryCursor: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum MemoService {
     public static let pageSize = 40
     static let scanBatchSize = 100

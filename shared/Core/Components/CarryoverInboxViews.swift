@@ -2,6 +2,7 @@ import Combine
 import SwiftData
 import SwiftUI
 
+@available(watchOS 11, *)
 public struct CarryoverCountBadge: View {
     public var session: CarryoverInboxSession?
 
@@ -29,6 +30,7 @@ public struct CarryoverCountBadge: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct CarryoverArrivalBanner: View {
     public var session: CarryoverInboxSession
     public var onOpen: () -> Void
@@ -85,6 +87,7 @@ public struct CarryoverArrivalBanner: View {
     }
 }
 
+@available(watchOS 11, *)
 public struct CarryoverInboxSummary: View {
     public var session: CarryoverInboxSession
 
@@ -108,6 +111,7 @@ public struct CarryoverInboxSummary: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct CarryoverInboxConnection: ViewModifier {
     @Binding var session: CarryoverInboxSession?
     @Environment(\.modelContext) private var context
@@ -119,7 +123,10 @@ private struct CarryoverInboxConnection: ViewModifier {
         content
             .refreshVisibleData(key: "carryover", domains: .tasks) {
                 if session == nil { session = CarryoverInboxSession(context: context) }
-                session?.refresh()
+                session?.refreshPendingChanges()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { session?.requestFullRefresh() }
             }
             .onReceive(clock) { _ in
                 if isActive, scenePhase == .active, session?.todayKey != DayKey.today { session?.refresh() }
@@ -127,6 +134,7 @@ private struct CarryoverInboxConnection: ViewModifier {
     }
 }
 
+@available(watchOS 11, *)
 public extension View {
     func carryoverInboxSession(_ session: Binding<CarryoverInboxSession?>) -> some View {
         modifier(CarryoverInboxConnection(session: session))

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct ArchiveQueryPage {
     public var records: [ArchiveDayRecord]
     public var attachments: [DiaryAttachment]
@@ -22,6 +23,7 @@ public struct ArchiveQueryPage {
         self.hasMore = hasMore
     }
 }
+@available(watchOS 11, *)
 public enum BoundedQueryService {
     public static let archivePageSize = 30
     public static let taskHistoryStatisticsBatchSize = 200

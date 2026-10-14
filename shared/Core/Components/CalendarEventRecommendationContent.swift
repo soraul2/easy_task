@@ -2,6 +2,7 @@
 import SwiftUI
 
 /// Shared presentation; each editor remains responsible for its unsaved draft.
+@available(watchOS 11, *)
 public struct CalendarEventRecommendationContent: View {
     public let session: CalendarEventRecommendationSession
     private let onApply: (CalendarEventRecommendation) -> Void

@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(watchOS 11, *)
 public enum PlanBaseControlMetrics {
     /// Pointer controls stay compact; touch controls reserve a full interaction area.
     public static var minimumTargetSize: CGFloat {
@@ -12,6 +13,7 @@ public enum PlanBaseControlMetrics {
 }
 
 /// Shared action surfaces use the palette's resolved foreground, including light accents in dark themes.
+@available(watchOS 11, *)
 public struct PlanBaseButtonStyle: ButtonStyle {
     public enum Emphasis { case primary, secondary }
     private let emphasis: Emphasis

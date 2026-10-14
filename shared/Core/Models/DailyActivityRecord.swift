@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum ArchiveContentMode: String, CaseIterable, Identifiable, Sendable {
     case dailyActivity
     case completionHistory
@@ -13,6 +14,7 @@ public enum ArchiveContentMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct DailyActivityEvidence: Equatable, Sendable {
     public var completed = false
     public var legacyCompletion = false
@@ -44,6 +46,7 @@ public struct DailyActivityEvidence: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct DailyActivityEntry: Identifiable, Equatable, Sendable {
     public var id: UUID
     public var title: String
@@ -83,6 +86,7 @@ public struct DailyActivityEntry: Identifiable, Equatable, Sendable {
 }
 
 /// Detached values let the archive index events without retaining a table of SwiftData models.
+@available(watchOS 11, *)
 public struct TaskProgressEventSnapshot: Sendable {
     public var id: UUID
     public var instanceID: UUID

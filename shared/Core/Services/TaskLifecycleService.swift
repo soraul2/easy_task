@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct TaskLifecycleTransitionResult: Equatable, Sendable {
     public var didChange: Bool
     public var didComplete: Bool
@@ -27,6 +28,7 @@ public struct TaskLifecycleTransitionResult: Equatable, Sendable {
     )
 }
 
+@available(watchOS 11, *)
 public enum TaskLifecycleService {
     @MainActor
     @discardableResult

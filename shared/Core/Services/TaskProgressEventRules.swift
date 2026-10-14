@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public struct TaskProgressInterval: Equatable, Sendable {
     public var startedAt: Date
     public var stoppedAt: Date
@@ -14,6 +15,7 @@ public struct TaskProgressInterval: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct TaskProgressProjection: Equatable, Sendable {
     public var intervals: [TaskProgressInterval]
     public var currentStartedAt: Date?
@@ -45,6 +47,7 @@ public struct TaskProgressProjection: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TaskProgressEventRules {
     public static func eventKind(
         from oldStatus: TaskStatus,

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     public static let progressMarkerDate = Date(timeIntervalSince1970: 4_102_358_400)
 
@@ -61,6 +62,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private extension CloudKitConvergenceProbe {
     @MainActor
     static func writeProgressMarker(token: UUID, context: ModelContext) throws {

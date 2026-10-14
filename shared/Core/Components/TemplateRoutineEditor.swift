@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 #endif
 
+@available(watchOS 11, *)
 struct TemplateEditorRequest: Identifiable {
     let id = UUID()
     var original: TemplateContentSnapshot?
@@ -14,6 +15,7 @@ struct TemplateEditorRequest: Identifiable {
     var adjustment = false
 }
 
+@available(watchOS 11, *)
 struct TemplateRoutineEditor: View {
     let request: TemplateEditorRequest
     var onSaved: (String) -> Void
@@ -180,6 +182,7 @@ struct TemplateRoutineEditor: View {
     }
 }
 
+@available(watchOS 11, *)
 private struct TemplateRoutineDraftRow: View {
     @Binding var draft: TemplateTaskDraft
     var canMoveUp: Bool

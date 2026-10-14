@@ -6,12 +6,14 @@ import SwiftData
 import Darwin
 #endif
 
+@available(watchOS 11, *)
 public enum CloudKitProbeRole: String, Codable, Sendable {
     case writer
     case reader
     case cleanup
 }
 
+@available(watchOS 11, *)
 public enum CloudKitProbeKind: String, Codable, Sendable {
     case event
     case media
@@ -22,16 +24,19 @@ public enum CloudKitProbeKind: String, Codable, Sendable {
     case focus
 }
 
+@available(watchOS 11, *)
 public enum CloudKitConflictVariant: String, Codable, CaseIterable, Sendable {
     case older
     case newer
 }
 
+@available(watchOS 11, *)
 public enum CloudKitProbeExpectation: String, Codable, Sendable {
     case present
     case absent
 }
 
+@available(watchOS 11, *)
 public struct CloudKitProbeConfiguration: Equatable, Sendable {
     public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
@@ -63,6 +68,7 @@ public struct CloudKitProbeConfiguration: Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CloudKitProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var activeRecordCount: Int
@@ -72,6 +78,7 @@ public struct CloudKitProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+@available(watchOS 11, *)
 public struct CloudKitMediaProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var totalReviewCount: Int
@@ -90,6 +97,7 @@ public struct CloudKitMediaProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+@available(watchOS 11, *)
 public struct CloudKitConflictProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var totalRecordCount: Int
@@ -102,6 +110,7 @@ public struct CloudKitConflictProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+@available(watchOS 11, *)
 public struct CloudKitChecklistProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var totalTaskCount: Int
@@ -116,6 +125,7 @@ public struct CloudKitChecklistProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+@available(watchOS 11, *)
 public struct CloudKitActivityProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var totalActivityCount: Int
@@ -147,6 +157,7 @@ public struct CloudKitActivityProbeSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public struct CloudKitProgressProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var totalEventCount: Int
@@ -158,6 +169,7 @@ public struct CloudKitProgressProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+@available(watchOS 11, *)
 public struct CloudKitFocusProbeSnapshot: Codable, Equatable, Sendable {
     public var token: UUID
     public var totalSessionCount: Int
@@ -169,6 +181,7 @@ public struct CloudKitFocusProbeSnapshot: Codable, Equatable, Sendable {
     public var passed: Bool
 }
 
+@available(watchOS 11, *)
 public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     public var kind: CloudKitProbeKind
     public var role: CloudKitProbeRole
@@ -212,6 +225,7 @@ public struct CloudKitProbeRunResult: Codable, Equatable, Sendable {
     }
 }
 
+@available(watchOS 11, *)
 public enum CloudKitConvergenceProbe {
     public static let markerTitle = "__PLANBASE_CLOUDKIT_PROBE__"
     public static let logPrefix = "PLANBASE_CKPROBE"
@@ -366,6 +380,7 @@ public enum CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     @MainActor
     static func runEventProbe(
@@ -544,6 +559,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 extension CloudKitConvergenceProbe {
     @MainActor
     static func markerEvents(
@@ -733,6 +749,7 @@ extension CloudKitConvergenceProbe {
     }
 }
 
+@available(watchOS 11, *)
 private enum ExportWaitOutcome: Sendable {
     case completed(CloudKitSyncEventSummary)
     case timedOut

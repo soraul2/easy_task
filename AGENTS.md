@@ -9,7 +9,7 @@ macOS 앱, iPhone·iPad universal 앱, 독립 실행형 Apple Watch 앱과 각 �
 관리하며 세 앱은 같은 SwiftData 모델과 CloudKit private database를 공유한다.
 
 - 언어/도구: Swift 6, Swift tools 6.3, SwiftUI, SwiftData
-- 최소 플랫폼: iOS 18, macOS 26, watchOS 11
+- 최소 플랫폼: iOS 18, macOS 26, watchOS 10 (10은 iPhone 연동 모드, 11 이상은 독립 CloudKit)
 - 공통 패키지 제품: `PlanBaseCore`
 - Xcode scheme: `PlanBase-iOS`, `PlanBase-macOS`, `PlanBase-watchOS`
 - 현재 영속 스키마: `EasyTaskSchemaV11`
@@ -127,6 +127,12 @@ PlanBase/
 `MemoDrawing`, `MemoChecklistItem`, `TaskCompletionActivity`, `TaskProgressEvent`를 비롯한 공개 모델·서비스는 별도 typealias 없이
 `import PlanBaseCore`만으로 사용한다.
 
+watchOS 10 설치를 위해 패키지 최소 버전은 10이며, 기존 저장소와 UI API에는
+`@available(watchOS 11, *)` 경계가 있다. 모델 필드·인덱스·마이그레이션 정의는 그대로다.
+Watch의 10 경로는 `WatchCompanionModels`의 Codable 목록/outbox와 순수 타이머 계산을
+사용하며, iPhone의 `WatchCompanionBridge` → `WatchCompanionService`가 기존 저장 명령을
+호출한다. 11 이상 경로는 `PlanBaseModernWatchRoot`에서 기존 SwiftData 저장소를 연다.
+
 ### Xcode 타겟
 
 | 타겟/scheme | 진입점 | 주요 책임 |
@@ -142,7 +148,8 @@ PlanBase/
 
 ## 5. 앱 시작과 데이터 흐름
 
-세 앱의 기본 시작 흐름은 동일하다. Watch 앱은 레거시 이미지 이관과 demo seed를 생략한다.
+iOS·macOS와 watchOS 11 이상 앱의 기본 시작 흐름은 동일하다. Watch 앱은 레거시 이미지
+이관과 demo seed를 생략한다. watchOS 10은 이 컨테이너 시작 흐름 대신 iPhone 연동 경로를 사용한다.
 
 ```text
 @main App

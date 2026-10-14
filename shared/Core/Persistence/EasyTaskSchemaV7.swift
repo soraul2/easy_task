@@ -1,11 +1,13 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public enum TaskCompletionActivityOrigin: String, Codable, Sendable {
     case captured
     case legacyBackfill
 }
 
+@available(watchOS 11, *)
 public enum EasyTaskSchemaV7: VersionedSchema {
     public static var versionIdentifier: Schema.Version {
         Schema.Version(7, 0, 0)

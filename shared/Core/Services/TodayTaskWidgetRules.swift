@@ -1,5 +1,6 @@
 import Foundation
 
+@available(watchOS 11, *)
 public enum TodayTaskWidgetRules {
     @MainActor
     public static func eligibleRepresentatives(

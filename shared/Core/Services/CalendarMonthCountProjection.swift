@@ -2,6 +2,7 @@ import Foundation
 
 /// Counts for the requested month cells, rebuilt from the current visible rows.
 /// This value does not retain models or cache data between renders.
+@available(watchOS 11, *)
 public struct CalendarMonthCountProjection: Equatable, Sendable {
     public let eventCountByDayKey: [String: Int]
     public let placementCountByDayKey: [String: Int]

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct TemplateTaskDraft: Equatable, Identifiable {
     public var id: UUID
     public var title: String
@@ -45,6 +46,7 @@ public struct TemplateTaskDraft: Equatable, Identifiable {
     }
 }
 
+@available(watchOS 11, *)
 public struct TemplateApplyResult {
     public var createdTaskCount: Int
     public var placements: [TemplatePlacement]
@@ -55,6 +57,7 @@ public struct TemplateApplyResult {
     }
 }
 
+@available(watchOS 11, *)
 public struct TemplatePlacementDeleteSummary: Equatable {
     public var taskCount: Int
     public var deletableTaskCount: Int
@@ -75,6 +78,7 @@ public struct TemplatePlacementDeleteSummary: Equatable {
     }
 }
 
+@available(watchOS 11, *)
 public enum TemplateService {
     @discardableResult
     public static func saveTemplate(

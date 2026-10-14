@@ -1,3 +1,4 @@
+@available(watchOS 11, *)
 public enum EstimatedTimeFormatter {
     public static func short(_ minutes: Int) -> String {
         if minutes >= 60, minutes % 60 == 0 {

@@ -1,19 +1,34 @@
 import Foundation
 
+@available(watchOS 11, *)
 public typealias CalendarEvent = EasyTaskSchemaV5.CalendarEvent
+@available(watchOS 11, *)
 public typealias TaskTemplate = EasyTaskSchemaV11.TaskTemplate
+@available(watchOS 11, *)
 public typealias TaskTemplateItem = EasyTaskSchemaV5.TaskTemplateItem
+@available(watchOS 11, *)
 public typealias TemplatePlacement = EasyTaskSchemaV5.TemplatePlacement
+@available(watchOS 11, *)
 public typealias Task = EasyTaskSchemaV5.Task
+@available(watchOS 11, *)
 public typealias TaskChecklistItem = EasyTaskSchemaV5.TaskChecklistItem
+@available(watchOS 11, *)
 public typealias DailyReview = EasyTaskSchemaV5.DailyReview
+@available(watchOS 11, *)
 public typealias DiaryBlock = EasyTaskSchemaV5.DiaryBlock
+@available(watchOS 11, *)
 public typealias DiaryAttachment = EasyTaskSchemaV5.DiaryAttachment
+@available(watchOS 11, *)
 public typealias Memo = EasyTaskSchemaV9.Memo
+@available(watchOS 11, *)
 public typealias TaskCompletionActivity = EasyTaskSchemaV7.TaskCompletionActivity
+@available(watchOS 11, *)
 public typealias TaskProgressEvent = EasyTaskSchemaV8.TaskProgressEvent
+@available(watchOS 11, *)
 public typealias MemoDrawing = EasyTaskSchemaV9.MemoDrawing
+@available(watchOS 11, *)
 public typealias MemoChecklistItem = EasyTaskSchemaV9.MemoChecklistItem
+@available(watchOS 11, *)
 public typealias FocusSession = EasyTaskSchemaV10.FocusSession
 
 public enum TaskStatus: String, CaseIterable, Identifiable {

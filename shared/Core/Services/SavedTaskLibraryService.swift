@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+@available(watchOS 11, *)
 public struct SavedTaskEntry: Identifiable {
     public let id: UUID
     public var draft: TemplateTaskDraft
@@ -11,6 +12,7 @@ public struct SavedTaskEntry: Identifiable {
 /// Single-task templates share the existing sync/backup format. Applying one here
 /// creates an independent task, without a placement or historical state.
 @MainActor
+@available(watchOS 11, *)
 public enum SavedTaskLibraryService {
     public enum Failure: LocalizedError {
         case unavailable, emptyTitle, invalidEstimate
@@ -169,22 +171,115 @@ public enum SavedTaskLibraryService {
     public static func add(id: UUID, on date: Date, in context: ModelContext) throws -> Task {
         try PersistenceCommandService.perform(in: context) {
             let (_, item) = try resolve(id, in: context)
-            let draft = try normalized(TemplateTaskDraft(item: item))
-            let day = DayKey.startOfDay(for: date)
-            let order = try BoundedQueryService.nextOrder(
-                in: context, dayKey: DayKey.key(for: day), status: .todo)
-            let task = Task(
-                title: draft.title, note: draft.note.isEmpty ? nil : draft.note,
-                status: .todo, plannedAt: day, order: order,
-                priority: draft.priority.flatMap(TaskPriority.init(rawValue:)), tags: draft.tags,
-                estimatedMinutes: draft.estimatedMinutes)
-            context.insert(task)
-            for (index, title) in draft.checklistTitles.enumerated() {
-                context.insert(
-                    TaskChecklistItem(taskId: task.id, title: title, order: Double(index + 1) * 100))
-            }
-            return task
+            return try insertTask(from: item, on: date, in: context)
         }
+    }
+
+    /// Validate the current shortcut before the command without rebuilding the
+    /// entire display library. A selected suggestion still has to match the
+    /// current query; an exact alias still has to identify one reusable record.
+    @discardableResult
+    public static func add(input: String, selectedID: UUID? = nil, on date: Date,
+                           in context: ModelContext) throws -> Task {
+        guard SavedTaskShortcutRules.query(in: input) != nil else {
+            throw SavedTaskShortcutRules.Failure.selectionRequired
+        }
+        // Invalid shortcuts must not establish a save checkpoint for unrelated
+        // dirty edits. Once preflight succeeds, pending edits retain the normal
+        // command checkpoint and rollback behavior.
+        let record = try submissionRecord(input: input, selectedID: selectedID, in: context)
+        let hadPendingChanges = context.hasChanges
+        return try PersistenceCommandService.perform(in: context) {
+            // Pre-saving pending edits can deliver save observers. Resolve the
+            // shortcut again in that case before using the current full draft.
+            let current = hadPendingChanges
+                ? try submissionRecord(input: input, selectedID: selectedID, in: context) : record
+            let (_, item) = try resolve(current.id, in: context)
+            guard item.instanceID == current.item.instanceID else { throw Failure.unavailable }
+            return try insertTask(from: current.item, on: date, in: context)
+        }
+    }
+
+    static func submissionTemplateID(input: String, selectedID: UUID?, in context: ModelContext) throws -> UUID {
+        try submissionRecord(input: input, selectedID: selectedID, in: context).id
+    }
+
+    private static func submissionRecord(input: String, selectedID: UUID?, in context: ModelContext) throws
+        -> (id: UUID, item: TaskTemplateItem) {
+        let interval = PlanBasePerformanceTrace.begin("SavedTaskSubmissionResolve")
+        defer { PlanBasePerformanceTrace.end("SavedTaskSubmissionResolve", interval) }
+        guard let query = SavedTaskShortcutRules.query(in: input) else {
+            throw SavedTaskShortcutRules.Failure.selectionRequired
+        }
+        if let selectedID {
+            let templates = try context.fetch(
+                FetchDescriptor<TaskTemplate>(predicate: #Predicate { $0.id == selectedID }))
+            guard let template = representatives(templates).first,
+                  let item = try shortcutItem(templateID: selectedID, in: context) else {
+                throw Failure.unavailable
+            }
+            // Suggestion matching only uses title and alias. The full draft is
+            // materialized once, after the current selection is validated.
+            let entry = SavedTaskEntry(id: selectedID,
+                draft: TemplateTaskDraft(title: item.title, order: item.order),
+                isFavorite: template.isFavorite, quickEntryAlias: template.quickEntryAlias)
+            guard !SavedTaskShortcutRules.suggestions([entry], input: input).isEmpty else {
+                throw Failure.unavailable
+            }
+            return (selectedID, item)
+        }
+        guard !query.isEmpty else { throw SavedTaskShortcutRules.Failure.selectionRequired }
+        // Select representatives before comparing aliases: an older physical
+        // copy may still carry an alias the winning record no longer uses.
+        let templates = representatives(try fetchPages(FetchDescriptor<TaskTemplate>(
+            predicate: #Predicate { $0.supersededAt == nil },
+            sortBy: [SortDescriptor(\TaskTemplate.instanceID)]), in: context))
+        var match: (id: UUID, item: TaskTemplateItem)?
+        for template in templates where SavedTaskShortcutRules.aliasKey(template.quickEntryAlias) == query {
+            guard let item = try shortcutItem(templateID: template.id, in: context) else { continue }
+            guard match == nil else { throw SavedTaskShortcutRules.Failure.ambiguousAlias }
+            match = (template.id, item)
+        }
+        guard let match else { throw SavedTaskShortcutRules.Failure.unknownAlias }
+        return match
+    }
+
+    /// Match the library's global child representative rule, including copies
+    /// whose templateId was changed before convergence. Filtering by parent
+    /// alone could resurrect an old physical copy under its previous parent.
+    private static func shortcutItem(templateID: UUID, in context: ModelContext) throws -> TaskTemplateItem? {
+        let seeds = try context.fetch(FetchDescriptor<TaskTemplateItem>(
+            predicate: #Predicate { $0.supersededAt == nil && $0.templateId == templateID }))
+        let ids = Array(Set(seeds.map(\.id)))
+        var copies: [TaskTemplateItem] = []
+        for start in stride(from: 0, to: ids.count, by: 200) {
+            let batch = Array(ids[start..<min(start + 200, ids.count)])
+            copies += try fetchPages(FetchDescriptor<TaskTemplateItem>(
+                predicate: #Predicate { $0.supersededAt == nil && batch.contains($0.id) },
+                sortBy: [SortDescriptor(\TaskTemplateItem.instanceID)]), in: context)
+        }
+        let children = representatives(copies).filter { $0.templateId == templateID }
+        guard children.count == 1, let item = children.first,
+              !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return item
+    }
+
+    private static func insertTask(from item: TaskTemplateItem, on date: Date,
+                                   in context: ModelContext) throws -> Task {
+        let draft = try normalized(TemplateTaskDraft(item: item))
+        let day = DayKey.startOfDay(for: date)
+        let order = try BoundedQueryService.nextOrder(
+            in: context, dayKey: DayKey.key(for: day), status: .todo)
+        let task = Task(
+            title: draft.title, note: draft.note.isEmpty ? nil : draft.note,
+            status: .todo, plannedAt: day, order: order,
+            priority: draft.priority.flatMap(TaskPriority.init(rawValue:)), tags: draft.tags,
+            estimatedMinutes: draft.estimatedMinutes)
+        context.insert(task)
+        for (index, title) in draft.checklistTitles.enumerated() {
+            context.insert(TaskChecklistItem(taskId: task.id, title: title, order: Double(index + 1) * 100))
+        }
+        return task
     }
 
     public static func delete(id: UUID, in context: ModelContext) throws {
