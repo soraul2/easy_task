@@ -37,6 +37,92 @@ private struct PendingDesktopLibrarySave {
     var title: String
 }
 
+// Keep draft and suggestion observation inside this view. Reading them in
+// BoardView would sort the board and rebuild every card on each keystroke.
+private struct DesktopBoardQuickAdd: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var title = ""
+    @State private var quickEntry = SavedTaskQuickEntryController()
+    @FocusState private var isTitleFocused: Bool
+
+    let selectedDate: Date
+    let focusRequestID: UUID?
+    let onAdd: (String) -> Bool
+    let onAddedSavedTask: (String) -> Void
+    let onOpenSavedTasks: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                TextField("해당 날짜에 할 일 입력", text: $title,
+                          prompt: Text("해당 날짜에 할 일 입력").foregroundStyle(AppTheme.secondaryText))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .focused($isTitleFocused)
+                    .onSubmit(submit)
+                    .onKeyPress(.downArrow) { quickEntry.moveSelection(by: 1) ? .handled : .ignored }
+                    .onKeyPress(.upArrow) { quickEntry.moveSelection(by: -1) ? .handled : .ignored }
+                    .onKeyPress(.escape) { quickEntry.dismiss() ? .handled : .ignored }
+                    .accessibilityHint("/를 입력하면 저장한 작업을 찾아 추가할 수 있어요.")
+                Button(action: submit) {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(PlanBaseButtonStyle())
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("작업 추가")
+                Button(action: onOpenSavedTasks) {
+                    Label("저장한 작업", systemImage: "bookmark")
+                }
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
+                .accessibilityIdentifier("saved-task-library-button")
+            }
+            .padding(14)
+            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        isTitleFocused ? AppTheme.accent : AppTheme.border,
+                        lineWidth: isTitleFocused ? 2 : 1.25
+                    )
+            }
+            SavedTaskQuickEntrySuggestions(controller: quickEntry, onAdd: addSavedTask) {
+                isTitleFocused = false
+                onOpenSavedTasks()
+            }
+        }
+        .onChange(of: title) { _, value in quickEntry.update(value, in: modelContext) }
+        .onChange(of: focusRequestID) { _, _ in isTitleFocused = true }
+        .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { notification in
+            guard PersistenceCommandService.affects(.templates, in: notification) else { return }
+            quickEntry.refresh(in: modelContext)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { notification in
+            guard let summary = CloudKitSyncService.summary(from: notification) else { return }
+            quickEntry.refresh(after: summary, in: modelContext)
+        }
+    }
+
+    private func submit() {
+        let interval = PlanBasePerformanceTrace.begin("TaskSubmit")
+        defer { PlanBasePerformanceTrace.end("TaskSubmit", interval) }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        if SavedTaskShortcutRules.query(in: trimmedTitle) != nil {
+            addSavedTask(nil)
+        } else if onAdd(trimmedTitle) {
+            title = ""
+        }
+    }
+
+    private func addSavedTask(_ id: UUID?) {
+        guard let task = quickEntry.add(input: title, selectedID: id, on: selectedDate, in: modelContext) else { return }
+        title = ""
+        onAddedSavedTask(task.title)
+        isTitleFocused = true
+    }
+}
+
 extension View {
     func persistenceFailureAlert(message: Binding<String?>) -> some View {
         alert(
@@ -67,8 +153,7 @@ struct BoardView: View {
     @State private var overlappingEventRows: [CalendarEvent] = []
 
     @Binding var selectedDate: Date
-    @State private var quickTitle = ""
-    @State private var quickEntry = SavedTaskQuickEntryController()
+    @State private var quickAddFocusRequestID: UUID?
     @State private var presentedSheet: BoardSheet?
     @State private var pendingTaskDeletion: PendingDesktopTaskDeletion?
     @State private var pendingEventDeletion: CalendarEvent?
@@ -80,7 +165,6 @@ struct BoardView: View {
     @State private var pendingTaskCompletion: PendingDesktopTaskCompletion?
     @State private var pendingLibrarySave: PendingDesktopLibrarySave?
     @State private var progressSession: TaskProgressEventQuerySession?
-    @FocusState private var isQuickTitleFocused: Bool
 
     private var selectedDayKey: String { DayKey.key(for: selectedDate) }
     private var todayKey: String { DayKey.today }
@@ -137,7 +221,13 @@ struct BoardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     eventStrip
-                    quickCreate
+                    DesktopBoardQuickAdd(
+                        selectedDate: selectedDate,
+                        focusRequestID: quickAddFocusRequestID,
+                        onAdd: addQuickTask,
+                        onAddedSavedTask: { savedTaskNotice = "‘\($0)’ 추가했어요" },
+                        onOpenSavedTasks: { presentedSheet = .savedTasks }
+                    )
                     if let carryoverSession {
                         CarryoverArrivalBanner(session: carryoverSession) { presentedSheet = .carryover }
                     }
@@ -430,59 +520,6 @@ struct BoardView: View {
         }
     }
 
-    private var quickCreate: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                TextField("해당 날짜에 할 일 입력", text: $quickTitle,
-                          prompt: Text("해당 날짜에 할 일 입력").foregroundStyle(AppTheme.secondaryText))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 16))
-                    .foregroundStyle(AppTheme.primaryText)
-                    .focused($isQuickTitleFocused)
-                    .onSubmit(addQuickTask)
-                    .onKeyPress(.downArrow) { quickEntry.moveSelection(by: 1) ? .handled : .ignored }
-                    .onKeyPress(.upArrow) { quickEntry.moveSelection(by: -1) ? .handled : .ignored }
-                    .onKeyPress(.escape) { quickEntry.dismiss() ? .handled : .ignored }
-                    .accessibilityHint("/를 입력하면 저장한 작업을 찾아 추가할 수 있어요.")
-                Button {
-                    addQuickTask()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(PlanBaseButtonStyle())
-                .disabled(quickTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel("작업 추가")
-                Button { presentedSheet = .savedTasks } label: {
-                    Label("저장한 작업", systemImage: "bookmark")
-                }
-                .buttonStyle(PlanBaseButtonStyle(.secondary))
-                .accessibilityIdentifier("saved-task-library-button")
-            }
-            .padding(14)
-            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(
-                        isQuickTitleFocused ? AppTheme.accent : AppTheme.border,
-                        lineWidth: isQuickTitleFocused ? 2 : 1.25
-                    )
-            }
-            SavedTaskQuickEntrySuggestions(controller: quickEntry, onAdd: addSavedQuickTask) {
-                isQuickTitleFocused = false
-                presentedSheet = .savedTasks
-            }
-        }
-        .onChange(of: quickTitle) { _, value in quickEntry.update(value, in: modelContext) }
-        .onReceive(NotificationCenter.default.publisher(for: PersistenceCommandService.dataChangedNotification)) { notification in
-            guard PersistenceCommandService.affects(.templates, in: notification) else { return }
-            quickEntry.refresh(in: modelContext)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: CloudKitSyncService.eventChangedNotification)) { notification in
-            guard let summary = CloudKitSyncService.summary(from: notification) else { return }
-            quickEntry.refresh(after: summary, in: modelContext)
-        }
-    }
-
     private func kanbanBoard(tasks: [Task]) -> some View {
         // Materialize before the column/TimelineView/ForEach closures retain any
         // children. A disappearing card must never construct a snapshot later.
@@ -495,7 +532,7 @@ struct BoardView: View {
                 status: .todo,
                 tasks: todo,
                 isBoardEmpty: tasks.isEmpty,
-                onAddTask: { isQuickTitleFocused = true },
+                onAddTask: { quickAddFocusRequestID = UUID() },
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
@@ -512,7 +549,7 @@ struct BoardView: View {
                 status: .doing,
                 tasks: doing,
                 isBoardEmpty: tasks.isEmpty,
-                onAddTask: { isQuickTitleFocused = true },
+                onAddTask: { quickAddFocusRequestID = UUID() },
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
@@ -529,7 +566,7 @@ struct BoardView: View {
                 status: .done,
                 tasks: done,
                 isBoardEmpty: tasks.isEmpty,
-                onAddTask: { isQuickTitleFocused = true },
+                onAddTask: { quickAddFocusRequestID = UUID() },
                 selectedDayKey: selectedDayKey,
                 onMove: moveTask,
                 onStatusChange: moveTask,
@@ -588,17 +625,8 @@ struct BoardView: View {
         }
     }
 
-    private func addQuickTask() {
-        let interval = PlanBasePerformanceTrace.begin("TaskSubmit")
-        defer { PlanBasePerformanceTrace.end("TaskSubmit", interval) }
-        let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        if SavedTaskShortcutRules.query(in: title) != nil {
-            addSavedQuickTask(nil)
-            return
-        }
-
-        let didAdd = performPersistenceCommand(
+    private func addQuickTask(_ title: String) -> Bool {
+        performPersistenceCommand(
             failureMessage: "작업을 추가하지 못했습니다."
         ) {
             let nextOrder = try BoundedQueryService.nextOrder(
@@ -614,15 +642,6 @@ struct BoardView: View {
             )
             modelContext.insert(task)
         }
-        guard didAdd else { return }
-        quickTitle = ""
-    }
-
-    private func addSavedQuickTask(_ id: UUID?) {
-        guard let task = quickEntry.add(input: quickTitle, selectedID: id, on: selectedDate, in: modelContext) else { return }
-        quickTitle = ""
-        savedTaskNotice = "‘\(task.title)’ 추가했어요"
-        isQuickTitleFocused = true
     }
 
     private func moveTask(idString: String, to status: TaskStatus) -> Bool {
