@@ -43,6 +43,20 @@ public enum DataIntegrityService {
         saveChanges: Bool = true,
         backfillLegacyTaskActivity: Bool = true
     ) throws -> Report {
+        try reconcile(
+            context: context,
+            saveChanges: saveChanges,
+            backfillLegacyTaskActivity: backfillLegacyTaskActivity,
+            inspectDiaryAttachment: DiaryAttachmentService.inspect
+        )
+    }
+
+    static func reconcile(
+        context: ModelContext,
+        saveChanges: Bool,
+        backfillLegacyTaskActivity: Bool,
+        inspectDiaryAttachment: (Data) throws -> DiaryAttachmentMetadata
+    ) throws -> Report {
         let interval = PlanBasePerformanceTrace.begin("DataIntegrity")
         defer { PlanBasePerformanceTrace.end("DataIntegrity", interval) }
         let events = try context.fetch(FetchDescriptor<CalendarEvent>())
@@ -183,6 +197,7 @@ public enum DataIntegrityService {
             blocks: diaryBlocks,
             attachments: diaryAttachments,
             directRewrites: reviewRewrites,
+            inspectAttachment: inspectDiaryAttachment,
             report: &report
         )
 

@@ -284,7 +284,8 @@ public enum CloudKitSyncService {
             _ = try DataIntegrityService.reconcile(
                 context: context,
                 saveChanges: false,
-                backfillLegacyTaskActivity: false
+                backfillLegacyTaskActivity: false,
+                inspectDiaryAttachment: DiaryAttachmentService.inspectReusingSuccessfulDecode
             )
         }
     }

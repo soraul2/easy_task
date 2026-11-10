@@ -156,6 +156,7 @@ extension DataIntegrityService {
         blocks: [DiaryBlock],
         attachments: [DiaryAttachment],
         directRewrites: [UUID: UUID],
+        inspectAttachment: (Data) throws -> DiaryAttachmentMetadata,
         report: inout Report
     ) {
         let activeReviews = reviews.filter(isActive)
@@ -205,7 +206,7 @@ extension DataIntegrityService {
                 // successful metadata survives locally through reference validation.
                 // No image bytes are retained in a cache or across attachments/calls.
                 report.normalizedFields += normalizeDiaryAttachmentScalars(attachment)
-                let metadata = try? DiaryAttachmentService.inspect(attachment.data)
+                let metadata = try? inspectAttachment(attachment.data)
                 if let metadata {
                     report.normalizedFields += normalizeDiaryAttachmentMetadata(
                         attachment, metadata: metadata

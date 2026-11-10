@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import ImageIO
 import SwiftData
+import Synchronization
 
 @available(watchOS 11, *)
 public enum DiaryAttachmentMediaType: String, Codable, CaseIterable, Sendable {
@@ -97,7 +98,20 @@ public enum DiaryAttachmentService {
     public static let maximumImageSizeBytes = DiaryImageFileStore.maximumImageSizeBytes
     static let validationThumbnailMaxPixelSize = 32
 
+    private static let decodedDigests = Mutex(Set<SHA256.Digest>())
+    private static let decodedDigestLimit = 1_024
+
     public static func inspect(_ data: Data) throws -> DiaryAttachmentMetadata {
+        try inspect(data, reusingSuccessfulDecode: false)
+    }
+
+    static func inspectReusingSuccessfulDecode(_ data: Data) throws -> DiaryAttachmentMetadata {
+        try inspect(data, reusingSuccessfulDecode: true)
+    }
+
+    private static func inspect(
+        _ data: Data, reusingSuccessfulDecode: Bool
+    ) throws -> DiaryAttachmentMetadata {
         guard !data.isEmpty else {
             throw DiaryAttachmentServiceError.emptyData
         }
@@ -110,14 +124,29 @@ public enum DiaryAttachmentService {
         guard let mediaType = detectedMediaType(in: data) else {
             throw DiaryAttachmentServiceError.unsupportedImageFormat
         }
-        guard isDecodableImage(data) else {
-            throw DiaryAttachmentServiceError.unsupportedImageFormat
+        // Only a digest computed from the current bytes can match a positive
+        // result. Imported file metadata is not evidence of a successful decode.
+        let digest = reusingSuccessfulDecode ? SHA256.hash(data: data) : nil
+        let alreadyDecoded = digest.map { value in
+            decodedDigests.withLock { $0.contains(value) }
+        } ?? false
+        if !alreadyDecoded {
+            guard isDecodableImage(data) else {
+                throw DiaryAttachmentServiceError.unsupportedImageFormat
+            }
+            if let digest {
+                decodedDigests.withLock { values in
+                    guard !values.contains(digest) else { return }
+                    if values.count == decodedDigestLimit { values.removeFirst() }
+                    values.insert(digest)
+                }
+            }
         }
 
         return DiaryAttachmentMetadata(
             mediaType: mediaType,
             byteCount: data.count,
-            sha256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            sha256: (digest ?? SHA256.hash(data: data)).map { String(format: "%02x", $0) }.joined()
         )
     }
 
