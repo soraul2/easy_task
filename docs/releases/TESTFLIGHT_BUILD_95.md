@@ -1,7 +1,7 @@
-# TestFlight 1.0 (95) — 패키지 검증 완료, 업로드 인증 대기
+# TestFlight 1.0 (95) — iOS·macOS 업로드 완료
 
 2026-11-11 일정 추가·편집 화면 변경을 포함한 iOS·iPadOS·내장 watchOS와
-macOS 배포 패키지를 준비했다. 구현·버전 커밋은
+macOS 배포 패키지를 업로드했다. 구현·버전 커밋은
 `5391aa7d81b731983904d8c526b8a6a76c607eca`이며
 `origin/codex/kanban-card-design`에 푸시했다. 해당 커밋을
 `.local/releases/build-95/source/`에 고정해 서명 아카이브를 만들었다.
@@ -45,13 +45,20 @@ TestFlight 설치와 실제 VoiceOver·IME 인수는 완료한 것으로 표시�
 
 ## 업로드 상태
 
-2026-11-11 iOS 13:25:59 KST, macOS 13:26:05 KST 업로드 시도가 모두
-`error: exportArchive Failed to Use Accounts`, `EXPORT FAILED`, exit 70으로 종료됐다.
-업로드 수락이나 Apple 처리 시작을 확인한 빌드는 아니다.
-Xcode Settings → Accounts에서 배포 계정 상태 확인과 재인증이 필요하다.
-인증 복구 후 위 검증된 archive로 업로드를 다시 실행한다.
+2026-11-11 iOS 13:40:10 KST, macOS 13:40:25 KST에 각각
+`Upload succeeded.`, `Uploaded package is processing.`, `EXPORT SUCCEEDED`와
+exit 0을 확인했다. Apple이 두 플랫폼 패키지를 수락해 처리를 시작했다.
+처리 완료·테스터 그룹 연결·실기기 설치는 별도로 확인하지 않았다.
+수락된 패키지는 다시 업로드하지 않는다.
+
+첫 시도는 두 플랫폼 모두 Xcode `Failed to Use Accounts`, exit 70으로 종료됐다.
+계정 로그인 후 고정 소스와 배포 실행 파일 6개의 SHA·UUID가 기존 검증 결과와
+일치함을 재확인하고 같은 서명 archive로 재시도했다. 재빌드나 버전 변경 없이
+기존 Xcode 26.6 배포 도구로 업로드했다.
 
 한국어 테스트 안내는 `.local/releases/build-95/testflight-notes-ko.txt`에 초안으로
 보관하며 App Store Connect 공지 저장이나 테스터 그룹 연결 완료로 표시하지 않는다.
-소스·서명 archive·배포 패키지·검증 영수증·업로드 실패 로그는
-`.local/releases/build-95/`, 화면 자료는 `.local/qa/event-editor-20261111/`에 보존한다.
+소스·서명 archive·배포 패키지·검증 영수증과 첫 시도 실패 로그는
+`.local/releases/build-95/`, 재시도 명령·exit 상태·업로드 성공 로그는
+`.local/releases/build-95/retry-20261111-01/`에 보존한다.
+화면 자료는 `.local/qa/event-editor-20261111/`에 보존한다.

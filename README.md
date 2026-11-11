@@ -10,14 +10,15 @@ CloudKit 컨테이너를 공유한다. watchOS 10은 iPhone 연동 모드로 같
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 최신 업로드는
-[iOS TestFlight 1.0 (92)](docs/releases/TESTFLIGHT_BUILD_92.md)이며, 2026-10-14 iOS·iPadOS·내장 watchOS의
-업로드·처리 완료와 한국어 공지 저장을 확인했다. 잠금화면 실시간 할 일 카드의 화살표가
-잠금 해제를 요구하던 설정을 수정했다. macOS 최신 배포는 [1.0 (91)](docs/releases/TESTFLIGHT_BUILD_91.md)이다.
+[TestFlight 1.0 (95)](docs/releases/TESTFLIGHT_BUILD_95.md)이며, 2026-11-11
+iOS·iPadOS·내장 watchOS와 macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다.
+Mac·iPhone·iPad·분할 창의 일정 모달을 정리하고 CloudKit 가져오기 후 이미지 검사 결과를 재사용한다.
 **watchOS 10·SE 1세대용 iPhone 연동 모드**와
 watchOS 11 이상 독립 동기화를 유지한다. 총 12개 테마의 출처와 배색 기준은
 [앱 테마](docs/THEMES.md)에 정리했다.
-build 92의 관련 공통·iOS 테스트 20개와 서명된 배포 패키지 검사가 통과했다. 전체 플랫폼 회귀는 이번에 재실행하지 않았다.
-실제 암호로 잠긴 iPhone의 넘김, SE 1 실기기 설치·iPhone 왕복, TestFlight 설치와 기존 잠금 화면·Watch·Mac 인수의 미확인 항목은 유지한다.
+build 95의 전체 플랫폼 회귀, 공통 Debug 771개·Release 766개 테스트와 Production 패키지 6번들 검사가 통과했다.
+Debug 42개·Release 10개는 실행 조건에 따라 건너뛰었다. Apple 처리 완료·TestFlight 설치,
+실기기 원격 동기화 지연 비교와 기존 잠금 화면·Watch·Mac 인수의 미확인 항목은 유지한다.
 최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
 ## 시작하기
