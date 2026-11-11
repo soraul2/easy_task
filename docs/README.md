@@ -5,12 +5,13 @@
 
 ## 현재 상태
 
-기준일: 2026-10-19
+기준일: 2026-11-11
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
 | 호환 변경 | [watchOS 10·SE 1세대 iPhone 연동 모드](WATCHOS.md): 구현·공통 테스트·전체 플랫폼 빌드 검증 완료. build 90 포함, 실제 SE 1 설치·iPhone 왕복은 확인 대기 |
 | 최신 업로드 | iOS·iPadOS·내장 watchOS [TestFlight 1.0 (92)](releases/TESTFLIGHT_BUILD_92.md), macOS [1.0 (93)](releases/TESTFLIGHT_BUILD_93.md) |
+| build 95 준비 | [일정 모달·이미지 검사 재사용](releases/TESTFLIGHT_BUILD_95.md). 전체 플랫폼 게이트·두 플랫폼 서명 archive·Production 패키지 6번들 검증 완료. 업로드는 Xcode `Failed to Use Accounts` 오류로 중단, 계정 재인증 대기 |
 | build 93 배포 확인 | 2026-10-19 11:55:46 KST macOS 업로드 성공·Apple 패키지 처리 시작. 처리 완료·그룹 연결·실기기 설치는 미확인 |
 | build 92 배포 확인 | 2026-10-14 16:36:50 KST iOS 업로드 성공. 처리 완료·내부 지인 그룹 2명 연결·한국어 업데이트 공지 저장 완료 |
 | build 91 배포 확인 | 2026-10-13 iOS 20:04:51·macOS 20:04:53 KST 업로드 성공·Apple 패키지 처리 시작. 두 플랫폼 처리 완료·내부 지인 그룹 연결·한국어 업데이트 공지 저장 완료 |
@@ -108,6 +109,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
+| [TestFlight 1.0 (95) 준비](releases/TESTFLIGHT_BUILD_95.md) | 2026-11-11 일정 모달·이미지 검사 재사용. 두 플랫폼 패키지 검증 완료, Xcode 계정 인증 오류로 업로드 대기 |
 | [TestFlight 1.0 (93)](releases/TESTFLIGHT_BUILD_93.md) | 2026-10-19 macOS 작업 입력 상태 분리, 전체 게이트·배포 패키지 검증과 macOS 업로드 완료 |
 | [TestFlight 1.0 (92)](releases/TESTFLIGHT_BUILD_92.md) | 2026-10-14 잠금화면 화살표 인증 설정 수정, iOS·iPadOS·Watch 업로드 완료 |
 | [TestFlight 1.0 (91)](releases/TESTFLIGHT_BUILD_91.md) | 2026-10-13 시작·조회·입력어·삭제 카드·캘린더 링크 개선, 최소 배포 검사와 두 플랫폼 업로드 완료 |
