@@ -67,33 +67,16 @@ struct AddEventSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
+            DesktopEventEditorHeader(
+                title: isDuplicate ? "일정 복제" : "일정 추가",
+                startDate: startDate,
+                isDuplicate: isDuplicate
+            )
+
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 12) {
-                            Text(isDuplicate ? "일정 복제" : "일정 추가")
-                                .font(.title2.weight(.bold))
-                                .foregroundStyle(AppTheme.primaryText)
-
-                            Spacer()
-
-                            Label(DayKey.display(startDate), systemImage: "calendar")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 5)
-                                .background(AppTheme.input, in: Capsule())
-                                .accessibilityLabel("시작일 \(DayKey.display(startDate))")
-                        }
-
-                        if isDuplicate {
-                            Label("복제한 일정", systemImage: "doc.on.doc")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
-                        }
-
+                    VStack(alignment: .leading, spacing: 12) {
                         DesktopEventTitleEditor(
                             title: recommendationTitleBinding,
                             session: recommendationSession,
@@ -106,14 +89,14 @@ struct AddEventSheet: View {
                             }
                         )
 
-                        EventDateRangeEditor(startDate: $startDate, endDate: $endDate)
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("일정 색상")
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.primaryText)
-                            EventColorSelector(selection: $color)
+                        DesktopEventEditorSection("날짜와 기간") {
+                            EventDateRangeEditor(startDate: $startDate, endDate: $endDate)
                         }
+                        .padding(12)
+                        .background(AppTheme.input.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+                        .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border.opacity(0.6), lineWidth: 1) }
+
+                        EventColorSelector(selection: $color)
 
                         EventNoteEditor(text: $note)
 
@@ -123,7 +106,8 @@ struct AddEventSheet: View {
 
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(2)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
                 }
                 .onChange(of: recommendationSession?.selectedID) { _, id in
                     if let id { proxy.scrollTo(id, anchor: .center) }
@@ -132,11 +116,12 @@ struct AddEventSheet: View {
                     if state == .applied { proxy.scrollTo("event-editor-title", anchor: .top) }
                 }
             }
-            .frame(maxHeight: 560)
+            .frame(idealHeight: 520, maxHeight: 560)
 
             HStack {
                 Spacer()
                 Button("취소", action: requestDismiss)
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
                 .keyboardShortcut(.cancelAction)
                 Button(action: attemptAdd) {
                     Label(
@@ -144,13 +129,15 @@ struct AddEventSheet: View {
                         systemImage: isDuplicate ? "doc.on.doc" : "plus"
                     )
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PlanBaseButtonStyle(.primary))
                 .disabled(!canAdd)
                 .keyboardShortcut(.defaultAction)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+            .overlay(alignment: .top) { Divider().overlay(AppTheme.border) }
         }
-        .padding(22)
-        .frame(width: 440)
+        .frame(minWidth: 400, idealWidth: 520, maxWidth: 560)
         .background(AppTheme.panel)
         .environment(\.locale, Locale(identifier: "ko_KR"))
         .onAppear { if initialDraft == nil { initialDraft = currentDraft } }
@@ -256,26 +243,12 @@ struct EventEditorSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
+            DesktopEventEditorHeader(title: "일정 편집", startDate: draftStartDate)
+
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 12) {
-                            Text("일정 편집")
-                                .font(.title2.weight(.bold))
-                                .foregroundStyle(AppTheme.primaryText)
-
-                            Spacer()
-
-                            Label(DayKey.display(draftStartDate), systemImage: "calendar")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 5)
-                                .background(AppTheme.input, in: Capsule())
-                                .accessibilityLabel("시작일 \(DayKey.display(draftStartDate))")
-                        }
-
+                    VStack(alignment: .leading, spacing: 12) {
                         DesktopEventTitleEditor(
                             title: recommendationTitleBinding,
                             session: recommendationSession,
@@ -288,14 +261,14 @@ struct EventEditorSheet: View {
                             }
                         )
 
-                        EventDateRangeEditor(startDate: $draftStartDate, endDate: $draftEndDate)
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("일정 색상")
-                                .font(.headline)
-                                .foregroundStyle(AppTheme.primaryText)
-                            EventColorSelector(selection: $draftColor)
+                        DesktopEventEditorSection("날짜와 기간") {
+                            EventDateRangeEditor(startDate: $draftStartDate, endDate: $draftEndDate)
                         }
+                        .padding(12)
+                        .background(AppTheme.input.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+                        .overlay { RoundedRectangle(cornerRadius: 14).stroke(AppTheme.border.opacity(0.6), lineWidth: 1) }
+
+                        EventColorSelector(selection: $draftColor)
 
                         EventNoteEditor(text: $draftNote)
 
@@ -311,7 +284,8 @@ struct EventEditorSheet: View {
 
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(2)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
                 }
                 .onChange(of: recommendationSession?.selectedID) { _, id in
                     if let id { proxy.scrollTo(id, anchor: .center) }
@@ -320,16 +294,19 @@ struct EventEditorSheet: View {
                     if state == .applied { proxy.scrollTo("event-editor-title", anchor: .top) }
                 }
             }
-            .frame(maxHeight: 560)
+            .frame(idealHeight: 520, maxHeight: 560)
 
             HStack {
                 Button(role: .destructive, action: requestDeletion) {
                     Label("삭제", systemImage: "trash")
                 }
+                .buttonStyle(.borderless)
+                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
 
                 Spacer()
 
                 Button("취소", action: requestDismiss)
+                .buttonStyle(PlanBaseButtonStyle(.secondary))
                 .keyboardShortcut(.cancelAction)
 
                 Button {
@@ -337,13 +314,15 @@ struct EventEditorSheet: View {
                 } label: {
                     Label("저장", systemImage: "checkmark")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PlanBaseButtonStyle(.primary))
                 .disabled(!canSave)
                 .keyboardShortcut(.defaultAction)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+            .overlay(alignment: .top) { Divider().overlay(AppTheme.border) }
         }
-        .padding(22)
-        .frame(width: 440)
+        .frame(minWidth: 400, idealWidth: 520, maxWidth: 560)
         .background(AppTheme.panel)
         .environment(\.locale, Locale(identifier: "ko_KR"))
         .planBaseDiscardConfirmation(
@@ -436,6 +415,76 @@ struct EventEditorSheet: View {
     }
 }
 
+private struct DesktopEventEditorHeader: View {
+    var title: String
+    var startDate: Date
+    var isDuplicate = false
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 16) {
+                heading
+                Spacer(minLength: 12)
+                dateLabel
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                heading
+                dateLabel
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .overlay(alignment: .bottom) { Divider().overlay(AppTheme.border) }
+    }
+
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(AppTheme.primaryText)
+                .fixedSize(horizontal: true, vertical: false)
+            if isDuplicate {
+                Label("복제한 일정", systemImage: "doc.on.doc")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
+            }
+        }
+    }
+
+    private var dateLabel: some View {
+        Label(DayKey.display(startDate), systemImage: "calendar")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(AppTheme.secondaryText)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(AppTheme.input, in: Capsule())
+            .accessibilityLabel("시작일 \(DayKey.display(startDate))")
+    }
+}
+
+private struct DesktopEventEditorSection<Content: View>: View {
+    var title: String
+    @ViewBuilder var content: () -> Content
+
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primaryText)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct DesktopEventTitleEditor: View {
     @Binding var title: String
     var session: CalendarEventRecommendationSession?
@@ -445,15 +494,15 @@ private struct DesktopEventTitleEditor: View {
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        DesktopEventEditorSection("일정 제목") {
             TextField("일정 제목", text: $title)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(AppTheme.primaryText)
-                .padding(10)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+                .padding(12)
+                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 10))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 8).stroke(AppTheme.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10).stroke(AppTheme.border, lineWidth: 1)
                 }
                 .accessibilityIdentifier("event-title-field")
                 .id("event-editor-title")
@@ -568,23 +617,30 @@ private struct EventNoteEditor: View {
     @Binding var text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("메모")
-                .font(.headline)
-                .foregroundStyle(AppTheme.primaryText)
-
-            TextEditor(text: $text)
-                .font(.system(size: 14))
-                .foregroundStyle(AppTheme.primaryText)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 84)
-                .padding(8)
-                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.border, lineWidth: 1)
+        DesktopEventEditorSection("메모") {
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text("기억해 둘 내용을 적어 보세요")
+                        .font(.system(size: 14))
+                        .foregroundStyle(AppTheme.secondaryText)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
-                .accessibilityLabel("일정 메모")
+                TextEditor(text: $text)
+                    .font(.system(size: 14))
+                    .foregroundStyle(AppTheme.primaryText)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 72, idealHeight: 84, maxHeight: 140)
+                    .accessibilityLabel("일정 메모")
+            }
+            .padding(8)
+            .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(AppTheme.border, lineWidth: 1)
+            }
         }
     }
 }
@@ -618,54 +674,51 @@ struct EventDateRangeEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 12) {
-                DatePicker("시작", selection: $startDate, displayedComponents: .date)
-                    .onChange(of: startDate) {
-                        if let selectedPreset {
-                            applyPreset(selectedPreset)
-                        } else if endDate < startDate {
-                            endDate = startDate
-                        }
-                    }
-
-                DatePicker("종료", selection: $endDate, displayedComponents: .date)
-                    .onChange(of: endDate) {
-                        if endDate < startDate {
-                            startDate = endDate
-                        }
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 12) {
+                    startDateField
+                    endDateField
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    startDateField
+                    endDateField
+                }
             }
 
-            HStack(spacing: 8) {
-                Text("기간")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                 ForEach(EventDurationPreset.allCases) { preset in
                     Button(preset.title) {
                         applyPreset(preset)
                     }
                     .buttonStyle(.plain)
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(selectedPreset == preset ? AppTheme.primaryText : AppTheme.secondaryText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize)
                     .background(
-                        selectedPreset == preset ? AppTheme.selectedTab : AppTheme.columnTodo,
-                        in: Capsule()
+                        selectedPreset == preset ? AppTheme.selectedTab : AppTheme.panel,
+                        in: RoundedRectangle(cornerRadius: 8)
                     )
                     .overlay {
-                        Capsule()
-                            .stroke(AppTheme.border, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(selectedPreset == preset ? AppTheme.accent.opacity(0.55) : AppTheme.border, lineWidth: 1)
                     }
+                    .accessibilityLabel("기간 \(preset.title)")
+                    .accessibilityAddTraits(selectedPreset == preset ? .isSelected : [])
                 }
+            }
 
-                HStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Text("직접 입력")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+
+                HStack(spacing: 8) {
                     TextField("직접", text: $customDurationText)
                         .textFieldStyle(.plain)
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(AppTheme.primaryText)
-                        .frame(width: 42)
+                        .frame(width: 46)
+                        .accessibilityLabel("일정 기간, 일 단위")
                         .onChange(of: customDurationText) {
                             customDurationText = sanitizedDurationText(customDurationText)
                         }
@@ -675,25 +728,62 @@ struct EventDateRangeEditor: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
 
-                    Button("적용") {
-                        applyCustomDuration()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(customDuration == nil ? AppTheme.secondaryText : AppTheme.primaryText)
-                    .disabled(customDuration == nil)
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(AppTheme.input, in: Capsule())
+                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 8))
                 .overlay {
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 8)
                         .stroke(AppTheme.border, lineWidth: 1)
                 }
 
-                Spacer()
+                Button("적용", action: applyCustomDuration)
+                    .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    .disabled(customDuration == nil)
+                Spacer(minLength: 0)
             }
         }
+    }
+
+    private var startDateField: some View {
+        dateField("시작일") {
+            DatePicker("시작", selection: $startDate, displayedComponents: .date)
+                .onChange(of: startDate) {
+                    if let selectedPreset {
+                        applyPreset(selectedPreset)
+                    } else if endDate < startDate {
+                        endDate = startDate
+                    }
+                }
+        }
+    }
+
+    private var endDateField: some View {
+        dateField("종료일") {
+            DatePicker("종료", selection: $endDate, displayedComponents: .date)
+                .onChange(of: endDate) {
+                    if endDate < startDate {
+                        startDate = endDate
+                    }
+                }
+        }
+    }
+
+    private func dateField<Picker: View>(
+        _ title: String, @ViewBuilder picker: () -> Picker
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+            picker()
+                .labelsHidden()
+                .datePickerStyle(.field)
+                .controlSize(.large)
+                .fixedSize()
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func applyPreset(_ preset: EventDurationPreset) {
@@ -722,17 +812,38 @@ struct EventColorSelector: View {
     @Binding var selection: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                label
+                swatches
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                label
+                swatches
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var label: some View {
+        Text("일정 색상")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.primaryText)
+            .fixedSize()
+    }
+
+    private var swatches: some View {
+        HStack(spacing: 8) {
             ForEach(CalendarEventColor.allCases) { option in
                 Button {
                     selection = option.rawValue
                 } label: {
                     Circle()
                         .fill(option.color)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 28, height: 28)
                         .overlay {
                             Circle()
-                                .stroke(selection == option.rawValue ? AppTheme.primaryText : AppTheme.border, lineWidth: selection == option.rawValue ? 3 : 1)
+                                .strokeBorder(selection == option.rawValue ? AppTheme.primaryText : AppTheme.border, lineWidth: selection == option.rawValue ? 2 : 1)
                         }
                         .overlay {
                             if selection == option.rawValue {
@@ -741,8 +852,7 @@ struct EventColorSelector: View {
                                     .foregroundStyle(AppTheme.eventText)
                             }
                         }
-                        .frame(width: PlanBaseControlMetrics.minimumTargetSize,
-                               height: PlanBaseControlMetrics.minimumTargetSize)
+                        .frame(width: 40, height: 40)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

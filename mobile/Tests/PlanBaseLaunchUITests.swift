@@ -812,6 +812,9 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.buttons["event-editor-keyboard-dismiss"].tap()
         tileAdaptiveApp(app, beside: settings, fullFrame: fullFrame)
         XCTAssertEqual(title.value as? String, "다른 앱 옆에서 저장한 일정")
+        XCTAssertTrue(isHorizontallyContained(title, in: app.windows.firstMatch))
+        XCTAssertTrue(app.navigationBars["일정 추가"].buttons["추가"].isHittable)
+        addReferenceScreenshot(named: "calendar-editor-duo-draft")
         app.navigationBars["일정 추가"].buttons["추가"].tap()
         XCTAssertTrue(title.waitForNonExistence(timeout: 10))
         XCTAssertTrue(app.buttons["일정 편집"].firstMatch.waitForExistence(timeout: 10))
@@ -866,6 +869,16 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
+        let settingsWindow = settings.windows.firstMatch
+        if settingsWindow.frame.width > 600 {
+            settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.995))
+                .press(forDuration: 0.3, thenDragTo:
+                    settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.9)))
+            let floatingSettings = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                settingsWindow.frame.width <= 600
+            }, object: settingsWindow)
+            XCTAssertEqual(XCTWaiter.wait(for: [floatingSettings], timeout: 5), .completed)
+        }
         let app = launchKanbanFlowApp(additionalArguments: additionalArguments)
         addTeardownBlock {
             await MainActor.run {
@@ -1044,10 +1057,26 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.buttons["일정 추가"].firstMatch.tap()
         let field = app.textFields["event-title-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
+        addReferenceScreenshot(named: "calendar-editor-portrait-empty")
         field.tap()
         field.typeText("펼쳐도 유지되는 일정")
+        app.buttons["event-editor-keyboard-dismiss"].tap()
+        let note = app.textFields["event-note-field"]
+        XCTAssertTrue(scrollToEventEditorControl(note, in: app))
+        note.tap()
+        note.typeText("화면 크기가 바뀌어도 유지되는 메모")
+        app.buttons["event-editor-keyboard-dismiss"].tap()
+        addReferenceScreenshot(named: "calendar-editor-portrait-memo")
         XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(scrollToEventEditorControl(note, in: app))
+        XCTAssertEqual(note.value as? String, "화면 크기가 바뀌어도 유지되는 메모")
+        addReferenceScreenshot(named: "calendar-editor-landscape-memo")
+        XCTAssertTrue(scrollToEventEditorControl(field, in: app, towardTop: true))
         XCTAssertEqual(field.value as? String, "펼쳐도 유지되는 일정")
+        let duration = app.buttons["event-duration-3"]
+        XCTAssertTrue(scrollToEventEditorControl(duration, in: app))
+        XCTAssertTrue(isHorizontallyContained(duration, in: app.windows.firstMatch))
+        duration.tap()
         addReferenceScreenshot(named: "adaptive-calendar-editor-wide")
         app.navigationBars["일정 추가"].buttons["추가"].tap()
         XCTAssertTrue(field.waitForNonExistence(timeout: 10))
@@ -4936,6 +4965,8 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let recommendations = recommendationButtons(in: app)
         XCTAssertTrue(recommendations.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(recommendations.count, 5)
+        XCTAssertTrue(scrollToFullyVisible(recommendations.firstMatch, in: app,
+                                          below: app.navigationBars["일정 추가"]))
         recommendations.firstMatch.tap()
         XCTAssertTrue(
             app.staticTexts["event-recommendation-feedback"]
@@ -7309,6 +7340,40 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let adaptiveButton = app.buttons[name].firstMatch
         XCTAssertTrue(adaptiveButton.waitForExistence(timeout: 5))
         adaptiveButton.tap()
+    }
+
+    @MainActor
+    private func scrollToEventEditorControl(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        towardTop: Bool = false
+    ) -> Bool {
+        let form = app.collectionViews["event-editor-form"]
+        let navigation = app.navigationBars["일정 추가"]
+        for _ in 0..<14 {
+            let upperEdge = max(form.frame.minY, navigation.frame.maxY) + 12
+            let lowerEdge = form.frame.maxY - 24
+            if element.waitForExistence(timeout: 0.5), element.isHittable,
+               element.frame.minY >= upperEdge, element.frame.maxY <= lowerEdge {
+                return true
+            }
+            guard lowerEdge > upperEdge else { return false }
+            // Keep short drags inside the form: full-height swipes can grab
+            // the sheet's dismissal area or skip a row in phone landscape.
+            let distance = min(140, (lowerEdge - upperEdge) / 2)
+            let center = (upperEdge + lowerEdge) / 2 - form.frame.minY
+            let origin = form.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(
+                dx: form.frame.width * 0.9,
+                dy: center + (towardTop ? -distance / 2 : distance / 2)
+            ))
+            let end = origin.withOffset(CGVector(
+                dx: form.frame.width * 0.9,
+                dy: center + (towardTop ? distance / 2 : -distance / 2)
+            ))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        return false
     }
 
     @MainActor

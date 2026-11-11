@@ -117,15 +117,18 @@ struct MobileEventEditorSheet: View {
                         }
                         .listRowBackground(AppTheme.panel)
                     }
-                    Section("일정") {
+                    Section("일정 이름") {
                         if isDuplicating {
                             Label("복제한 일정", systemImage: "doc.on.doc")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(AppTheme.secondaryText)
                                 .accessibilityHint("원본과 연결되지 않는 새 일정입니다")
                         }
-                        TextField("큰 일정 또는 작업 맥락", text: recommendationTitleBinding)
+                        TextField("어떤 일정인가요?", text: recommendationTitleBinding)
+                            .font(.title3.weight(.semibold))
+                            .padding(.vertical, 8)
                             .focused($focusedField, equals: .title)
+                            .accessibilityLabel("일정 이름")
                             .accessibilityIdentifier("event-title-field")
                             .id("event-editor-title")
                         if let session = recommendationSession, session.isPresented || session.feedback != nil {
@@ -155,20 +158,29 @@ struct MobileEventEditorSheet: View {
                         .listRowBackground(AppTheme.panel)
                     }
 
-                    Section("기간") {
+                    Section("날짜와 기간") {
                         MobileEventDateRangeEditor(startDate: $startDate, endDate: $endDate,
                                                    focusedField: $focusedField)
                     }
                     .listRowBackground(AppTheme.panel)
-                    Section("띠 색상") {
+                    Section("일정 색상") {
                         MobileEventColorSelector(selection: $color)
                     }
                     .listRowBackground(AppTheme.panel)
-                    Section("메모") {
-                        TextField("메모", text: $note, axis: .vertical)
+                    Section {
+                        TextField("장소나 준비할 내용을 적어 주세요", text: $note, axis: .vertical)
                             .focused($focusedField, equals: .note)
-                            .lineLimit(3...6)
+                            .lineLimit(4...8)
+                            .padding(.vertical, 8)
+                            .accessibilityLabel("메모")
                             .accessibilityIdentifier("event-note-field")
+                    } header: {
+                        HStack {
+                            Text("메모")
+                            Spacer()
+                            Text("선택")
+                                .font(.caption)
+                        }
                     }
                     .listRowBackground(AppTheme.panel)
                     if isEditing {
@@ -183,7 +195,13 @@ struct MobileEventEditorSheet: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
+                .accessibilityIdentifier("event-editor-form")
                 .scrollDismissesKeyboard(.interactively)
+                .contentMargins(.horizontal, 16, for: .scrollContent)
+                .listSectionSpacing(20)
+                .textCase(nil)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
                 .background(AppTheme.background)
                 .foregroundStyle(AppTheme.primaryText)
                 .tint(AppTheme.accent)
@@ -200,6 +218,7 @@ struct MobileEventEditorSheet: View {
                             focusedField = nil
                             if saveEvent() { dismiss() }
                         }
+                        .fontWeight(.semibold)
                         .disabled(trimmedTitle.isEmpty)
                     }
                     ToolbarItemGroup(placement: .keyboard) {
@@ -263,6 +282,7 @@ struct MobileEventEditorSheet: View {
         )
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationCornerRadius(28)
         .presentationBackground(AppTheme.background)
         .task {
             guard recommendationSession == nil else { return }
@@ -440,11 +460,12 @@ private struct MobileEventDateRangeEditor: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var customDurationText = ""
 
+    private var includedDayCount: Int {
+        CalendarEventReuseRules.includedDayCount(from: startDate, through: endDate)
+    }
+
     private var selectedPreset: MobileEventDurationPreset? {
-        let normalizedStart = DayKey.startOfDay(for: startDate)
-        let normalizedEnd = DayKey.startOfDay(for: endDate)
-        let dayCount = (DayKey.calendar.dateComponents([.day], from: normalizedStart, to: normalizedEnd).day ?? 0) + 1
-        return MobileEventDurationPreset(rawValue: dayCount)
+        MobileEventDurationPreset(rawValue: includedDayCount)
     }
 
     private var customDuration: Int? {
@@ -453,57 +474,135 @@ private struct MobileEventDateRangeEditor: View {
     }
 
     var body: some View {
-        DatePicker("시작", selection: $startDate, displayedComponents: .date)
-            .onChange(of: startDate) {
-                if endDate < startDate {
-                    endDate = startDate
+        VStack(alignment: .leading, spacing: 18) {
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedDates
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 20) {
+                        startDateField
+                        endDateField
+                    }
+                    stackedDates
                 }
             }
-        DatePicker("종료", selection: $endDate, displayedComponents: .date)
-            .onChange(of: endDate) {
-                if endDate < startDate {
-                    startDate = endDate
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("기간 선택")
+                        .font(.subheadline.weight(.medium))
+                    Spacer(minLength: 8)
+                    Text("총 \(includedDayCount)일")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.accent)
+                        .accessibilityIdentifier("event-duration-summary")
                 }
-            }
-        VStack(alignment: .leading, spacing: 12) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8),
-                                    count: dynamicTypeSize.isAccessibilitySize ? 2 : 4), spacing: 8) {
-                ForEach(MobileEventDurationPreset.allCases) { preset in
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8),
+                                        count: dynamicTypeSize.isAccessibilitySize ? 2 : 4), spacing: 8) {
+                    ForEach(MobileEventDurationPreset.allCases) { preset in
+                        Button {
+                            applyPreset(preset)
+                        } label: {
+                            Text(preset.title)
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                                .foregroundStyle(selectedPreset == preset ? AppTheme.accent : AppTheme.primaryText)
+                                .background(selectedPreset == preset ? AppTheme.selectedTab : AppTheme.input,
+                                            in: RoundedRectangle(cornerRadius: 12))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(selectedPreset == preset ? AppTheme.accent : AppTheme.border, lineWidth: 1)
+                                }
+                                .contentShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityValue(selectedPreset == preset ? "선택됨" : "")
+                        .accessibilityAddTraits(selectedPreset == preset ? .isSelected : [])
+                        .accessibilityIdentifier("event-duration-\(preset.rawValue)")
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    TextField("직접 입력", text: $customDurationText)
+                        .keyboardType(.numberPad)
+                        .focused(focusedField, equals: .duration)
+                        .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                        .accessibilityLabel("일정 기간, 일 단위")
+                        .accessibilityIdentifier("event-custom-duration")
+                        .onChange(of: customDurationText) {
+                            customDurationText = sanitizedDurationText(customDurationText)
+                        }
+                    Text("일")
+                        .foregroundStyle(AppTheme.secondaryText)
                     Button {
-                        applyPreset(preset)
+                        applyCustomDuration()
                     } label: {
-                        Text(preset.title)
-                            .frame(maxWidth: .infinity)
+                        Text("적용")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minWidth: PlanBaseControlMetrics.minimumTargetSize,
+                                   minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(PlanBaseButtonStyle(selectedPreset == preset ? .primary : .secondary))
-                    .accessibilityValue(selectedPreset == preset ? "선택됨" : "")
-                    .accessibilityAddTraits(selectedPreset == preset ? .isSelected : [])
-                    .accessibilityIdentifier("event-duration-\(preset.rawValue)")
+                    .buttonStyle(.plain)
+                    .foregroundStyle(customDuration == nil ? AppTheme.secondaryText : AppTheme.accent)
+                    .accessibilityIdentifier("event-apply-duration")
+                    .disabled(customDuration == nil)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12).stroke(AppTheme.border, lineWidth: 1)
                 }
             }
-            HStack(spacing: 8) {
-                TextField("직접 입력", text: $customDurationText)
-                    .keyboardType(.numberPad)
-                    .focused(focusedField, equals: .duration)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize)
-                    .accessibilityLabel("일정 기간, 일 단위")
-                    .accessibilityIdentifier("event-custom-duration")
-                    .onChange(of: customDurationText) {
-                        customDurationText = sanitizedDurationText(customDurationText)
-                    }
-                Text("일")
-                    .foregroundStyle(AppTheme.secondaryText)
-                Button("적용") {
-                    applyCustomDuration()
-                }
-                .buttonStyle(PlanBaseButtonStyle(.secondary))
-                .accessibilityIdentifier("event-apply-duration")
-                .disabled(customDuration == nil)
-            }
-            .padding(8)
-            .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 12))
         }
+        .padding(.vertical, 6)
+    }
+
+    private var stackedDates: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            startDateField
+            endDateField
+        }
+    }
+
+    private var startDateField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("시작")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppTheme.secondaryText)
+            DatePicker("시작", selection: $startDate, displayedComponents: .date)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
+                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                .accessibilityIdentifier("event-start-date")
+                .onChange(of: startDate) {
+                    if endDate < startDate { endDate = startDate }
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var endDateField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("종료")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(AppTheme.secondaryText)
+            DatePicker("종료", selection: $endDate, displayedComponents: .date)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
+                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+                .accessibilityIdentifier("event-end-date")
+                .onChange(of: endDate) {
+                    if endDate < startDate { startDate = endDate }
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func applyPreset(_ preset: MobileEventDurationPreset) {
@@ -530,44 +629,70 @@ private struct MobileEventDateRangeEditor: View {
 
 private struct MobileEventColorSelector: View {
     @Binding var selection: String
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(CalendarEventColor.allCases) { option in
-                Button {
-                    selection = option.rawValue
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(option.color)
-                            .frame(width: 32, height: 32)
-                            .overlay {
-                                Circle()
-                                    .stroke(
-                                        selection == option.rawValue
-                                            ? AppTheme.primaryText
-                                            : AppTheme.border,
-                                        lineWidth: selection == option.rawValue ? 3 : 1
-                                    )
-                            }
-
-                        if selection == option.rawValue {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(option.foregroundColor)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                colorGrid
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(CalendarEventColor.allCases) { option in
+                            colorButton(option)
+                                .frame(width: PlanBaseControlMetrics.minimumTargetSize)
                         }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .contentShape(Rectangle())
+                    colorGrid
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(option.title)
-                .accessibilityValue(selection == option.rawValue ? "선택됨" : "")
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+    }
+
+    private var colorGrid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+            ForEach(CalendarEventColor.allCases) { option in
+                colorButton(option)
+            }
+        }
+    }
+
+    private func colorButton(_ option: CalendarEventColor) -> some View {
+        let selected = selection == option.rawValue
+        return Button {
+            selection = option.rawValue
+        } label: {
+            VStack(spacing: 8) {
+                Circle()
+                    .fill(option.color)
+                    .frame(width: 30, height: 30)
+                    .overlay {
+                        if selected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(option.foregroundColor)
+                        }
+                    }
+                    .padding(4)
+                    .overlay {
+                        Circle()
+                            .stroke(selected ? AppTheme.primaryText : .clear, lineWidth: 2)
+                    }
+                Text(option.title)
+                    .font(.caption)
+                    .foregroundStyle(selected ? AppTheme.primaryText : AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(option.title)
+        .accessibilityValue(selected ? "선택됨" : "")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("event-color-\(option.rawValue)")
     }
 }
 #endif

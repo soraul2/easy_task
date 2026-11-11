@@ -26,12 +26,22 @@ public struct CalendarEventRecommendationContent: View {
         VStack(alignment: .leading, spacing: 8) {
             if session.isPresented {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("최근 일정에서 가져오기")
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
+                    if session.state == .empty {
+                        Label("일치하는 최근 일정이 없어요", systemImage: "clock")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("event-recommendation-empty")
+                    } else {
+                        Label("최근 일정에서 가져오기", systemImage: "clock.arrow.circlepath")
+                            .font(.subheadline.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Spacer(minLength: 8)
                     Button { session.dismissRecommendations() } label: {
-                        Text("닫기")
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.secondaryText)
                             .frame(minWidth: PlanBaseControlMetrics.minimumTargetSize,
                                    minHeight: PlanBaseControlMetrics.minimumTargetSize)
                             .contentShape(Rectangle())
@@ -46,9 +56,7 @@ public struct CalendarEventRecommendationContent: View {
                         .font(.caption)
                         .controlSize(.small)
                 case .empty:
-                    Text("최근 일정에서 일치하는 항목이 없어요")
-                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
-                        .accessibilityIdentifier("event-recommendation-empty")
+                    EmptyView()
                 case .failed:
                     Text("최근 일정을 불러오지 못했어요")
                         .font(.caption).foregroundStyle(AppTheme.secondaryText)
