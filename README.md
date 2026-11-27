@@ -24,6 +24,8 @@ Debug 42개·Release 10개는 실행 조건에 따라 건너뛰었다. Apple 처
 TestFlight의 두 플랫폼 빌드 업로드 목록에서 `1.0 (96)`의 처리 중 상태를 확인했다.
 최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
+후속 [build 97](docs/releases/TESTFLIGHT_BUILD_97.md)은 일정 추천의 반복 조회·계산과 갱신 배치를 개선한다. commit·push 및 전체 회귀·서명 패키지 검증은 완료했으며, Xcode 계정 인증 오류로 업로드를 기다리고 있다.
+
 ## 시작하기
 
 Swift 6 / Swift tools 6.3을 사용하며 현재 소스의 최소 지원은 iOS 18, macOS 26, watchOS 10이다.

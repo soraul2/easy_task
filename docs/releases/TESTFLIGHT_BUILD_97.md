@@ -1,6 +1,6 @@
-# TestFlight 1.0 (97) — 배포 준비
+# TestFlight 1.0 (97) — Xcode 인증으로 업로드 대기
 
-2026-11-27 일정 추가·편집 화면의 최근 일정 추천 최적화를 iOS·iPadOS·내장 watchOS와 macOS 배포에 준비한다. 마케팅 버전은 1.0을 유지하고 프로젝트 빌드 번호 14곳과 플랫폼 Info.plist 5개를 97로 맞췄다.
+2026-11-27 일정 추가·편집 화면의 최근 일정 추천 최적화를 commit·push하고 iOS·iPadOS·내장 watchOS와 macOS 서명 배포 패키지를 검증했다. 업로드는 Xcode 계정 인증 오류로 중단됐다. 마케팅 버전은 1.0을 유지하고 프로젝트 빌드 번호 14곳과 플랫폼 Info.plist 5개를 97로 맞췄다.
 
 ## 포함한 변경
 
@@ -24,6 +24,19 @@
 
 ## 배포 상태
 
-고정 commit으로 build 97의 전체 게이트, 서명 archive와 Production 배포 패키지를 검증한 뒤 업로드한다. 기준 소스·manifest·실행 명령·상태·로그는 `.local/releases/build-97/`에 보존한다. 최종 commit과 업로드 결과는 완료 후 기록한다.
+구현·버전 커밋은 `39661cc72c334439df53f5f7d1b6011437e2343f`이며 `origin/codex/kanban-card-design`에 푸시했다. 이 커밋의 526개 파일을 `.local/releases/build-97/source/`에 고정했다. manifest·tar·git archive와 commit 일치를 독립 확인했으며 source.tar SHA-256은 `74e273fdc1187c3c7a328ffdc4c28c5c2a1a22d1b3761bef72419553c918c879`다.
 
-현재 문서 작성 시점에는 build 97의 Apple 패키지 수락·처리 시작을 확인하지 않았다. 한국어 테스트 안내는 로컬 초안으로 보관하며 테스터 그룹이나 공지는 변경하지 않는다.
+iOS archive는 20:14:08 KST, macOS archive는 20:12:22 KST에 exit 0으로 완료됐다. App Store Connect용 로컬 export도 iOS 20:15:01·macOS 20:13:25 KST에 exit 0이었다.
+
+- iOS 앱·위젯·Watch 앱·Watch 위젯 4개와 Mac 앱·위젯 2개의 버전 1.0(97), 기존 식별자, App Group, strict 서명과 privacy manifest를 확인했다.
+- Production 6개 번들은 배포 Team이 일치하고 Debug 권한이 없다. 앱과 Watch의 CloudKit·APS는 Production이며 KVS 식별자도 유지한다.
+- Watch arm64_32·arm64와 최소 watchOS 10, Mac arm64·x86_64를 확인했다. archive와 Production export의 실행 파일 UUID가 일치하고 Mac 설치 패키지도 배포 서명이 유효하다.
+- 실제 archive 6개·Production 6개 번들과 영수증, 패키지 SHA, 고정 source를 독립 재검토해 불일치가 없었다.
+
+build 97 고정 commit의 전체 게이트도 20:09:03~20:22:53 KST에 exit 0으로 완료됐다. Debug 787통과·42skip(총 829개), Release 782통과·10skip(총 792개), iOS·macOS Debug/Release 빌드와 내장 Watch·위젯·privacy manifest 검사를 통과했으며 종료 시 526개 manifest가 동일했다.
+
+첫 업로드는 iOS·macOS 모두 20:23:39 KST에 exit 70으로 종료됐다. Xcode 로그는 `Failed to Use Accounts`와 `missing Xcode-Username`를 보고했다. Apple의 패키지 수락·처리 시작은 확인하지 않았다. 브라우저 App Store Connect는 로그인돼 있지만 배포 도구의 계정 인증이 별도로 필요해 Xcode Apple Accounts 로그인 화면을 열었다.
+
+서명 archive·패키지·검증 영수증·SHA·명령·로그는 `.local/releases/build-97/`에 보존한다. Xcode 인증 후 `run-export.py <ios|macos> upload 02`로 같은 archive를 재시도할 수 있다. 현재 상태는 `release-status.json`에 기록했다. 재빌드나 새 버전 번호가 필요한 상태로 간주하지 않는다.
+
+한국어 테스트 안내는 로컬 초안으로 보관하며 테스터 그룹이나 공지는 변경하지 않았다.
