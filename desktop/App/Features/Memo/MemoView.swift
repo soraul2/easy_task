@@ -12,7 +12,6 @@ struct MemoView: View {
     @State private var searchText = ""
     @State private var memoPendingDeletion: Memo?
     @State private var actionFailure: String?
-    @State private var showingClearDrawingConfirmation = false
     @FocusState private var editorFocused: Bool
 
     var body: some View {
@@ -118,6 +117,17 @@ private extension MemoView {
                     .foregroundStyle(AppTheme.secondaryText)
                 TextField("메모 검색", text: $searchText)
                     .textFieldStyle(.plain)
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
+                    .buttonStyle(.plain)
+                    .help("검색어 지우기")
+                    .accessibilityLabel("검색어 지우기")
+                }
             }
             .padding(.horizontal, 11)
             .frame(height: 36)
@@ -159,13 +169,25 @@ private extension MemoView {
                 Spacer()
             } else if querySession.memos.isEmpty {
                 Spacer()
-                VStack(spacing: 10) {
+                VStack(spacing: 14) {
                     Image(systemName: searchText.isEmpty ? "note.text" : "magnifyingglass")
                         .font(.system(size: 28))
                     Text(searchText.isEmpty ? "새 메모를 작성해 보세요" : "검색 결과가 없습니다")
                         .font(.callout.weight(.semibold))
+                    if searchText.isEmpty {
+                        VStack(spacing: 8) {
+                            ForEach(MemoEditorMode.creationOrder) { mode in
+                                memoCreationButton(mode)
+                            }
+                        }
+                    } else {
+                        Button("검색어 지우기") { searchText = "" }
+                            .buttonStyle(PlanBaseButtonStyle(.secondary))
+                    }
                 }
                 .foregroundStyle(AppTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(20)
                 Spacer()
             } else {
                 ScrollView {
@@ -225,6 +247,14 @@ private extension MemoView {
         .padding(.top, 6)
     }
 
+    func memoCreationButton(_ mode: MemoEditorMode) -> some View {
+        Button { createMemo(mode: mode) } label: {
+            Label(mode.creationTitle, systemImage: mode.systemImage)
+                .frame(minHeight: 24)
+        }
+        .buttonStyle(PlanBaseButtonStyle(.secondary))
+    }
+
     func memoRow(_ memo: Memo) -> some View {
         let isSelected = editorSession?.memo?.instanceID == memo.instanceID
         let summary = querySession?.summaries[memo.instanceID]
@@ -251,9 +281,16 @@ private extension MemoView {
                             .lineLimit(2)
                     }
 
-                    Text(MemoRules.updatedAtText(memo.updatedAt))
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.secondaryText)
+                    HStack(spacing: 6) {
+                        Text(summary?.typeTitle ?? MemoRules.mode(for: memo).creationTitle)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(isSelected ? AppTheme.accent : AppTheme.secondaryText)
+                        Text("·")
+                        Text(MemoRules.updatedAtText(memo.updatedAt))
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
                 if let revision = summary?.drawingUpdatedAt {
@@ -272,6 +309,10 @@ private extension MemoView {
                 isSelected ? AppTheme.selectedTab.opacity(0.72) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 7)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(isSelected ? AppTheme.accent.opacity(0.45) : .clear, lineWidth: 1)
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -289,7 +330,11 @@ private extension MemoView {
             }
         }
         .accessibilityLabel(summary?.title ?? MemoRules.displayTitle(for: memo))
-        .accessibilityValue(summary?.typeTitle ?? MemoRules.mode(for: memo).creationTitle)
+        .accessibilityValue([
+            summary?.typeTitle ?? MemoRules.mode(for: memo).creationTitle,
+            memo.isPinned ? "고정됨" : nil,
+            isSelected ? "선택됨" : nil,
+        ].compactMap { $0 }.joined(separator: ", "))
     }
 
     @ViewBuilder
@@ -359,8 +404,8 @@ private extension MemoView {
                             editorFocused = mode == .text
                         }
                     )) {
-                        ForEach(MemoEditorMode.allCases) { mode in
-                            Label(mode.title, systemImage: mode.systemImage)
+                        ForEach(editorSession.availableModes) { mode in
+                            Label(mode == .drawing ? "이전 필기" : mode.title, systemImage: mode.systemImage)
                                 .tag(mode)
                         }
                     }
@@ -403,8 +448,24 @@ private extension MemoView {
                     .font(.system(size: 36))
                 Text("메모를 선택하거나 새로 작성하세요")
                     .font(.headline)
+                Text("생각은 글로 남기고, 할 일은 체크리스트로 정리하세요.")
+                    .font(.callout)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        ForEach(MemoEditorMode.creationOrder) { mode in
+                            memoCreationButton(mode)
+                        }
+                    }
+                    VStack(spacing: 8) {
+                        ForEach(MemoEditorMode.creationOrder) { mode in
+                            memoCreationButton(mode)
+                        }
+                    }
+                }
             }
             .foregroundStyle(AppTheme.secondaryText)
+            .multilineTextAlignment(.center)
+            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.panel)
         }
@@ -430,142 +491,47 @@ private extension MemoView {
     func loadedDesktopEditorContent(_ session: MemoEditorSession) -> some View {
         switch session.preferredMode {
         case .text:
-            TextEditor(text: Binding(
-                get: { session.content },
-                set: { session.updateContent($0) }
-            ))
-            .font(.body)
-            .scrollContentBackground(.hidden)
-            .foregroundStyle(AppTheme.primaryText)
-            .padding(16)
-            .focused($editorFocused)
-            .accessibilityLabel("메모 내용")
-            .overlay(alignment: .topLeading) {
-                if session.content.isEmpty {
-                    Text("생각을 자유롭게 적어보세요.")
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .padding(21)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("첫 줄이 제목이 되고, 입력한 내용은 자동으로 저장돼요.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+
+                TextEditor(text: Binding(
+                    get: { session.content },
+                    set: { session.updateContent($0) }
+                ))
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .foregroundStyle(AppTheme.primaryText)
+                .padding(16)
+                .focused($editorFocused)
+                .accessibilityLabel("메모 내용")
+                .overlay(alignment: .topLeading) {
+                    if session.content.isEmpty {
+                        Text("생각을 자유롭게 적어보세요.")
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .padding(21)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
 
         case .drawing:
-            VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("이전에 작성한 필기입니다. 보기만 할 수 있어요.", systemImage: "eye")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 DesktopMemoDrawingPreview(data: session.drawingData)
-
-                HStack {
-                    Label("필기는 iPhone 또는 iPad에서 편집할 수 있습니다.", systemImage: "ipad.and.iphone")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText)
-                    Spacer()
-                    Button("필기 지우기", role: .destructive) {
-                        showingClearDrawingConfirmation = true
-                    }
-                    .disabled(session.drawingData.isEmpty)
-                    .alert("필기를 모두 지울까요?", isPresented: $showingClearDrawingConfirmation) {
-                        Button("필기 모두 지우기", role: .destructive) {
-                            session.updateDrawingData(Data())
-                        }
-                        Button("취소", role: .cancel) {}
-                    } message: {
-                        Text(session.isComposite
-                            ? "이 메모의 필기만 지워집니다. 텍스트와 체크리스트는 유지돼요."
-                            : "이 메모의 필기와 그림이 모두 지워집니다.")
-                    }
-                }
             }
             .padding(18)
 
         case .checklist:
-            ScrollView {
-                LazyVStack(spacing: 9) {
-                    if session.checklistDrafts.isEmpty {
-                        Text("항목을 추가해 목록을 만들어보세요.")
-                            .foregroundStyle(AppTheme.secondaryText)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if !session.checklistDrafts.isEmpty {
-                        let progress = session.checklistProgress
-                        HStack {
-                            Text("\(progress.completedCount)/\(progress.totalCount) 완료")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(AppTheme.secondaryText)
-                            Spacer()
-                        }
-                    }
-
-                    ForEach(session.checklistDrafts) { item in
-                        HStack(spacing: 10) {
-                            Button {
-                                session.toggleChecklistItem(id: item.id)
-                            } label: {
-                                Image(systemName: item.isCompleted
-                                    ? "checkmark.circle.fill"
-                                    : "circle")
-                                    .font(.title3)
-                                    .foregroundStyle(item.isCompleted
-                                        ? AppTheme.accent
-                                        : AppTheme.secondaryText)
-                                    .frame(width: 32, height: 32)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) \(item.isCompleted ? "완료 해제" : "완료")")
-
-                            TextField("체크 항목", text: Binding(
-                                get: { item.title },
-                                set: { session.updateChecklistTitle(id: item.id, title: $0) }
-                            ))
-                            .textFieldStyle(.plain)
-                            .strikethrough(item.isCompleted)
-                            .foregroundStyle(item.isCompleted
-                                ? AppTheme.secondaryText
-                                : AppTheme.primaryText)
-                            .onSubmit {
-                                session.appendChecklistItem()
-                            }
-
-                            Menu {
-                                Button("위로 이동", systemImage: "arrow.up") {
-                                    moveChecklistItem(item.id, down: false, session: session)
-                                }
-                                .disabled(session.checklistDrafts.first?.id == item.id)
-                                Button("아래로 이동", systemImage: "arrow.down") {
-                                    moveChecklistItem(item.id, down: true, session: session)
-                                }
-                                .disabled(session.checklistDrafts.last?.id == item.id)
-                            } label: {
-                                Image(systemName: "arrow.up.arrow.down")
-                            }
-                            .menuStyle(.borderlessButton)
-                            .fixedSize()
-                            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 이동")
-
-                            Button(role: .destructive) {
-                                session.removeChecklistItem(id: item.id)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .frame(width: 32, height: 32)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 삭제")
-                        }
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 44)
-                        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Button {
-                        session.appendChecklistItem()
-                    } label: {
-                        Label("항목 추가", systemImage: "plus.circle.fill")
-                            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(AppTheme.accent)
-                }
-                .padding(18)
-            }
+            DesktopMemoChecklistEditor(session: session)
         }
     }
 
@@ -604,11 +570,6 @@ private extension MemoView {
         session.apply(query: searchText, debounce: false)
     }
 
-    func moveChecklistItem(_ id: UUID, down: Bool, session: MemoEditorSession) {
-        guard let index = session.checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
-        session.moveChecklistItems(fromOffsets: IndexSet(integer: index), toOffset: down ? index + 2 : index - 1)
-    }
-
     func createMemo(mode: MemoEditorMode) {
         if let editorSession, editorSession.hasUnsavedChanges, !editorSession.flush() { return }
         editorSession = makeEditorSession(memo: nil, initialMode: mode)
@@ -631,13 +592,13 @@ private extension MemoView {
            arguments.contains("--ui-testing-memo-save-failure-twice") {
             var remainingFailures = 2
             return MemoEditorSession(memo: memo, context: modelContext, initialMode: initialMode, saveComposite: {
-                memo, content, mode, drawing, checklist, context in
+                memo, content, mode, _, checklist, context in
                 if remainingFailures > 0 {
                     remainingFailures -= 1
                     throw CocoaError(.fileWriteUnknown)
                 }
-                return try MemoService.saveComposite(memo: memo, content: content,
-                    preferredMode: mode, drawingData: drawing, checklistDrafts: checklist, in: context)
+                return try MemoService.savePreservingDrawing(memo: memo, content: content,
+                    preferredMode: mode, checklistDrafts: checklist, in: context)
             })
         }
 #endif
@@ -674,6 +635,143 @@ private extension MemoView {
     }
 }
 
+private struct DesktopMemoChecklistEditor: View {
+    var session: MemoEditorSession
+    @FocusState private var focusedItemID: UUID?
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    checklistHeader
+
+                    ForEach(session.checklistDrafts) { item in
+                        checklistRow(item, proxy: proxy)
+                            .id(item.id)
+                    }
+
+                    Button {
+                        appendAndFocus(using: proxy)
+                    } label: {
+                        Label("항목 추가", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppTheme.accent)
+                }
+                .padding(18)
+            }
+        }
+        .accessibilityLabel("메모 체크리스트")
+    }
+
+    @ViewBuilder
+    private var checklistHeader: some View {
+        let progress = session.checklistProgress
+        if progress.totalCount == 0 {
+            Text("항목을 추가하고, 완료한 일에 체크하세요.")
+                .font(.callout)
+                .foregroundStyle(AppTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 4)
+        } else {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    Text("\(progress.completedCount)/\(progress.totalCount) 완료")
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    Text("\(Int(Double(progress.completedCount) / Double(progress.totalCount) * 100))%")
+                        .font(.caption.monospacedDigit())
+                }
+                .foregroundStyle(AppTheme.secondaryText)
+                ProgressView(value: Double(progress.completedCount), total: Double(progress.totalCount))
+                    .tint(AppTheme.accent)
+                    .accessibilityLabel("체크리스트 진행률")
+                    .accessibilityValue("\(progress.totalCount)개 중 \(progress.completedCount)개 완료")
+            }
+            .padding(.bottom, 8)
+        }
+    }
+
+    private func checklistRow(_ item: MemoChecklistDraft, proxy: ScrollViewProxy) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Button {
+                session.toggleChecklistItem(id: item.id)
+            } label: {
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(item.isCompleted ? AppTheme.accent : AppTheme.secondaryText)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) \(item.isCompleted ? "완료 해제" : "완료")")
+
+            TextField("체크 항목", text: Binding(
+                get: { item.title },
+                set: { session.updateChecklistTitle(id: item.id, title: $0) }
+            ), axis: .vertical)
+            .textFieldStyle(.plain)
+            .lineLimit(1...6)
+            .focused($focusedItemID, equals: item.id)
+            .strikethrough(item.isCompleted)
+            .foregroundStyle(item.isCompleted ? AppTheme.secondaryText : AppTheme.primaryText)
+            .onSubmit { appendAndFocus(using: proxy) }
+            .onKeyPress(.return) {
+                appendAndFocus(using: proxy)
+                return .handled
+            }
+
+            Menu {
+                Button("위로 이동", systemImage: "arrow.up") { moveItem(item.id, down: false) }
+                    .disabled(session.checklistDrafts.first?.id == item.id)
+                Button("아래로 이동", systemImage: "arrow.down") { moveItem(item.id, down: true) }
+                    .disabled(session.checklistDrafts.last?.id == item.id)
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 이동")
+
+            Button(role: .destructive) {
+                if focusedItemID == item.id { focusedItemID = nil }
+                session.removeChecklistItem(id: item.id)
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(item.title.isEmpty ? "빈 항목" : item.title) 항목 삭제")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(minHeight: 44)
+        .background(AppTheme.input, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func moveItem(_ id: UUID, down: Bool) {
+        guard let index = session.checklistDrafts.firstIndex(where: { $0.id == id }) else { return }
+        session.moveChecklistItems(fromOffsets: IndexSet(integer: index), toOffset: down ? index + 2 : index - 1)
+    }
+
+    private func appendAndFocus(using proxy: ScrollViewProxy) {
+        let itemID: UUID
+        if let emptyItem = session.checklistDrafts.last, MemoRules.isBlank(emptyItem.title) {
+            itemID = emptyItem.id
+        } else {
+            session.appendChecklistItem()
+            guard let item = session.checklistDrafts.last else { return }
+            itemID = item.id
+        }
+        Swift.Task { @MainActor in
+            await Swift.Task.yield()
+            proxy.scrollTo(itemID, anchor: .center)
+            await Swift.Task.yield()
+            focusedItemID = itemID
+        }
+    }
+}
+
 /// Keep rasterization outside body; unrelated save/pin/sidebar updates reuse the image.
 private struct DesktopMemoDrawingPreview: View {
     let data: Data
@@ -698,11 +796,11 @@ private struct DesktopMemoDrawingPreview: View {
                 ProgressView("필기 미리보기 준비 중")
             } else {
                 ContentUnavailableView(
-                    data.isEmpty ? "아직 필기 내용이 없습니다" : "필기 미리보기를 표시하지 못했어요",
+                    data.isEmpty ? "저장된 필기가 없습니다" : "필기 미리보기를 표시하지 못했어요",
                     systemImage: "pencil.tip",
                     description: Text(data.isEmpty
-                        ? "iPhone 또는 iPad에서 필기를 시작하세요."
-                        : "원본 필기는 유지됩니다. iPhone 또는 iPad에서 확인해 주세요.")
+                        ? "이전에 만든 필기 메모입니다. 새 메모는 글 또는 체크리스트로 작성할 수 있어요."
+                        : "원본 필기 데이터는 그대로 보관되어 있습니다.")
                 )
             }
         }

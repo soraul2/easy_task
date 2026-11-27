@@ -5,11 +5,12 @@
 
 ## 현재 상태
 
-기준일: 2026-11-11
+기준일: 2026-11-27
 
 | 항목 | 기준과 확인 범위 |
 |---|---|
 | 호환 변경 | [watchOS 10·SE 1세대 iPhone 연동 모드](WATCHOS.md): 구현·공통 테스트·전체 플랫폼 빌드 검증 완료. build 90 포함, 실제 SE 1 설치·iPhone 왕복은 확인 대기 |
+| 배포 준비 | 메모·체크리스트 중심 UI [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md): 서명 archive·업로드 준비 |
 | 최신 업로드 | iOS·iPadOS·내장 watchOS와 macOS [TestFlight 1.0 (95)](releases/TESTFLIGHT_BUILD_95.md) |
 | build 95 배포 확인 | 2026-11-11 iOS 13:40:10·macOS 13:40:25 KST 업로드 성공·Apple 패키지 처리 시작. 처리 완료·그룹 연결·실기기 설치는 미확인 |
 | build 93 배포 확인 | 2026-10-19 11:55:46 KST macOS 업로드 성공·Apple 패키지 처리 시작. 처리 완료·그룹 연결·실기기 설치는 미확인 |
@@ -90,6 +91,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 - [테마 정리와 대표색](plans/completed/THEME_REFINEMENT_PLAN.md)
 - [칸반 작업 카드 디자인](plans/completed/KANBAN_CARD_DESIGN.md)
+- [글 메모·체크리스트 중심 정리](plans/completed/MEMO_TEXT_CHECKLIST_SIMPLIFICATION.md): 그림 작성·편집 제거, 이전 필기 읽기 전용 보존과 메모 UI 개선
 - [메모 생성 유형 분리](plans/completed/MEMO_TYPE_CREATION_PLAN.md): 로컬 기능 검증 완료. 과거 일반 CloudKit 실행 영향의 미확인 기록 유지
 - [저장한 루틴 중심 템플릿 UI/UX](plans/completed/TEMPLATE_UX_IMPROVEMENT.md)
 - [집중모드 화면과 예상 시간](plans/completed/FOCUS_EXPERIENCE_POLISH_PLAN.md)
@@ -110,6 +112,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
+| [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md) | 2026-11-27 메모·체크리스트 중심 정리, 배포 준비 |
 | [TestFlight 1.0 (95)](releases/TESTFLIGHT_BUILD_95.md) | 2026-11-11 일정 모달·이미지 검사 재사용. 전체 게이트·두 플랫폼 패키지 검증과 iOS·macOS 업로드 완료 |
 | [TestFlight 1.0 (93)](releases/TESTFLIGHT_BUILD_93.md) | 2026-10-19 macOS 작업 입력 상태 분리, 전체 게이트·배포 패키지 검증과 macOS 업로드 완료 |
 | [TestFlight 1.0 (92)](releases/TESTFLIGHT_BUILD_92.md) | 2026-10-14 잠금화면 화살표 인증 설정 수정, iOS·iPadOS·Watch 업로드 완료 |

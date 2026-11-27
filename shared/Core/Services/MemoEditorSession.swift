@@ -61,19 +61,19 @@ public final class MemoEditorSession {
             (try MemoDrawingService.data(for: id, in: context),
              try MemoChecklistService.drafts(for: id, in: context))
         },
-        saveComposite: @escaping CompositeSaver = { memo, content, mode, drawing, checklist, context in
-            try MemoService.saveComposite(
+        saveComposite: @escaping CompositeSaver = { memo, content, mode, _, checklist, context in
+            try MemoService.savePreservingDrawing(
                 memo: memo,
                 content: content,
                 preferredMode: mode,
-                drawingData: drawing,
                 checklistDrafts: checklist,
                 in: context
             )
         }
     ) {
         let initialContent = memo?.content ?? ""
-        let initialMode = memo.map(MemoRules.mode(for:)) ?? initialMode
+        let initialMode = memo.map(MemoRules.mode(for:))
+            ?? (initialMode == .drawing ? .text : initialMode)
 
         self.memo = memo
         self.context = context
@@ -107,8 +107,16 @@ public final class MemoEditorSession {
         memo == nil && !hasWrittenContent && !isComposite && loadErrorMessage == nil
     }
 
+    public var availableModes: [MemoEditorMode] {
+        guard isComposite else { return [preferredMode] }
+        return MemoEditorMode.creationOrder + (drawingData.isEmpty ? [] : [.drawing])
+    }
+
+    public var isReadOnly: Bool { preferredMode == .drawing }
+
     private func canEdit(_ mode: MemoEditorMode) -> Bool {
-        loadErrorMessage == nil && (isComposite || preferredMode == mode)
+        loadErrorMessage == nil && !isReadOnly && mode != .drawing &&
+            (isComposite || preferredMode == mode)
     }
 
     private func updateTypePolicy() {
@@ -117,7 +125,11 @@ public final class MemoEditorSession {
         )
         if !modes.isEmpty { hasWrittenContent = true }
         if modes.count > 1 { isComposite = true }
-        if !isComposite {
+        if isComposite {
+            if preferredMode == .drawing && drawingData.isEmpty {
+                preferredMode = modes.first ?? .text
+            }
+        } else {
             preferredMode = MemoTypeRules.resolvedMode(preferred: preferredMode, contentModes: modes)
         }
     }
@@ -136,19 +148,16 @@ public final class MemoEditorSession {
 
     public func updatePreferredMode(_ value: MemoEditorMode) {
         guard loadErrorMessage == nil, isComposite || canChooseType else { return }
+        let choices = canChooseType ? MemoEditorMode.creationOrder : availableModes
+        guard choices.contains(value) else { return }
         guard preferredMode != value else { return }
         preferredMode = value
         // Choosing an empty draft's type must not create a database record.
         if isComposite { scheduleSave() }
     }
 
-    public func updateDrawingData(_ value: Data) {
-        guard canEdit(.drawing) else { return }
-        guard drawingData != value else { return }
-        drawingData = value
-        updateTypePolicy()
-        scheduleSave()
-    }
+    /// Kept for source compatibility. Existing drawings are read-only.
+    public func updateDrawingData(_ value: Data) {}
 
     public func appendChecklistItem() {
         guard canEdit(.checklist) else { return }
@@ -341,8 +350,18 @@ public final class MemoEditorSession {
             lastSavedDrawingData = loaded.drawing
         }
         if checklistDrafts == lastSavedChecklistDrafts {
-            checklistDrafts = loaded.checklist
-            lastSavedChecklistDrafts = loaded.checklist
+            // Empty rows are editor placeholders, so saving intentionally omits
+            // them from the store. Keep their identities across a clean refresh
+            // so an input waiting for its first character does not disappear.
+            let storedIDs = Set(loaded.checklist.map(\.id))
+            let emptyDrafts = checklistDrafts.filter {
+                MemoRules.isBlank($0.title) && !storedIDs.contains($0.id)
+            }
+            checklistDrafts = (loaded.checklist + emptyDrafts).enumerated().sorted {
+                if $0.element.order != $1.element.order { return $0.element.order < $1.element.order }
+                return $0.offset < $1.offset
+            }.map(\.element)
+            lastSavedChecklistDrafts = checklistDrafts
         }
         // Keep the editor the user is using when new content arrives. A reopened
         // composite memo still starts in its persisted preferred editor.

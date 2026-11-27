@@ -1173,31 +1173,30 @@ final class PlanBaseLaunchUITests: XCTestCase {
         text.typeText(" 추가 기록")
         app.buttons["체크리스트"].tap()
         app.buttons["항목 추가"].tap()
+        addReferenceScreenshot(named: "adaptive-memo-checklist-new-item")
         app.typeText("전환 후에도 유지할 항목")
         app.buttons["memo-checklist-keyboard-dismiss"].tap()
         app.buttons["전환 후에도 유지할 항목 완료"].tap()
+        addReferenceScreenshot(named: "adaptive-memo-checklist-completed")
         app.buttons["layout-test-compact"].tap()
         XCTAssertTrue(app.buttons["전환 후에도 유지할 항목 완료 해제"].waitForExistence(timeout: 5))
         app.buttons["layout-test-expanded"].tap()
         XCTAssertTrue(app.buttons["전환 후에도 유지할 항목 완료 해제"].waitForExistence(timeout: 5))
-        app.buttons["필기"].tap()
-        let canvas = app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.2))
-            .press(forDuration: 0.1, thenDragTo: canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
-        let clear = app.buttons["memo-clear-drawing"]
-        XCTAssertTrue(clear.isEnabled)
+        app.buttons["이전 필기"].tap()
+        let preview = app.descendants(matching: .any)["memo-legacy-drawing-preview"].firstMatch
+        let image = app.images["memo-legacy-drawing-image"]
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["memo-clear-drawing"].exists)
         app.buttons["layout-test-compact"].tap()
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        XCTAssertTrue(clear.isEnabled)
-        addReferenceScreenshot(named: "adaptive-memo-drawing-compact")
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "adaptive-memo-legacy-drawing-compact")
         app.buttons["layout-test-expanded"].tap()
-        XCTAssertTrue(clear.isEnabled)
-        addReferenceScreenshot(named: "adaptive-memo-drawing-expanded")
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
+        addReferenceScreenshot(named: "adaptive-memo-legacy-drawing-expanded")
         app.buttons["memo-editor-back"].tap()
         app.buttons["기존 복합 메모 추가 기록"].tap()
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        XCTAssertTrue(clear.isEnabled)
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
         app.buttons["체크리스트"].tap()
         XCTAssertTrue(app.buttons["전환 후에도 유지할 항목 완료 해제"].waitForExistence(timeout: 5))
         app.buttons["텍스트"].tap()
@@ -6351,13 +6350,14 @@ final class PlanBaseLaunchUITests: XCTestCase {
         let app = launchKanbanFlowApp()
         tapRootDestination("메모", in: app)
         app.buttons["새 메모"].tap()
-        for type in ["text", "checklist", "drawing"] {
+        for type in ["text", "checklist"] {
             XCTAssertTrue(app.buttons["memo-create-\(type)"].waitForExistence(timeout: 5))
         }
+        XCTAssertFalse(app.buttons["memo-create-drawing"].exists)
         addReferenceScreenshot(named: "memo-type-creation-menu")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.65)).tap()
         XCTAssertTrue(app.buttons["memo-create-text"].waitForNonExistence(timeout: 5))
-        for type in ["text", "checklist", "drawing"] {
+        for type in ["text", "checklist"] {
             createMemo(in: app, type: type)
             XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
             let change = app.buttons["memo-change-type"]
@@ -6391,7 +6391,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         app.typeText("두 번째 확인")
         app.buttons["memo-checklist-keyboard-dismiss"].tap()
         app.buttons["첫 번째 확인 완료"].tap()
-        app.buttons["두 번째 확인 항목 이동"].tap()
+        app.buttons["두 번째 확인 항목 관리"].tap()
         app.buttons["위로 이동"].tap()
         let fields = app.textFields.matching(identifier: "memo-checklist-title")
         XCTAssertEqual(fields.element(boundBy: 0).value as? String, "두 번째 확인")
@@ -6430,53 +6430,34 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
-    func testMemoTypedDrawingPersistsAndClearKeepsItsType() {
-        let app = launchKanbanFlowApp(additionalArguments: ["--ui-testing-memo-store=\(UUID().uuidString)"])
+    func testMemoLegacyDrawingIsReadOnlyAndPersistsAcrossRelaunch() {
+        let app = launchKanbanFlowApp(additionalArguments: [
+            "--ui-testing-memo-store=\(UUID().uuidString)", "--ui-testing-legacy-drawing-only",
+        ])
         tapRootDestination("메모", in: app)
-        createMemo(in: app, type: "drawing")
-        let canvas = app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.25))
-            .press(forDuration: 0.1, thenDragTo: canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
-        let clear = app.buttons["memo-clear-drawing"]
-        XCTAssertTrue(clear.isEnabled)
-        XCTAssertFalse(app.buttons["memo-change-type"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
-        addReferenceScreenshot(named: "memo-typed-drawing")
-        app.buttons["memo-editor-back"].tap()
-        let row = app.buttons["필기·그림"]
+        let row = app.buttons["이전 필기"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        addReferenceScreenshot(named: "memo-typed-drawing-thumbnail")
-        let kanbanTab = app.tabBars.buttons["칸반"].firstMatch
-        let drawingPalette = app.otherElements["Drawing-Palette"].firstMatch
-        let drawingPaletteDisappeared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"), object: drawingPalette)
-        XCTAssertEqual(XCTWaiter.wait(for: [drawingPaletteDisappeared], timeout: 5), .completed)
-        XCTAssertTrue(kanbanTab.exists)
-        XCTAssertTrue(kanbanTab.isHittable)
-        kanbanTab.tap()
-        XCTAssertTrue(app.textFields["해당 날짜에 할 일 입력"].waitForExistence(timeout: 5))
-        tapRootDestination("메모", in: app)
+        row.tap()
+        let preview = app.descendants(matching: .any)["memo-legacy-drawing-preview"].firstMatch
+        let image = app.images["memo-legacy-drawing-image"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["memo-clear-drawing"].exists)
+        XCTAssertFalse(app.buttons["memo-change-type"].exists)
+        XCTAssertFalse(app.otherElements["Drawing-Palette"].exists)
+        addReferenceScreenshot(named: "memo-legacy-drawing-read-only")
+        app.buttons["상단에 고정"].tap()
+        app.buttons["memo-editor-back"].tap()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
         tapRootDestination("메모", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["고정됨"].waitForExistence(timeout: 5))
         row.tap()
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        XCTAssertTrue(clear.isEnabled)
-        clear.tap()
-        app.buttons["취소"].tap()
-        XCTAssertTrue(clear.isEnabled)
-        clear.tap()
-        app.buttons["필기 모두 지우기"].tap()
-        XCTAssertFalse(clear.isEnabled)
-        app.buttons["memo-editor-back"].tap()
-        row.tap()
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        XCTAssertFalse(clear.isEnabled)
-        XCTAssertFalse(app.buttons["memo-change-type"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["memo-editor-mode"].firstMatch.exists)
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["memo-clear-drawing"].exists)
+        addReferenceScreenshot(named: "memo-legacy-drawing-reopened")
     }
 
     @MainActor
@@ -6657,34 +6638,32 @@ final class PlanBaseLaunchUITests: XCTestCase {
     }
 
     @MainActor
-    func testMemoDrawingClearRequiresConfirmationAndKeepsText() {
-        let app = XCUIApplication()
-        app.launchArguments = ["--ui-testing", "--ui-testing-empty-board", "--ui-testing-legacy-memo", "--ui-testing-theme=appleSystem"]
-        app.terminate()
-        app.launch()
+    func testMemoLegacyDrawingSurvivesTextAndChecklistEdits() {
+        let app = launchKanbanFlowApp(additionalArguments: [
+            "--ui-testing-memo-store=\(UUID().uuidString)", "--ui-testing-legacy-memo",
+        ])
         tapRootDestination("메모", in: app)
         app.buttons["기존 복합 메모"].tap()
         let text = app.textViews["메모 내용"]
         XCTAssertTrue(text.waitForExistence(timeout: 5))
         text.tap()
         text.typeText(" 추가 기록")
-        app.buttons["필기"].tap()
-        let canvas = app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch
-        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
-        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.2))
-            .press(forDuration: 0.1, thenDragTo: canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)))
-        let clear = app.buttons["memo-clear-drawing"]
-        XCTAssertTrue(clear.waitForExistence(timeout: 5))
-        XCTAssertTrue(clear.isEnabled)
-        addReferenceScreenshot(named: "memo-drawing-before-clear")
-        clear.tap()
-        XCTAssertTrue(app.buttons["필기 모두 지우기"].waitForExistence(timeout: 5))
-        addReferenceScreenshot(named: "memo-drawing-clear-confirmation")
-        app.buttons["취소"].tap()
-        XCTAssertTrue(clear.isEnabled)
-        clear.tap()
-        app.buttons["필기 모두 지우기"].tap()
-        XCTAssertFalse(clear.isEnabled)
+        app.buttons["이전 필기"].tap()
+        let image = app.images["memo-legacy-drawing-image"]
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["memo-clear-drawing"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["memo-drawing-canvas"].firstMatch.exists)
+        addReferenceScreenshot(named: "memo-composite-legacy-drawing")
+        app.buttons["체크리스트"].tap()
+        app.buttons["기존 체크 항목 완료"].tap()
+        app.buttons["memo-editor-back"].tap()
+        app.terminate()
+        app.launch()
+        tapRootDestination("메모", in: app)
+        app.buttons["기존 복합 메모 추가 기록"].tap()
+        XCTAssertTrue(app.buttons["기존 체크 항목 완료 해제"].waitForExistence(timeout: 5))
+        app.buttons["이전 필기"].tap()
+        XCTAssertTrue(image.waitForExistence(timeout: 5))
         app.buttons["텍스트"].tap()
         XCTAssertEqual(text.value as? String, "기존 복합 메모 추가 기록")
     }
@@ -7138,15 +7117,14 @@ final class PlanBaseLaunchUITests: XCTestCase {
     func testUXMemoEmptyCreationAndSearchRecovery() {
         let app = launchKanbanFlowApp()
         tapRootDestination("메모", in: app)
-        let create = app.buttons["memo-empty-create"]
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        let textAction = app.buttons["memo-empty-create-text"]
+        XCTAssertTrue(textAction.waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "ux-memo-empty-create")
-        for type in ["text", "checklist", "drawing"] {
-            create.tap()
-            app.buttons["memo-create-\(type)"].tap()
+        for type in ["text", "checklist"] {
+            app.buttons["memo-empty-create-\(type)"].tap()
             XCTAssertTrue(app.buttons["memo-editor-back"].waitForExistence(timeout: 5))
             app.buttons["memo-editor-back"].tap()
-            XCTAssertTrue(create.waitForExistence(timeout: 5))
+            XCTAssertTrue(textAction.waitForExistence(timeout: 5))
         }
         let search = app.searchFields.firstMatch
         search.tap()
@@ -7155,7 +7133,7 @@ final class PlanBaseLaunchUITests: XCTestCase {
         XCTAssertTrue(clear.waitForExistence(timeout: 5))
         addReferenceScreenshot(named: "ux-memo-search-recovery")
         clear.tap()
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertTrue(textAction.waitForExistence(timeout: 5))
         XCTAssertNotEqual(search.value as? String, "없는 검색 결과")
     }
 

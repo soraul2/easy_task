@@ -81,9 +81,45 @@ public enum MemoService {
         now: Date = Date(),
         in context: ModelContext
     ) throws -> Memo? {
+        try saveContent(
+            memo: memo, content: content, preferredMode: preferredMode,
+            drawingData: drawingData, checklistDrafts: checklistDrafts,
+            now: now, in: context
+        )
+    }
+
+    /// Saves the editable content without replacing or deleting legacy drawings,
+    /// including drawings imported after the editor loaded its snapshot.
+    @MainActor
+    @discardableResult
+    public static func savePreservingDrawing(
+        memo: Memo?,
+        content: String,
+        preferredMode: MemoEditorMode,
+        checklistDrafts: [MemoChecklistDraft],
+        now: Date = Date(),
+        in context: ModelContext
+    ) throws -> Memo? {
+        try saveContent(
+            memo: memo, content: content, preferredMode: preferredMode,
+            drawingData: nil, checklistDrafts: checklistDrafts,
+            now: now, in: context
+        )
+    }
+
+    @MainActor
+    private static func saveContent(
+        memo: Memo?,
+        content: String,
+        preferredMode: MemoEditorMode,
+        drawingData: Data?,
+        checklistDrafts: [MemoChecklistDraft],
+        now: Date,
+        in context: ModelContext
+    ) throws -> Memo? {
         let normalizedChecklist = MemoChecklistService.normalizedDrafts(checklistDrafts)
         let hasContent = !MemoRules.isBlank(content) ||
-            !drawingData.isEmpty ||
+            !(drawingData?.isEmpty ?? true) ||
             !normalizedChecklist.isEmpty
         guard memo != nil || hasContent else { return nil }
 
@@ -110,12 +146,14 @@ public enum MemoService {
                 target.preferredModeRawValue = preferredMode.rawValue
                 changed = true
             }
-            changed = try MemoDrawingService.replace(
-                for: target.id,
-                with: drawingData,
-                in: context,
-                now: now
-            ) || changed
+            if let drawingData {
+                changed = try MemoDrawingService.replace(
+                    for: target.id,
+                    with: drawingData,
+                    in: context,
+                    now: now
+                ) || changed
+            }
             changed = try MemoChecklistService.replace(
                 for: target.id,
                 with: normalizedChecklist,

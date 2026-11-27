@@ -7,11 +7,11 @@ public extension MemoEditorMode {
         switch self {
         case .text: "글 메모"
         case .checklist: "체크리스트"
-        case .drawing: "필기·그림"
+        case .drawing: "이전 필기"
         }
     }
 
-    static var creationOrder: [MemoEditorMode] { [.text, .checklist, .drawing] }
+    static var creationOrder: [MemoEditorMode] { [.text, .checklist] }
 }
 
 /// Content determines which editor is safe to show. A legacy preferred mode is
