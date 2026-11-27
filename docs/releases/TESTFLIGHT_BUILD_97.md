@@ -1,6 +1,6 @@
-# TestFlight 1.0 (97) — Xcode 인증으로 업로드 대기
+# TestFlight 1.0 (97) — iOS·macOS 업로드 완료
 
-2026-11-27 일정 추가·편집 화면의 최근 일정 추천 최적화를 commit·push하고 iOS·iPadOS·내장 watchOS와 macOS 서명 배포 패키지를 검증했다. 업로드는 Xcode 계정 인증 오류로 중단됐다. 마케팅 버전은 1.0을 유지하고 프로젝트 빌드 번호 14곳과 플랫폼 Info.plist 5개를 97로 맞췄다.
+2026-11-27 일정 추가·편집 화면의 최근 일정 추천 최적화를 commit·push하고 iOS·iPadOS·내장 watchOS와 macOS 배포 패키지를 업로드했다. 첫 시도의 Xcode 인증 오류를 로그인 후 해결하고 같은 archive로 재시도해 Apple의 패키지 수락·처리 시작을 확인했다. 마케팅 버전은 1.0을 유지하고 프로젝트 빌드 번호 14곳과 플랫폼 Info.plist 5개를 97로 맞췄다.
 
 ## 포함한 변경
 
@@ -35,8 +35,12 @@ iOS archive는 20:14:08 KST, macOS archive는 20:12:22 KST에 exit 0으로 완�
 
 build 97 고정 commit의 전체 게이트도 20:09:03~20:22:53 KST에 exit 0으로 완료됐다. Debug 787통과·42skip(총 829개), Release 782통과·10skip(총 792개), iOS·macOS Debug/Release 빌드와 내장 Watch·위젯·privacy manifest 검사를 통과했으며 종료 시 526개 manifest가 동일했다.
 
-첫 업로드는 iOS·macOS 모두 20:23:39 KST에 exit 70으로 종료됐다. Xcode 로그는 `Failed to Use Accounts`와 `missing Xcode-Username`를 보고했다. Apple의 패키지 수락·처리 시작은 확인하지 않았다. 브라우저 App Store Connect는 로그인돼 있지만 배포 도구의 계정 인증이 별도로 필요해 Xcode Apple Accounts 로그인 화면을 열었다.
+첫 업로드는 iOS·macOS 모두 20:23:39 KST에 exit 70으로 종료됐다. Xcode 로그는 `Failed to Use Accounts`와 `missing Xcode-Username`를 보고했다. 사용자가 Xcode에 로그인한 후 고정 소스·tar·commit, archive·Production 실행 파일 SHA와 IPA·PKG SHA를 재확인했다. 재빌드나 버전 변경 없이 같은 archive로 재시도했다.
 
-서명 archive·패키지·검증 영수증·SHA·명령·로그는 `.local/releases/build-97/`에 보존한다. Xcode 인증 후 `run-export.py <ios|macos> upload 02`로 같은 archive를 재시도할 수 있다. 현재 상태는 `release-status.json`에 기록했다. 재빌드나 새 버전 번호가 필요한 상태로 간주하지 않는다.
+재시도는 iOS 20:34:44 KST, macOS 20:34:37 KST에 각각 `Upload succeeded.`, `Uploaded package is processing.`, `EXPORT SUCCEEDED`와 exit 0으로 완료됐다. TestFlight의 두 플랫폼 빌드 업로드 목록에서도 `1.0 (97)`의 **처리 중** 상태를 확인했다. 수락된 패키지는 다시 업로드하지 않는다.
 
-한국어 테스트 안내는 로컬 초안으로 보관하며 테스터 그룹이나 공지는 변경하지 않았다.
+iOS 업로드에는 iOS 26.5 SDK에 대한 향후 요구사항 경고가 있었다. Apple 로그는 2027년 4월부터 업로드·배포 제출에 iOS 27 SDK/Xcode 27 이상이 필요하다고 안내하며, 이번 업로드는 경고와 함께 성공했다.
+
+서명 archive·패키지·검증 영수증·SHA·첫 시도 실패와 재시도 성공 명령·상태·로그는 `.local/releases/build-97/`에 보존한다. 현재 상태는 `release-status.json`, 성공 근거는 `upload-ios-02.log`·`upload-macos-02.log`와 각 `*-status.json`에 기록했다.
+
+Apple 처리 완료·실기기 설치는 아직 확인하지 않았다. 한국어 테스트 안내는 로컬 초안으로 보관하며 기존 테스터 그룹 설정과 공지는 변경하지 않았다.
