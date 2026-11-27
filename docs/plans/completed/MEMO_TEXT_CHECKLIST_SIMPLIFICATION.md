@@ -32,4 +32,4 @@
 
 기존 세 유형 생성 설계의 이력은 [메모 생성 유형 분리](MEMO_TYPE_CREATION_PLAN.md)에 보존한다.
 
-후속 TestFlight 배포는 [build 96 기록](../../releases/TESTFLIGHT_BUILD_96.md)을 따른다. 서명·패키지 검증은 완료했으나 Apple 필수 계약 미완료로 업로드가 차단됐다.
+후속 TestFlight 배포는 [build 96 기록](../../releases/TESTFLIGHT_BUILD_96.md)을 따른다. 서명·패키지 검증과 iOS·macOS 업로드를 완료했으며, 계약 오류 해결 후 양 플랫폼의 Apple 패키지 수락·처리 시작과 TestFlight 처리 중 상태를 확인했다.

@@ -10,16 +10,18 @@ CloudKit 컨테이너를 공유한다. watchOS 10은 iPhone 연동 모드로 같
 V10의 종료된 `FocusSession` 기록과 기기별 활성 타이머 snapshot은 유지한다.
 
 CloudKit Production은 V11까지 배포됐다. 최신 업로드는
-[TestFlight 1.0 (95)](docs/releases/TESTFLIGHT_BUILD_95.md)이며, 2026-11-11
+[TestFlight 1.0 (96)](docs/releases/TESTFLIGHT_BUILD_96.md)이며, 2026-11-27
 iOS·iPadOS·내장 watchOS와 macOS의 업로드 성공·Apple 패키지 처리 시작을 확인했다.
-Mac·iPhone·iPad·분할 창의 일정 모달을 정리하고 CloudKit 가져오기 후 이미지 검사 결과를 재사용한다.
+메모는 글 메모·체크리스트 중심으로 정리하고 이전 필기는 읽기 전용으로 보존한다.
+입력·검색·진행률·iPad 열 전환을 개선했으며 기존 일정 모달·이미지 검사 개선을 포함한다.
 **watchOS 10·SE 1세대용 iPhone 연동 모드**와
 watchOS 11 이상 독립 동기화를 유지한다. 총 12개 테마의 출처와 배색 기준은
 [앱 테마](docs/THEMES.md)에 정리했다.
-build 95의 전체 플랫폼 회귀, 공통 Debug 771개·Release 766개 테스트와 Production 패키지 6번들 검사가 통과했다.
+build 96의 전체 플랫폼 회귀, 공통 Debug 777개·Release 772개 테스트와 Production 패키지 6번들 검사가 통과했다.
 Debug 42개·Release 10개는 실행 조건에 따라 건너뛰었다. Apple 처리 완료·TestFlight 설치,
 실기기 원격 동기화 지연 비교와 기존 잠금 화면·Watch·Mac 인수의 미확인 항목은 유지한다.
-후속 [build 96](docs/releases/TESTFLIGHT_BUILD_96.md)은 메모·체크리스트 정리와 이전 필기 읽기 전용 보존을 포함한다. 전체 회귀·서명 패키지 검증은 완료했으며 Apple 필수 계약 미완료로 업로드가 차단된 상태다.
+첫 업로드의 Apple 계약 오류는 사용자 확인 후 계약 동의와 같은 archive 재시도로 해결했다.
+TestFlight의 두 플랫폼 빌드 업로드 목록에서 `1.0 (96)`의 처리 중 상태를 확인했다.
 최신 상태, 남은 확인, 기능별 계획과 과거 결과는 [문서 지도](docs/README.md)에 모았다.
 
 ## 시작하기
