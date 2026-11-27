@@ -11,6 +11,15 @@ private func recommendationEvent(_ title: String = "공장 점검", note: String
                          note: note, color: color, updatedAt: Date(timeIntervalSince1970: updated))
 }
 
+@MainActor
+private final class RecommendationEventSource {
+    var events: [CalendarEvent]
+
+    init(events: [CalendarEvent]) {
+        self.events = events
+    }
+}
+
 private func recommendationDraft(note: String? = nil) -> CalendarEventReuseDraft {
     let day = DayKey.date(from: "2026-12-31")!
     return CalendarEventReuseDraft(title: "공", startAt: day, endAt: day, note: note, color: "red")
@@ -102,6 +111,32 @@ func recommendationSearchRanksExactPrefixContainsAndNormalizesEffectiveColor() {
 }
 
 @Test @MainActor
+func recommendationPreparedOrderingKeepsPhysicalIDTiesAndLogicalWinners() {
+    let lower = recommendationEvent("공장 이전 버전")
+    lower.instanceID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    let middle = recommendationEvent("공장 별도 일정")
+    middle.instanceID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    let higher = recommendationEvent("공장 최신 버전")
+    higher.id = lower.id
+    higher.instanceID = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+    for events in [[lower, middle, higher], [higher, middle, lower]] {
+        let results = CalendarEventReuseRules.recommendations(for: "공", from: events)
+        #expect(results.map(\.instanceID) == [higher.instanceID, middle.instanceID])
+    }
+}
+
+@Test @MainActor
+func recommendationPreparedCandidatesConvergeBeforeMatchingRenamedTitles() {
+    let older = recommendationEvent("Factory audit", updated: 100)
+    let latest = recommendationEvent("병원 방문", updated: 200)
+    latest.id = older.id
+    let independent = recommendationEvent("ＦＡＣＴＯＲＹ review", updated: 150)
+    let results = CalendarEventReuseRules.recommendations(for: " factory ", from: [older, independent, latest])
+    #expect(results.map(\.eventID) == [independent.id])
+    #expect(results.map(\.title) == ["ＦＡＣＴＯＲＹ review"])
+}
+
+@Test @MainActor
 func recommendationSessionApplyReplaceUndoStaysClosedAndRestoresOriginal() async throws {
     let session = try await loadedSession(events: [recommendationEvent()])
     let original = recommendationDraft(note: "내 메모")
@@ -143,14 +178,18 @@ func recommendationManualChangesExpireUndoAndReplacementForEveryField() async th
 @Test @MainActor
 func recommendationNewInputImmediatelyRemovesOldCandidatesAndSelection() async throws {
     let session = try await loadedSession(events: [recommendationEvent(), recommendationEvent("병원 방문")])
+    let previous = session.recommendations
     let oldID = try #require(session.recommendations.first?.id)
     session.moveSelection(by: 1)
     session.update(title: "병원", debounce: .milliseconds(30))
     #expect(session.recommendations.isEmpty)
+    #expect(session.loadingRecommendations == previous)
     #expect(session.selectedID == nil)
+    #expect(!session.moveSelection(by: 1))
     #expect(session.apply(id: oldID, to: recommendationDraft()) == nil)
     try await waitForRecommendations(session)
     #expect(session.recommendations.map(\.title) == ["병원 방문"])
+    #expect(session.loadingRecommendations.isEmpty)
     #expect(session.apply(id: try #require(session.recommendations.first?.id), to: recommendationDraft()) == nil)
     session.dismissRecommendations()
     #expect(!session.isPresented)
@@ -176,12 +215,26 @@ func recommendationLateFetchCannotReopenDismissedOrNewerResults() async throws {
     try await Swift.Task.sleep(for: .milliseconds(10))
     #expect(session.recommendations.map(\.title) == ["병원 방문"])
     session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    // The newer pool contains only the hospital event. A late older fetch must
+    // not replace that pool, even when its query is requested again.
+    #expect(session.state == .empty)
+    #expect(continuations.count == 2)
+    session.invalidateCandidates()
     for _ in 0..<100 where continuations.count < 3 { try await Swift.Task.sleep(for: .milliseconds(5)) }
+    #expect(continuations.count == 3)
     session.dismissRecommendations()
     if continuations.count == 3 { continuations[2].resume(returning: [recommendationEvent()]) }
     try await Swift.Task.sleep(for: .milliseconds(10))
     #expect(session.state == .dismissed)
     #expect(session.recommendations.isEmpty)
+    #expect(session.loadingRecommendations.isEmpty)
+    session.update(title: "병원", debounce: .zero)
+    for _ in 0..<100 where continuations.count < 4 { try await Swift.Task.sleep(for: .milliseconds(5)) }
+    #expect(continuations.count == 4)
+    if continuations.count == 4 { continuations[3].resume(returning: [recommendationEvent("병원 재조회")]) }
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["병원 재조회"])
 }
 
 @Test @MainActor
@@ -206,4 +259,220 @@ func recommendationFailureRetryAndEmptyInputHaveSeparateStates() async throws {
     session.update(title: " \n")
     #expect(session.state == .idle)
     #expect(!session.isPresented)
+}
+
+@Test @MainActor
+func recommendationSessionReusesPoolAcrossQueriesAndEquivalentResults() async throws {
+    let events = [recommendationEvent("Factory audit"), recommendationEvent("병원 방문")]
+    var fetches = 0
+    let session = CalendarEventRecommendationSession(fetchEvents: {
+        fetches += 1
+        return events
+    })
+    session.update(title: "Factory", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(fetches == 1)
+    session.moveSelection(by: 1)
+    let selectedID = session.selectedID
+    let results = session.recommendations
+
+    session.update(title: " ＦＡＣＴＯＲＹ ", debounce: .zero)
+    #expect(session.state == .results)
+    #expect(session.recommendations == results)
+    #expect(session.selectedID == selectedID)
+    #expect(fetches == 1)
+
+    session.update(title: "병원", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["병원 방문"])
+    #expect(fetches == 1)
+    session.update(title: "없는 일정", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.state == .empty)
+    session.update(title: " 없는 일정 ", debounce: .zero)
+    #expect(session.state == .empty)
+    #expect(fetches == 1)
+}
+
+@Test @MainActor
+func recommendationEquivalentInputDoesNotRestartAnInFlightFetch() async throws {
+    var continuations: [CheckedContinuation<[CalendarEvent], Error>] = []
+    let session = CalendarEventRecommendationSession(fetchEvents: {
+        try await withCheckedThrowingContinuation { continuations.append($0) }
+    })
+    session.update(title: "Factory", debounce: .zero)
+    for _ in 0..<100 where continuations.isEmpty { try await Swift.Task.sleep(for: .milliseconds(5)) }
+    #expect(continuations.count == 1)
+    #expect(session.state == .loading)
+    session.update(title: " factory ", debounce: .zero)
+    try await Swift.Task.sleep(for: .milliseconds(10))
+    #expect(continuations.count == 1)
+    guard continuations.count == 1 else {
+        for continuation in continuations { continuation.resume(throwing: CancellationError()) }
+        return
+    }
+    continuations[0].resume(returning: [recommendationEvent("Factory audit")])
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["Factory audit"])
+}
+
+@Test @MainActor
+func recommendationExclusionChangesReusePoolButRecomputeCandidates() async throws {
+    let first = recommendationEvent("공장 첫 일정", updated: 1)
+    let second = recommendationEvent("공장 다른 일정", updated: 2)
+    var fetches = 0
+    let session = CalendarEventRecommendationSession(fetchEvents: {
+        fetches += 1
+        return [first, second]
+    })
+    session.update(title: "공", excludingEventID: first.id, debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.eventID) == [second.id])
+    session.update(title: "공", excludingEventID: second.id, debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.eventID) == [first.id])
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(Set(session.recommendations.map(\.eventID)) == Set([first.id, second.id]))
+    #expect(fetches == 1)
+}
+
+@Test @MainActor
+func recommendationInvalidationRefreshesModifiedAndDeletedCandidates() async throws {
+    let event = recommendationEvent("공장 원래 일정")
+    let source = RecommendationEventSource(events: [event])
+    var fetches = 0
+    let session = CalendarEventRecommendationSession(fetchEvents: {
+        fetches += 1
+        return source.events
+    })
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    event.title = "병원 변경 일정"
+    session.update(title: "병원", debounce: .zero)
+    try await waitForRecommendations(session)
+    // The cached pool must be values, not live SwiftData model references.
+    #expect(session.state == .empty)
+    #expect(fetches == 1)
+    session.invalidateCandidates()
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["병원 변경 일정"])
+    #expect(fetches == 2)
+
+    let oldID = try #require(session.recommendations.first?.id)
+    source.events = []
+    session.invalidateCandidates()
+    #expect(session.state == .loading)
+    #expect(session.recommendations.isEmpty)
+    var draft = recommendationDraft()
+    draft.title = "병원"
+    #expect(session.apply(id: oldID, to: draft) == nil)
+    try await waitForRecommendations(session)
+    #expect(session.state == .empty)
+    #expect(session.loadingRecommendations.isEmpty)
+    #expect(fetches == 3)
+}
+
+@Test(arguments: [false, true]) @MainActor
+func recommendationRetryAfterInvalidationFailureFetchesFreshPool(usingRetry: Bool) async throws {
+    enum Failure: Error { case unavailable }
+    var fetches = 0
+    let session = CalendarEventRecommendationSession(fetchEvents: {
+        fetches += 1
+        if fetches == 2 { throw Failure.unavailable }
+        return [recommendationEvent(fetches == 1 ? "공장 이전 일정" : "공장 최신 일정")]
+    })
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    session.invalidateCandidates()
+    try await waitForRecommendations(session)
+    #expect(session.state == .failed)
+    #expect(session.recommendations.isEmpty)
+    #expect(session.loadingRecommendations.isEmpty)
+    if usingRetry { session.retry() }
+    else { session.update(title: "공", debounce: .zero) }
+    try await waitForRecommendations(session)
+    #expect(fetches == 3)
+    #expect(session.recommendations.map(\.title) == ["공장 최신 일정"])
+}
+
+@Test(arguments: [false, true], [false, true]) @MainActor
+func recommendationInvalidationKeepsDismissedOrAppliedPanelClosed(applied: Bool, invalidating: Bool) async throws {
+    var fetches = 0
+    let session = CalendarEventRecommendationSession(fetchEvents: {
+        fetches += 1
+        return [recommendationEvent()]
+    })
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    if applied {
+        let id = try #require(session.recommendations.first?.id)
+        _ = try #require(session.apply(id: id, to: recommendationDraft()))
+    } else {
+        session.dismissRecommendations()
+    }
+    if invalidating { session.invalidateCandidates() }
+    #expect(session.state == (applied ? .applied : .dismissed))
+    #expect(!session.isPresented)
+    #expect(session.recommendations.isEmpty)
+    #expect(session.loadingRecommendations.isEmpty)
+    #expect(fetches == 1)
+    if applied { #expect(session.lastApplication?.canUndo == true) }
+
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.state == .results)
+    #expect(fetches == (invalidating ? 2 : 1))
+}
+
+@Test @MainActor
+func recommendationContextRefreshesAfterCalendarSaveAndDelete() async throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    let event = recommendationEvent("공장 이전 일정")
+    try PersistenceCommandService.perform(in: context) { context.insert(event) }
+    let session = CalendarEventRecommendationSession(context: context)
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["공장 이전 일정"])
+
+    try PersistenceCommandService.perform(in: context) {
+        event.title = "공장 최신 일정"
+        event.updatedAt = event.updatedAt.addingTimeInterval(1)
+    }
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["공장 최신 일정"])
+    try PersistenceCommandService.perform(in: context) { context.delete(event) }
+    try await waitForRecommendations(session)
+    #expect(session.state == .empty)
+    #expect(session.recommendations.isEmpty)
+}
+
+@Test @MainActor
+func recommendationContextKeepsPoolForMemoSaveAndRefreshesSuccessfulImport() async throws {
+    let container = try PlanBaseContainerFactory.makeInMemory()
+    let context = container.mainContext
+    try PersistenceCommandService.perform(in: context) {
+        context.insert(recommendationEvent())
+    }
+    let session = CalendarEventRecommendationSession(context: context)
+    session.update(title: "공", debounce: .zero)
+    try await waitForRecommendations(session)
+
+    // A separate local context models imported data without opening CloudKit.
+    let importingContext = ModelContext(container)
+    importingContext.insert(recommendationEvent("병원 가져온 일정"))
+    try importingContext.save()
+    _ = try MemoService.save(memo: nil, content: "추천과 무관한 메모", in: context)
+    session.update(title: "병원", debounce: .zero)
+    try await waitForRecommendations(session)
+    #expect(session.state == .empty)
+
+    try CloudKitSyncService.reconcileIfNeeded(
+        after: CloudKitSyncEventSummary(kind: .export, isCompleted: true, succeeded: true), context: context)
+    #expect(session.state == .empty)
+    try CloudKitSyncService.reconcileIfNeeded(
+        after: CloudKitSyncEventSummary(kind: .import, isCompleted: true, succeeded: true), context: context)
+    try await waitForRecommendations(session)
+    #expect(session.recommendations.map(\.title) == ["병원 가져온 일정"])
 }

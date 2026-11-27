@@ -83,6 +83,14 @@ public struct CalendarEventRecommendation: Equatable, Identifiable, Sendable {
     }
 }
 
+/// An editor-local value snapshot. No SwiftData models are retained while typing.
+@available(watchOS 11, *)
+struct CalendarEventRecommendationCandidate: Sendable {
+    var normalizedTitle: String
+    var recommendation: CalendarEventRecommendation
+    var instanceSortKey: String
+}
+
 /// A local, one-step receipt. It never mutates the source event or persistent data.
 @available(watchOS 11, *)
 public struct CalendarEventRecommendationApplication: Equatable, Sendable {
@@ -197,50 +205,68 @@ public enum CalendarEventReuseRules {
     ) -> [CalendarEventRecommendation] {
         let normalizedQuery = normalizedTitle(title)
         guard !normalizedQuery.isEmpty, limit > 0 else { return [] }
+        return recommendations(
+            forNormalizedTitle: normalizedQuery,
+            fromCandidates: recommendationCandidates(from: events),
+            excludingEventID: excludingEventID,
+            limit: limit
+        )
+    }
 
-        func matchRank(_ event: CalendarEvent) -> Int? {
-            let candidate = normalizedTitle(event.title)
-            if candidate == normalizedQuery { return 0 }
-            if candidate.hasPrefix(normalizedQuery) { return 1 }
-            if normalizedQuery.count >= 2 && candidate.contains(normalizedQuery) { return 2 }
-            return nil
-        }
-        let representatives = activeRepresentatives(events)
-            .filter { $0.id != excludingEventID }
-            .compactMap { event in matchRank(event).map { (event: event, rank: $0) } }
-            .sorted { lhs, rhs in
-                if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
-                if lhs.event.updatedAt != rhs.event.updatedAt {
-                    return lhs.event.updatedAt > rhs.event.updatedAt
-                }
-                return lhs.event.instanceID.uuidString > rhs.event.instanceID.uuidString
+    static func recommendationCandidates(from events: [CalendarEvent]) -> [CalendarEventRecommendationCandidate] {
+        // Converge logical IDs before title matching, including renamed versions.
+        // Pre-sort once; each rank bucket below then keeps the same recency order.
+        activeRepresentatives(events).map { event in
+            let title = event.title
+            let instanceID = event.instanceID
+            return CalendarEventRecommendationCandidate(
+                normalizedTitle: normalizedTitle(title),
+                recommendation: CalendarEventRecommendation(
+                    eventID: event.id,
+                    instanceID: instanceID,
+                    title: title,
+                    includedDayCount: includedDayCount(from: event.startAt, through: event.endAt),
+                    note: normalizedOptionalText(event.note),
+                    color: effectiveColor(event.color),
+                    updatedAt: event.updatedAt
+                ),
+                instanceSortKey: instanceID.uuidString
+            )
+        }.sorted { lhs, rhs in
+            if lhs.recommendation.updatedAt != rhs.recommendation.updatedAt {
+                return lhs.recommendation.updatedAt > rhs.recommendation.updatedAt
             }
-            .map(\.event)
+            return lhs.instanceSortKey > rhs.instanceSortKey
+        }
+    }
+
+    static func recommendations(
+        forNormalizedTitle query: String,
+        fromCandidates candidates: [CalendarEventRecommendationCandidate],
+        excludingEventID: UUID? = nil,
+        limit: Int = recommendationLimit
+    ) -> [CalendarEventRecommendation] {
+        guard !query.isEmpty, limit > 0 else { return [] }
+        let allowsContains = query.count >= 2
+        var ranked: [[CalendarEventRecommendationCandidate]] = [[], [], []]
+        for candidate in candidates where candidate.recommendation.eventID != excludingEventID {
+            if candidate.normalizedTitle == query { ranked[0].append(candidate) }
+            else if candidate.normalizedTitle.hasPrefix(query) { ranked[1].append(candidate) }
+            else if allowsContains && candidate.normalizedTitle.contains(query) { ranked[2].append(candidate) }
+        }
 
         var seenSettings: Set<RecommendationSettingsKey> = []
         var result: [CalendarEventRecommendation] = []
-        for event in representatives {
-            let dayCount = includedDayCount(
-                from: event.startAt,
-                through: event.endAt
-            )
-            let normalizedNote = normalizedOptionalText(event.note)
+        for candidate in ranked.joined() {
+            let recommendation = candidate.recommendation
             let key = RecommendationSettingsKey(
-                title: normalizedTitle(event.title),
-                includedDayCount: dayCount,
-                note: normalizedNote,
-                color: effectiveColor(event.color)
+                title: candidate.normalizedTitle,
+                includedDayCount: recommendation.includedDayCount,
+                note: recommendation.note,
+                color: recommendation.color
             )
             guard seenSettings.insert(key).inserted else { continue }
-            result.append(CalendarEventRecommendation(
-                eventID: event.id,
-                instanceID: event.instanceID,
-                title: event.title,
-                includedDayCount: dayCount,
-                note: normalizedNote,
-                color: effectiveColor(event.color),
-                updatedAt: event.updatedAt
-            ))
+            result.append(recommendation)
             if result.count == limit {
                 break
             }

@@ -11,6 +11,8 @@
 |---|---|
 | 호환 변경 | [watchOS 10·SE 1세대 iPhone 연동 모드](WATCHOS.md): 구현·공통 테스트·전체 플랫폼 빌드 검증 완료. build 90 포함, 실제 SE 1 설치·iPhone 왕복은 확인 대기 |
 | 메모 개선 | 글 메모·체크리스트 중심 UI, 이전 필기 읽기 전용 보존, 입력·검색·진행률과 iPad 열 전환 개선(build 96). [구현·검증 기록](plans/completed/MEMO_TEXT_CHECKLIST_SIMPLIFICATION.md) |
+| 일정 추천 후속 구현 | 편집 세션의 최근 200개 값 snapshot·같은 정규화 검색 재사용, 일정 변경·성공 import 시 만료, 로딩 중 이전 카드 배치 유지와 적용 차단. [TestFlight 1.0 (97) 배포 준비](releases/TESTFLIGHT_BUILD_97.md) |
+| 일정 추천 후속 검증 | 2026-11-27 전체 게이트 exit 0: Debug 787통과·42skip / Release 782통과·10skip, iOS·macOS Debug/Release와 내장 Watch·위젯 검사. 추천 선택 테스트 24개, iPhone 3개·iPad 2개 UI 통과. 합성 230ms 간격 5회 입력에서 조회 5→1, 격리 Mac 공통 뷰의 갱신 전후 600×503pt 유지·이전 후보 AX 버튼 0개 확인. 실기기 입력 지연·프레임 개선 수치는 미측정 |
 | 최신 업로드 | iOS·iPadOS·내장 watchOS와 macOS [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md) |
 | build 96 배포 확인 | 2026-11-27 iOS 16:05:33·macOS 16:05:13 KST 업로드 성공·Apple 패키지 처리 시작. 양 플랫폼 TestFlight 업로드 목록에서 처리 중 확인. 처리 완료·그룹 연결·실기기 설치는 미확인 |
 | build 95 배포 확인 | 2026-11-11 iOS 13:40:10·macOS 13:40:25 KST 업로드 성공·Apple 패키지 처리 시작. 처리 완료·그룹 연결·실기기 설치는 미확인 |

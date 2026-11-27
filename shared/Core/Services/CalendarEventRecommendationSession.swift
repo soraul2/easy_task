@@ -12,6 +12,8 @@ public enum CalendarEventRecommendationState: Equatable, Sendable {
 @available(watchOS 11, *)
 public final class CalendarEventRecommendationSession {
     public private(set) var recommendations: [CalendarEventRecommendation] = []
+    /// Layout-only previous values while searching. They can never be applied.
+    public private(set) var loadingRecommendations: [CalendarEventRecommendation] = []
     public private(set) var state: CalendarEventRecommendationState = .idle
     public private(set) var selectedID: UUID?
     public private(set) var lastApplication: CalendarEventRecommendationApplication?
@@ -35,6 +37,14 @@ public final class CalendarEventRecommendationSession {
     @ObservationIgnored private var inputTitle = ""
     @ObservationIgnored private var resultQuery: String?
     @ObservationIgnored private var excludedEventID: UUID?
+    @ObservationIgnored private var candidateSnapshot: [CalendarEventRecommendationCandidate]?
+    @ObservationIgnored private var activeQuery: QueryKey?
+    @ObservationIgnored private var revision: PersistenceViewRevision?
+
+    private struct QueryKey: Equatable {
+        var title: String
+        var excludedEventID: UUID?
+    }
 
     public init(context: ModelContext) {
         #if DEBUG
@@ -51,6 +61,9 @@ public final class CalendarEventRecommendationSession {
         #else
         fetchEvents = { try context.fetch(BoundedQueryService.recentCalendarEventsDescriptor()) }
         #endif
+        revision = PersistenceViewRevision(context: context, domains: .calendar) { [weak self] in
+            self?.invalidateCandidates()
+        }
     }
 
     // Injection keeps failure and late-result tests independent of user storage.
@@ -66,30 +79,47 @@ public final class CalendarEventRecommendationSession {
         excludingEventID: UUID? = nil,
         debounce: Duration = .milliseconds(200)
     ) {
+        let query = CalendarEventReuseRules.normalizedTitle(title)
+        let key = QueryKey(title: query, excludedEventID: excludingEventID)
+        inputTitle = title
+        excludedEventID = excludingEventID
+        if activeQuery == key, state == .loading || state == .results || state == .empty {
+            return
+        }
+        let previous = state == .results ? recommendations : loadingRecommendations
         invalidateQuery()
         lastApplication = nil
         notice = nil
-        inputTitle = title
-        excludedEventID = excludingEventID
-        let query = CalendarEventReuseRules.normalizedTitle(title)
         guard !query.isEmpty else { state = .idle; return }
+        loadingRecommendations = previous
+        activeQuery = key
         state = .loading
         let request = generation
         pendingQuery = Swift.Task { [weak self] in
             do {
                 try await Swift.Task.sleep(for: debounce)
                 guard !Swift.Task.isCancelled, let self else { return }
-                let events = try await fetchEvents()
-                guard !Swift.Task.isCancelled, generation == request else { return }
+                let candidates: [CalendarEventRecommendationCandidate]
+                if let candidateSnapshot {
+                    candidates = candidateSnapshot
+                } else {
+                    let events = try await fetchEvents()
+                    // A late fetch must not populate even the private cache.
+                    guard !Swift.Task.isCancelled, generation == request else { return }
+                    candidates = CalendarEventReuseRules.recommendationCandidates(from: events)
+                    candidateSnapshot = candidates
+                }
                 recommendations = CalendarEventReuseRules.recommendations(
-                    for: title, from: events, excludingEventID: excludingEventID
+                    forNormalizedTitle: query, fromCandidates: candidates, excludingEventID: excludingEventID
                 )
+                loadingRecommendations = []
                 resultQuery = query
                 state = recommendations.isEmpty ? .empty : .results
             } catch is CancellationError {
                 // A new edit, dismissal or application owns the visible state.
             } catch {
                 guard !Swift.Task.isCancelled, let self, generation == request else { return }
+                loadingRecommendations = []
                 state = .failed
             }
         }
@@ -97,7 +127,20 @@ public final class CalendarEventRecommendationSession {
 
     public func retry() {
         guard state == .failed else { return }
+        candidateSnapshot = nil
         update(title: inputTitle, excludingEventID: excludedEventID)
+    }
+
+    /// Calendar saves/imports and day/time-zone changes expire prepared values.
+    /// A closed panel stays closed; applying a snapshot never changes the source.
+    func invalidateCandidates() {
+        candidateSnapshot = nil
+        activeQuery = nil
+        if state == .loading || state == .results || state == .empty {
+            update(title: inputTitle, excludingEventID: excludedEventID)
+        } else {
+            invalidateQuery()
+        }
     }
 
     public func dismissRecommendations() {
@@ -158,8 +201,10 @@ public final class CalendarEventRecommendationSession {
         pendingQuery?.cancel()
         generation += 1
         recommendations = []
+        loadingRecommendations = []
         selectedID = nil
         resultQuery = nil
+        activeQuery = nil
     }
 }
 

@@ -38,6 +38,12 @@ public struct CalendarEventRecommendationContent: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 8)
+                    if session.state == .loading, !session.loadingRecommendations.isEmpty {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel("최근 일정 갱신 중")
+                            .accessibilityIdentifier("event-recommendation-refreshing")
+                    }
                     Button { session.dismissRecommendations() } label: {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.semibold))
@@ -52,9 +58,13 @@ public struct CalendarEventRecommendationContent: View {
                 }
                 switch session.state {
                 case .loading:
-                    ProgressView("최근 일정을 찾고 있어요")
-                        .font(.caption)
-                        .controlSize(.small)
+                    if session.loadingRecommendations.isEmpty {
+                        ProgressView("최근 일정을 찾고 있어요")
+                            .font(.caption)
+                            .controlSize(.small)
+                    } else {
+                        loadingCandidates
+                    }
                 case .empty:
                     EmptyView()
                 case .failed:
@@ -96,29 +106,75 @@ public struct CalendarEventRecommendationContent: View {
             }
         }
         .foregroundStyle(AppTheme.primaryText)
-        .onChange(of: session.recommendations.map(\.id)) { expandedNoteID = nil }
+        .onChange(of: session.recommendations.map(\.id)) {
+            // Keep an expanded note's geometry while the previous cards are only a preview.
+            if session.state != .loading { expandedNoteID = nil }
+        }
+    }
+
+    private var loadingCandidates: some View {
+        Group {
+            ForEach(session.loadingRecommendations) { recommendation in
+                VStack(alignment: .leading, spacing: 4) {
+                    candidateSummary(recommendation, selected: false)
+                    if let note = recommendation.note {
+                        noteDisclosureLabel(for: recommendation.id)
+                        if expandedNoteID == recommendation.id {
+                            Text(note)
+                                .font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .id(recommendation.id)
+            }
+            #if os(macOS)
+            Text("추천을 새로 찾고 있어요")
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+            #endif
+        }
+        // Previous results preserve space only; none of their actions or AX targets remain.
+        .opacity(0.5)
+        .disabled(true)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func candidateSummary(
+        _ recommendation: CalendarEventRecommendation,
+        selected: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(recommendation.title)
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(recommendation.details)
+                .font(.caption).foregroundStyle(AppTheme.secondaryText)
+            Text(recommendation.note ?? "메모 없음")
+                .font(.caption).foregroundStyle(AppTheme.secondaryText)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+        .background(selected ? AppTheme.selectedTab : AppTheme.input,
+                    in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+    }
+
+    private func noteDisclosureLabel(for id: UUID) -> some View {
+        Text(expandedNoteID == id ? "메모 접기" : "메모 전문 보기")
+            .font(.caption)
+            .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
+            .contentShape(Rectangle())
     }
 
     private func candidate(_ recommendation: CalendarEventRecommendation) -> some View {
         let selected = session.selectedID == recommendation.id
         return VStack(alignment: .leading, spacing: 4) {
             Button { onApply(recommendation) } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(recommendation.title)
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(recommendation.details)
-                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
-                    Text(recommendation.note ?? "메모 없음")
-                        .font(.caption).foregroundStyle(AppTheme.secondaryText)
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
-                .background(selected ? AppTheme.selectedTab : AppTheme.input,
-                            in: RoundedRectangle(cornerRadius: 8))
-                .contentShape(Rectangle())
+                candidateSummary(recommendation, selected: selected)
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .ignore)
@@ -131,10 +187,7 @@ public struct CalendarEventRecommendationContent: View {
                 Button {
                     expandedNoteID = expandedNoteID == recommendation.id ? nil : recommendation.id
                 } label: {
-                    Text(expandedNoteID == recommendation.id ? "메모 접기" : "메모 전문 보기")
-                        .font(.caption)
-                        .frame(minHeight: PlanBaseControlMetrics.minimumTargetSize)
-                        .contentShape(Rectangle())
+                    noteDisclosureLabel(for: recommendation.id)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(recommendation.title) 메모 \(expandedNoteID == recommendation.id ? "접기" : "전문 보기")")
