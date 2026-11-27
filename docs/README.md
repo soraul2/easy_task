@@ -10,7 +10,7 @@
 | 항목 | 기준과 확인 범위 |
 |---|---|
 | 호환 변경 | [watchOS 10·SE 1세대 iPhone 연동 모드](WATCHOS.md): 구현·공통 테스트·전체 플랫폼 빌드 검증 완료. build 90 포함, 실제 SE 1 설치·iPhone 왕복은 확인 대기 |
-| 배포 준비 | 메모·체크리스트 중심 UI [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md): 서명 archive·업로드 준비 |
+| 배포 대기 | 메모·체크리스트 중심 UI [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md): 전체 게이트·Production 6번들 검증 통과, Apple 필수 계약 미완료로 양 플랫폼 업로드 차단 |
 | 최신 업로드 | iOS·iPadOS·내장 watchOS와 macOS [TestFlight 1.0 (95)](releases/TESTFLIGHT_BUILD_95.md) |
 | build 95 배포 확인 | 2026-11-11 iOS 13:40:10·macOS 13:40:25 KST 업로드 성공·Apple 패키지 처리 시작. 처리 완료·그룹 연결·실기기 설치는 미확인 |
 | build 93 배포 확인 | 2026-10-19 11:55:46 KST macOS 업로드 성공·Apple 패키지 처리 시작. 처리 완료·그룹 연결·실기기 설치는 미확인 |
@@ -19,6 +19,7 @@
 | build 90 배포 확인 | 2026-10-03 iOS 23:48:07·macOS 23:47:08 KST 업로드 성공·Apple 패키지 처리 시작. 설치 가능 상태·외부 테스트 심사·공개 출시는 확인 범위 밖 |
 | 데이터 계약 | `EasyTaskSchemaV11`, CloudKit V11 Production, 캘린더 위젯 snapshot v5, 백업 package V10 |
 | 최근 변경 | Mac·iPhone·iPad·분할 창의 일정 모달 배치와 CloudKit 가져오기 후 이미지 검사 결과 재사용(build 95). macOS 작업 입력 상태 분리(build 93), 잠금화면 화살표 인증 설정 수정(build 92), 기존 시작·조회·입력어·삭제·캘린더 링크 개선과 SE 1 호환 모드·[테마 12개](THEMES.md)는 유지 |
+| build 96 확인 | Debug 777통과·42skip / Release 772통과·10skip, 전체 게이트 exit 0. 고정 commit `f231ee8`·소스 525파일·양 플랫폼 signed archive 및 Production 6번들 검증. 업로드 시도는 두 플랫폼 exit 70(필수 계약 오류) |
 | build 95 확인 | 공통 Debug 771통과·42skip / Release 766통과·10skip, 전체 플랫폼 게이트 exit 0. Mac 실제 격리 화면·iPhone/iPad Simulator UI와 분할 창 확인. 두 플랫폼 서명 archive·Production 패키지 6번들 및 커밋 `5391aa7` 일치 검증 |
 | build 93 확인 | 관련 선택 테스트 23개·macOS Debug/Release 빌드·전체 플랫폼 게이트 exit 0. 서명된 Release archive·Production 패키지 2번들·커밋과 고정 소스 520개 일치 확인. 실제 한글 입력 체감 비교는 포커스 문제로 미완료 |
 | build 92 확인 | 공통 선택 6개·iOS 상태 13개·Simulator 카드 UI 1개 통과. Release archive·배포 패키지의 Production 4개 번들 검증. 고정 소스 519개, build 91 대비 기능 변경은 화살표 Intent 인증 정책 한 곳 |
@@ -112,7 +113,7 @@ CloudKit의 오프라인 충돌·재설치·재로그인·기기 간 왕복은 [
 
 | 기록 | 내용 |
 |---|---|
-| [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md) | 2026-11-27 메모·체크리스트 중심 정리, 배포 준비 |
+| [TestFlight 1.0 (96)](releases/TESTFLIGHT_BUILD_96.md) | 2026-11-27 메모·체크리스트 정리, 전체 게이트·패키지 검증 완료. Apple 필수 계약 미완료로 업로드 차단 |
 | [TestFlight 1.0 (95)](releases/TESTFLIGHT_BUILD_95.md) | 2026-11-11 일정 모달·이미지 검사 재사용. 전체 게이트·두 플랫폼 패키지 검증과 iOS·macOS 업로드 완료 |
 | [TestFlight 1.0 (93)](releases/TESTFLIGHT_BUILD_93.md) | 2026-10-19 macOS 작업 입력 상태 분리, 전체 게이트·배포 패키지 검증과 macOS 업로드 완료 |
 | [TestFlight 1.0 (92)](releases/TESTFLIGHT_BUILD_92.md) | 2026-10-14 잠금화면 화살표 인증 설정 수정, iOS·iPadOS·Watch 업로드 완료 |

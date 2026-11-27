@@ -22,8 +22,8 @@
 
 ## 검증
 
-- 공통 메모 및 관련 백업: Debug 36개, Release 35개 통과. 최종 패키지 전체 테스트는 Debug 819개, Release 782개 모두 통과.
-- `./scripts/verify-platform-builds.sh`: 통과. 패키지 Debug 817개/Release 780개, iOS/macOS Debug·Release 및 내장 Watch 앱·위젯 빌드·번들 검증을 포함한다. 이후 내부 draft 보존과 iOS 입력 배치를 보완한 최종 소스에서 패키지 전체 테스트와 iOS Debug UI·Release 빌드를 추가로 통과했다.
+- 공통 메모 및 관련 백업: Debug 36개, Release 35개 통과. 최종 패키지 전체 테스트는 Debug 777개 통과·42개 skip(총 819개), Release 772개 통과·10개 skip(총 782개).
+- `./scripts/verify-platform-builds.sh`: 최종 build 96 커밋 `f231ee8`에서 exit 0. 위 패키지 테스트와 iOS/macOS Debug·Release, 내장 Watch 앱·위젯 빌드·번들 검증을 포함한다. 최종 iPhone·iPad UI와 signed archive·Production 패키지도 별도로 확인했다.
 - iPhone: 생성 두 유형·빈 초안, 글/체크리스트 재실행, 이전 필기 읽기 전용·재실행·복합 수정 보존, 저장 실패 복구, 큰 글자, 빈 상태·검색 복구의 7개 검사 통과. 최종 소스에서 저장·완료·정렬·고정·검색·삭제·재실행 흐름을 다시 통과했다.
 - iPad: 회전 중 저장 실패 초안 보존과 빈 상태·검색 복구 통과. 최종 소스에서 복합 메모 글 수정 → 체크 항목 추가·입력·완료 → 열 접기/펼치기 → 이전 필기 보기 → 재열기·기존 내용 보존 검사를 통과했다.
 - iPad 편집기의 Lazy 행이 삽입·포커스 전환과 함께 사라지는 현상은 일반 VStack과 설치 후 포커스 적용으로 해소했다. 초기 결과 수집 지연은 실행을 종료한 뒤 상세 진단 수집을 끄고 재검증했다.
@@ -31,3 +31,5 @@
 - 화면과 로그는 `.local/memo-text-checklist-20261127/`에 보관한다. `.local/backups/`는 사용하거나 수정하지 않았다.
 
 기존 세 유형 생성 설계의 이력은 [메모 생성 유형 분리](MEMO_TYPE_CREATION_PLAN.md)에 보존한다.
+
+후속 TestFlight 배포는 [build 96 기록](../../releases/TESTFLIGHT_BUILD_96.md)을 따른다. 서명·패키지 검증은 완료했으나 Apple 필수 계약 미완료로 업로드가 차단됐다.
